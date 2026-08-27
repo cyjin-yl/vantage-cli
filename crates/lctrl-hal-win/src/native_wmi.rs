@@ -141,3 +141,34 @@ fn map_error(error: WMIError, context: &str) -> LctrlError {
         other => LctrlError::Io(io::Error::other(format!("{context}: {other}"))),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{from_variant, to_variant};
+    use crate::WmiValue;
+
+    #[test]
+    fn supported_values_round_trip_through_native_variants() {
+        let values = [
+            WmiValue::Empty,
+            WmiValue::Null,
+            WmiValue::String("value".into()),
+            WmiValue::I8(-1),
+            WmiValue::I16(-2),
+            WmiValue::I32(-3),
+            WmiValue::I64(-4),
+            WmiValue::U8(1),
+            WmiValue::U16(2),
+            WmiValue::U32(3),
+            WmiValue::U64(4),
+            WmiValue::F32(1.5),
+            WmiValue::F64(2.5),
+            WmiValue::Bool(true),
+            WmiValue::Array(vec![WmiValue::U8(1), WmiValue::U8(2)]),
+        ];
+
+        for value in values {
+            assert_eq!(from_variant(to_variant(&value)).unwrap(), value);
+        }
+    }
+}
