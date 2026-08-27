@@ -219,6 +219,7 @@ name = "lctrl-hal-win"
 version = "0.1.0"
 dependencies = [
  "lctrl-core",
+ "lctrl-hal",
  "parking_lot",
  "serde_json",
  "windows-sys",
