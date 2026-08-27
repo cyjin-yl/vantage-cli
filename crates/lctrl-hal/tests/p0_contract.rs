@@ -56,9 +56,18 @@ impl PowerControl for FakeP0 {
     fn power_schemes(&self) -> lctrl_core::Result<Vec<PowerScheme>> {
         Ok(vec![])
     }
+
     fn active_power_scheme(&self) -> lctrl_core::Result<PowerScheme> {
         unreachable!()
     }
+
+    fn power_value_range(
+        &self,
+        _key: &PowerSettingKey,
+    ) -> lctrl_core::Result<lctrl_core::PowerValueRange> {
+        unreachable!()
+    }
+
     fn apply_power_mutation(
         &self,
         _mutation: PowerMutation,

@@ -204,3 +204,17 @@ fn current_charge_mode_preserves_conflict() {
     let p0 = WindowsBatteryP0::new(FakeIoctl::new([]), FakeReader::new([3]));
     assert_eq!(p0.charge_mode().unwrap(), ChargeModeActual::Conflict);
 }
+
+#[test]
+fn unverified_readback_source_blocks_all_charge_mode_writes() {
+    let p0 = WindowsBatteryP0::new(
+        FakeIoctl::new([]),
+        lctrl_hal_win::UnverifiedChargeModeReader,
+    );
+
+    assert!(matches!(
+        p0.set_charge_mode(ChargeMode::Normal, ApplyMode::Commit),
+        Err(LctrlError::Unsupported { feature }) if feature == "battery.charge-mode.readback"
+    ));
+    assert!(p0.ioctl().calls.lock().is_empty());
+}

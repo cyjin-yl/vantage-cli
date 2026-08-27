@@ -10,9 +10,10 @@ use std::collections::BTreeMap;
 use clap::{Parser, Subcommand, ValueEnum};
 use lctrl_core::{
     ApplyMode, Availability, Capability, CapabilitySet, ChargeMode, HardwareInfo, LctrlError,
-    Platform,
+    Platform, PowerGuid, PowerMutation, PowerSchemeId, PowerSettingKey, PowerSettingValue,
+    PowerSource,
 };
-use lctrl_hal::{BatteryControl, Hal};
+use lctrl_hal::{BatteryControl, Hal, PerformanceControl, PowerControl};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -26,17 +27,36 @@ pub type CommandResult = lctrl_core::Result<CommandOutput>;
 pub struct CommandServices<'a> {
     hal: &'a dyn Hal,
     battery: Option<&'a dyn BatteryControl>,
+    performance: Option<&'a dyn PerformanceControl>,
+    power: Option<&'a dyn PowerControl>,
 }
 
 impl<'a> CommandServices<'a> {
     #[must_use]
     pub const fn new(hal: &'a dyn Hal) -> Self {
-        Self { hal, battery: None }
+        Self {
+            hal,
+            battery: None,
+            performance: None,
+            power: None,
+        }
     }
 
     #[must_use]
     pub fn with_battery(mut self, battery: &'a dyn BatteryControl) -> Self {
         self.battery = Some(battery);
+        self
+    }
+
+    #[must_use]
+    pub fn with_performance(mut self, performance: &'a dyn PerformanceControl) -> Self {
+        self.performance = Some(performance);
+        self
+    }
+
+    #[must_use]
+    pub fn with_power(mut self, power: &'a dyn PowerControl) -> Self {
+        self.power = Some(power);
         self
     }
 }
@@ -96,6 +116,9 @@ pub struct Cli {
     /// Emit machine-readable JSON instead of terminal-oriented text.
     #[arg(long, global = true)]
     pub json: bool,
+    /// Validate a mutating command and report the intended change without writing hardware.
+    #[arg(long, global = true)]
+    pub dry_run: bool,
 
     #[command(subcommand)]
     pub command: Command,
@@ -632,6 +655,11 @@ pub fn execute(cli: Cli, hal: &dyn Hal) -> CommandResult {
 
 /// Execute a parsed CLI command without terminating the process.
 pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> CommandResult {
+    let apply = if cli.dry_run {
+        ApplyMode::DryRun
+    } else {
+        ApplyMode::Commit
+    };
     match cli.command {
         Command::Info => execute_info(services.hal),
         Command::Battery {
@@ -642,7 +670,16 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
         } => execute_battery_adapter(services.battery),
         Command::Battery {
             command: Some(BatteryCommand::ChargeMode { mode }),
-        } => execute_charge_mode(services.battery, mode),
+        } => execute_charge_mode(services.battery, mode, apply),
+        Command::Power {
+            command:
+                Some(PowerCommand::Scheme {
+                    command: Some(scheme),
+                }),
+        } => execute_power_scheme(services.power, scheme, apply),
+        Command::Perf {
+            command: Some(PerfCommand::Mode { mode }),
+        } => execute_performance_mode(services.performance, mode, apply),
         command => Err(unsupported(command)),
     }
 }
@@ -686,7 +723,11 @@ fn execute_battery_adapter(battery: Option<&dyn BatteryControl>) -> CommandResul
     )
 }
 
-fn execute_charge_mode(battery: Option<&dyn BatteryControl>, mode: ChargeModeArg) -> CommandResult {
+fn execute_charge_mode(
+    battery: Option<&dyn BatteryControl>,
+    mode: ChargeModeArg,
+    apply: ApplyMode,
+) -> CommandResult {
     let battery = battery.ok_or_else(|| LctrlError::Unsupported {
         feature: "battery.charge-mode".into(),
     })?;
@@ -695,7 +736,7 @@ fn execute_charge_mode(battery: Option<&dyn BatteryControl>, mode: ChargeModeArg
         ChargeModeArg::Conservation => ChargeMode::Conservation,
         ChargeModeArg::Rapid => ChargeMode::Rapid,
     };
-    let report = battery.set_charge_mode(mode, ApplyMode::Commit)?;
+    let report = battery.set_charge_mode(mode, apply)?;
     structured_output(
         &report,
         format!(
@@ -704,6 +745,87 @@ fn execute_charge_mode(battery: Option<&dyn BatteryControl>, mode: ChargeModeArg
             report.requested()
         ),
     )
+}
+
+fn execute_performance_mode(
+    performance: Option<&dyn PerformanceControl>,
+    mode: PerfModeArg,
+    apply: ApplyMode,
+) -> CommandResult {
+    let performance = performance.ok_or_else(|| LctrlError::Unsupported {
+        feature: "perf.mode".into(),
+    })?;
+    let mode = match mode {
+        PerfModeArg::Auto => lctrl_core::PerformanceMode::Balanced,
+        PerfModeArg::Cool => lctrl_core::PerformanceMode::Quiet,
+        PerfModeArg::Performance => lctrl_core::PerformanceMode::Performance,
+        PerfModeArg::Geek => lctrl_core::PerformanceMode::Geek,
+    };
+    let report = performance.set_performance_mode(mode, apply)?;
+    structured_output(
+        &report,
+        format!(
+            "performance mode: {} -> {}\n",
+            report.previous(),
+            report.requested()
+        ),
+    )
+}
+
+fn execute_power_scheme(
+    power: Option<&dyn PowerControl>,
+    command: SchemeCommand,
+    apply: ApplyMode,
+) -> CommandResult {
+    let power = power.ok_or_else(|| LctrlError::Unsupported {
+        feature: "power.scheme".into(),
+    })?;
+    match command {
+        SchemeCommand::List => {
+            let schemes = power.power_schemes()?;
+            structured_output(&schemes, format!("{} power scheme(s)\n", schemes.len()))
+        }
+        SchemeCommand::Get { name } => {
+            let schemes = power.power_schemes()?;
+            let scheme = schemes
+                .into_iter()
+                .find(|scheme| {
+                    scheme.id.as_str() == name || scheme.name.eq_ignore_ascii_case(&name)
+                })
+                .ok_or_else(|| LctrlError::InvalidArgument {
+                    detail: format!("power scheme {name:?} is not enumerated"),
+                })?;
+            structured_output(&scheme, format!("power scheme: {}\n", scheme.name))
+        }
+        SchemeCommand::Apply { name } => {
+            let mutation = PowerMutation::Activate(PowerSchemeId::new(name)?);
+            let report = power.apply_power_mutation(mutation, apply)?;
+            structured_output(&report, "power scheme activation requested\n".into())
+        }
+        SchemeCommand::Set {
+            subgroup,
+            setting,
+            source,
+            value,
+        } => {
+            let key = PowerSettingKey {
+                subgroup: PowerGuid::new(subgroup)?,
+                setting: PowerGuid::new(setting)?,
+            };
+            let source = match source {
+                PowerSourceArg::Ac => PowerSource::Ac,
+                PowerSourceArg::Dc => PowerSource::Dc,
+            };
+            let range = power.power_value_range(&key)?;
+            let mutation = PowerMutation::SetValue {
+                key,
+                source,
+                value: PowerSettingValue::new(value, &range)?,
+            };
+            let report = power.apply_power_mutation(mutation, apply)?;
+            structured_output(&report, "power setting requested\n".into())
+        }
+    }
 }
 
 fn structured_output<T: Serialize>(value: &T, human: String) -> CommandResult {

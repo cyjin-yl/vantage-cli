@@ -3053,6 +3053,7 @@ dependencies = [
  "lctrl-core",
  "lctrl-hal",
  "lctrl-hal-linux",
+ "lctrl-hal-win",
 ]
 
 [[package]]
@@ -3062,6 +3063,7 @@ dependencies = [
  "clap",
  "lctrl-core",
  "lctrl-hal",
+ "parking_lot",
  "serde",
  "serde_json",
 ]
@@ -3083,6 +3085,8 @@ dependencies = [
  "idna_adapter",
  "lctrl-core",
  "lctrl-hal",
+ "lctrl-hal-linux",
+ "lctrl-hal-win",
 ]
 
 [[package]]
