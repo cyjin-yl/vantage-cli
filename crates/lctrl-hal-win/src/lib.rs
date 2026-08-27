@@ -9,6 +9,7 @@ mod native_performance;
 mod native_wmi;
 mod p0;
 mod performance_p0;
+mod power_p0;
 mod windows_hal;
 mod wmi_contract;
 
@@ -27,6 +28,7 @@ pub use native_performance::NativePerformanceRegistry;
 pub use native_wmi::NativeWmi;
 pub use p0::{ChargeModeReader, WindowsBatteryP0};
 pub use performance_p0::{PerformanceRegistryReader, WindowsPerformanceP0};
+pub use power_p0::{PowerApi, WindowsPowerP0};
 pub use windows_hal::WindowsHal;
 pub use wmi_contract::{
     WmiInstance, WmiMethodResult, WmiObject, WmiTransport, WmiValue, active_instance,
