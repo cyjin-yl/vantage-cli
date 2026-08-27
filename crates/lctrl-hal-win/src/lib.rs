@@ -1,5 +1,6 @@
 mod codec;
 mod error;
+mod wmi_contract;
 
 pub use codec::{
     AdapterDetail, BatteryDetail83, GbmdCommand, GenericGet, GenericSet, IOCTL_BATTERY_CONFIG,
@@ -7,3 +8,6 @@ pub use codec::{
     IOCTL_GENERIC_SET,
 };
 pub use error::{map_win_error, map_wmi_hresult};
+pub use wmi_contract::{
+    WmiInstance, WmiMethodResult, WmiObject, WmiTransport, WmiValue, active_instance,
+};
