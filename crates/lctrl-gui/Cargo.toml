@@ -1,0 +1,12 @@
+[package]
+name = "lctrl-gui"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+
+[dependencies]
+gpui = { version = "=0.2.2", default-features = true, features = ["wayland", "x11"] }
+lctrl-core = { path = "../lctrl-core" }
+lctrl-hal = { path = "../lctrl-hal" }
+idna_adapter = { version = "=1.2.0" }
