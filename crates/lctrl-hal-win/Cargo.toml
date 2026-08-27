@@ -7,11 +7,13 @@ publish = false
 
 [dependencies]
 lctrl-core = { path = "../lctrl-core" }
+lctrl-hal = { path = "../lctrl-hal" }
 
 [target.'cfg(windows)'.dependencies]
 wmi = "0.18"
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
+    "Win32_Security",
     "Win32_Storage_FileSystem",
     "Win32_System_IO",
     "Win32_System_Threading",
