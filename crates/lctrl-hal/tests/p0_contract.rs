@@ -63,8 +63,8 @@ impl PowerControl for FakeP0 {
         &self,
         _mutation: PowerMutation,
         _apply: ApplyMode,
-    ) -> lctrl_core::Result<()> {
-        Ok(())
+    ) -> lctrl_core::Result<ChangeReport<PowerMutation>> {
+        unreachable!()
     }
 }
 
