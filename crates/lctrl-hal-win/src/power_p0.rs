@@ -46,6 +46,9 @@ where
     fn power_schemes(&self) -> Result<Vec<PowerScheme>> {
         self.api.schemes()
     }
+    fn power_value_range(&self, key: &lctrl_core::PowerSettingKey) -> Result<PowerValueRange> {
+        self.api.range(key)
+    }
 
     fn active_power_scheme(&self) -> Result<PowerScheme> {
         self.api.active_scheme()

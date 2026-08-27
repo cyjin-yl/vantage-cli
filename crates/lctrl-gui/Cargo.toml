@@ -10,3 +10,10 @@ gpui = { version = "=0.2.2", default-features = true, features = ["wayland", "x1
 lctrl-core = { path = "../lctrl-core" }
 lctrl-hal = { path = "../lctrl-hal" }
 idna_adapter = { version = "=1.2.0" }
+
+
+[target.'cfg(target_os = "linux")'.dependencies]
+lctrl-hal-linux = { path = "../lctrl-hal-linux" }
+
+[target.'cfg(windows)'.dependencies]
+lctrl-hal-win = { path = "../lctrl-hal-win" }

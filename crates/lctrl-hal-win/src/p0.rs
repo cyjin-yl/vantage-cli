@@ -15,6 +15,20 @@ pub trait ChargeModeReader: Send + Sync {
     fn read_charge_mode_raw(&self) -> Result<u32>;
 }
 
+/// Explicitly denies charge-mode writes until a firmware readback transport is
+/// independently verified. This prevents a successful IOCTL from being
+/// mistaken for semantic success on the target machine.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct UnverifiedChargeModeReader;
+
+impl ChargeModeReader for UnverifiedChargeModeReader {
+    fn read_charge_mode_raw(&self) -> Result<u32> {
+        Err(LctrlError::Unsupported {
+            feature: "battery.charge-mode.readback".into(),
+        })
+    }
+}
+
 #[derive(Debug)]
 pub struct WindowsBatteryP0<I, R> {
     ioctl: I,

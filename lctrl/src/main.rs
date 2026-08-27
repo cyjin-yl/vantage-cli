@@ -20,7 +20,27 @@ fn main() {
     finish(execute_with_services(cli, services), json);
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(windows)]
+fn main() {
+    let cli = Cli::parse();
+    let json = cli.json;
+    let hal =
+        lctrl_hal_win::NativeWindowsHal::new(lctrl_hal_win::NativeWmi, lctrl_hal_win::NativeIoctl);
+    let battery = lctrl_hal_win::WindowsBatteryP0::new(
+        lctrl_hal_win::NativeIoctl,
+        lctrl_hal_win::UnverifiedChargeModeReader,
+    );
+    let performance =
+        lctrl_hal_win::WindowsPerformanceP0::new(lctrl_hal_win::NativePerformanceRegistry);
+    let power = lctrl_hal_win::WindowsPowerP0::new(lctrl_hal_win::NativePowerApi);
+    let services = lctrl_cli::CommandServices::new(&hal)
+        .with_battery(&battery)
+        .with_performance(&performance)
+        .with_power(&power);
+    finish(execute_with_services(cli, services), json);
+}
+
+#[cfg(not(any(target_os = "linux", windows)))]
 fn main() {
     use lctrl_core::{CapabilitySet, HardwareInfo, LctrlError, Platform};
     use lctrl_hal::Hal;

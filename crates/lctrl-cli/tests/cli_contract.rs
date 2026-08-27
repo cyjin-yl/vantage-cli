@@ -1,5 +1,7 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use parking_lot::Mutex;
+
 use lctrl_cli::{
     Cli, CommandResult, CommandServices, execute, execute_with_services, render_error,
 };
@@ -7,7 +9,7 @@ use lctrl_core::{
     AdapterInfo, ApplyMode, Availability, CapabilitySet, ChangeReport, ChargeMode,
     ChargeModeActual, HardwareInfo, LctrlError, Platform,
 };
-use lctrl_hal::{BatteryControl, Hal};
+use lctrl_hal::{BatteryControl, Hal, PerformanceControl, PowerControl};
 
 struct FakeHal {
     info_calls: AtomicUsize,
@@ -246,4 +248,115 @@ fn battery_adapter_stays_unsupported_without_service() {
         Err(LctrlError::Unsupported { feature }) if feature == "battery.adapter"
     ));
     assert_eq!(hal.info_calls.load(Ordering::SeqCst), 0);
+}
+
+struct FakePerformance {
+    modes: Mutex<Vec<(lctrl_core::PerformanceMode, ApplyMode)>>,
+}
+
+impl FakePerformance {
+    const fn new() -> Self {
+        Self {
+            modes: Mutex::new(Vec::new()),
+        }
+    }
+}
+
+impl PerformanceControl for FakePerformance {
+    fn performance_state(&self) -> lctrl_core::Result<lctrl_core::PerformanceState> {
+        unreachable!()
+    }
+
+    fn set_performance_mode(
+        &self,
+        mode: lctrl_core::PerformanceMode,
+        apply: ApplyMode,
+    ) -> lctrl_core::Result<ChangeReport<lctrl_core::PerformanceMode>> {
+        self.modes.lock().push((mode, apply));
+        Ok(ChangeReport::dry_run(mode, mode))
+    }
+}
+
+#[test]
+fn global_dry_run_reaches_performance_service_without_commit() {
+    let cli = Cli::try_parse_from(["lctrl", "--dry-run", "perf", "mode", "performance"]).unwrap();
+    let hal = FakeHal::new("unused");
+    let performance = FakePerformance::new();
+
+    let result = execute_with_services(
+        cli,
+        CommandServices::new(&hal).with_performance(&performance),
+    );
+
+    assert!(result.is_ok());
+    assert_eq!(
+        &*performance.modes.lock(),
+        &[(lctrl_core::PerformanceMode::Performance, ApplyMode::DryRun)]
+    );
+}
+
+struct FakePower {
+    range_calls: AtomicUsize,
+    mutation_calls: AtomicUsize,
+}
+
+impl FakePower {
+    const fn new() -> Self {
+        Self {
+            range_calls: AtomicUsize::new(0),
+            mutation_calls: AtomicUsize::new(0),
+        }
+    }
+}
+
+impl PowerControl for FakePower {
+    fn power_schemes(&self) -> lctrl_core::Result<Vec<lctrl_core::PowerScheme>> {
+        Ok(Vec::new())
+    }
+
+    fn active_power_scheme(&self) -> lctrl_core::Result<lctrl_core::PowerScheme> {
+        unreachable!()
+    }
+
+    fn power_value_range(
+        &self,
+        _key: &lctrl_core::PowerSettingKey,
+    ) -> lctrl_core::Result<lctrl_core::PowerValueRange> {
+        self.range_calls.fetch_add(1, Ordering::SeqCst);
+        lctrl_core::PowerValueRange::new(0, 100, 10)
+    }
+
+    fn apply_power_mutation(
+        &self,
+        mutation: lctrl_core::PowerMutation,
+        _apply: ApplyMode,
+    ) -> lctrl_core::Result<ChangeReport<lctrl_core::PowerMutation>> {
+        self.mutation_calls.fetch_add(1, Ordering::SeqCst);
+        Ok(ChangeReport::dry_run(mutation.clone(), mutation))
+    }
+}
+
+#[test]
+fn power_set_validates_service_range_before_dispatch() {
+    let cli = Cli::try_parse_from([
+        "lctrl",
+        "--dry-run",
+        "power",
+        "scheme",
+        "set",
+        "subgroup",
+        "setting",
+        "dc",
+        "50",
+    ])
+    .unwrap();
+    let hal = FakeHal::new("unused");
+    let power = FakePower::new();
+
+    let output = execute_with_services(cli, CommandServices::new(&hal).with_power(&power))
+        .expect("validated power dry-run");
+
+    assert_eq!(power.range_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(power.mutation_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(output.json["mode"], "dry_run");
 }
