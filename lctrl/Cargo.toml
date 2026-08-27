@@ -1,0 +1,12 @@
+[package]
+name = "lctrl"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+lctrl-cli = { path = "../crates/lctrl-cli" }
+lctrl-core = { path = "../crates/lctrl-core" }
+lctrl-hal = { path = "../crates/lctrl-hal" }

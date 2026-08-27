@@ -4,8 +4,11 @@ mod ioctl_contract;
 #[cfg(windows)]
 mod native_ioctl;
 #[cfg(windows)]
+mod native_performance;
+#[cfg(windows)]
 mod native_wmi;
 mod p0;
+mod performance_p0;
 mod windows_hal;
 mod wmi_contract;
 
@@ -19,8 +22,11 @@ pub use ioctl_contract::{EnergyDriver, IoctlTransport};
 #[cfg(windows)]
 pub use native_ioctl::NativeIoctl;
 #[cfg(windows)]
+pub use native_performance::NativePerformanceRegistry;
+#[cfg(windows)]
 pub use native_wmi::NativeWmi;
 pub use p0::{ChargeModeReader, WindowsBatteryP0};
+pub use performance_p0::{PerformanceRegistryReader, WindowsPerformanceP0};
 pub use windows_hal::WindowsHal;
 pub use wmi_contract::{
     WmiInstance, WmiMethodResult, WmiObject, WmiTransport, WmiValue, active_instance,
