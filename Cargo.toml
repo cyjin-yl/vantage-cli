@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/lctrl-core", "crates/lctrl-hal"]
+members = ["crates/lctrl-core", "crates/lctrl-hal", "crates/lctrl-hal-win"]
 resolver = "3"
 
 [workspace.package]
