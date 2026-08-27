@@ -18,6 +18,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "lctrl-hal"
+version = "0.1.0"
+dependencies = [
+ "lctrl-core",
+ "serde_json",
+]
+
+[[package]]
 name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
