@@ -499,3 +499,22 @@ fn persistent_privacy_dry_run_never_stages_or_saves() {
     assert_eq!(bios.saves.load(Ordering::SeqCst), 0);
     assert_eq!(output.json["mode"], "dry_run");
 }
+
+#[test]
+fn tuning_profiles_are_listed_and_planned_without_writes() {
+    let hal = FakeHal::new("unused");
+    let list = Cli::try_parse_from(["lctrl", "tune", "profile", "list"]).unwrap();
+    let output = execute(list, &hal).expect("built-in profiles list");
+    assert!(
+        output
+            .json
+            .as_array()
+            .is_some_and(|profiles| !profiles.is_empty())
+    );
+
+    let apply = Cli::try_parse_from(["lctrl", "--dry-run", "tune", "profile", "apply", "balanced"])
+        .unwrap();
+    let plan = execute(apply, &hal).expect("balanced dry-run plan");
+    assert_eq!(plan.json["profile"], "balanced");
+    assert_eq!(plan.json["mode"], "dry_run");
+}

@@ -3063,6 +3063,7 @@ dependencies = [
  "clap",
  "lctrl-core",
  "lctrl-hal",
+ "lctrl-tune",
  "parking_lot",
  "serde",
  "serde_json",

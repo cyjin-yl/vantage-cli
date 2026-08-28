@@ -9,12 +9,13 @@ use std::collections::BTreeMap;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use lctrl_core::{
-    ApplyMode, Availability, BiosChange, Capability, CapabilitySet, ChargeMode, HardwareInfo,
-    LctrlError, Platform, PowerGuid, PowerMutation, PowerSchemeId, PowerSettingKey,
+    ApplyMode, Availability, BiosChange, Capability, CapabilitySet, ChargeMode, DiagnosticKind,
+    HardwareInfo, LctrlError, Platform, PowerGuid, PowerMutation, PowerSchemeId, PowerSettingKey,
     PowerSettingValue, PowerSource,
 };
 use lctrl_hal::{
-    BatteryControl, BiosControl, Hal, KeyboardControl, PerformanceControl, PowerControl,
+    BatteryControl, BiosControl, DiagnosticsControl, Hal, KeyboardControl, MagicBayControl,
+    PerformanceControl, PowerControl, UpdateControl,
 };
 use serde::Serialize;
 use serde_json::Value;
@@ -30,9 +31,12 @@ pub struct CommandServices<'a> {
     hal: &'a dyn Hal,
     battery: Option<&'a dyn BatteryControl>,
     bios: Option<&'a dyn BiosControl>,
+    diagnostics: Option<&'a dyn DiagnosticsControl>,
     keyboard: Option<&'a dyn KeyboardControl>,
+    magicbay: Option<&'a dyn MagicBayControl>,
     performance: Option<&'a dyn PerformanceControl>,
     power: Option<&'a dyn PowerControl>,
+    update: Option<&'a dyn UpdateControl>,
 }
 
 impl<'a> CommandServices<'a> {
@@ -41,9 +45,12 @@ impl<'a> CommandServices<'a> {
             hal,
             battery: None,
             bios: None,
+            diagnostics: None,
             keyboard: None,
+            magicbay: None,
             performance: None,
             power: None,
+            update: None,
         }
     }
 
@@ -60,8 +67,20 @@ impl<'a> CommandServices<'a> {
     }
 
     #[must_use]
+    pub fn with_diagnostics(mut self, diagnostics: &'a dyn DiagnosticsControl) -> Self {
+        self.diagnostics = Some(diagnostics);
+        self
+    }
+
+    #[must_use]
     pub fn with_keyboard(mut self, keyboard: &'a dyn KeyboardControl) -> Self {
         self.keyboard = Some(keyboard);
+        self
+    }
+
+    #[must_use]
+    pub fn with_magicbay(mut self, magicbay: &'a dyn MagicBayControl) -> Self {
+        self.magicbay = Some(magicbay);
         self
     }
 
@@ -74,6 +93,12 @@ impl<'a> CommandServices<'a> {
     #[must_use]
     pub fn with_power(mut self, power: &'a dyn PowerControl) -> Self {
         self.power = Some(power);
+        self
+    }
+
+    #[must_use]
+    pub fn with_update(mut self, update: &'a dyn UpdateControl) -> Self {
+        self.update = Some(update);
         self
     }
 }
@@ -218,6 +243,14 @@ pub enum Command {
     Osd {
         #[command(subcommand)]
         command: Option<OsdCommand>,
+    },
+    Update {
+        #[command(subcommand)]
+        command: Option<UpdateCommand>,
+    },
+    Scan {
+        #[command(subcommand)]
+        command: Option<ScanCommand>,
     },
     Daemon {
         #[command(subcommand)]
@@ -582,6 +615,18 @@ pub enum LteCommand {
 }
 
 #[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
+pub enum UpdateCommand {
+    Check,
+    Install { package: String },
+}
+
+#[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
+pub enum ScanCommand {
+    List,
+    Run { items: Vec<String> },
+}
+
+#[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
 pub enum OsdCommand {
     Enable,
     Disable,
@@ -711,6 +756,21 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
         Command::Privacy {
             command: Some(command),
         } => execute_privacy(services.bios, command, apply, confirmed),
+        Command::Magicbay {
+            command: Some(MagicbayCommand::Detect),
+        } => execute_magicbay_detect(services.magicbay),
+        Command::Update {
+            command: Some(command),
+        } => execute_update(services.update, command),
+        Command::Scan {
+            command: Some(command),
+        } => execute_scan(services.diagnostics, command),
+        Command::Tune {
+            command:
+                Some(TuneCommand::Profile {
+                    command: Some(profile),
+                }),
+        } => execute_tune_profile(services.hal, profile, apply),
         command => Err(unsupported(command)),
     }
 }
@@ -856,6 +916,128 @@ fn execute_power_scheme(
             let report = power.apply_power_mutation(mutation, apply)?;
             structured_output(&report, "power setting requested\n".into())
         }
+    }
+}
+
+fn execute_magicbay_detect(magicbay: Option<&dyn MagicBayControl>) -> CommandResult {
+    let magicbay = magicbay.ok_or_else(|| LctrlError::Unsupported {
+        feature: "magicbay.detect".into(),
+    })?;
+    let devices = magicbay.detect_magicbay()?;
+    structured_output(
+        &devices,
+        format!("{} MagicBay device(s) detected\n", devices.len()),
+    )
+}
+
+fn execute_tune_profile(
+    hal: &dyn Hal,
+    command: ProfileCommand,
+    global_apply: ApplyMode,
+) -> CommandResult {
+    let catalog = lctrl_tune::ProfileCatalog::builtins()?;
+    match command {
+        ProfileCommand::List => {
+            let profiles: Vec<_> = catalog.ranked().into_iter().cloned().collect();
+            structured_output(
+                &profiles,
+                format!("{} built-in tuning profile(s)\n", profiles.len()),
+            )
+        }
+        ProfileCommand::Show { name } => {
+            let profile = catalog
+                .get(&name)
+                .ok_or_else(|| LctrlError::InvalidArgument {
+                    detail: format!("tuning profile {name:?} was not found"),
+                })?;
+            structured_output(profile, format!("tuning profile: {name}\n"))
+        }
+        ProfileCommand::Apply { name, dry_run } => {
+            let profile = catalog
+                .get(&name)
+                .ok_or_else(|| LctrlError::InvalidArgument {
+                    detail: format!("tuning profile {name:?} was not found"),
+                })?;
+            let mode = if dry_run || global_apply == ApplyMode::DryRun {
+                ApplyMode::DryRun
+            } else {
+                ApplyMode::Commit
+            };
+            let hardware = hal.hardware_info()?;
+            let capabilities = hal.capabilities()?;
+            let plan = lctrl_tune::Planner::compile(
+                profile,
+                hal.platform(),
+                &hardware,
+                &capabilities,
+                mode,
+            )?;
+            if mode == ApplyMode::Commit {
+                return Err(LctrlError::Unsupported {
+                    feature: "tune.profile.apply.executor".into(),
+                });
+            }
+            structured_output(&plan, format!("tuning plan for {name}\n"))
+        }
+    }
+}
+
+fn execute_update(update: Option<&dyn UpdateControl>, command: UpdateCommand) -> CommandResult {
+    let update = update.ok_or_else(|| LctrlError::Unsupported {
+        feature: "update".into(),
+    })?;
+    match command {
+        UpdateCommand::Check => {
+            let capability = update.update_capability()?;
+            structured_output(&capability, "update capability checked\n".into())
+        }
+        UpdateCommand::Install { .. } => Err(LctrlError::Unsupported {
+            feature: "update.install.without-authenticated-manifest".into(),
+        }),
+    }
+}
+
+fn execute_scan(
+    diagnostics: Option<&dyn DiagnosticsControl>,
+    command: ScanCommand,
+) -> CommandResult {
+    let diagnostics = diagnostics.ok_or_else(|| LctrlError::Unsupported {
+        feature: "scan".into(),
+    })?;
+    match command {
+        ScanCommand::List => {
+            let items = diagnostics.diagnostic_items()?;
+            structured_output(&items, format!("{} diagnostic item(s)\n", items.len()))
+        }
+        ScanCommand::Run { items } => {
+            let items = if items.is_empty() {
+                diagnostics.diagnostic_items()?
+            } else {
+                items
+                    .iter()
+                    .map(|item| parse_diagnostic_kind(item))
+                    .collect::<lctrl_core::Result<Vec<_>>>()?
+            };
+            let results = diagnostics.run_diagnostics(&items)?;
+            structured_output(
+                &results,
+                format!("{} diagnostic result(s)\n", results.len()),
+            )
+        }
+    }
+}
+
+fn parse_diagnostic_kind(value: &str) -> lctrl_core::Result<DiagnosticKind> {
+    match value.to_ascii_lowercase().as_str() {
+        "battery" => Ok(DiagnosticKind::Battery),
+        "thermal" => Ok(DiagnosticKind::Thermal),
+        "storage" => Ok(DiagnosticKind::Storage),
+        "memory" => Ok(DiagnosticKind::Memory),
+        "firmware" => Ok(DiagnosticKind::Firmware),
+        "network" | "wifi" => Ok(DiagnosticKind::Network),
+        _ => Err(LctrlError::InvalidArgument {
+            detail: format!("unknown diagnostic item {value:?}"),
+        }),
     }
 }
 
@@ -1206,6 +1388,10 @@ fn command_feature(command: &Command) -> String {
         Command::Magicbay { command } => {
             prefixed("magicbay", command.as_ref().map(MagicbayCommand::feature))
         }
+        Command::Update { command } => {
+            prefixed("update", command.as_ref().map(UpdateCommand::feature))
+        }
+        Command::Scan { command } => prefixed("scan", command.as_ref().map(ScanCommand::feature)),
         Command::Osd { command } => prefixed("osd", command.as_ref().map(OsdCommand::feature)),
         Command::Daemon { command } => {
             prefixed("daemon", command.as_ref().map(DaemonCommand::feature))
@@ -1349,6 +1535,24 @@ impl BiosCommand {
             Self::Discard => "discard",
             Self::Defaults => "defaults",
             Self::Password { .. } => "password",
+        }
+    }
+}
+
+impl UpdateCommand {
+    const fn feature(&self) -> &'static str {
+        match self {
+            Self::Check => "check",
+            Self::Install { .. } => "install",
+        }
+    }
+}
+
+impl ScanCommand {
+    const fn feature(&self) -> &'static str {
+        match self {
+            Self::List => "list",
+            Self::Run { .. } => "run",
         }
     }
 }

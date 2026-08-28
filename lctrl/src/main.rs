@@ -18,7 +18,10 @@ fn main() {
     let hal = lctrl_hal_linux::LinuxHal::new();
     let services = lctrl_cli::CommandServices::new(&hal)
         .with_battery(&hal)
-        .with_keyboard(&hal);
+        .with_diagnostics(&hal)
+        .with_keyboard(&hal)
+        .with_magicbay(&hal)
+        .with_update(&hal);
     finish(execute_with_services(cli, services), json);
 }
 
@@ -35,12 +38,14 @@ fn main() {
     let bios = lctrl_hal_win::WindowsBiosController::new(lctrl_hal_win::NativeWmi);
     let performance =
         lctrl_hal_win::WindowsPerformanceP0::new(lctrl_hal_win::NativePerformanceRegistry);
+    let magicbay = lctrl_hal_win::NativeMagicBay;
     let peripherals = lctrl_hal_win::WindowsPeripheralController::new(lctrl_hal_win::NativeWmi);
     let power = lctrl_hal_win::WindowsPowerP0::new(lctrl_hal_win::NativePowerApi);
     let services = lctrl_cli::CommandServices::new(&hal)
         .with_battery(&battery)
         .with_bios(&bios)
         .with_keyboard(&peripherals)
+        .with_magicbay(&magicbay)
         .with_performance(&performance)
         .with_power(&power);
     finish(execute_with_services(cli, services), json);

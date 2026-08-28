@@ -19,9 +19,13 @@ use std::path::{Path, PathBuf};
 use lctrl_core::{
     AdapterAuthentication, AdapterInfo, ApplyMode, Availability, BacklightState, BatteryTelemetry,
     CapabilitySet, ChangeReport, ChargeMode, ChargeModeActual, ChargePrimitive, ChargeStatus,
-    HardwareInfo, LctrlError, LightingEffect, Platform, Result, plan_charge_mode,
+    DiagnosticKind, DiagnosticOutcome, DiagnosticResult, HardwareInfo, LctrlError, LightingEffect,
+    MagicBayDevice, MagicBayKind, Platform, Result, UpdateCapability, identify_magicbay,
+    plan_charge_mode,
 };
-use lctrl_hal::{BatteryControl, Hal, KeyboardControl};
+use lctrl_hal::{
+    BatteryControl, DiagnosticsControl, Hal, KeyboardControl, MagicBayControl, UpdateControl,
+};
 
 const SYSFS_ROOT: &str = "sys";
 const DMI_ROOT: &str = "sys/class/dmi/id";
@@ -39,6 +43,8 @@ const KBD_BACKLIGHT_LEDS: [&str; 3] = [
 const TOUCHPAD: &str = "sys/devices/platform/ideapad/touchpad";
 const CAMERA_POWER: &str = "sys/devices/platform/ideapad/camera_power";
 const DRM_ROOT: &str = "sys/class/drm";
+const USB_DEVICES_ROOT: &str = "sys/bus/usb/devices";
+const ACPI_DEVICES_ROOT: &str = "sys/bus/acpi/devices";
 const RAPL_ROOTS: [&str; 4] = [
     "sys/class/powercap/intel-rapl/intel-rapl:0",
     "sys/class/powercap/intel-rapl:0",
@@ -673,6 +679,150 @@ impl KeyboardControl for LinuxHal {
             });
         }
         Ok(ChangeReport::committed(previous, requested, actual))
+    }
+}
+
+impl MagicBayControl for LinuxHal {
+    fn detect_magicbay(&self) -> Result<Vec<MagicBayDevice>> {
+        let mut devices = Vec::new();
+        let usb_root = self.path(USB_DEVICES_ROOT);
+        match fs::read_dir(&usb_root) {
+            Ok(entries) => {
+                for entry in entries {
+                    let entry = entry.map_err(map_io_error)?;
+                    let path = entry.path();
+                    let Some(vid) = read_hex_u16(path.join("idVendor"))? else {
+                        continue;
+                    };
+                    if vid != lctrl_core::MAGICBAY_VENDOR_ID {
+                        continue;
+                    }
+                    let Some(pid) = read_hex_u16(path.join("idProduct"))? else {
+                        continue;
+                    };
+                    let kind = identify_magicbay(vid, pid)
+                        .map_or(MagicBayKind::Unknown, |known| known.kind);
+                    let interfaces = if pid == 0x7005 {
+                        vec!["mbim".into()]
+                    } else {
+                        Vec::new()
+                    };
+                    devices.push(MagicBayDevice {
+                        path: path.display().to_string(),
+                        bus: "usb".into(),
+                        vid: Some(vid),
+                        pid: Some(pid),
+                        kind,
+                        interfaces,
+                        attached: true,
+                    });
+                }
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(map_io_error(error)),
+        }
+
+        let acpi_root = self.path(ACPI_DEVICES_ROOT);
+        match fs::read_dir(&acpi_root) {
+            Ok(entries) => {
+                for entry in entries {
+                    let entry = entry.map_err(map_io_error)?;
+                    let name = entry.file_name();
+                    let name = name.to_string_lossy();
+                    if !name.starts_with("QCOM2488") && !name.starts_with("QCOM24B7") {
+                        continue;
+                    }
+                    devices.push(MagicBayDevice {
+                        path: entry.path().display().to_string(),
+                        bus: "acpi".into(),
+                        vid: None,
+                        pid: None,
+                        kind: MagicBayKind::Hud,
+                        interfaces: vec!["display".into()],
+                        attached: true,
+                    });
+                }
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(map_io_error(error)),
+        }
+
+        devices.sort_by(|left, right| left.path.cmp(&right.path));
+        Ok(devices)
+    }
+}
+
+fn read_hex_u16(path: PathBuf) -> Result<Option<u16>> {
+    let value = match fs::read_to_string(path) {
+        Ok(value) => value,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(map_io_error(error)),
+    };
+    u16::from_str_radix(value.trim(), 16)
+        .map(Some)
+        .map_err(|_| malformed("USB hexadecimal identifier", &value))
+}
+
+impl DiagnosticsControl for LinuxHal {
+    fn diagnostic_items(&self) -> Result<Vec<DiagnosticKind>> {
+        Ok(vec![
+            DiagnosticKind::Battery,
+            DiagnosticKind::Thermal,
+            DiagnosticKind::Storage,
+            DiagnosticKind::Memory,
+            DiagnosticKind::Firmware,
+            DiagnosticKind::Network,
+        ])
+    }
+
+    fn run_diagnostics(&self, items: &[DiagnosticKind]) -> Result<Vec<DiagnosticResult>> {
+        items
+            .iter()
+            .copied()
+            .map(|kind| {
+                let (path, label) = match kind {
+                    DiagnosticKind::Battery => (
+                        PathBuf::from(POWER_SUPPLY_ROOT).join(BATTERY_NAME),
+                        "battery power_supply",
+                    ),
+                    DiagnosticKind::Thermal => {
+                        (PathBuf::from("sys/class/thermal"), "thermal sysfs")
+                    }
+                    DiagnosticKind::Storage => {
+                        (PathBuf::from("sys/block"), "block device inventory")
+                    }
+                    DiagnosticKind::Memory => {
+                        (PathBuf::from("proc/meminfo"), "kernel memory inventory")
+                    }
+                    DiagnosticKind::Firmware => (PathBuf::from(DMI_ROOT), "DMI firmware inventory"),
+                    DiagnosticKind::Network => {
+                        (PathBuf::from("sys/class/net"), "network inventory")
+                    }
+                };
+                let available = self.node_exists(&path)?;
+                Ok(DiagnosticResult {
+                    kind,
+                    outcome: if available {
+                        DiagnosticOutcome::Warning
+                    } else {
+                        DiagnosticOutcome::Unavailable
+                    },
+                    detail: if available {
+                        format!("{label} is available; deep vendor-driver diagnostics are excluded")
+                    } else {
+                        format!("{label} is unavailable")
+                    },
+                })
+            })
+            .collect()
+    }
+}
+
+impl UpdateControl for LinuxHal {
+    fn update_capability(&self) -> Result<UpdateCapability> {
+        Ok(UpdateCapability::Unavailable {
+            reason: "no authenticated public update catalog/manifest contract is specified; firmware flashing and private MCP packages are excluded".into(),
+        })
     }
 }
 
