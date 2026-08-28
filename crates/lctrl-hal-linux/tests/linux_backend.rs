@@ -6,9 +6,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use lctrl_core::{
     AdapterAuthentication, ApplyMode, Availability, ChargeMode, ChargeModeActual, ChargeStatus,
-    LctrlError, Platform,
+    LctrlError, LightingEffect, Platform,
 };
-use lctrl_hal::{BatteryControl, Hal};
+use lctrl_hal::{BatteryControl, Hal, KeyboardControl};
 use lctrl_hal_linux::LinuxHal;
 
 static NEXT_TREE: AtomicU64 = AtomicU64::new(0);
@@ -466,5 +466,45 @@ fn charge_mode_preserves_unknown_sysfs_combinations_without_writing() {
     assert_eq!(
         fs::read_to_string(tree.path("sys/devices/platform/ideapad/conservation_mode")).unwrap(),
         "2\n"
+    );
+}
+
+#[test]
+fn keyboard_backlight_dry_run_and_commit_use_discovered_max() {
+    let tree = TempTree::new();
+    tree.write("sys/devices/platform/ideapad/kbd_backlight", "1\n");
+    tree.write("sys/devices/platform/ideapad/kbd_backlight_max", "3\n");
+    let hal = tree.hal();
+
+    let dry_run = hal
+        .set_backlight(2, LightingEffect::Static, ApplyMode::DryRun)
+        .unwrap();
+    assert_eq!(dry_run.previous().level, 1);
+    assert_eq!(dry_run.requested().max_level, 3);
+    assert_eq!(
+        fs::read_to_string(tree.path("sys/devices/platform/ideapad/kbd_backlight")).unwrap(),
+        "1\n"
+    );
+
+    let committed = hal
+        .set_backlight(2, LightingEffect::Static, ApplyMode::Commit)
+        .unwrap();
+    assert_eq!(committed.actual().unwrap().level, 2);
+}
+
+#[test]
+fn keyboard_backlight_rejects_unsupported_effect_before_write() {
+    let tree = TempTree::new();
+    tree.write("sys/devices/platform/ideapad/kbd_backlight", "1\n");
+    tree.write("sys/devices/platform/ideapad/kbd_backlight_max", "3\n");
+
+    assert!(matches!(
+        tree.hal()
+            .set_backlight(2, LightingEffect::Breathing, ApplyMode::Commit),
+        Err(LctrlError::Unsupported { .. })
+    ));
+    assert_eq!(
+        fs::read_to_string(tree.path("sys/devices/platform/ideapad/kbd_backlight")).unwrap(),
+        "1\n"
     );
 }

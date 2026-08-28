@@ -1,3 +1,4 @@
+mod bios;
 mod codec;
 mod error;
 mod ioctl_contract;
@@ -11,10 +12,12 @@ mod native_power;
 mod native_wmi;
 mod p0;
 mod performance_p0;
+mod peripherals;
 mod power_p0;
 mod windows_hal;
 mod wmi_contract;
 
+pub use bios::WindowsBiosController;
 pub use codec::{
     AdapterDetail, BatteryDetail83, GbmdCommand, GenericGet, GenericSet, IOCTL_BATTERY_CONFIG,
     IOCTL_BATTERY_DETAIL, IOCTL_GAPD, IOCTL_GBMD, IOCTL_GENERIC_GET, IOCTL_GENERIC_GET_VARIANT,
@@ -32,6 +35,7 @@ pub use native_power::NativePowerApi;
 pub use native_wmi::NativeWmi;
 pub use p0::{ChargeModeReader, UnverifiedChargeModeReader, WindowsBatteryP0};
 pub use performance_p0::{PerformanceRegistryReader, WindowsPerformanceP0};
+pub use peripherals::WindowsPeripheralController;
 pub use power_p0::{PowerApi, WindowsPowerP0};
 pub use windows_hal::WindowsHal;
 pub use wmi_contract::{
