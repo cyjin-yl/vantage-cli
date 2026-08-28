@@ -275,7 +275,7 @@ impl BatteryTelemetry {
         // target offsets here; never infer dates or percentages from tail bytes.
         let status = scalar(u16_at(0x0a)).map(ChargeStatus::decode);
         let temperature = scalar(u16_at(0x0e));
-        let current_ma = scalar(u16_at(0x10)).map(i32::from);
+        let current_ma = signed_scalar(u16_at(0x10));
         let voltage_mv = scalar(u16_at(0x14));
 
         Ok(Self {
@@ -368,6 +368,11 @@ fn mwh(raw: u16) -> Option<u32> {
 /// Keep a scalar u16 unless `0xFFFF` marks it unsupported.
 fn scalar(raw: u16) -> Option<u16> {
     (raw != u16::MAX).then_some(raw)
+}
+
+/// Decode the target's signed 16-bit current field; `0xFFFF` is unsupported.
+fn signed_scalar(raw: u16) -> Option<i32> {
+    (raw != u16::MAX).then_some(i32::from(i16::from_le_bytes(raw.to_le_bytes())))
 }
 
 /// Adapter type from the GBMD status word bits 15..16 (docs/02 §3.2, §8).

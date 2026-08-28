@@ -109,6 +109,9 @@ pub fn coalesce_magicbay_devices(mut devices: Vec<MagicBayDevice>) -> Vec<MagicB
 }
 
 fn merge_usb_interfaces(existing: &mut MagicBayDevice, candidate: &MagicBayDevice) {
+    if is_usb_interface_instance(&existing.path) && !is_usb_interface_instance(&candidate.path) {
+        existing.path = candidate.path.clone();
+    }
     for interface in &candidate.interfaces {
         if !existing.interfaces.contains(interface) {
             existing.interfaces.push(interface.clone());

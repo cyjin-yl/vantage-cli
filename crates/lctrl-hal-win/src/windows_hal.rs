@@ -87,6 +87,24 @@ where
             }
         };
 
+        let battery_detail_error = if energy_available {
+            match EnergyDriver::new(&self.ioctl).battery_detail(0) {
+                Ok(_) => None,
+                Err(error) => Some(error.to_string()),
+            }
+        } else {
+            Some("EnergyDrv is unavailable for battery telemetry".into())
+        };
+        let battery_telemetry_available = battery_detail_error.is_none();
+        let inventory_error = match self
+            .wmi
+            .query(ROOT_CIMV2, "SELECT Model FROM Win32_ComputerSystem")
+        {
+            Ok(objects) if !objects.is_empty() => None,
+            Ok(_) => Some("Win32_ComputerSystem returned no inventory records".into()),
+            Err(error) => Some(error.to_string()),
+        };
+
         capabilities.record(
             "battery.thresholds",
             Availability::Unavailable,
@@ -115,16 +133,27 @@ where
                 )?;
             }
         }
-        let battery_availability = if energy_available {
-            Availability::Available
-        } else {
-            Availability::Unavailable
-        };
-        let battery_detail =
-            (!energy_available).then(|| "EnergyDrv is unavailable for battery telemetry".into());
-        for feature in ["battery.info", "battery.status", "battery.adapter"] {
-            capabilities.record(feature, battery_availability, battery_detail.clone())?;
+        let telemetry_detail = battery_detail_error.clone();
+        for feature in ["battery.info", "battery.status"] {
+            capabilities.record(
+                feature,
+                if battery_telemetry_available {
+                    Availability::Available
+                } else {
+                    Availability::Unavailable
+                },
+                telemetry_detail.clone(),
+            )?;
         }
+        capabilities.record(
+            "battery.adapter",
+            if energy_available {
+                Availability::Available
+            } else {
+                Availability::Unavailable
+            },
+            (!energy_available).then(|| "EnergyDrv is unavailable for adapter telemetry".into()),
+        )?;
         capabilities.record(
             "battery.charge_mode",
             Availability::Unavailable,
@@ -132,12 +161,12 @@ where
         )?;
         capabilities.record(
             "diagnostics.inventory",
-            if wmi_available {
+            if inventory_error.is_none() {
                 Availability::Available
             } else {
                 Availability::Unavailable
             },
-            (!wmi_available).then(|| "root WMI inventory channel is unavailable".into()),
+            inventory_error,
         )?;
         capabilities.record(
             "magicbay.inventory",
@@ -175,8 +204,8 @@ where
         )?;
         capabilities.record(
             "power.scheme",
-            Availability::Available,
-            Some("Windows Power API service is attached by the composition root".into()),
+            Availability::Limited,
+            Some("Power API readiness is probed by the power service at command time".into()),
         )?;
         for (feature, detail) in [
             (

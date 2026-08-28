@@ -51,6 +51,18 @@ vantage bios list --json
 
 The optional daemon uses a per-user Unix socket at `$XDG_RUNTIME_DIR/vantage.sock` (fallback `/run/vantage.sock`) or the Windows named pipe `\\.\pipe\vantage.sock`. Override those endpoints with `VANTAGE_SOCKET` or `VANTAGE_PIPE`.
 
+## Verified Windows boundary
+
+On the documented 21VG Windows baseline, the following channels remain deliberately unavailable or limited until a safe, independently verified contract exists:
+
+- arbitrary battery-threshold writes and charge-mode readback;
+- Windows MSR/RAPL power-limit writes, including PL1, PL2, and tau;
+- GameZone performance, fan, and temperature method families;
+- panel refresh-rate mutation and persistent privacy writes;
+- MagicBay inventory association is limited to the separate SetupAPI service path.
+
+These states are reported by `vantage info`; they are not silently replaced with guessed IOCTLs, registry writes, or synthetic success.
+
 ## Configuration
 
 Profile and state locations use the `vantage` identity:
@@ -84,23 +96,23 @@ Small focused pull requests are preferred. Keep platform-specific code in its HA
 Paste the following prompt into a fresh coding-agent session when delegating a change:
 
 ```text
-You are contributing to vantage-cli, a Rust workspace for cross-platform Lenovo hardware control.
+You are contributing to vantage-cli, a Rust 2024 workspace for cross-platform Lenovo hardware control. The toolchain baseline is Rust 1.85 or newer.
 
-Goal: <one observable behavior>
-
+Goal: <one observable behavior>. Name the command or channel, relevant specification section, and acceptance evidence.
 Repository rules:
-- Read HANDOFF.md and the relevant docs/<section>.md before editing.
+- Read HANDOFF.md and the relevant feature-specific document under docs/ before editing.
 - Stay within the clean-room boundary: use repository specifications, recorded read-only evidence, and public APIs only. Never inspect vendor binaries.
 - Reuse existing traits, error variants, capability IDs, and readback helpers. Do not add a parallel abstraction.
 - Every mutating path must support --dry-run, capture the previous value, perform bounded readback, and restore the previous value on a failed transition when the channel permits it.
 - Report unverified or unavailable channels honestly; do not turn a probe into a fake successful write.
 - Keep Windows and Linux implementations isolated in their existing HAL crates.
-- Preserve the public command names: vantage, vantaged, and vantage-gui.
+- Do not promote a capability from `limited` or `unavailable` to `available` without target-machine smoke evidence and verified readback; compilation is not hardware support evidence.
 
 Before implementation:
 1. Trace all callers and existing tests for the affected symbol or command.
-2. State the contract, edge cases, and expected error semantics.
-3. Write a focused failing test for each new observable behavior and run it to confirm RED.
+2. Read `docs/00-cleanroom-charter.md`, `docs/08-architecture.md`, and `docs/B-evidence.md`, plus the subsystem specification named by the Goal.
+3. State the contract, edge cases, and expected error semantics.
+4. Write a focused failing test for each new observable behavior and run it to confirm RED.
 
 Implementation:
 1. Make the smallest production change that satisfies the failing test.
@@ -109,9 +121,9 @@ Implementation:
 
 Verification:
 1. Run the focused test and confirm GREEN.
-2. Run cargo fmt --all.
-3. Run cargo check --workspace --all-targets and the relevant platform-target check when available.
-4. Run cargo test --workspace and cargo clippy --workspace --all-targets -- -D warnings unless the task explicitly narrows validation.
+2. Run `cargo fmt --all -- --check`.
+3. Run `cargo check --workspace --all-targets` and, when cross-compiling, the relevant target check (for example `--target x86_64-pc-windows-msvc`). Otherwise run the platform-specific check on its native host.
+4. Run `cargo test --workspace` and `cargo clippy --workspace --all-targets -- -D warnings` unless the task explicitly narrows validation.
 5. Report exact commands and outcomes, plus any platform-only check that could not run.
 
 Return:
