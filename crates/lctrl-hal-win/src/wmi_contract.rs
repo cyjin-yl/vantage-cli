@@ -59,24 +59,13 @@ impl WmiInstance {
 pub fn active_instance(transport: &dyn WmiTransport, class: &str) -> Result<WmiInstance> {
     validate_class_identifier(class)?;
     let query = format!("SELECT __Path, Active, InstanceName FROM {class} WHERE Active = TRUE");
-    let mut objects = transport.query(ROOT_WMI, &query)?;
-    match objects.len() {
-        0 => {
-            return Err(LctrlError::Unsupported {
-                feature: format!("wmi.class.{class}"),
-            });
-        }
-        1 => {}
-        count => {
-            return Err(LctrlError::ChannelUnavailable {
-                channel: format!(
-                    "{ROOT_WMI} class {class} returned {count} active instances; expected one"
-                ),
-            });
-        }
-    }
-
-    let object = objects.pop().expect("length checked above");
+    let objects = transport.query(ROOT_WMI, &query)?;
+    let object = objects
+        .into_iter()
+        .next()
+        .ok_or_else(|| LctrlError::Unsupported {
+            feature: format!("wmi.class.{class}"),
+        })?;
     if let Some(WmiValue::Bool(false)) = object.get("Active") {
         return Err(LctrlError::ChannelUnavailable {
             channel: format!("{ROOT_WMI} class {class} returned an inactive instance"),

@@ -1,7 +1,7 @@
 /target/
 **/target/
 /crates/*/Cargo.lock
-/lctrl/Cargo.lock
+/vantage/Cargo.lock
 /.worktrees/
 /.superpowers/
 **/*.rs.bk

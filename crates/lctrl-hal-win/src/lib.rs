@@ -1,5 +1,7 @@
 mod bios;
 mod codec;
+mod conflict;
+mod diagnostics;
 mod error;
 mod ioctl_contract;
 mod magicbay;
@@ -20,15 +22,16 @@ mod wmi_contract;
 
 pub use bios::WindowsBiosController;
 pub use codec::{
-    AdapterDetail, BatteryDetail83, GbmdCommand, GenericGet, GenericSet, IOCTL_BATTERY_CONFIG,
+    AdapterDetail, BatteryDetail83, GbmdCommand, GenericGet, IOCTL_BATTERY_CONFIG,
     IOCTL_BATTERY_DETAIL, IOCTL_GAPD, IOCTL_GBMD, IOCTL_GENERIC_GET, IOCTL_GENERIC_GET_VARIANT,
-    IOCTL_GENERIC_SET,
 };
+pub use conflict::WindowsControlConflictDetector;
+pub use diagnostics::WindowsSystemInventory;
 pub use error::{map_win_error, map_wmi_hresult};
 pub use ioctl_contract::{EnergyDriver, IoctlTransport};
 #[cfg(windows)]
 pub use magicbay::NativeMagicBay;
-pub use magicbay::parse_magicbay_instance_id;
+pub use magicbay::{coalesce_magicbay_devices, parse_magicbay_instance_id};
 #[cfg(windows)]
 pub use native_ioctl::NativeIoctl;
 #[cfg(windows)]

@@ -1,13 +1,11 @@
 use lctrl_core::LctrlError;
 use lctrl_hal_win::{
-    AdapterDetail, BatteryDetail83, GbmdCommand, GenericGet, GenericSet, IOCTL_BATTERY_CONFIG,
+    AdapterDetail, BatteryDetail83, GbmdCommand, GenericGet, IOCTL_BATTERY_CONFIG,
     IOCTL_BATTERY_DETAIL, IOCTL_GAPD, IOCTL_GBMD, IOCTL_GENERIC_GET, IOCTL_GENERIC_GET_VARIANT,
-    IOCTL_GENERIC_SET,
 };
 
 #[test]
 fn ioctl_constants_match_verified_literal_codes() {
-    assert_eq!(IOCTL_GENERIC_SET, 0x8310_20c0);
     assert_eq!(IOCTL_GENERIC_GET, 0x8310_20c4);
     assert_eq!(IOCTL_GENERIC_GET_VARIANT, 0x8310_20e8);
     assert_eq!(IOCTL_GBMD, 0x8310_20f8);
@@ -20,8 +18,6 @@ fn ioctl_constants_match_verified_literal_codes() {
 fn gbmd_commands_encode_as_exactly_one_byte() {
     let cases = [
         (GbmdCommand::STATUS, 0xff),
-        (GbmdCommand::CONSERVATION_ON_GEN1, 0x03),
-        (GbmdCommand::CONSERVATION_OFF_GEN1, 0x05),
         (GbmdCommand::CONSERVATION_ON_GEN2, 0x0d),
         (GbmdCommand::CONSERVATION_OFF_GEN2, 0x0f),
         (GbmdCommand::RAPID_ON, 0x07),
@@ -57,18 +53,6 @@ fn generic_get_encodes_command_and_decodes_status() {
 
     assert_eq!(get.encode(), [14, 0, 0, 0]);
     assert_eq!(GenericGet::decode(&[0x10, 0, 0, 0]).unwrap(), 0x10);
-}
-
-#[test]
-fn generic_set_encodes_three_little_endian_dwords() {
-    let set = GenericSet::new(6, 1, 0x1234_5678);
-
-    assert_eq!(
-        set.encode(),
-        [
-            0x06, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x78, 0x56, 0x34, 0x12,
-        ]
-    );
 }
 
 #[test]

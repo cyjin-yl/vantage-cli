@@ -10,5 +10,6 @@ pub trait BiosControl: Send + Sync {
     fn selections(&self, name: &str) -> Result<Vec<String>>;
     fn stage(&self, change: BiosChange) -> Result<()>;
     fn save(&self) -> Result<()>;
+    fn discard(&self) -> Result<()>;
     fn password_status(&self) -> Result<BiosPasswordStatus>;
 }

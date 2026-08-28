@@ -55,6 +55,22 @@ impl ProfileCatalog {
         Self::from_layers([silent, long, balanced, performance, plugged], [], [])
     }
 
+    /// Merge documented built-ins with caller-loaded system and user profiles.
+    pub fn layered<S, U>(system: S, user: U) -> Result<Self>
+    where
+        S: IntoIterator<Item = ProfileDocument>,
+        U: IntoIterator<Item = ProfileDocument>,
+    {
+        let builtins = [
+            builtin_silent_library()?,
+            builtin_long_battery()?,
+            builtin_balanced()?,
+            builtin_performance()?,
+            builtin_plugged_max()?,
+        ];
+        Self::from_layers(builtins, system, user)
+    }
+
     #[must_use]
     pub fn get(&self, name: impl AsRef<str>) -> Option<&ResolvedProfile> {
         self.profiles.get(name.as_ref())

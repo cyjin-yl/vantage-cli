@@ -933,6 +933,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "clap_complete"
+version = "4.5.59"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2348487adcd4631696ced64ccdb40d38ac4d31cae7f2eec8817fcea1b9d1c43c"
+dependencies = [
+ "clap",
+]
+
+[[package]]
 name = "clap_derive"
 version = "4.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3045,49 +3054,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "lctrl"
-version = "0.1.0"
-dependencies = [
- "clap",
- "lctrl-cli",
- "lctrl-core",
- "lctrl-hal",
- "lctrl-hal-linux",
- "lctrl-hal-win",
-]
-
-[[package]]
-name = "lctrl-cli"
-version = "0.1.0"
-dependencies = [
- "clap",
- "lctrl-core",
- "lctrl-hal",
- "lctrl-tune",
- "parking_lot",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "lctrl-core"
 version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.20",
-]
-
-[[package]]
-name = "lctrl-gui"
-version = "0.1.0"
-dependencies = [
- "gpui",
- "idna_adapter",
- "lctrl-core",
- "lctrl-hal",
- "lctrl-hal-linux",
- "lctrl-hal-win",
 ]
 
 [[package]]
@@ -6129,6 +6101,62 @@ dependencies = [
  "sval_json",
  "sval_ref",
  "sval_serde",
+]
+
+[[package]]
+name = "vantage"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "lctrl-core",
+ "lctrl-hal",
+ "lctrl-hal-linux",
+ "lctrl-hal-win",
+ "serde_json",
+ "vantage-cli",
+ "vantage-daemon",
+]
+
+[[package]]
+name = "vantage-cli"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "clap_complete",
+ "lctrl-core",
+ "lctrl-hal",
+ "lctrl-tune",
+ "parking_lot",
+ "serde",
+ "serde_json",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "vantage-daemon"
+version = "0.1.0"
+dependencies = [
+ "lctrl-core",
+ "lctrl-hal",
+ "lctrl-hal-linux",
+ "lctrl-hal-win",
+ "libc",
+ "parking_lot",
+ "serde",
+ "serde_json",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "vantage-gui"
+version = "0.1.0"
+dependencies = [
+ "gpui",
+ "idna_adapter",
+ "lctrl-core",
+ "lctrl-hal",
+ "lctrl-hal-linux",
+ "lctrl-hal-win",
 ]
 
 [[package]]

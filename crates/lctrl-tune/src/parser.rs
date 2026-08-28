@@ -357,42 +357,48 @@ fn parse_trigger(wire: WireTrigger) -> Result<Trigger> {
         "on_ac" => {
             reject_parameters(
                 &kind,
-                names.is_some(),
-                paths.is_some(),
-                celsius.is_some(),
-                watts.is_some(),
-                hysteresis.is_some(),
-                from.is_some(),
-                to.is_some(),
-                percent.is_some(),
+                [
+                    names.is_some(),
+                    paths.is_some(),
+                    celsius.is_some(),
+                    watts.is_some(),
+                    hysteresis.is_some(),
+                    from.is_some(),
+                    to.is_some(),
+                    percent.is_some(),
+                ],
             )?;
             Ok(Trigger::OnAc)
         }
         "on_battery" => {
             reject_parameters(
                 &kind,
-                names.is_some(),
-                paths.is_some(),
-                celsius.is_some(),
-                watts.is_some(),
-                hysteresis.is_some(),
-                from.is_some(),
-                to.is_some(),
-                percent.is_some(),
+                [
+                    names.is_some(),
+                    paths.is_some(),
+                    celsius.is_some(),
+                    watts.is_some(),
+                    hysteresis.is_some(),
+                    from.is_some(),
+                    to.is_some(),
+                    percent.is_some(),
+                ],
             )?;
             Ok(Trigger::OnBattery)
         }
         "process_match" => {
             reject_parameters(
                 &kind,
-                false,
-                false,
-                celsius.is_some(),
-                watts.is_some(),
-                hysteresis.is_some(),
-                from.is_some(),
-                to.is_some(),
-                percent.is_some(),
+                [
+                    false,
+                    false,
+                    celsius.is_some(),
+                    watts.is_some(),
+                    hysteresis.is_some(),
+                    from.is_some(),
+                    to.is_some(),
+                    percent.is_some(),
+                ],
             )?;
             let names = names.unwrap_or_default();
             let paths = paths.unwrap_or_default();
@@ -416,14 +422,16 @@ fn parse_trigger(wire: WireTrigger) -> Result<Trigger> {
         "temp_above" | "temp_below" => {
             reject_parameters(
                 &kind,
-                names.is_some(),
-                paths.is_some(),
-                false,
-                watts.is_some(),
-                false,
-                from.is_some(),
-                to.is_some(),
-                percent.is_some(),
+                [
+                    names.is_some(),
+                    paths.is_some(),
+                    false,
+                    watts.is_some(),
+                    false,
+                    from.is_some(),
+                    to.is_some(),
+                    percent.is_some(),
+                ],
             )?;
             let celsius = parse_required_nonnegative(celsius, "celsius", &kind)?;
             let hysteresis = parse_optional_hysteresis(hysteresis)?;
@@ -442,14 +450,16 @@ fn parse_trigger(wire: WireTrigger) -> Result<Trigger> {
         "power_above" | "power_below" => {
             reject_parameters(
                 &kind,
-                names.is_some(),
-                paths.is_some(),
-                celsius.is_some(),
-                false,
-                false,
-                from.is_some(),
-                to.is_some(),
-                percent.is_some(),
+                [
+                    names.is_some(),
+                    paths.is_some(),
+                    celsius.is_some(),
+                    false,
+                    false,
+                    from.is_some(),
+                    to.is_some(),
+                    percent.is_some(),
+                ],
             )?;
             let watts = parse_required_nonnegative(watts, "watts", &kind)?;
             let hysteresis = parse_optional_hysteresis(hysteresis)?;
@@ -462,14 +472,16 @@ fn parse_trigger(wire: WireTrigger) -> Result<Trigger> {
         "time_range" => {
             reject_parameters(
                 &kind,
-                names.is_some(),
-                paths.is_some(),
-                celsius.is_some(),
-                watts.is_some(),
-                hysteresis.is_some(),
-                false,
-                false,
-                percent.is_some(),
+                [
+                    names.is_some(),
+                    paths.is_some(),
+                    celsius.is_some(),
+                    watts.is_some(),
+                    hysteresis.is_some(),
+                    false,
+                    false,
+                    percent.is_some(),
+                ],
             )?;
             let from = from.ok_or_else(|| invalid("time_range requires from"))?;
             let to = to.ok_or_else(|| invalid("time_range requires to"))?;
@@ -478,14 +490,16 @@ fn parse_trigger(wire: WireTrigger) -> Result<Trigger> {
         "battery_below" => {
             reject_parameters(
                 &kind,
-                names.is_some(),
-                paths.is_some(),
-                celsius.is_some(),
-                watts.is_some(),
-                hysteresis.is_some(),
-                from.is_some(),
-                to.is_some(),
-                false,
+                [
+                    names.is_some(),
+                    paths.is_some(),
+                    celsius.is_some(),
+                    watts.is_some(),
+                    hysteresis.is_some(),
+                    from.is_some(),
+                    to.is_some(),
+                    false,
+                ],
             )?;
             let percent = parse_required_nonnegative(percent, "percent", &kind)?;
             let percent = u8::try_from(percent).map_err(|_| {
@@ -506,18 +520,8 @@ fn parse_trigger(wire: WireTrigger) -> Result<Trigger> {
     }
 }
 
-fn reject_parameters(
-    kind: &str,
-    names: bool,
-    paths: bool,
-    celsius: bool,
-    watts: bool,
-    hysteresis: bool,
-    from: bool,
-    to: bool,
-    percent: bool,
-) -> Result<()> {
-    if names || paths || celsius || watts || hysteresis || from || to || percent {
+fn reject_parameters(kind: &str, present: [bool; 8]) -> Result<()> {
+    if present.into_iter().any(|present| present) {
         Err(invalid(format!(
             "trigger type {kind} has incompatible parameters"
         )))

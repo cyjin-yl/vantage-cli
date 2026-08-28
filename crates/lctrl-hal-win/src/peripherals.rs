@@ -1,10 +1,10 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, time::Duration};
 
 use lctrl_core::{
     ApplyMode, BacklightState, ChangeReport, LctrlError, LightingEffect, PanelRefreshCapability,
     RefreshMode, Result,
 };
-use lctrl_hal::{KeyboardControl, PanelControl};
+use lctrl_hal::{KeyboardControl, PanelControl, poll_readback};
 
 use crate::wmi_contract::ROOT_WMI;
 use crate::{WmiMethodResult, WmiObject, WmiTransport, WmiValue, active_instance};
@@ -78,6 +78,26 @@ where
         }
         BacklightState::new(level, max_level, effect)
     }
+
+    fn write_backlight(&self, state: &BacklightState) -> Result<()> {
+        let instance = active_instance(&self.transport, LIGHTING_METHOD)?;
+        let output = self.transport.invoke_instance(
+            ROOT_WMI,
+            LIGHTING_METHOD,
+            instance.path(),
+            "Set_Lighting_Current_Status",
+            &BTreeMap::from([
+                ("Current_Brightness_Level".into(), WmiValue::U8(state.level)),
+                (
+                    "Current_State_Type".into(),
+                    WmiValue::U8(state.effect.raw()),
+                ),
+                ("Lighting_ID".into(), WmiValue::U8(KEYBOARD_LIGHTING_ID)),
+            ]),
+        )?;
+        WmiMethodResult::parse(output)?.require_accepted("kbd.backlight.write")?;
+        Ok(())
+    }
 }
 
 impl<W> KeyboardControl for WindowsPeripheralController<W>
@@ -105,27 +125,30 @@ where
         if apply == ApplyMode::DryRun {
             return Ok(ChangeReport::dry_run(previous, requested));
         }
-        let instance = active_instance(&self.transport, LIGHTING_METHOD)?;
-        let output = self.transport.invoke_instance(
-            ROOT_WMI,
-            LIGHTING_METHOD,
-            instance.path(),
-            "Set_Lighting_Current_Status",
-            &BTreeMap::from([
-                ("Current_Brightness_Level".into(), WmiValue::U8(level)),
-                ("Current_State_Type".into(), WmiValue::U8(effect.raw())),
-                ("Lighting_ID".into(), WmiValue::U8(KEYBOARD_LIGHTING_ID)),
-            ]),
-        )?;
-        WmiMethodResult::parse(output)?.require_accepted("kbd.backlight.write")?;
-        let actual = self.read_backlight()?;
-        if actual != requested {
-            return Err(LctrlError::VerifyMismatch {
-                requested: format!("level={} effect={}", requested.level, requested.effect),
-                actual: format!("level={} effect={}", actual.level, actual.effect),
-            });
+        let result = self.write_backlight(&requested).and_then(|()| {
+            poll_readback(&requested, 10, Duration::from_millis(50), || {
+                self.read_backlight()
+            })
+        });
+        match result {
+            Ok(actual) => Ok(ChangeReport::committed(previous, requested, actual)),
+            Err(error) => {
+                let rollback = self.write_backlight(&previous).and_then(|()| {
+                    poll_readback(&previous, 10, Duration::from_millis(50), || {
+                        self.read_backlight()
+                    })
+                    .map(|_| ())
+                });
+                match rollback {
+                    Ok(()) => Err(error),
+                    Err(rollback) => Err(LctrlError::FirmwareRejected {
+                        detail: format!(
+                            "keyboard backlight write failed ({error}); rollback also failed ({rollback})"
+                        ),
+                    }),
+                }
+            }
         }
-        Ok(ChangeReport::committed(previous, requested, actual))
     }
 }
 

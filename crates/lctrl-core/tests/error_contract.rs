@@ -8,7 +8,7 @@ fn assert_report(error: &LctrlError, expected: serde_json::Value) {
 #[test]
 fn exit_codes_follow_the_cli_contract() {
     let cases = [
-        (LctrlError::from(IoError::new(ErrorKind::Other, "io")), 1),
+        (LctrlError::from(IoError::other("io")), 1),
         (
             LctrlError::InvalidArgument {
                 detail: "bad value".into(),

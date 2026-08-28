@@ -1,6 +1,8 @@
 use parking_lot::Mutex;
 
-use lctrl_core::{AdapterAuthentication, ApplyMode, ChargeMode, ChargeModeActual, LctrlError};
+use lctrl_core::{
+    AdapterAuthentication, AdapterStatus, ApplyMode, ChargeMode, ChargeModeActual, LctrlError,
+};
 use lctrl_hal::BatteryControl;
 use lctrl_hal_win::{
     ChargeModeReader, IOCTL_BATTERY_DETAIL, IOCTL_GAPD, IOCTL_GBMD, IoctlTransport,
@@ -109,6 +111,22 @@ fn adapter_queries_gapd_only_when_gbmd_advertises_it() {
 }
 
 #[test]
+fn adapter_sentinel_ids_are_reported_as_disconnected_not_65535() {
+    let ioctl = FakeIoctl::new([
+        0x0100_8004_u32.to_le_bytes().to_vec(),
+        vec![0xff, 0xff, 0xff, 0xff, 100, 0, 0, 0, 0, 0],
+    ]);
+    let p0 = WindowsBatteryP0::new(ioctl, FakeReader::new([]));
+
+    let info = p0.adapter_info().unwrap();
+
+    assert_eq!(info.ac_connected, Some(false));
+    assert_eq!(info.status, Some(AdapterStatus::Disconnected));
+    assert_eq!(info.detail.unwrap().pid, None);
+    assert_eq!(info.detail.unwrap().vid, None);
+}
+
+#[test]
 fn dry_run_reads_but_never_writes() {
     let ioctl = FakeIoctl::new([telemetry(5000)]);
     let p0 = WindowsBatteryP0::new(ioctl, FakeReader::new([0]));
@@ -158,8 +176,10 @@ fn readback_mismatch_is_not_reported_as_success() {
         telemetry(5000),
         0_u32.to_le_bytes().to_vec(),
         0_u32.to_le_bytes().to_vec(),
+        0_u32.to_le_bytes().to_vec(),
+        0_u32.to_le_bytes().to_vec(),
     ]);
-    let p0 = WindowsBatteryP0::new(ioctl, FakeReader::new([0, 0]));
+    let p0 = WindowsBatteryP0::new(ioctl, FakeReader::new([0; 12]));
 
     assert!(matches!(
         p0.set_charge_mode(ChargeMode::Rapid, ApplyMode::Commit),

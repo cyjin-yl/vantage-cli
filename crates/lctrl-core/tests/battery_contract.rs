@@ -210,27 +210,23 @@ fn battery_date_displays_as_iso() {
 
 fn telemetry_fixture() -> [u8; 83] {
     let mut raw = [0u8; 83];
-    raw[0..2].copy_from_slice(&9990u16.to_le_bytes()); // design capacity (×10 → mWh)
-    raw[2..4].copy_from_slice(&9645u16.to_le_bytes()); // full charge capacity
-    raw[4..6].copy_from_slice(&9000u16.to_le_bytes()); // remaining capacity
-    raw[10..12].copy_from_slice(&15600u16.to_le_bytes()); // voltage mV
-    raw[12..16].copy_from_slice(&1200i32.to_le_bytes()); // current mA (charging)
-    raw[16..18].copy_from_slice(&3061u16.to_le_bytes()); // temperature 0.1 K
-    raw[18..20].copy_from_slice(&23835u16.to_le_bytes()); // manufacture date 2026-08-27
-    raw[20..22].copy_from_slice(&20527u16.to_le_bytes()); // first use 2020-01-15
-    raw[22..24].copy_from_slice(&15600u16.to_le_bytes()); // design voltage mV
-    raw[24..26].copy_from_slice(&85u16.to_le_bytes()); // remaining percent
-    raw[26..28].copy_from_slice(&96u16.to_le_bytes()); // life percent
-    raw[28..30].copy_from_slice(&1u16.to_le_bytes()); // charge status: charging
-    raw[30..32].copy_from_slice(&120u16.to_le_bytes()); // remaining time min
-    raw[32..34].copy_from_slice(&45u16.to_le_bytes()); // completion time min
-    raw[34..36].copy_from_slice(&65u16.to_le_bytes()); // wattage W
-    raw[36..38].copy_from_slice(&128u16.to_le_bytes()); // cycle count
+    raw[0..2].copy_from_slice(&9990u16.to_le_bytes());
+    raw[2..4].copy_from_slice(&9645u16.to_le_bytes());
+    raw[4..6].copy_from_slice(&9000u16.to_le_bytes());
+    raw[10..12].copy_from_slice(&1u16.to_le_bytes());
+    raw[14..16].copy_from_slice(&3061u16.to_le_bytes());
+    raw[16..18].copy_from_slice(&1200u16.to_le_bytes());
+    raw[18..20].copy_from_slice(&0u16.to_le_bytes());
+    raw[20..22].copy_from_slice(&15600u16.to_le_bytes());
+    raw[22..40].copy_from_slice(b"Lion\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
+    raw[40..52].copy_from_slice(b"Sunwoda\0\0\0\0\0");
+    raw[52..76].copy_from_slice(b"W1LX5CN0294\0\0\0\0\0\0\0\0\0\0\0\0\0");
+    raw[76..83].copy_from_slice(&[7, 0, 0x48, 0x0c, 0, 1, 9]);
     raw
 }
 
 #[test]
-fn telemetry_parses_every_documented_scalar_offset() {
+fn telemetry_parses_verified_target_layout() {
     let telemetry = BatteryTelemetry::parse(&telemetry_fixture()).unwrap();
 
     assert_eq!(telemetry.design_capacity_mwh, Some(99_900));
@@ -239,46 +235,22 @@ fn telemetry_parses_every_documented_scalar_offset() {
     assert_eq!(telemetry.voltage_mv, Some(15_600));
     assert_eq!(telemetry.current_ma, Some(1200));
     assert_eq!(telemetry.temperature_deci_kelvin, Some(3061));
-    assert_eq!(
-        telemetry.manufacture_date,
-        Some(BatteryDate {
-            year: 2026,
-            month: 8,
-            day: 27
-        })
-    );
-    assert_eq!(
-        telemetry.first_used_date,
-        Some(BatteryDate {
-            year: 2020,
-            month: 1,
-            day: 15
-        })
-    );
-    assert_eq!(telemetry.design_voltage_mv, Some(15_600));
-    assert_eq!(telemetry.remaining_percent, Some(85));
-    assert_eq!(telemetry.life_percent, Some(96));
+    assert_eq!(telemetry.manufacture_date, None);
+    assert_eq!(telemetry.first_used_date, None);
+    assert_eq!(telemetry.design_voltage_mv, None);
+    assert_eq!(telemetry.remaining_percent, None);
+    assert_eq!(telemetry.life_percent, None);
     assert_eq!(telemetry.charge_status, Some(ChargeStatus::Charging));
-    assert_eq!(telemetry.remaining_time_min, Some(120));
-    assert_eq!(telemetry.charge_completion_time_min, Some(45));
-    assert_eq!(telemetry.wattage_w, Some(65));
-    assert_eq!(telemetry.cycle_count, Some(128));
+    assert_eq!(telemetry.remaining_time_min, None);
+    assert_eq!(telemetry.charge_completion_time_min, None);
+    assert_eq!(telemetry.wattage_w, None);
+    assert_eq!(telemetry.cycle_count, None);
+    assert_eq!(telemetry.chemistry.as_deref(), Some("Lion"));
+    assert_eq!(telemetry.manufacturer.as_deref(), Some("Sunwoda"));
+    assert_eq!(telemetry.serial_number.as_deref(), Some("W1LX5CN0294"));
+    assert_eq!(telemetry.firmware_version, None);
     assert!(telemetry.rapid_charge_allowed());
 }
-
-#[test]
-fn telemetry_requires_exact_83_bytes() {
-    for len in [0, 35, 36, 82, 84, 100] {
-        assert!(
-            matches!(
-                BatteryTelemetry::parse(&vec![0u8; len]),
-                Err(LctrlError::FirmwareRejected { .. })
-            ),
-            "length {len}"
-        );
-    }
-}
-
 #[test]
 fn telemetry_maps_unsupported_sentinels_to_absent_fields() {
     let telemetry = BatteryTelemetry::parse(&[0xff; 83]).unwrap();
@@ -303,11 +275,11 @@ fn telemetry_maps_unsupported_sentinels_to_absent_fields() {
 }
 
 #[test]
-fn telemetry_preserves_signed_discharge_current() {
+fn telemetry_reads_documented_unsigned_current_field() {
     let mut raw = telemetry_fixture();
-    raw[12..16].copy_from_slice(&(-850i32).to_le_bytes());
+    raw[16..18].copy_from_slice(&850u16.to_le_bytes());
     let telemetry = BatteryTelemetry::parse(&raw).unwrap();
-    assert_eq!(telemetry.current_ma, Some(-850));
+    assert_eq!(telemetry.current_ma, Some(850));
 }
 
 #[test]
@@ -357,27 +329,27 @@ fn rapid_charge_fails_closed_when_design_capacity_is_unavailable() {
 }
 
 #[test]
-fn telemetry_ignores_the_conflicting_string_areas() {
-    let mut raw = telemetry_fixture();
-    for byte in raw[48..83].iter_mut() {
-        *byte = 0x5a;
-    }
-    let telemetry = BatteryTelemetry::parse(&raw).unwrap();
-    assert_eq!(telemetry.design_capacity_mwh, Some(99_900));
-    assert_eq!(telemetry.cycle_count, Some(128));
+fn telemetry_decodes_documented_fixed_width_identity_fields() {
+    let telemetry = BatteryTelemetry::parse(&telemetry_fixture()).unwrap();
+
+    assert_eq!(telemetry.chemistry.as_deref(), Some("Lion"));
+    assert_eq!(telemetry.manufacturer.as_deref(), Some("Sunwoda"));
+    assert_eq!(telemetry.serial_number.as_deref(), Some("W1LX5CN0294"));
+    assert_eq!(telemetry.firmware_version, None);
 }
 
 #[test]
 fn telemetry_serializes_with_stable_field_names() {
     let telemetry = BatteryTelemetry::parse(&telemetry_fixture()).unwrap();
-    let json = serde_json::to_value(&telemetry).unwrap();
+    let json = serde_json::to_value(telemetry).unwrap();
     assert_eq!(json["design_capacity_mwh"], 99_900);
     assert_eq!(json["current_ma"], 1200);
     assert_eq!(json["charge_status"], "charging");
     assert_eq!(json["temperature_deci_kelvin"], 3061);
-    assert_eq!(json["manufacture_date"]["year"], 2026);
-    assert_eq!(json["manufacture_date"]["month"], 8);
-    assert_eq!(json["manufacture_date"]["day"], 27);
+    assert_eq!(json["voltage_mv"], 15_600);
+    assert_eq!(json["chemistry"], "Lion");
+    assert_eq!(json["manufacturer"], "Sunwoda");
+    assert_eq!(json["serial_number"], "W1LX5CN0294");
 }
 
 #[test]
@@ -468,8 +440,8 @@ fn adapter_info_gates_detail_on_gbmd_bit24() {
 #[test]
 fn adapter_info_computes_underpowered_only_with_detail() {
     let detail = AdapterDetailValues {
-        pid: 0x1234,
-        vid: 0x5678,
+        pid: Some(0x1234),
+        vid: Some(0x5678),
         system_power_w: 100,
         current_power_w: 65,
     };
@@ -496,24 +468,24 @@ fn adapter_info_computes_underpowered_only_with_detail() {
 #[test]
 fn adapter_detail_values_detect_underpowered_charger() {
     let under = AdapterDetailValues {
-        pid: 0,
-        vid: 0,
+        pid: Some(0),
+        vid: Some(0),
         system_power_w: 100,
         current_power_w: 65,
     };
     assert!(under.is_underpowered());
 
     let over = AdapterDetailValues {
-        pid: 0,
-        vid: 0,
+        pid: Some(0),
+        vid: Some(0),
         system_power_w: 65,
         current_power_w: 100,
     };
     assert!(!over.is_underpowered());
 
     let equal = AdapterDetailValues {
-        pid: 0,
-        vid: 0,
+        pid: Some(0),
+        vid: Some(0),
         system_power_w: 100,
         current_power_w: 100,
     };
@@ -533,7 +505,7 @@ fn adapter_types_serialize_and_display() {
     );
 
     let info = AdapterInfo::from_gbmd(0x0101_0004, None);
-    let json = serde_json::to_value(&info).unwrap();
+    let json = serde_json::to_value(info).unwrap();
     assert_eq!(json["authentication"], "unknown");
     assert_eq!(json["has_detail"], true);
     assert!(json.get("detail").is_none());

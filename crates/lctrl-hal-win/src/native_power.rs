@@ -9,8 +9,8 @@ use windows_sys::{
         System::{
             Power::{
                 ACCESS_SCHEME, PowerEnumerate, PowerGetActiveScheme, PowerReadACValueIndex,
-                PowerReadDCValueIndex, PowerReadValueIncrement, PowerReadValueMax,
-                PowerReadValueMin, PowerSetActiveScheme, PowerWriteACValueIndex,
+                PowerReadDCValueIndex, PowerReadFriendlyName, PowerReadValueIncrement,
+                PowerReadValueMax, PowerReadValueMin, PowerSetActiveScheme, PowerWriteACValueIndex,
                 PowerWriteDCValueIndex,
             },
             Registry::HKEY,
@@ -56,11 +56,8 @@ impl PowerApi for NativePowerApi {
                 });
             }
             let id = PowerSchemeId::new(format_guid(&guid))?;
-            schemes.push(PowerScheme::new(
-                id.clone(),
-                id.as_str(),
-                guid_eq(&guid, &active),
-            ));
+            let name = friendly_name(&guid)?;
+            schemes.push(PowerScheme::new(id, name, guid_eq(&guid, &active)));
         }
         Ok(schemes)
     }
@@ -68,7 +65,7 @@ impl PowerApi for NativePowerApi {
     fn active_scheme(&self) -> Result<PowerScheme> {
         let guid = active_guid()?;
         let id = PowerSchemeId::new(format_guid(&guid))?;
-        Ok(PowerScheme::new(id.clone(), id.as_str(), true))
+        Ok(PowerScheme::new(id, friendly_name(&guid)?, true))
     }
 
     fn activate(&self, id: &PowerSchemeId) -> Result<()> {
@@ -131,12 +128,70 @@ impl PowerApi for NativePowerApi {
                 }
             }
         };
-        if status == 0 {
-            Ok(())
-        } else {
-            Err(map_win_error(status, "PowerWrite*ValueIndex"))
+        if status != 0 {
+            return Err(map_win_error(status, "PowerWrite*ValueIndex"));
         }
+        let apply_status = unsafe { PowerSetActiveScheme(null_hkey(), &scheme) };
+        if apply_status != 0 {
+            return Err(map_win_error(
+                apply_status,
+                "PowerSetActiveScheme after value write",
+            ));
+        }
+        Ok(())
     }
+}
+
+fn friendly_name(guid: &GUID) -> Result<String> {
+    const ERROR_MORE_DATA: u32 = 234;
+
+    let mut size = 0u32;
+    let status = unsafe {
+        PowerReadFriendlyName(
+            null_hkey(),
+            guid,
+            ptr::null(),
+            ptr::null(),
+            ptr::null_mut(),
+            &mut size,
+        )
+    };
+    if status != 0 && status != ERROR_MORE_DATA {
+        return Err(map_win_error(status, "PowerReadFriendlyName size"));
+    }
+    if size < 2 || size % 2 != 0 {
+        return Err(LctrlError::ChannelUnavailable {
+            channel: format!("PowerReadFriendlyName returned invalid byte length {size}"),
+        });
+    }
+    let mut buffer = vec![
+        0u16;
+        usize::try_from(size / 2).map_err(|_| {
+            LctrlError::ChannelUnavailable {
+                channel: "PowerReadFriendlyName length exceeds usize".into(),
+            }
+        })?
+    ];
+    let status = unsafe {
+        PowerReadFriendlyName(
+            null_hkey(),
+            guid,
+            ptr::null(),
+            ptr::null(),
+            buffer.as_mut_ptr().cast::<u8>(),
+            &mut size,
+        )
+    };
+    if status != 0 {
+        return Err(map_win_error(status, "PowerReadFriendlyName"));
+    }
+    let length = buffer
+        .iter()
+        .position(|value| *value == 0)
+        .unwrap_or(buffer.len());
+    String::from_utf16(&buffer[..length]).map_err(|error| LctrlError::ChannelUnavailable {
+        channel: format!("PowerReadFriendlyName returned invalid UTF-16: {error}"),
+    })
 }
 
 type ReadRange = unsafe extern "system" fn(HKEY, *const GUID, *const GUID, *mut u32) -> u32;

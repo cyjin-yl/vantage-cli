@@ -1,8 +1,8 @@
 use lctrl_core::{LctrlError, Result};
 
 use crate::{
-    AdapterDetail, BatteryDetail83, GbmdCommand, GenericGet, GenericSet, IOCTL_BATTERY_CONFIG,
-    IOCTL_BATTERY_DETAIL, IOCTL_GAPD, IOCTL_GBMD, IOCTL_GENERIC_GET, IOCTL_GENERIC_SET,
+    AdapterDetail, BatteryDetail83, GbmdCommand, GenericGet, IOCTL_BATTERY_CONFIG,
+    IOCTL_BATTERY_DETAIL, IOCTL_GAPD, IOCTL_GBMD, IOCTL_GENERIC_GET,
 };
 
 pub trait IoctlTransport: Send + Sync {
@@ -30,7 +30,7 @@ where
         GbmdCommand::decode_status(&output)
     }
 
-    pub fn write_gbmd(&self, command: GbmdCommand) -> Result<()> {
+    pub(crate) fn write_gbmd(&self, command: GbmdCommand) -> Result<()> {
         let output = self.transport.call(IOCTL_GBMD, &command.encode(), 4)?;
         let status = GbmdCommand::decode_status(&output)?;
         if status == 0 {
@@ -46,21 +46,6 @@ where
             .transport
             .call(IOCTL_GENERIC_GET, &GenericGet::new(cmd).encode(), 4)?;
         GenericGet::decode(&output)
-    }
-
-    pub fn generic_set(&self, cmd: u32, p1: u32, p2: u32) -> Result<()> {
-        let output =
-            self.transport
-                .call(IOCTL_GENERIC_SET, &GenericSet::new(cmd, p1, p2).encode(), 0)?;
-        if output.is_empty() {
-            return Ok(());
-        }
-        Err(LctrlError::FirmwareRejected {
-            detail: format!(
-                "EnergyDrv generic SET returned {} bytes; expected 0",
-                output.len()
-            ),
-        })
     }
 
     pub fn battery_detail(&self, index: u32) -> Result<BatteryDetail83> {

@@ -19,6 +19,7 @@ struct FakeWmi {
     bios_settings: Vec<WmiObject>,
     set_instances: Vec<WmiObject>,
     save_instances: Vec<WmiObject>,
+    discard_instances: Vec<WmiObject>,
     selection_instances: Vec<WmiObject>,
     password_settings: Vec<WmiObject>,
     method_replies: Mutex<Vec<WmiObject>>,
@@ -43,6 +44,8 @@ impl WmiTransport for FakeWmi {
             self.set_instances.clone()
         } else if wql.contains("Lenovo_SaveBiosSettings") {
             self.save_instances.clone()
+        } else if wql.contains("Lenovo_DiscardBiosSettings") {
+            self.discard_instances.clone()
         } else if wql.contains("Lenovo_GetBiosSelections") {
             self.selection_instances.clone()
         } else if wql.contains("Lenovo_BiosPasswordSettings") {
@@ -212,6 +215,27 @@ fn save_uses_exact_semicolon_parameter() {
     assert_eq!(calls[0].class, "Lenovo_SaveBiosSettings");
     assert_eq!(calls[0].path, "save-a");
     assert_eq!(calls[0].method, "SaveBiosSettings");
+    assert_eq!(
+        calls[0].input.get("parameter"),
+        Some(&WmiValue::String(";".into()))
+    );
+}
+
+#[test]
+fn discard_uses_verified_transaction_method() {
+    let transport = FakeWmi {
+        discard_instances: vec![path("discard-a")],
+        method_replies: Mutex::new(vec![method_reply(true, "Success")]),
+        ..FakeWmi::default()
+    };
+    let controller = WindowsBiosController::new(transport);
+
+    controller.discard().unwrap();
+
+    let calls = controller.transport().invocations();
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0].class, "Lenovo_DiscardBiosSettings");
+    assert_eq!(calls[0].method, "DiscardBiosSettings");
     assert_eq!(
         calls[0].input.get("parameter"),
         Some(&WmiValue::String(";".into()))

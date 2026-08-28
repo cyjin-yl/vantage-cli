@@ -1,9 +1,11 @@
 [package]
-name = "lctrl-gui"
+name = "vantage-gui"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
 publish = false
+repository.workspace = true
+description = "Read-only GPUI dashboard for Vantage"
 
 [dependencies]
 gpui = { version = "=0.2.2", default-features = true, features = ["wayland", "x11"] }

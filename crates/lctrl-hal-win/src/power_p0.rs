@@ -1,8 +1,10 @@
+use std::time::Duration;
+
 use lctrl_core::{
     ApplyMode, ChangeReport, LctrlError, PowerMutation, PowerScheme, PowerSchemeId,
     PowerSettingValue, PowerValueRange, Result, validate_power_write,
 };
-use lctrl_hal::PowerControl;
+use lctrl_hal::{PowerControl, poll_readback};
 
 pub trait PowerApi: Send + Sync {
     fn schemes(&self) -> Result<Vec<PowerScheme>>;
@@ -83,17 +85,25 @@ where
                 detail: format!("power scheme {target} is not enumerated"),
             });
         }
-        let previous = PowerMutation::Activate(active.id);
+        let previous_id = active.id.clone();
+        let previous = PowerMutation::Activate(previous_id.clone());
         let requested = PowerMutation::Activate(target.clone());
         if apply == ApplyMode::DryRun {
             return Ok(ChangeReport::dry_run(previous, requested));
         }
-        self.api.activate(&target)?;
-        let actual = PowerMutation::Activate(self.api.active_scheme()?.id);
-        if actual != requested {
-            return Err(verify_mismatch(&requested, &actual));
+        if let Err(error) = self.api.activate(&target) {
+            return if Self::preserve_prewrite_error(&error) {
+                Err(error)
+            } else {
+                Err(self.rollback_activation(&previous_id, error))
+            };
         }
-        Ok(ChangeReport::committed(previous, requested, actual))
+        match poll_readback(&requested, 10, Duration::from_millis(50), || {
+            Ok(PowerMutation::Activate(self.api.active_scheme()?.id))
+        }) {
+            Ok(actual) => Ok(ChangeReport::committed(previous, requested, actual)),
+            Err(error) => Err(self.rollback_activation(&previous_id, error)),
+        }
     }
 
     fn set_value(
@@ -116,25 +126,80 @@ where
             return Ok(ChangeReport::dry_run(previous, requested));
         }
         let PowerMutation::SetValue { key, source, value } = &requested else {
-            unreachable!("constructed above")
+            return Err(LctrlError::InvalidArgument {
+                detail: "internal power mutation shape mismatch".into(),
+            });
         };
-        self.api.write_value(key, *source, value.get())?;
-        let actual_raw = self.api.read_value(key, *source)?;
-        let actual = PowerMutation::SetValue {
-            key: key.clone(),
-            source: *source,
-            value: PowerSettingValue::new(actual_raw, &range)?,
-        };
-        if actual != requested {
-            return Err(verify_mismatch(&requested, &actual));
+        if let Err(error) = self.api.write_value(key, *source, value.get()) {
+            return if Self::preserve_prewrite_error(&error) {
+                Err(error)
+            } else {
+                Err(self.rollback_value(key, *source, previous_raw, &previous, error))
+            };
         }
-        Ok(ChangeReport::committed(previous, requested, actual))
+        match poll_readback(&requested, 10, Duration::from_millis(50), || {
+            let actual_raw = self.api.read_value(key, *source)?;
+            Ok(PowerMutation::SetValue {
+                key: key.clone(),
+                source: *source,
+                value: PowerSettingValue::new(actual_raw, &range)?,
+            })
+        }) {
+            Ok(actual) => Ok(ChangeReport::committed(previous, requested, actual)),
+            Err(error) => Err(self.rollback_value(key, *source, previous_raw, &previous, error)),
+        }
     }
-}
 
-fn verify_mismatch(requested: &PowerMutation, actual: &PowerMutation) -> LctrlError {
-    LctrlError::VerifyMismatch {
-        requested: format!("{requested:?}"),
-        actual: format!("{actual:?}"),
+    fn preserve_prewrite_error(error: &LctrlError) -> bool {
+        matches!(
+            error,
+            LctrlError::PermissionDenied { .. } | LctrlError::ChannelUnavailable { .. }
+        )
+    }
+
+    fn rollback_activation(&self, previous: &PowerSchemeId, error: LctrlError) -> LctrlError {
+        let requested = PowerMutation::Activate(previous.clone());
+        match self.api.activate(previous).and_then(|()| {
+            poll_readback(&requested, 10, Duration::from_millis(50), || {
+                Ok(PowerMutation::Activate(self.api.active_scheme()?.id))
+            })
+        }) {
+            Ok(_) => error,
+            Err(rollback) => LctrlError::FirmwareRejected {
+                detail: format!(
+                    "power scheme activation failed ({error}); rollback also failed ({rollback})"
+                ),
+            },
+        }
+    }
+
+    fn rollback_value(
+        &self,
+        key: &lctrl_core::PowerSettingKey,
+        source: lctrl_core::PowerSource,
+        previous_raw: u32,
+        previous: &PowerMutation,
+        error: LctrlError,
+    ) -> LctrlError {
+        match self
+            .api
+            .write_value(key, source, previous_raw)
+            .and_then(|()| {
+                poll_readback(previous, 10, Duration::from_millis(50), || {
+                    let actual_raw = self.api.read_value(key, source)?;
+                    Ok(PowerMutation::SetValue {
+                        key: key.clone(),
+                        source,
+                        value: PowerSettingValue::new(actual_raw, &self.api.range(key)?)?,
+                    })
+                })
+            }) {
+            Ok(_) => error,
+            Err(rollback) => LctrlError::FirmwareRejected {
+                detail: format!(
+                    "power value write failed ({error}); rollback also failed ({rollback})"
+                ),
+            },
+        }
     }
 }

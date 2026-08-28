@@ -9,7 +9,10 @@ use windows_sys::Win32::{
     System::IO::DeviceIoControl,
 };
 
-use crate::{IoctlTransport, map_win_error};
+use crate::{
+    IOCTL_BATTERY_CONFIG, IOCTL_BATTERY_DETAIL, IOCTL_GAPD, IOCTL_GBMD, IOCTL_GENERIC_GET,
+    IOCTL_GENERIC_GET_VARIANT, IoctlTransport, map_win_error,
+};
 
 const ENERGY_DRIVER_PATH: &str = r"\\.\EnergyDrv";
 
@@ -18,20 +21,49 @@ pub struct NativeIoctl;
 
 impl IoctlTransport for NativeIoctl {
     fn call(&self, code: u32, input: &[u8], output_len: usize) -> Result<Vec<u8>> {
-        let handle = EnergyDriverHandle::open()?;
+        let write = validate_request(code, input)?;
+        let handle = EnergyDriverHandle::open(write)?;
         handle.call(code, input, output_len)
+    }
+}
+
+fn validate_request(code: u32, input: &[u8]) -> Result<bool> {
+    match code {
+        IOCTL_GBMD => match input {
+            [0xff] => Ok(false),
+            [0x0d | 0x0f | 0x07 | 0x08] => Ok(true),
+            [other] => Err(LctrlError::Unsupported {
+                feature: format!("EnergyDrv GBMD subcommand 0x{other:02x}"),
+            }),
+            _ => Err(LctrlError::InvalidArgument {
+                detail: "EnergyDrv GBMD requires exactly one input byte".into(),
+            }),
+        },
+        IOCTL_GENERIC_GET
+        | IOCTL_GENERIC_GET_VARIANT
+        | IOCTL_BATTERY_CONFIG
+        | IOCTL_BATTERY_DETAIL
+        | IOCTL_GAPD => Ok(false),
+        _ => Err(LctrlError::Unsupported {
+            feature: format!("EnergyDrv IOCTL 0x{code:08x}"),
+        }),
     }
 }
 
 struct EnergyDriverHandle(HANDLE);
 
 impl EnergyDriverHandle {
-    fn open() -> Result<Self> {
+    fn open(write: bool) -> Result<Self> {
         let path: Vec<u16> = ENERGY_DRIVER_PATH.encode_utf16().chain(Some(0)).collect();
+        let access = if write {
+            GENERIC_READ | GENERIC_WRITE
+        } else {
+            GENERIC_READ
+        };
         let handle = unsafe {
             CreateFileW(
                 path.as_ptr(),
-                GENERIC_READ | GENERIC_WRITE,
+                access,
                 FILE_SHARE_READ | FILE_SHARE_WRITE,
                 ptr::null(),
                 OPEN_EXISTING,
