@@ -1,22 +1,22 @@
-use lctrl_core::Platform;
+use lctrl_core::{LctrlError, Platform};
 use lctrl_gui::{DashboardSnapshot, run};
 
 #[cfg(target_os = "linux")]
 fn main() {
     let hal = lctrl_hal_linux::LinuxHal::new();
-    run(snapshot_or_unavailable(&hal, Platform::Linux));
+    launch(snapshot_or_unavailable(&hal, Platform::Linux));
 }
 
 #[cfg(windows)]
 fn main() {
     let hal =
         lctrl_hal_win::NativeWindowsHal::new(lctrl_hal_win::NativeWmi, lctrl_hal_win::NativeIoctl);
-    run(snapshot_or_unavailable(&hal, Platform::Windows));
+    launch(snapshot_or_unavailable(&hal, Platform::Windows));
 }
 
 #[cfg(not(any(target_os = "linux", windows)))]
 fn main() {
-    run(DashboardSnapshot::unavailable(
+    launch(DashboardSnapshot::unavailable(
         Platform::Linux,
         "No supported platform HAL is attached; controls remain unavailable",
     ));
@@ -29,4 +29,15 @@ fn snapshot_or_unavailable(hal: &dyn lctrl_hal::Hal, platform: Platform) -> Dash
             DashboardSnapshot::unavailable(platform, format!("Hardware probe failed: {error}"))
         }
     }
+}
+
+fn launch(snapshot: DashboardSnapshot) {
+    if let Err(error) = run(snapshot) {
+        exit_error(error);
+    }
+}
+
+fn exit_error(error: LctrlError) -> ! {
+    eprintln!("{error}");
+    std::process::exit(i32::from(error.exit_code()));
 }

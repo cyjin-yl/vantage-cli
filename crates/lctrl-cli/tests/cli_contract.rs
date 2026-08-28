@@ -9,7 +9,7 @@ use lctrl_core::{
     AdapterInfo, ApplyMode, Availability, CapabilitySet, ChangeReport, ChargeMode,
     ChargeModeActual, HardwareInfo, LctrlError, Platform,
 };
-use lctrl_hal::{BatteryControl, Hal, PerformanceControl, PowerControl};
+use lctrl_hal::{BatteryControl, BiosControl, Hal, PerformanceControl, PowerControl};
 
 struct FakeHal {
     info_calls: AtomicUsize,
@@ -358,5 +358,144 @@ fn power_set_validates_service_range_before_dispatch() {
 
     assert_eq!(power.range_calls.load(Ordering::SeqCst), 1);
     assert_eq!(power.mutation_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(output.json["mode"], "dry_run");
+}
+
+struct FakeBios {
+    staged: Mutex<Vec<lctrl_core::BiosChange>>,
+    saves: AtomicUsize,
+}
+
+impl FakeBios {
+    const fn new() -> Self {
+        Self {
+            staged: Mutex::new(Vec::new()),
+            saves: AtomicUsize::new(0),
+        }
+    }
+}
+
+impl BiosControl for FakeBios {
+    fn list(&self) -> lctrl_core::Result<Vec<lctrl_core::BiosItem>> {
+        Ok(vec![lctrl_core::BiosItem {
+            name: "Camera".into(),
+            value: "Enable".into(),
+            selections: vec!["Enable".into(), "Disable".into()],
+        }])
+    }
+
+    fn get(&self, name: &str) -> lctrl_core::Result<Option<lctrl_core::BiosItem>> {
+        let value = self
+            .staged
+            .lock()
+            .last()
+            .filter(|change| change.name.as_str().eq_ignore_ascii_case(name))
+            .map_or("Enable", |change| change.value.as_str())
+            .to_string();
+        Ok(Some(lctrl_core::BiosItem {
+            name: "Camera".into(),
+            value,
+            selections: vec!["Enable".into(), "Disable".into()],
+        }))
+    }
+
+    fn selections(&self, _name: &str) -> lctrl_core::Result<Vec<String>> {
+        Ok(vec!["Enable".into(), "Disable".into()])
+    }
+
+    fn stage(&self, change: lctrl_core::BiosChange) -> lctrl_core::Result<()> {
+        self.staged.lock().push(change);
+        Ok(())
+    }
+
+    fn save(&self) -> lctrl_core::Result<()> {
+        self.saves.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+
+    fn password_status(&self) -> lctrl_core::Result<lctrl_core::BiosPasswordStatus> {
+        Ok(lctrl_core::BiosPasswordStatus::from_raw(1, 128, 0))
+    }
+}
+
+#[test]
+fn bios_set_requires_confirmation_before_staging() {
+    let cli = Cli::try_parse_from(["lctrl", "bios", "set", "Camera", "Disable"]).unwrap();
+    let hal = FakeHal::new("unused");
+    let bios = FakeBios::new();
+
+    assert!(matches!(
+        execute_with_services(cli, CommandServices::new(&hal).with_bios(&bios)),
+        Err(LctrlError::InvalidArgument { .. })
+    ));
+    assert!(bios.staged.lock().is_empty());
+}
+
+#[test]
+fn bios_set_save_validates_exact_selection_and_reads_back() {
+    let cli = Cli::try_parse_from([
+        "lctrl", "bios", "set", "Camera", "Disable", "--yes", "--save",
+    ])
+    .unwrap();
+    let hal = FakeHal::new("unused");
+    let bios = FakeBios::new();
+
+    let output = execute_with_services(cli, CommandServices::new(&hal).with_bios(&bios))
+        .expect("safe BIOS transaction");
+
+    assert_eq!(bios.staged.lock().len(), 1);
+    assert_eq!(bios.saves.load(Ordering::SeqCst), 1);
+    assert_eq!(output.json["name"], "Camera");
+    assert_eq!(output.json["value"], "Disable");
+}
+
+#[test]
+fn persistent_privacy_requires_confirmation_and_reads_back() {
+    let cli =
+        Cli::try_parse_from(["lctrl", "privacy", "cam", "off", "--persistent", "--yes"]).unwrap();
+    let hal = FakeHal::new("unused");
+    let bios = FakeBios::new();
+
+    let output = execute_with_services(cli, CommandServices::new(&hal).with_bios(&bios))
+        .expect("persistent camera change");
+
+    assert_eq!(bios.staged.lock()[0].name.as_str(), "IntegratedCamera");
+    assert_eq!(bios.staged.lock()[0].value.as_str(), "Disable");
+    assert_eq!(bios.saves.load(Ordering::SeqCst), 1);
+    assert_eq!(output.json["mode"], "commit");
+}
+
+#[test]
+fn privacy_runtime_is_unavailable_without_verified_feature_id() {
+    let cli = Cli::try_parse_from(["lctrl", "privacy", "cam", "off", "--runtime"]).unwrap();
+    let hal = FakeHal::new("unused");
+    let bios = FakeBios::new();
+
+    assert!(matches!(
+        execute_with_services(cli, CommandServices::new(&hal).with_bios(&bios)),
+        Err(LctrlError::Unsupported { feature }) if feature == "privacy.cam.runtime"
+    ));
+    assert!(bios.staged.lock().is_empty());
+}
+
+#[test]
+fn persistent_privacy_dry_run_never_stages_or_saves() {
+    let cli = Cli::try_parse_from([
+        "lctrl",
+        "--dry-run",
+        "privacy",
+        "mic",
+        "off",
+        "--persistent",
+    ])
+    .unwrap();
+    let hal = FakeHal::new("unused");
+    let bios = FakeBios::new();
+
+    let output = execute_with_services(cli, CommandServices::new(&hal).with_bios(&bios))
+        .expect("privacy dry run");
+
+    assert!(bios.staged.lock().is_empty());
+    assert_eq!(bios.saves.load(Ordering::SeqCst), 0);
     assert_eq!(output.json["mode"], "dry_run");
 }

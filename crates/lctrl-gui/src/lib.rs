@@ -4,11 +4,13 @@
 //! reported by [`lctrl_hal::Hal`] and marks every capability according to the
 //! core availability value, including its explanation.
 
+use std::env;
+
 use gpui::{
-    App, Application, Bounds, Context, Render, Window, WindowBounds, WindowOptions, div,
-    prelude::*, px, rgb, size,
+    App, Application, Bounds, Context, IntoElement, Render, Window, WindowBounds, WindowOptions,
+    div, prelude::*, px, rgb, size,
 };
-use lctrl_core::{Availability, CapabilitySet, HardwareInfo, Platform, Result};
+use lctrl_core::{Availability, CapabilitySet, HardwareInfo, LctrlError, Platform, Result};
 use lctrl_hal::Hal;
 
 // Palette tokens: a cool instrument-panel base, with one signal color and one
@@ -75,19 +77,48 @@ impl DashboardSnapshot {
 }
 
 /// Open the lctrl dashboard with a read-only snapshot.
-pub fn run(snapshot: DashboardSnapshot) {
+///
+/// A real Wayland or X11 session is required on Linux. Calling this from SSH
+/// or another headless session returns a normal channel error rather than
+/// crashing after `open_window` fails.
+pub fn run(snapshot: DashboardSnapshot) -> Result<()> {
+    if cfg!(target_os = "linux")
+        && !desktop_session_available(
+            env::var_os("DISPLAY").as_deref(),
+            env::var_os("WAYLAND_DISPLAY").as_deref(),
+        )
+    {
+        return Err(LctrlError::ChannelUnavailable {
+            channel: "desktop display (DISPLAY or WAYLAND_DISPLAY)".into(),
+        });
+    }
+
     Application::new().run(move |cx: &mut App| {
         let bounds = Bounds::centered(None, size(px(WINDOW_WIDTH), px(WINDOW_HEIGHT)), cx);
-        cx.open_window(
+        if let Err(error) = cx.open_window(
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
                 ..Default::default()
             },
             move |_, cx| cx.new(|_| Dashboard { snapshot }),
-        )
-        .expect("lctrl dashboard window should open");
-        cx.activate(true);
+        ) {
+            eprintln!("lctrl-gui: unable to open dashboard window: {error}");
+            cx.quit();
+        } else {
+            cx.activate(true);
+        }
     });
+    Ok(())
+}
+
+fn desktop_session_available(
+    display: Option<&std::ffi::OsStr>,
+    wayland: Option<&std::ffi::OsStr>,
+) -> bool {
+    [display, wayland]
+        .into_iter()
+        .flatten()
+        .any(|value| !value.is_empty())
 }
 
 /// GPUI view for the technical control-center dashboard.
@@ -558,5 +589,18 @@ mod tests {
         assert!(
             matches!(error, LctrlError::Unsupported { feature } if feature == "hardware identity")
         );
+    }
+
+    #[test]
+    fn desktop_session_requires_nonempty_display_or_wayland_socket() {
+        use std::ffi::OsStr;
+
+        assert!(!desktop_session_available(None, None));
+        assert!(!desktop_session_available(Some(OsStr::new("")), None));
+        assert!(desktop_session_available(Some(OsStr::new(":0")), None));
+        assert!(desktop_session_available(
+            None,
+            Some(OsStr::new("wayland-0"))
+        ));
     }
 }

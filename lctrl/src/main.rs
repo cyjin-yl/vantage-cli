@@ -16,7 +16,9 @@ fn main() {
     let cli = Cli::parse();
     let json = cli.json;
     let hal = lctrl_hal_linux::LinuxHal::new();
-    let services = lctrl_cli::CommandServices::new(&hal).with_battery(&hal);
+    let services = lctrl_cli::CommandServices::new(&hal)
+        .with_battery(&hal)
+        .with_keyboard(&hal);
     finish(execute_with_services(cli, services), json);
 }
 
@@ -30,11 +32,15 @@ fn main() {
         lctrl_hal_win::NativeIoctl,
         lctrl_hal_win::UnverifiedChargeModeReader,
     );
+    let bios = lctrl_hal_win::WindowsBiosController::new(lctrl_hal_win::NativeWmi);
     let performance =
         lctrl_hal_win::WindowsPerformanceP0::new(lctrl_hal_win::NativePerformanceRegistry);
+    let peripherals = lctrl_hal_win::WindowsPeripheralController::new(lctrl_hal_win::NativeWmi);
     let power = lctrl_hal_win::WindowsPowerP0::new(lctrl_hal_win::NativePowerApi);
     let services = lctrl_cli::CommandServices::new(&hal)
         .with_battery(&battery)
+        .with_bios(&bios)
+        .with_keyboard(&peripherals)
         .with_performance(&performance)
         .with_power(&power);
     finish(execute_with_services(cli, services), json);

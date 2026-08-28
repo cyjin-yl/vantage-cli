@@ -17,11 +17,11 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use lctrl_core::{
-    AdapterAuthentication, AdapterInfo, ApplyMode, Availability, BatteryTelemetry, CapabilitySet,
-    ChangeReport, ChargeMode, ChargeModeActual, ChargePrimitive, ChargeStatus, HardwareInfo,
-    LctrlError, Platform, Result, plan_charge_mode,
+    AdapterAuthentication, AdapterInfo, ApplyMode, Availability, BacklightState, BatteryTelemetry,
+    CapabilitySet, ChangeReport, ChargeMode, ChargeModeActual, ChargePrimitive, ChargeStatus,
+    HardwareInfo, LctrlError, LightingEffect, Platform, Result, plan_charge_mode,
 };
-use lctrl_hal::{BatteryControl, Hal};
+use lctrl_hal::{BatteryControl, Hal, KeyboardControl};
 
 const SYSFS_ROOT: &str = "sys";
 const DMI_ROOT: &str = "sys/class/dmi/id";
@@ -30,6 +30,7 @@ const BATTERY_NAME: &str = "BAT0";
 const CONSERVATION_MODE: &str = "sys/devices/platform/ideapad/conservation_mode";
 const FAST_CHARGE: &str = "sys/devices/platform/ideapad/fast_charge";
 const KBD_BACKLIGHT: &str = "sys/devices/platform/ideapad/kbd_backlight";
+const KBD_BACKLIGHT_MAX: &str = "sys/devices/platform/ideapad/kbd_backlight_max";
 const KBD_BACKLIGHT_LEDS: [&str; 3] = [
     "sys/class/leds/laptop:kbd_backlight/brightness",
     "sys/class/leds/platform::kbd_backlight/brightness",
@@ -280,6 +281,48 @@ impl LinuxHal {
             }
         }
         Ok(None)
+    }
+
+    fn backlight_nodes(&self) -> Result<(PathBuf, PathBuf)> {
+        if self.node_exists(KBD_BACKLIGHT)? {
+            if !self.node_exists(KBD_BACKLIGHT_MAX)? {
+                return Err(LctrlError::ChannelUnavailable {
+                    channel: "keyboard backlight max level".into(),
+                });
+            }
+            return Ok((
+                PathBuf::from(KBD_BACKLIGHT),
+                PathBuf::from(KBD_BACKLIGHT_MAX),
+            ));
+        }
+        for brightness in KBD_BACKLIGHT_LEDS {
+            if self.node_exists(brightness)? {
+                let max = Path::new(brightness)
+                    .parent()
+                    .expect("LED brightness path has a parent")
+                    .join("max_brightness");
+                if self.node_exists(&max)? {
+                    return Ok((PathBuf::from(brightness), max));
+                }
+                return Err(LctrlError::ChannelUnavailable {
+                    channel: "keyboard LED max_brightness".into(),
+                });
+            }
+        }
+        Err(LctrlError::Unsupported {
+            feature: "kbd.backlight".into(),
+        })
+    }
+
+    fn read_backlight_state(&self) -> Result<BacklightState> {
+        let (brightness, max) = self.backlight_nodes()?;
+        let level_raw = parse_unsigned(&self.read_required(&brightness)?, "kbd backlight")?;
+        let max_raw = parse_unsigned(&self.read_required(&max)?, "kbd backlight max")?;
+        let level = u8::try_from(level_raw)
+            .map_err(|_| malformed("kbd backlight", &level_raw.to_string()))?;
+        let max_level = u8::try_from(max_raw)
+            .map_err(|_| malformed("kbd backlight max", &max_raw.to_string()))?;
+        BacklightState::new(level, max_level, LightingEffect::Static)
     }
 
     fn record_node(
@@ -596,6 +639,40 @@ impl BatteryControl for LinuxHal {
             });
         }
         Ok(ChangeReport::committed(previous, mode, actual_mode(actual)))
+    }
+}
+
+impl KeyboardControl for LinuxHal {
+    fn backlight_state(&self) -> Result<BacklightState> {
+        self.read_backlight_state()
+    }
+
+    fn set_backlight(
+        &self,
+        level: u8,
+        effect: LightingEffect,
+        apply: ApplyMode,
+    ) -> Result<ChangeReport<BacklightState>> {
+        if !matches!(effect, LightingEffect::Static) {
+            return Err(LctrlError::Unsupported {
+                feature: "kbd.backlight.effect".into(),
+            });
+        }
+        let previous = self.read_backlight_state()?;
+        let requested = BacklightState::new(level, previous.max_level, effect)?;
+        if apply == ApplyMode::DryRun {
+            return Ok(ChangeReport::dry_run(previous, requested));
+        }
+        let (brightness, _) = self.backlight_nodes()?;
+        fs::write(self.path(&brightness), level.to_string()).map_err(map_io_error)?;
+        let actual = self.read_backlight_state()?;
+        if actual != requested {
+            return Err(LctrlError::VerifyMismatch {
+                requested: format!("level={} effect={}", requested.level, requested.effect),
+                actual: format!("level={} effect={}", actual.level, actual.effect),
+            });
+        }
+        Ok(ChangeReport::committed(previous, requested, actual))
     }
 }
 

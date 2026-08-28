@@ -9,11 +9,13 @@ use std::collections::BTreeMap;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use lctrl_core::{
-    ApplyMode, Availability, Capability, CapabilitySet, ChargeMode, HardwareInfo, LctrlError,
-    Platform, PowerGuid, PowerMutation, PowerSchemeId, PowerSettingKey, PowerSettingValue,
-    PowerSource,
+    ApplyMode, Availability, BiosChange, Capability, CapabilitySet, ChargeMode, HardwareInfo,
+    LctrlError, Platform, PowerGuid, PowerMutation, PowerSchemeId, PowerSettingKey,
+    PowerSettingValue, PowerSource,
 };
-use lctrl_hal::{BatteryControl, Hal, PerformanceControl, PowerControl};
+use lctrl_hal::{
+    BatteryControl, BiosControl, Hal, KeyboardControl, PerformanceControl, PowerControl,
+};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -27,16 +29,19 @@ pub type CommandResult = lctrl_core::Result<CommandOutput>;
 pub struct CommandServices<'a> {
     hal: &'a dyn Hal,
     battery: Option<&'a dyn BatteryControl>,
+    bios: Option<&'a dyn BiosControl>,
+    keyboard: Option<&'a dyn KeyboardControl>,
     performance: Option<&'a dyn PerformanceControl>,
     power: Option<&'a dyn PowerControl>,
 }
 
 impl<'a> CommandServices<'a> {
-    #[must_use]
     pub const fn new(hal: &'a dyn Hal) -> Self {
         Self {
             hal,
             battery: None,
+            bios: None,
+            keyboard: None,
             performance: None,
             power: None,
         }
@@ -45,6 +50,18 @@ impl<'a> CommandServices<'a> {
     #[must_use]
     pub fn with_battery(mut self, battery: &'a dyn BatteryControl) -> Self {
         self.battery = Some(battery);
+        self
+    }
+
+    #[must_use]
+    pub fn with_bios(mut self, bios: &'a dyn BiosControl) -> Self {
+        self.bios = Some(bios);
+        self
+    }
+
+    #[must_use]
+    pub fn with_keyboard(mut self, keyboard: &'a dyn KeyboardControl) -> Self {
+        self.keyboard = Some(keyboard);
         self
     }
 
@@ -119,6 +136,9 @@ pub struct Cli {
     /// Validate a mutating command and report the intended change without writing hardware.
     #[arg(long, global = true)]
     pub dry_run: bool,
+    /// Confirm a risky operation after reviewing its impact and recovery path.
+    #[arg(long, global = true)]
+    pub yes: bool,
 
     #[command(subcommand)]
     pub command: Command,
@@ -523,8 +543,6 @@ pub enum BiosCommand {
         value: String,
         #[arg(long)]
         save: bool,
-        #[arg(long)]
-        yes: bool,
     },
     Save,
     Discard,
@@ -660,6 +678,7 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
     } else {
         ApplyMode::Commit
     };
+    let confirmed = cli.yes;
     match cli.command {
         Command::Info => execute_info(services.hal),
         Command::Battery {
@@ -680,6 +699,18 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
         Command::Perf {
             command: Some(PerfCommand::Mode { mode }),
         } => execute_performance_mode(services.performance, mode, apply),
+        Command::Bios {
+            command: Some(command),
+        } => execute_bios(services.bios, command, apply, confirmed),
+        Command::Kbd {
+            command: Some(KbdCommand::Backlight { level, effect }),
+        } => execute_backlight(services.keyboard, level, effect, apply),
+        Command::Kbd {
+            command: Some(KbdCommand::FnCtrlSwap { state }),
+        } => execute_fn_ctrl_swap(services.bios, state, apply, confirmed),
+        Command::Privacy {
+            command: Some(command),
+        } => execute_privacy(services.bios, command, apply, confirmed),
         command => Err(unsupported(command)),
     }
 }
@@ -824,6 +855,247 @@ fn execute_power_scheme(
             };
             let report = power.apply_power_mutation(mutation, apply)?;
             structured_output(&report, "power setting requested\n".into())
+        }
+    }
+}
+
+fn execute_backlight(
+    keyboard: Option<&dyn KeyboardControl>,
+    level: u8,
+    effect: Option<BacklightEffect>,
+    apply: ApplyMode,
+) -> CommandResult {
+    let keyboard = keyboard.ok_or_else(|| LctrlError::Unsupported {
+        feature: "kbd.backlight".into(),
+    })?;
+    let effect = match effect.unwrap_or(BacklightEffect::Static) {
+        BacklightEffect::Static => lctrl_core::LightingEffect::Static,
+        BacklightEffect::Breath => lctrl_core::LightingEffect::Breathing,
+    };
+    let report = keyboard.set_backlight(level, effect, apply)?;
+    structured_output(
+        &report,
+        format!("keyboard backlight level {level} ({effect})\n"),
+    )
+}
+
+fn execute_fn_ctrl_swap(
+    bios: Option<&dyn BiosControl>,
+    state: Toggle,
+    apply: ApplyMode,
+    confirmed: bool,
+) -> CommandResult {
+    execute_persistent_bios_toggle(bios, "FoolProofFnCtrl", state, apply, confirmed)
+}
+
+fn execute_privacy(
+    bios: Option<&dyn BiosControl>,
+    command: PrivacyCommand,
+    apply: ApplyMode,
+    confirmed: bool,
+) -> CommandResult {
+    match command {
+        PrivacyCommand::Cam {
+            state,
+            runtime,
+            persistent,
+        } => {
+            require_persistent_privacy_layer(runtime, persistent, "privacy.cam.runtime")?;
+            execute_persistent_bios_toggle(bios, "IntegratedCamera", state, apply, confirmed)
+        }
+        PrivacyCommand::Mic {
+            state,
+            runtime,
+            persistent,
+        } => {
+            require_persistent_privacy_layer(runtime, persistent, "privacy.mic.runtime")?;
+            execute_persistent_bios_toggle(bios, "Microphone", state, apply, confirmed)
+        }
+        PrivacyCommand::Fingerprint { state } => {
+            execute_persistent_bios_toggle(bios, "FingerprintReader", state, apply, confirmed)
+        }
+        PrivacyCommand::Status => {
+            let bios = bios.ok_or_else(|| LctrlError::Unsupported {
+                feature: "privacy.status".into(),
+            })?;
+            let mut items = Vec::new();
+            for name in ["IntegratedCamera", "Microphone", "FingerprintReader"] {
+                if let Some(item) = bios.get(name)? {
+                    items.push(item);
+                }
+            }
+            structured_output(&items, format!("{} privacy BIOS state(s)\n", items.len()))
+        }
+    }
+}
+
+fn require_persistent_privacy_layer(
+    runtime: bool,
+    persistent: bool,
+    runtime_feature: &str,
+) -> lctrl_core::Result<()> {
+    if runtime {
+        return Err(LctrlError::Unsupported {
+            feature: runtime_feature.into(),
+        });
+    }
+    if !persistent {
+        return Err(LctrlError::InvalidArgument {
+            detail: "privacy camera/microphone requires explicit --persistent or --runtime".into(),
+        });
+    }
+    Ok(())
+}
+
+fn execute_persistent_bios_toggle(
+    bios: Option<&dyn BiosControl>,
+    name: &str,
+    state: Toggle,
+    apply: ApplyMode,
+    confirmed: bool,
+) -> CommandResult {
+    if apply == ApplyMode::Commit && !confirmed {
+        return Err(LctrlError::InvalidArgument {
+            detail: format!("persistent BIOS change {name} requires --yes"),
+        });
+    }
+    let bios = bios.ok_or_else(|| LctrlError::Unsupported {
+        feature: format!("bios.{name}"),
+    })?;
+    let current = bios.get(name)?.ok_or_else(|| LctrlError::Unsupported {
+        feature: format!("bios.setting.{name}"),
+    })?;
+    let requested_value = match state {
+        Toggle::On => "Enable",
+        Toggle::Off => "Disable",
+    };
+    validate_bios_selection(bios, name, requested_value)?;
+    let previous = BiosChange::new(current.name, current.value)?;
+    let requested = BiosChange::new(name, requested_value)?;
+    if apply == ApplyMode::DryRun {
+        return structured_output(
+            &lctrl_core::ChangeReport::dry_run(previous, requested),
+            format!("BIOS {name} dry run validated\n"),
+        );
+    }
+    bios.stage(requested.clone())?;
+    bios.save()?;
+    let actual_item = bios.get(name)?.ok_or_else(|| LctrlError::VerifyMismatch {
+        requested: requested_value.into(),
+        actual: "setting absent after save".into(),
+    })?;
+    let actual = BiosChange::new(actual_item.name, actual_item.value)?;
+    if actual.value != requested.value {
+        return Err(LctrlError::VerifyMismatch {
+            requested: requested.value.to_string(),
+            actual: actual.value.to_string(),
+        });
+    }
+    structured_output(
+        &lctrl_core::ChangeReport::committed(previous, requested, actual),
+        format!("BIOS {name} saved and read back\n"),
+    )
+}
+
+fn validate_bios_selection(
+    bios: &dyn BiosControl,
+    name: &str,
+    value: &str,
+) -> lctrl_core::Result<()> {
+    let selections = bios.selections(name)?;
+    if selections.is_empty() {
+        return Err(LctrlError::Unsupported {
+            feature: format!("bios.selections.{name}"),
+        });
+    }
+    if selections.iter().any(|selection| selection == value) {
+        Ok(())
+    } else {
+        Err(LctrlError::InvalidArgument {
+            detail: format!(
+                "BIOS value {value:?} is not one of the exact selections for {name}: {}",
+                selections.join(", ")
+            ),
+        })
+    }
+}
+
+fn execute_bios(
+    bios: Option<&dyn BiosControl>,
+    command: BiosCommand,
+    apply: ApplyMode,
+    confirmed: bool,
+) -> CommandResult {
+    let bios = bios.ok_or_else(|| LctrlError::Unsupported {
+        feature: "bios".into(),
+    })?;
+    match command {
+        BiosCommand::List => {
+            let items = bios.list()?;
+            structured_output(&items, format!("{} BIOS setting(s)\n", items.len()))
+        }
+        BiosCommand::Get { name } => {
+            let item = bios
+                .get(&name)?
+                .ok_or_else(|| LctrlError::InvalidArgument {
+                    detail: format!("BIOS setting {name:?} was not found"),
+                })?;
+            structured_output(&item, format!("{}={}\n", item.name, item.value))
+        }
+        BiosCommand::Set { name, value, save } => {
+            if apply == ApplyMode::Commit && !confirmed {
+                return Err(LctrlError::InvalidArgument {
+                    detail: "BIOS writes require --yes after reviewing the change".into(),
+                });
+            }
+            let selections = bios.selections(&name)?;
+            if selections.is_empty() {
+                return Err(LctrlError::Unsupported {
+                    feature: format!("bios.selections.{name}"),
+                });
+            }
+            if !selections.iter().any(|selection| selection == &value) {
+                return Err(LctrlError::InvalidArgument {
+                    detail: format!(
+                        "BIOS value {value:?} is not one of the exact selections for {name}: {}",
+                        selections.join(", ")
+                    ),
+                });
+            }
+            let change = BiosChange::new(name.clone(), value.clone())?;
+            if apply == ApplyMode::DryRun {
+                return structured_output(&change, "BIOS setting dry run validated\n".into());
+            }
+            bios.stage(change.clone())?;
+            if save {
+                bios.save()?;
+                let actual = bios.get(&name)?.ok_or_else(|| LctrlError::VerifyMismatch {
+                    requested: value.clone(),
+                    actual: "setting absent after save".into(),
+                })?;
+                if actual.value != value {
+                    return Err(LctrlError::VerifyMismatch {
+                        requested: value,
+                        actual: actual.value,
+                    });
+                }
+            }
+            structured_output(
+                &change,
+                if save {
+                    "BIOS setting saved and read back\n".into()
+                } else {
+                    "BIOS setting staged; use an explicit safe save flow\n".into()
+                },
+            )
+        }
+        BiosCommand::Save => Err(LctrlError::Unsupported {
+            feature: "bios.save.global-buffer".into(),
+        }),
+        BiosCommand::Discard | BiosCommand::Defaults | BiosCommand::Password { .. } => {
+            Err(LctrlError::Unsupported {
+                feature: "bios.experimental-or-underspecified".into(),
+            })
         }
     }
 }
@@ -1073,7 +1345,7 @@ impl BiosCommand {
             Self::List => "list",
             Self::Get { .. } => "get",
             Self::Set { .. } => "set",
-            Self::Save => "save",
+            Self::Save { .. } => "save",
             Self::Discard => "discard",
             Self::Defaults => "defaults",
             Self::Password { .. } => "password",
