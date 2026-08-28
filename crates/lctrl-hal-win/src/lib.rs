@@ -2,6 +2,7 @@ mod bios;
 mod codec;
 mod error;
 mod ioctl_contract;
+mod magicbay;
 #[cfg(windows)]
 mod native_ioctl;
 #[cfg(windows)]
@@ -25,6 +26,9 @@ pub use codec::{
 };
 pub use error::{map_win_error, map_wmi_hresult};
 pub use ioctl_contract::{EnergyDriver, IoctlTransport};
+#[cfg(windows)]
+pub use magicbay::NativeMagicBay;
+pub use magicbay::parse_magicbay_instance_id;
 #[cfg(windows)]
 pub use native_ioctl::NativeIoctl;
 #[cfg(windows)]

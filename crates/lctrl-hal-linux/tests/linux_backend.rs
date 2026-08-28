@@ -6,9 +6,12 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use lctrl_core::{
     AdapterAuthentication, ApplyMode, Availability, ChargeMode, ChargeModeActual, ChargeStatus,
-    LctrlError, LightingEffect, Platform,
+    DiagnosticKind, DiagnosticOutcome, LctrlError, LightingEffect, MagicBayKind, Platform,
+    UpdateCapability,
 };
-use lctrl_hal::{BatteryControl, Hal, KeyboardControl};
+use lctrl_hal::{
+    BatteryControl, DiagnosticsControl, Hal, KeyboardControl, MagicBayControl, UpdateControl,
+};
 use lctrl_hal_linux::LinuxHal;
 
 static NEXT_TREE: AtomicU64 = AtomicU64::new(0);
@@ -507,4 +510,59 @@ fn keyboard_backlight_rejects_unsupported_effect_before_write() {
         fs::read_to_string(tree.path("sys/devices/platform/ideapad/kbd_backlight")).unwrap(),
         "1\n"
     );
+}
+
+#[test]
+fn magicbay_detection_uses_verified_usb_and_acpi_ids() {
+    let tree = TempTree::new();
+    tree.write("sys/bus/usb/devices/1-2/idVendor", "17ef\n");
+    tree.write("sys/bus/usb/devices/1-2/idProduct", "7005\n");
+    tree.write("sys/bus/usb/devices/2-1/idVendor", "1234\n");
+    tree.write("sys/bus/usb/devices/2-1/idProduct", "7005\n");
+    fs::create_dir_all(tree.path("sys/bus/acpi/devices/QCOM2488:00"))
+        .expect("create ACPI display fixture");
+
+    let devices = tree.hal().detect_magicbay().unwrap();
+
+    assert_eq!(devices.len(), 2);
+    let lte = devices.iter().find(|device| device.bus == "usb").unwrap();
+    assert_eq!(lte.vid, Some(0x17ef));
+    assert_eq!(lte.pid, Some(0x7005));
+    assert_eq!(lte.kind, MagicBayKind::Lte2);
+    assert_eq!(lte.interfaces, vec!["mbim"]);
+    let display = devices.iter().find(|device| device.bus == "acpi").unwrap();
+    assert_eq!(display.kind, MagicBayKind::Hud);
+    assert_eq!(display.interfaces, vec!["display"]);
+}
+
+#[test]
+fn standard_diagnostics_report_inventory_only_without_fake_deep_pass() {
+    let tree = TempTree::new();
+    tree.write("proc/meminfo", "MemTotal: 1024 kB\n");
+
+    let results = tree
+        .hal()
+        .run_diagnostics(&[DiagnosticKind::Memory, DiagnosticKind::Battery])
+        .unwrap();
+
+    assert_eq!(results[0].outcome, DiagnosticOutcome::Warning);
+    assert!(
+        results[0]
+            .detail
+            .contains("deep vendor-driver diagnostics are excluded")
+    );
+    assert_eq!(results[1].outcome, DiagnosticOutcome::Unavailable);
+}
+
+#[test]
+fn update_capability_fails_closed_without_catalog_trust_contract() {
+    let capability = tree_update_capability();
+    assert!(matches!(
+        capability,
+        UpdateCapability::Unavailable { reason } if reason.contains("authenticated public update catalog")
+    ));
+}
+
+fn tree_update_capability() -> UpdateCapability {
+    TempTree::new().hal().update_capability().unwrap()
 }

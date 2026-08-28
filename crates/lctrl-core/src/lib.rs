@@ -3,8 +3,10 @@ mod battery;
 mod bios;
 mod capability;
 mod change;
+mod diagnostics;
 mod error;
 mod keyboard;
+mod magicbay;
 mod panel;
 mod performance;
 mod power;
@@ -23,8 +25,13 @@ pub use bios::{
 };
 pub use capability::{Availability, Capability, CapabilitySet, HardwareInfo, Platform};
 pub use change::{ApplyMode, ChangeReport};
+pub use diagnostics::{DiagnosticKind, DiagnosticOutcome, DiagnosticResult, UpdateCapability};
 pub use error::{ErrorReport, LctrlError, Result};
 pub use keyboard::{BacklightState, DeviceState, LightingEffect, LockState};
+pub use magicbay::{
+    KNOWN_MAGICBAY_DEVICES, KnownMagicBayDevice, MAGICBAY_VENDOR_ID, MagicBayDevice, MagicBayKind,
+    identify_magicbay,
+};
 pub use panel::{
     GamutMode, LowLatencyMode, PanelDisplayMode, PanelRefreshCapability, PanelSupportBits,
     RefreshMode,
