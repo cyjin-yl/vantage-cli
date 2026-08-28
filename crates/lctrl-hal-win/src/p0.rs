@@ -1,8 +1,10 @@
+use std::time::Duration;
+
 use lctrl_core::{
     AdapterDetailValues, AdapterInfo, ApplyMode, BatteryTelemetry, ChangeReport, ChargeMode,
     ChargeModeActual, ChargePrimitive, LctrlError, Result, decode_charge_mode, plan_charge_mode,
 };
-use lctrl_hal::BatteryControl;
+use lctrl_hal::{BatteryControl, poll_readback};
 
 use crate::{EnergyDriver, GbmdCommand, IoctlTransport};
 
@@ -83,6 +85,15 @@ where
         };
         EnergyDriver::new(&self.ioctl).write_gbmd(command)
     }
+
+    fn commit_charge_mode(&self, mode: ChargeMode) -> Result<ChargeMode> {
+        for primitive in plan_charge_mode(mode) {
+            self.write_primitive(primitive)?;
+        }
+        poll_readback(&mode, 10, Duration::from_millis(50), || {
+            self.mode_for_write()
+        })
+    }
 }
 
 impl<I, R> BatteryControl for WindowsBatteryP0<I, R>
@@ -101,8 +112,8 @@ where
         let detail = if (status >> 24) & 1 != 0 {
             let detail = driver.adapter_detail()?;
             Some(AdapterDetailValues {
-                pid: detail.pid,
-                vid: detail.vid,
+                pid: (detail.pid != u16::MAX).then_some(detail.pid),
+                vid: (detail.vid != u16::MAX).then_some(detail.vid),
                 system_power_w: detail.system_power_w,
                 current_power_w: detail.current_power_w,
             })
@@ -131,17 +142,27 @@ where
             return Ok(ChangeReport::dry_run(previous, mode));
         }
 
-        for primitive in plan_charge_mode(mode) {
-            self.write_primitive(primitive)?;
+        let mut wrote = false;
+        let result = (|| {
+            for primitive in plan_charge_mode(mode) {
+                self.write_primitive(primitive)?;
+                wrote = true;
+            }
+            poll_readback(&mode, 10, Duration::from_millis(50), || {
+                self.mode_for_write()
+            })
+        })();
+        match result {
+            Ok(actual) => Ok(ChangeReport::committed(previous, mode, actual)),
+            Err(error) if !wrote => Err(error),
+            Err(error) => match self.commit_charge_mode(previous) {
+                Ok(_) => Err(error),
+                Err(rollback) => Err(LctrlError::FirmwareRejected {
+                    detail: format!(
+                        "charge-mode transition failed ({error}); restoring {previous} also failed ({rollback})"
+                    ),
+                }),
+            },
         }
-
-        let actual = self.mode_for_write()?;
-        if actual != mode {
-            return Err(LctrlError::VerifyMismatch {
-                requested: mode.to_string(),
-                actual: actual.to_string(),
-            });
-        }
-        Ok(ChangeReport::committed(previous, mode, actual))
     }
 }

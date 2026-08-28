@@ -12,6 +12,7 @@ use crate::{WmiMethodResult, WmiObject, WmiTransport, WmiValue};
 const BIOS_SETTING_CLASS: &str = "Lenovo_BiosSetting";
 const BIOS_SET_CLASS: &str = "Lenovo_SetBiosSetting";
 const BIOS_SAVE_CLASS: &str = "Lenovo_SaveBiosSettings";
+const BIOS_DISCARD_CLASS: &str = "Lenovo_DiscardBiosSettings";
 const BIOS_SELECTIONS_CLASS: &str = "Lenovo_GetBiosSelections";
 const BIOS_PASSWORD_CLASS: &str = "Lenovo_BiosPasswordSettings";
 
@@ -37,20 +38,18 @@ where
     W: WmiTransport,
 {
     fn list(&self) -> Result<Vec<BiosItem>> {
-        let query = format!("SELECT CurrentSetting FROM {BIOS_SETTING_CLASS}");
-        let objects = self.transport.query(ROOT_WMI, &query)?;
-        Ok(objects
-            .iter()
-            .filter_map(|object| match object.get("CurrentSetting") {
-                Some(WmiValue::String(setting)) => parse_current_setting(setting),
-                _ => None,
-            })
-            .collect())
+        let mut items = self.settings()?;
+        for item in &mut items {
+            if let Ok(selections) = self.selections(&item.name) {
+                item.selections = selections;
+            }
+        }
+        Ok(items)
     }
 
     fn get(&self, name: &str) -> Result<Option<BiosItem>> {
         Ok(self
-            .list()?
+            .settings()?
             .into_iter()
             .find(|item| item.name.eq_ignore_ascii_case(name)))
     }
@@ -95,6 +94,18 @@ where
         require_business_success(output, "bios.save")
     }
 
+    fn discard(&self) -> Result<()> {
+        let output = self.invoke(
+            BIOS_DISCARD_CLASS,
+            "DiscardBiosSettings",
+            BTreeMap::from([(
+                "parameter".into(),
+                WmiValue::String(save_parameter().into()),
+            )]),
+        )?;
+        require_business_success(output, "bios.discard")
+    }
+
     fn password_status(&self) -> Result<BiosPasswordStatus> {
         let query =
             format!("SELECT MinLength, MaxLength, PasswordState FROM {BIOS_PASSWORD_CLASS}");
@@ -114,6 +125,18 @@ impl<W> WindowsBiosController<W>
 where
     W: WmiTransport,
 {
+    fn settings(&self) -> Result<Vec<BiosItem>> {
+        let query = format!("SELECT CurrentSetting FROM {BIOS_SETTING_CLASS}");
+        let objects = self.transport.query(ROOT_WMI, &query)?;
+        Ok(objects
+            .iter()
+            .filter_map(|object| match object.get("CurrentSetting") {
+                Some(WmiValue::String(setting)) => parse_current_setting(setting),
+                _ => None,
+            })
+            .collect())
+    }
+
     fn invoke(&self, class: &str, method: &str, input: WmiObject) -> Result<WmiObject> {
         let path = first_method_path(&self.transport, class)?;
         self.transport

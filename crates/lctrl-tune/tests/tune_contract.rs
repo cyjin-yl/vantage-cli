@@ -1,4 +1,4 @@
-use lctrl_core::{ApplyMode, Availability, CapabilitySet, Platform};
+use lctrl_core::{ApplyMode, Availability, CapabilitySet, LctrlError, Platform};
 use lctrl_tune::{
     EcMode, FanMode, PanelRefresh, Planner, ProfileCatalog, ProfileOrigin, TriggerClass,
     TuneSetting, parse_profile_toml,
@@ -280,7 +280,7 @@ fn unavailable_targets_are_skipped_in_dry_run_and_fail_in_commit() {
     let catalog = ProfileCatalog::from_layers([], [], [profile]).unwrap();
     let profile = catalog.get("portable").unwrap();
     let mut caps = CapabilitySet::new(Platform::Linux);
-    caps.record("ec_mode", Availability::Available, None)
+    caps.record("perf.mode", Availability::Available, None)
         .unwrap();
 
     let dry = Planner::compile(
@@ -311,5 +311,5 @@ fn unavailable_targets_are_skipped_in_dry_run_and_fail_in_commit() {
         ApplyMode::Commit,
     )
     .unwrap_err();
-    assert!(error.to_string().contains("unavailable"));
+    assert!(matches!(error, LctrlError::Unsupported { feature } if feature.contains("pl1_w")));
 }

@@ -1,10 +1,10 @@
-//! A read-only GPUI control-center shell for lctrl.
+//! A read-only GPUI control-center shell for vantage.
 //!
 //! The GUI deliberately has no hardware mutation path. It renders the state
 //! reported by [`lctrl_hal::Hal`] and marks every capability according to the
 //! core availability value, including its explanation.
 
-use std::env;
+use std::{cell::RefCell, env, rc::Rc};
 
 use gpui::{
     App, Application, Bounds, Context, IntoElement, Render, Window, WindowBounds, WindowOptions,
@@ -76,7 +76,7 @@ impl DashboardSnapshot {
     }
 }
 
-/// Open the lctrl dashboard with a read-only snapshot.
+/// Open the vantage dashboard with a read-only snapshot.
 ///
 /// A real Wayland or X11 session is required on Linux. Calling this from SSH
 /// or another headless session returns a normal channel error rather than
@@ -93,6 +93,8 @@ pub fn run(snapshot: DashboardSnapshot) -> Result<()> {
         });
     }
 
+    let failure = Rc::new(RefCell::new(None::<String>));
+    let reported_failure = Rc::clone(&failure);
     Application::new().run(move |cx: &mut App| {
         let bounds = Bounds::centered(None, size(px(WINDOW_WIDTH), px(WINDOW_HEIGHT)), cx);
         if let Err(error) = cx.open_window(
@@ -102,13 +104,19 @@ pub fn run(snapshot: DashboardSnapshot) -> Result<()> {
             },
             move |_, cx| cx.new(|_| Dashboard { snapshot }),
         ) {
-            eprintln!("lctrl-gui: unable to open dashboard window: {error}");
+            *reported_failure.borrow_mut() = Some(error.to_string());
             cx.quit();
         } else {
             cx.activate(true);
         }
     });
-    Ok(())
+    if let Some(error) = failure.borrow_mut().take() {
+        Err(LctrlError::ChannelUnavailable {
+            channel: format!("desktop window: {error}"),
+        })
+    } else {
+        Ok(())
+    }
 }
 
 fn desktop_session_available(
@@ -185,7 +193,7 @@ fn sidebar() -> impl IntoElement {
                     div()
                         .text_xs()
                         .text_color(rgb(SIGNAL))
-                        .child("LCTRL / CONTROL"),
+                        .child("VANTAGE / CONTROL"),
                 )
                 .child(
                     div()

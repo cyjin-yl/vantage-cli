@@ -581,6 +581,9 @@ pub struct TunePlan {
     pub writes: Vec<TuneSetting>,
     pub skipped: Vec<UnavailableTarget>,
     pub warnings: Vec<String>,
+    pub constraints: Constraints,
+    pub fallback: Fallback,
+    pub triggers: Vec<Trigger>,
 }
 
 pub(crate) fn invalid(detail: impl Into<String>) -> LctrlError {

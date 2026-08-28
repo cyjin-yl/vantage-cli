@@ -85,7 +85,7 @@ impl PowerSchemeId {
     }
 
     #[must_use]
-    pub const fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &str {
         self.0.as_str()
     }
 }
@@ -107,7 +107,7 @@ impl PowerGuid {
     }
 
     #[must_use]
-    pub const fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &str {
         self.0.as_str()
     }
 }
@@ -220,5 +220,16 @@ impl fmt::Display for PowerSource {
             Self::Ac => "ac",
             Self::Dc => "dc",
         })
+    }
+}
+
+impl fmt::Display for PowerMutation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Activate(id) => write!(f, "activate:{id}"),
+            Self::SetValue { key, source, value } => {
+                write!(f, "set:{}:{}:{source}:{value}", key.subgroup, key.setting)
+            }
+        }
     }
 }

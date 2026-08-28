@@ -15,9 +15,9 @@ mod sensing;
 
 pub use audio::{DolbyProfile, NoiseCancellationMode};
 pub use battery::{
-    AdapterAuthentication, AdapterDetailValues, AdapterInfo, BatteryDate, BatteryHealth,
-    BatteryTelemetry, ChargeMode, ChargeModeActual, ChargePrimitive, ChargeStatus,
-    decode_charge_mode, plan_charge_mode,
+    AdapterAuthentication, AdapterConnectorType, AdapterDetailValues, AdapterInfo, AdapterStatus,
+    BatteryDate, BatteryHealth, BatteryTelemetry, ChargeMode, ChargeModeActual, ChargePrimitive,
+    ChargeStatus, decode_charge_mode, plan_charge_mode,
 };
 pub use bios::{
     BiosChange, BiosItem, BiosName, BiosPasswordStatus, BiosRisk, BiosValue, classify_risk,
@@ -29,8 +29,8 @@ pub use diagnostics::{DiagnosticKind, DiagnosticOutcome, DiagnosticResult, Updat
 pub use error::{ErrorReport, LctrlError, Result};
 pub use keyboard::{BacklightState, DeviceState, LightingEffect, LockState};
 pub use magicbay::{
-    KNOWN_MAGICBAY_DEVICES, KnownMagicBayDevice, MAGICBAY_VENDOR_ID, MagicBayDevice, MagicBayKind,
-    identify_magicbay,
+    KNOWN_MAGICBAY_DEVICES, KnownMagicBayDevice, MAGICBAY_VENDOR_ID, MagicBayDevice,
+    MagicBayInventory, MagicBayKind, identify_magicbay,
 };
 pub use panel::{
     GamutMode, LowLatencyMode, PanelDisplayMode, PanelRefreshCapability, PanelSupportBits,

@@ -8,6 +8,8 @@ pub enum MagicBayKind {
     TikoLte,
     Lte2,
     Hud,
+    DisplayBridge,
+    UsbRoleSwitch,
     Unknown,
 }
 
@@ -49,6 +51,12 @@ pub struct MagicBayDevice {
     pub kind: MagicBayKind,
     pub interfaces: Vec<String>,
     pub attached: bool,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize)]
+pub struct MagicBayInventory {
+    pub devices: Vec<MagicBayDevice>,
+    pub acpi_devices: Vec<MagicBayDevice>,
 }
 
 #[must_use]

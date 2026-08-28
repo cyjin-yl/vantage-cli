@@ -1,15 +1,19 @@
 [package]
-name = "lctrl"
+name = "vantage"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
 publish = false
+repository.workspace = true
+description = "Cross-platform Lenovo hardware control CLI"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
-lctrl-cli = { path = "../crates/lctrl-cli" }
+vantage-daemon = { path = "../crates/vantage-daemon" }
+vantage-cli = { path = "../crates/vantage-cli" }
 lctrl-core = { path = "../crates/lctrl-core" }
 lctrl-hal = { path = "../crates/lctrl-hal" }
+serde_json.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
 lctrl-hal-linux = { path = "../crates/lctrl-hal-linux" }

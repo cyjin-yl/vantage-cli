@@ -1,4 +1,6 @@
-use lctrl_core::{ApplyMode, Availability, CapabilitySet, HardwareInfo, Platform, Result};
+use lctrl_core::{
+    ApplyMode, Availability, CapabilitySet, HardwareInfo, LctrlError, Platform, Result,
+};
 
 use crate::model::{
     Goal, ResolvedProfile, TunePlan, TuneSetting, TuningTarget, UnavailableTarget, invalid,
@@ -20,6 +22,12 @@ impl Planner {
         capabilities: &CapabilitySet,
         mode: ApplyMode,
     ) -> Result<TunePlan> {
+        if mode == ApplyMode::Commit && profile.constraints != Default::default() {
+            return Err(invalid(format!(
+                "profile {:?} has runtime constraints that require an evaluated executor context",
+                profile.name
+            )));
+        }
         let settings = settings_in_order(&profile.goal);
         let mut writes = Vec::with_capacity(settings.len());
         let mut skipped = Vec::new();
@@ -27,10 +35,11 @@ impl Planner {
 
         for setting in settings {
             let target = setting.target();
+            let capability_id = capability_id(target);
             if let Some(detail) = unavailable_detail(platform, target, capabilities) {
                 skipped.push(UnavailableTarget { target, detail });
             } else {
-                if let Some(capability) = capabilities.get(target.as_str()) {
+                if let Some(capability) = capabilities.get(capability_id) {
                     if capability.availability == Availability::Limited {
                         if let Some(detail) = &capability.detail {
                             warnings.push(format!("{} is limited: {detail}", target.as_str()));
@@ -47,10 +56,9 @@ impl Planner {
                 .map(|target| target.target.as_str())
                 .collect::<Vec<_>>()
                 .join(", ");
-            return Err(invalid(format!(
-                "profile {:?} has unavailable tuning targets: {targets}",
-                profile.name
-            )));
+            return Err(LctrlError::Unsupported {
+                feature: format!("tune.profile.{}.targets.{targets}", profile.name),
+            });
         }
 
         let snapshot_targets = writes.iter().map(TuneSetting::target).collect();
@@ -61,6 +69,9 @@ impl Planner {
             writes,
             skipped,
             warnings,
+            constraints: profile.constraints.clone(),
+            fallback: profile.fallback.clone(),
+            triggers: profile.triggers.clone(),
         })
     }
 }
@@ -81,15 +92,33 @@ fn unavailable_detail(
     {
         return Some("Windows raw MSR/RAPL power-limit channel is unavailable".into());
     }
-    match capabilities.get(target.as_str()) {
+    let capability_id = capability_id(target);
+    match capabilities.get(capability_id) {
         Some(capability) if capability.availability != Availability::Unavailable => None,
         Some(capability) => Some(
             capability
                 .detail
                 .clone()
-                .unwrap_or_else(|| format!("capability {} is unavailable", target.as_str())),
+                .unwrap_or_else(|| format!("capability {capability_id} is unavailable")),
         ),
-        None => Some(format!("capability {} is not advertised", target.as_str())),
+        None => Some(format!("capability {capability_id} is not advertised")),
+    }
+}
+
+const fn capability_id(target: TuningTarget) -> &'static str {
+    match target {
+        TuningTarget::EcMode => "perf.mode",
+        TuningTarget::Pl1 => "tune.pl1",
+        TuningTarget::Pl2 => "tune.pl2",
+        TuningTarget::Tau => "tune.tau",
+        TuningTarget::Epp => "tune.epp",
+        TuningTarget::Turbo => "tune.turbo",
+        TuningTarget::FanMode => "perf.fan.mode",
+        TuningTarget::PanelRefresh => "panel.refresh",
+        TuningTarget::Dgpu => "gpu.mode",
+        TuningTarget::ChargeMode => "battery.charge_mode",
+        TuningTarget::Backlight => "kbd.backlight",
+        TuningTarget::Background => "tune.background",
     }
 }
 
@@ -127,6 +156,9 @@ fn settings_in_order(goal: &Goal) -> Vec<TuneSetting> {
     }
     if let Some(value) = goal.backlight {
         settings.push(TuneSetting::Backlight(value));
+    }
+    if let Some(value) = &goal.background {
+        settings.push(TuneSetting::Background(value.clone()));
     }
     settings
 }

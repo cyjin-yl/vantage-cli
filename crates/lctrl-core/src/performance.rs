@@ -11,6 +11,8 @@ pub enum PerformanceMode {
     Quiet,
     Performance,
     Geek,
+    SilentHighPerformance,
+    Custom,
 }
 
 impl PerformanceMode {
@@ -21,6 +23,7 @@ impl PerformanceMode {
             Self::Quiet => 2,
             Self::Performance => 3,
             Self::Geek => 4,
+            Self::SilentHighPerformance | Self::Custom => 0,
         }
     }
 
@@ -44,10 +47,11 @@ impl fmt::Display for PerformanceMode {
             Self::Quiet => "quiet",
             Self::Performance => "performance",
             Self::Geek => "geek",
+            Self::SilentHighPerformance => "silent-high-performance",
+            Self::Custom => "custom",
         })
     }
 }
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DispatcherVersion {
@@ -100,6 +104,7 @@ impl PerformanceCapabilities {
             PerformanceMode::Quiet => 0x02,
             PerformanceMode::Performance => 0x08,
             PerformanceMode::Geek => 0x10,
+            PerformanceMode::SilentHighPerformance | PerformanceMode::Custom => return false,
         };
         self.raw & mask != 0 && (mode != PerformanceMode::Geek || version.supports_geek())
     }
@@ -210,6 +215,18 @@ impl FanMode {
             2 => Self::Performance,
             3 => Self::Custom,
             other => Self::Unknown(other),
+        }
+    }
+}
+
+impl fmt::Display for FanMode {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Standard => formatter.write_str("standard"),
+            Self::Silent => formatter.write_str("silent"),
+            Self::Performance => formatter.write_str("performance"),
+            Self::Custom => formatter.write_str("custom"),
+            Self::Unknown(raw) => write!(formatter, "unknown ({raw})"),
         }
     }
 }

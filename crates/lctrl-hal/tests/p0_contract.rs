@@ -1,6 +1,6 @@
 use lctrl_core::{
     AdapterInfo, ApplyMode, BatteryTelemetry, ChangeReport, ChargeMode, ChargeModeActual,
-    FanDescriptor, FanId, PerformanceMode, PerformanceState, PowerMutation, PowerScheme,
+    FanDescriptor, FanId, FanMode, PerformanceMode, PerformanceState, PowerMutation, PowerScheme,
     PowerSchemeId, PowerSettingKey, PowerSettingValue, PowerSource,
 };
 use lctrl_hal::{BatteryControl, FanControl, PerformanceControl, PowerControl};
@@ -40,6 +40,19 @@ impl PerformanceControl for FakeP0 {
 }
 
 impl FanControl for FakeP0 {
+    fn fan_mode(&self) -> lctrl_core::Result<FanMode> {
+        Ok(FanMode::Standard)
+    }
+    fn set_fan_mode(
+        &self,
+        mode: FanMode,
+        apply: ApplyMode,
+    ) -> lctrl_core::Result<ChangeReport<FanMode>> {
+        Ok(match apply {
+            ApplyMode::DryRun => ChangeReport::dry_run(FanMode::Standard, mode),
+            ApplyMode::Commit => ChangeReport::committed(FanMode::Standard, mode, mode),
+        })
+    }
     fn fans(&self) -> lctrl_core::Result<Vec<FanDescriptor>> {
         Ok(vec![])
     }

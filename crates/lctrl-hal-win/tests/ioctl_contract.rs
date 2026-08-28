@@ -2,8 +2,8 @@ use parking_lot::Mutex;
 
 use lctrl_core::LctrlError;
 use lctrl_hal_win::{
-    EnergyDriver, GbmdCommand, IOCTL_BATTERY_CONFIG, IOCTL_BATTERY_DETAIL, IOCTL_GAPD, IOCTL_GBMD,
-    IOCTL_GENERIC_GET, IOCTL_GENERIC_SET, IoctlTransport,
+    EnergyDriver, IOCTL_BATTERY_CONFIG, IOCTL_BATTERY_DETAIL, IOCTL_GAPD, IOCTL_GBMD,
+    IOCTL_GENERIC_GET, IoctlTransport,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -58,28 +58,6 @@ fn gbmd_status_uses_one_byte_query_and_four_byte_reply() {
 }
 
 #[test]
-fn gbmd_write_requires_zero_firmware_status() {
-    let transport = FakeIoctl::with_replies([0u32.to_le_bytes().to_vec()]);
-    let driver = EnergyDriver::new(&transport);
-
-    driver.write_gbmd(GbmdCommand::RAPID_ON).unwrap();
-    assert_eq!(
-        &*transport.calls.lock(),
-        &[Call {
-            code: IOCTL_GBMD,
-            input: vec![0x07],
-            output_len: 4,
-        }]
-    );
-
-    let rejected = FakeIoctl::with_replies([9u32.to_le_bytes().to_vec()]);
-    assert!(matches!(
-        EnergyDriver::new(&rejected).write_gbmd(GbmdCommand::RAPID_ON),
-        Err(LctrlError::FirmwareRejected { .. })
-    ));
-}
-
-#[test]
 fn generic_get_uses_literal_get_ioctl() {
     let transport = FakeIoctl::with_replies([16u32.to_le_bytes().to_vec()]);
     let driver = EnergyDriver::new(&transport);
@@ -91,22 +69,6 @@ fn generic_get_uses_literal_get_ioctl() {
             code: IOCTL_GENERIC_GET,
             input: 14u32.to_le_bytes().to_vec(),
             output_len: 4,
-        }]
-    );
-}
-
-#[test]
-fn generic_set_uses_twelve_byte_payload_and_no_output() {
-    let transport = FakeIoctl::default();
-    let driver = EnergyDriver::new(&transport);
-
-    driver.generic_set(6, 1, 0x1234_5678).unwrap();
-    assert_eq!(
-        &*transport.calls.lock(),
-        &[Call {
-            code: IOCTL_GENERIC_SET,
-            input: vec![6, 0, 0, 0, 1, 0, 0, 0, 0x78, 0x56, 0x34, 0x12,],
-            output_len: 0,
         }]
     );
 }

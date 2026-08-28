@@ -6,7 +6,7 @@
 
 ## 1. 项目目标
 
-从零实现一个跨平台（Windows / Linux）的命令行硬件控制中心 **lctrl**（暂定名，实现者可改），
+从零实现一个跨平台（Windows / Linux）的命令行硬件控制中心 **vantage**（暂定名，实现者可改），
 覆盖 Lenovo Vantage + 联想电脑管家（PCManager) + Lenovo MagiCenter 三套官方软件在
 **Lenovo 21VG (ThinkBook, Panther Lake 平台）** 上的全部硬件控制功能，并为 Panther Lake
 的低功耗调优提供一等支持。

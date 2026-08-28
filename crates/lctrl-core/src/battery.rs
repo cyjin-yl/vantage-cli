@@ -57,7 +57,6 @@ impl std::fmt::Display for ChargeModeActual {
 ///
 /// `u32::MAX` is the firmware's read-failure sentinel and is reported as an
 /// unavailable channel rather than being confused with an unknown mode.
-#[must_use]
 pub fn decode_charge_mode(raw: u32) -> Result<ChargeModeActual> {
     match raw {
         0 => Ok(ChargeModeActual::Normal),
@@ -225,50 +224,40 @@ impl BatteryHealth {
     }
 }
 
-/// Scalar battery telemetry decoded from the 83-byte battery response
-/// (docs/02 §7.1, offsets 0..36). The conflicting string areas (offset 48+)
-/// are deliberately not interpreted here.
-///
-/// Every 16-bit scalar uses `0xFFFF` to mark the field as unsupported; the
-/// 32-bit current field uses `0xFFFF_FFFF` (the same sentinel extended).
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+/// Battery telemetry decoded from the verified EnergyDrv scalar region or
+/// native platform battery interfaces. Unavailable identity fields remain
+/// explicit `None` values rather than being omitted from the contract.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct BatteryTelemetry {
-    /// Design capacity in mWh (raw value is in units of 10 mWh).
+    /// Design capacity in mWh (EnergyDrv raw value is in units of 10 mWh).
     pub design_capacity_mwh: Option<u32>,
-    /// Full-charge capacity in mWh.
     pub full_charge_capacity_mwh: Option<u32>,
-    /// Remaining capacity in mWh.
     pub remaining_capacity_mwh: Option<u32>,
-    /// Voltage in mV.
     pub voltage_mv: Option<u16>,
     /// Current in mA; positive charges, negative discharges.
     pub current_ma: Option<i32>,
     /// Temperature in 0.1 K.
     pub temperature_deci_kelvin: Option<u16>,
-    /// Manufacture date.
     pub manufacture_date: Option<BatteryDate>,
-    /// First-use date.
     pub first_used_date: Option<BatteryDate>,
-    /// Design voltage in mV.
     pub design_voltage_mv: Option<u16>,
-    /// Remaining charge percentage.
     pub remaining_percent: Option<u16>,
-    /// Battery life percentage.
     pub life_percent: Option<u16>,
-    /// Charge status; absent when the firmware returns `0xFFFF`.
     pub charge_status: Option<ChargeStatus>,
-    /// Remaining runtime in minutes.
+    pub health: Option<BatteryHealth>,
     pub remaining_time_min: Option<u16>,
-    /// Time to full charge in minutes.
     pub charge_completion_time_min: Option<u16>,
-    /// Wattage in W.
     pub wattage_w: Option<u16>,
-    /// Charge/discharge cycle count.
     pub cycle_count: Option<u16>,
+    pub manufacturer: Option<String>,
+    pub model_name: Option<String>,
+    pub firmware_version: Option<String>,
+    pub serial_number: Option<String>,
+    pub chemistry: Option<String>,
 }
 
 impl BatteryTelemetry {
-    /// Parse the scalar region of an 83-byte battery response (docs/02 §7.1).
+    /// Parse the scalar and fixed-width identity regions of an 83-byte response.
     pub fn parse(input: &[u8]) -> Result<Self> {
         if input.len() != 83 {
             return Err(LctrlError::FirmwareRejected {
@@ -281,34 +270,37 @@ impl BatteryTelemetry {
 
         let u16_at = |offset: usize| u16::from_le_bytes([input[offset], input[offset + 1]]);
 
-        let date_at = |offset: usize| -> Result<Option<BatteryDate>> {
-            let raw = u16_at(offset);
-            if raw == u16::MAX {
-                Ok(None)
-            } else {
-                BatteryDate::decode(raw).map(Some)
-            }
-        };
-
-        let current_raw = i32::from_le_bytes([input[12], input[13], input[14], input[15]]);
+        // The target's verified EnergyDrv layout (docs/01 §3.3) differs from
+        // the generic BATTERY_INFORMATION_EX sketch in docs/02. Keep the
+        // target offsets here; never infer dates or percentages from tail bytes.
+        let status = scalar(u16_at(0x0a)).map(ChargeStatus::decode);
+        let temperature = scalar(u16_at(0x0e));
+        let current_ma = scalar(u16_at(0x10)).map(i32::from);
+        let voltage_mv = scalar(u16_at(0x14));
 
         Ok(Self {
-            design_capacity_mwh: mwh(u16_at(0)),
-            full_charge_capacity_mwh: mwh(u16_at(2)),
-            remaining_capacity_mwh: mwh(u16_at(4)),
-            voltage_mv: scalar(u16_at(10)),
-            current_ma: (current_raw != -1).then_some(current_raw),
-            temperature_deci_kelvin: scalar(u16_at(16)),
-            manufacture_date: date_at(18)?,
-            first_used_date: date_at(20)?,
-            design_voltage_mv: scalar(u16_at(22)),
-            remaining_percent: scalar(u16_at(24)),
-            life_percent: scalar(u16_at(26)),
-            charge_status: scalar(u16_at(28)).map(ChargeStatus::decode),
-            remaining_time_min: scalar(u16_at(30)),
-            charge_completion_time_min: scalar(u16_at(32)),
-            wattage_w: scalar(u16_at(34)),
-            cycle_count: scalar(u16_at(36)),
+            design_capacity_mwh: mwh(u16_at(0x00)),
+            full_charge_capacity_mwh: mwh(u16_at(0x02)),
+            remaining_capacity_mwh: mwh(u16_at(0x04)),
+            voltage_mv,
+            current_ma,
+            temperature_deci_kelvin: temperature,
+            manufacture_date: None,
+            first_used_date: None,
+            design_voltage_mv: None,
+            remaining_percent: None,
+            life_percent: None,
+            charge_status: status,
+            health: None,
+            remaining_time_min: None,
+            charge_completion_time_min: None,
+            wattage_w: None,
+            cycle_count: None,
+            manufacturer: fixed_text(input, 0x28, 0x0c)?,
+            model_name: None,
+            firmware_version: None,
+            serial_number: fixed_text(input, 0x34, 0x18)?,
+            chemistry: fixed_text(input, 0x16, 0x12)?,
         })
     }
 
@@ -328,6 +320,44 @@ impl BatteryTelemetry {
         self.temperature_deci_kelvin
             .map(|t| (f32::from(t) - 2731.6) / 10.0)
     }
+}
+
+fn fixed_text(input: &[u8], offset: usize, width: usize) -> Result<Option<String>> {
+    let end = offset
+        .checked_add(width)
+        .ok_or_else(|| LctrlError::FirmwareRejected {
+            detail: "battery identity field offset overflow".into(),
+        })?;
+    let bytes = input
+        .get(offset..end)
+        .ok_or_else(|| LctrlError::FirmwareRejected {
+            detail: format!("battery identity field {offset}..{end} exceeds response"),
+        })?;
+    let trimmed = bytes
+        .split(|byte| *byte == 0 || *byte == u8::MAX)
+        .next()
+        .unwrap_or_default();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    if let Ok(value) = std::str::from_utf8(trimmed) {
+        let value = value.trim();
+        return Ok((!value.is_empty()).then(|| value.to_owned()));
+    }
+    if trimmed.len() % 2 != 0 {
+        return Err(LctrlError::FirmwareRejected {
+            detail: format!("battery identity field {offset} is neither UTF-8 nor UTF-16LE"),
+        });
+    }
+    let units = trimmed
+        .chunks_exact(2)
+        .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
+        .collect::<Vec<_>>();
+    let value = String::from_utf16(&units).map_err(|error| LctrlError::FirmwareRejected {
+        detail: format!("battery identity field {offset} has invalid UTF-16LE: {error}"),
+    })?;
+    let value = value.trim();
+    Ok((!value.is_empty()).then(|| value.to_owned()))
 }
 
 /// Convert a raw capacity (units of 10 mWh) to mWh; `0xFFFF` is unsupported.
@@ -374,48 +404,74 @@ impl AdapterAuthentication {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AdapterStatus {
+    Full,
+    Limited,
+    Disconnected,
+    UnsupportedDetection,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AdapterConnectorType {
+    UsbC,
+    Legacy,
+}
+
 /// Power/identity details read from the GAPD response (docs/02 §8).
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub struct AdapterDetailValues {
-    /// Product ID (`0xFFFF` = none).
-    pub pid: u16,
-    /// Vendor ID.
-    pub vid: u16,
-    /// System power demand in W.
+    /// Product ID (`0xFFFF` maps to `None`).
+    pub pid: Option<u16>,
+    /// Vendor ID (`0xFFFF` maps to `None`).
+    pub vid: Option<u16>,
     pub system_power_w: u16,
-    /// Actual charger power in W.
     pub current_power_w: u16,
 }
 
 impl AdapterDetailValues {
-    /// Whether the connected charger delivers less power than the system
-    /// demands (docs/02 §8: `CurrentChargerPower < SystemChargerPower`).
     #[must_use]
     pub const fn is_underpowered(&self) -> bool {
         self.current_power_w < self.system_power_w
     }
 }
 
-/// Adapter identity and power status derived from the GBMD status word
-/// (docs/02 §8).
+/// Adapter identity and power status derived from verified platform channels.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub struct AdapterInfo {
+    pub ac_connected: Option<bool>,
+    pub status: Option<AdapterStatus>,
+    pub connector_type: Option<AdapterConnectorType>,
+    pub wattage_w: Option<u16>,
     pub authentication: AdapterAuthentication,
     /// Whether GBMD status bit 24 advertises a detailed-capable charger.
     pub has_detail: bool,
-    /// Detailed power/identity values, present only when the firmware
-    /// advertises them (bit 24) and the GAPD read succeeded.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detail: Option<AdapterDetailValues>,
 }
 
 impl AdapterInfo {
-    /// Build adapter info from the GBMD status word. `detail` is supplied by
-    /// the transport only when the bit-24 capability is set (docs/02 §8);
-    /// the underpowered flag is computed only when detail is present.
     #[must_use]
     pub fn from_gbmd(status: u32, detail: Option<AdapterDetailValues>) -> Self {
+        let ac_connected = detail.map(|detail| detail.pid.is_some());
+        let adapter_status = detail.map(|detail| {
+            if detail.pid.is_none() {
+                AdapterStatus::Disconnected
+            } else if detail.is_underpowered() {
+                AdapterStatus::Limited
+            } else {
+                AdapterStatus::Full
+            }
+        });
+        let wattage_w = detail
+            .and_then(|detail| (detail.current_power_w > 0).then_some(detail.current_power_w));
         Self {
+            ac_connected,
+            status: adapter_status,
+            connector_type: None,
+            wattage_w,
             authentication: AdapterAuthentication::from_gbmd(status),
             has_detail: (status >> 24) & 1 == 1,
             detail,

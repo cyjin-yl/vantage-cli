@@ -5,12 +5,15 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use lctrl_core::{
-    AdapterAuthentication, ApplyMode, Availability, ChargeMode, ChargeModeActual, ChargeStatus,
-    DiagnosticKind, DiagnosticOutcome, LctrlError, LightingEffect, MagicBayKind, Platform,
+    AdapterAuthentication, ApplyMode, Availability, BatteryHealth, ChargeMode, ChargeModeActual,
+    ChargeStatus, DeviceState, DiagnosticKind, DiagnosticOutcome, FanMode, LctrlError,
+    LightingEffect, MagicBayKind, PerformanceMode, Platform, PowerMutation, PowerSchemeId,
     UpdateCapability,
 };
 use lctrl_hal::{
-    BatteryControl, DiagnosticsControl, Hal, KeyboardControl, MagicBayControl, UpdateControl,
+    BatteryControl, ControlConflictDetection, DiagnosticsControl, FanControl, Hal, KeyboardControl,
+    MagicBayControl, PerformanceControl, PowerControl, PowerLimitKind, PrivacyControl,
+    TemperatureControl, TouchpadControl, TuningControl, UpdateControl,
 };
 use lctrl_hal_linux::LinuxHal;
 
@@ -148,6 +151,7 @@ fn capability_probe_reports_present_sysfs_channels_and_truthful_dead_ends() {
         "battery.adapter",
         "battery.conservation",
         "battery.fast_charge",
+        "battery.charge_mode",
         "kbd.backlight",
         "touchpad",
         "privacy.camera",
@@ -158,11 +162,15 @@ fn capability_probe_reports_present_sysfs_channels_and_truthful_dead_ends() {
             "{feature} should be available"
         );
     }
-    for feature in ["tune.rapl", "tune.pl1", "tune.pl2", "panel.refresh"] {
+    assert_eq!(
+        capabilities.get("tune.rapl").unwrap().availability,
+        Availability::Limited
+    );
+    for feature in ["tune.pl1", "tune.pl2", "panel.refresh"] {
         assert_eq!(
             capabilities.get(feature).unwrap().availability,
-            Availability::Limited,
-            "{feature} should be limited"
+            Availability::Unavailable,
+            "{feature} should be unavailable without a mutator"
         );
     }
     assert_eq!(
@@ -224,6 +232,139 @@ fn readable_rapl_energy_without_constraints_is_limited_read_only() {
 }
 
 #[test]
+fn linux_epp_power_schemes_apply_with_readback() {
+    let tree = TempTree::new();
+    for policy in ["policy0", "policy1"] {
+        tree.write(
+            format!("sys/devices/system/cpu/cpufreq/{policy}/energy_performance_preference"),
+            "balance_performance\n",
+        );
+    }
+    let hal = tree.hal();
+    let schemes = hal.power_schemes().unwrap();
+    assert!(
+        schemes
+            .iter()
+            .any(|scheme| scheme.name == "Balanced" && scheme.active)
+    );
+
+    let report = hal
+        .apply_power_mutation(
+            PowerMutation::Activate(PowerSchemeId::new("power-saver").unwrap()),
+            ApplyMode::Commit,
+        )
+        .unwrap();
+
+    assert!(matches!(
+        report.actual(),
+        Some(PowerMutation::Activate(id)) if id.as_str() == "power-saver"
+    ));
+    for policy in ["policy0", "policy1"] {
+        assert_eq!(
+            fs::read_to_string(tree.path(format!(
+                "sys/devices/system/cpu/cpufreq/{policy}/energy_performance_preference"
+            )))
+            .unwrap(),
+            "power"
+        );
+    }
+}
+
+#[test]
+fn linux_epp_and_rapl_limits_validate_safety_and_read_back() {
+    let tree = TempTree::new();
+    for policy in ["policy0", "policy1"] {
+        tree.write(
+            format!("sys/devices/system/cpu/cpufreq/{policy}/energy_performance_preference"),
+            "balance_performance\n",
+        );
+    }
+    tree.write(
+        "sys/class/powercap/intel-rapl:0/constraint_0_power_limit_uw",
+        "12000000\n",
+    );
+    tree.write(
+        "sys/class/powercap/intel-rapl:0/constraint_1_power_limit_uw",
+        "30000000\n",
+    );
+    tree.write(
+        "sys/class/powercap/intel-rapl:0/constraint_0_time_window_us",
+        "28000000\n",
+    );
+    let hal = tree.hal();
+
+    let epp = hal.set_epp(255, ApplyMode::Commit).unwrap();
+    assert_eq!(epp.actual(), Some(&255));
+    let pl1 = hal
+        .set_power_limit(PowerLimitKind::Pl1, 15_000_000, ApplyMode::Commit)
+        .unwrap();
+    assert_eq!(pl1.actual(), Some(&15_000_000));
+    assert!(
+        hal.set_power_limit(PowerLimitKind::Pl1, 5_000_000, ApplyMode::DryRun)
+            .is_err()
+    );
+    assert_eq!(hal.epp().unwrap(), 255);
+}
+
+#[test]
+fn linux_thermal_mode_maps_to_performance_control_with_readback() {
+    let tree = TempTree::new();
+    tree.write("sys/devices/platform/ideapad/thermal_mode", "1\n");
+    let hal = tree.hal();
+
+    assert_eq!(
+        hal.performance_state().unwrap().active,
+        Some(PerformanceMode::Balanced)
+    );
+    let report = hal
+        .set_performance_mode(PerformanceMode::Quiet, ApplyMode::Commit)
+        .unwrap();
+
+    assert_eq!(report.actual(), Some(&PerformanceMode::Quiet));
+    assert_eq!(
+        fs::read_to_string(tree.path("sys/devices/platform/ideapad/thermal_mode")).unwrap(),
+        "0"
+    );
+}
+
+#[test]
+fn linux_fan_mode_maps_verified_sysfs_tokens_with_readback() {
+    let tree = TempTree::new();
+    tree.write("sys/devices/platform/ideapad/fan_mode", "balanced\n");
+    let hal = tree.hal();
+
+    assert_eq!(hal.fan_mode().unwrap(), FanMode::Standard);
+    let report = hal
+        .set_fan_mode(FanMode::Silent, ApplyMode::Commit)
+        .unwrap();
+
+    assert_eq!(report.actual(), Some(&FanMode::Silent));
+    assert_eq!(
+        fs::read_to_string(tree.path("sys/devices/platform/ideapad/fan_mode")).unwrap(),
+        "quiet"
+    );
+}
+
+#[test]
+fn linux_temperature_control_reads_hwmon_and_thermal_zone_values() {
+    let tree = TempTree::new();
+    tree.write("sys/class/hwmon/hwmon0/name", "coretemp\n");
+    tree.write("sys/class/hwmon/hwmon0/temp1_label", "Package id 0\n");
+    tree.write("sys/class/hwmon/hwmon0/temp1_input", "47500\n");
+    tree.write("sys/class/thermal/thermal_zone0/type", "acpitz\n");
+    tree.write("sys/class/thermal/thermal_zone0/temp", "42000\n");
+
+    let sensors = tree.hal().temperature_sensors().unwrap();
+    assert_eq!(sensors.len(), 2);
+    assert!(sensors.iter().any(|sensor| {
+        sensor.metadata.location == lctrl_core::TemperatureLocation::Cpu
+            && sensor.value_c == Some(47.5)
+    }));
+    let sensor = tree.hal().temperature("thermal/thermal_zone0").unwrap();
+    assert_eq!(sensor.value_c, Some(42.0));
+}
+
+#[test]
 fn battery_telemetry_converts_sysfs_units_and_status() {
     let tree = TempTree::new();
     battery_fixture(&tree);
@@ -241,6 +382,39 @@ fn battery_telemetry_converts_sysfs_units_and_status() {
     assert_eq!(telemetry.remaining_percent, Some(77));
     assert_eq!(telemetry.cycle_count, Some(123));
     assert_eq!(telemetry.charge_status, Some(ChargeStatus::Charging));
+}
+
+#[test]
+fn battery_telemetry_supports_charge_based_supplies_and_identity_fields() {
+    let tree = TempTree::new();
+    tree.write(
+        "sys/class/power_supply/BAT0/voltage_min_design",
+        "10000000\n",
+    );
+    tree.write("sys/class/power_supply/BAT0/voltage_now", "10000000\n");
+    tree.write(
+        "sys/class/power_supply/BAT0/charge_full_design",
+        "5000000\n",
+    );
+    tree.write("sys/class/power_supply/BAT0/charge_full", "4500000\n");
+    tree.write("sys/class/power_supply/BAT0/charge_now", "2250000\n");
+    tree.write("sys/class/power_supply/BAT0/health", "Good\n");
+    tree.write("sys/class/power_supply/BAT0/manufacturer", "SMP\n");
+    tree.write("sys/class/power_supply/BAT0/model_name", "L24M4PF2\n");
+    tree.write("sys/class/power_supply/BAT0/serial_number", "ABC123\n");
+    tree.write("sys/class/power_supply/BAT0/technology", "Li-poly\n");
+
+    let telemetry = tree.hal().battery_telemetry(0).unwrap();
+
+    assert_eq!(telemetry.design_capacity_mwh, Some(50_000));
+    assert_eq!(telemetry.full_charge_capacity_mwh, Some(45_000));
+    assert_eq!(telemetry.remaining_capacity_mwh, Some(22_500));
+    assert_eq!(telemetry.life_percent, Some(90));
+    assert_eq!(telemetry.health, Some(BatteryHealth::Green));
+    assert_eq!(telemetry.manufacturer.as_deref(), Some("SMP"));
+    assert_eq!(telemetry.model_name.as_deref(), Some("L24M4PF2"));
+    assert_eq!(telemetry.serial_number.as_deref(), Some("ABC123"));
+    assert_eq!(telemetry.chemistry.as_deref(), Some("Li-poly"));
 }
 
 #[test]
@@ -282,6 +456,33 @@ fn adapter_info_requires_a_reliable_ac_online_node() {
     assert_eq!(adapter.authentication, AdapterAuthentication::Unknown);
     assert!(!adapter.has_detail);
     assert_eq!(adapter.detail, None);
+}
+
+#[test]
+fn touchpad_and_runtime_camera_mutations_read_back() {
+    let tree = TempTree::new();
+    tree.write("sys/devices/platform/ideapad/touchpad", "1\n");
+    tree.write("sys/devices/platform/ideapad/camera_power", "1\n");
+
+    let touchpad = tree
+        .hal()
+        .set_touchpad(DeviceState::Disabled, ApplyMode::Commit)
+        .unwrap();
+    let camera = tree
+        .hal()
+        .set_camera(DeviceState::Disabled, ApplyMode::Commit)
+        .unwrap();
+
+    assert_eq!(touchpad.actual(), Some(&DeviceState::Disabled));
+    assert_eq!(camera.actual(), Some(&DeviceState::Disabled));
+    assert_eq!(
+        fs::read_to_string(tree.path("sys/devices/platform/ideapad/touchpad")).unwrap(),
+        "0"
+    );
+    assert_eq!(
+        fs::read_to_string(tree.path("sys/devices/platform/ideapad/camera_power")).unwrap(),
+        "0"
+    );
 }
 
 #[test]
@@ -353,6 +554,10 @@ fn conservation_disables_rapid_before_enabling_conservation() {
 fn rapid_disables_conservation_before_enabling_rapid() {
     let tree = TempTree::new();
     ideapad_mode_fixture(&tree, "1\n", "0\n");
+    tree.write(
+        "sys/class/power_supply/BAT0/energy_full_design",
+        "50000000\n",
+    );
 
     let report = tree
         .hal()
@@ -369,6 +574,35 @@ fn rapid_disables_conservation_before_enabling_rapid() {
         fs::read_to_string(tree.path("sys/devices/platform/ideapad/fast_charge")).unwrap(),
         "1"
     );
+}
+
+#[test]
+fn rapid_charge_is_blocked_for_39wh_or_missing_design_capacity() {
+    for design_capacity in [Some("39000000\n"), None] {
+        let tree = TempTree::new();
+        ideapad_mode_fixture(&tree, "1\n", "0\n");
+        if let Some(capacity) = design_capacity {
+            tree.write("sys/class/power_supply/BAT0/energy_full_design", capacity);
+        } else {
+            fs::create_dir_all(tree.path("sys/class/power_supply/BAT0"))
+                .expect("create battery fixture");
+        }
+
+        assert!(
+            tree.hal()
+                .set_charge_mode(ChargeMode::Rapid, ApplyMode::Commit)
+                .is_err()
+        );
+        assert_eq!(
+            fs::read_to_string(tree.path("sys/devices/platform/ideapad/conservation_mode"))
+                .unwrap(),
+            "1\n"
+        );
+        assert_eq!(
+            fs::read_to_string(tree.path("sys/devices/platform/ideapad/fast_charge")).unwrap(),
+            "0\n"
+        );
+    }
 }
 
 #[cfg(unix)]
@@ -517,22 +751,30 @@ fn magicbay_detection_uses_verified_usb_and_acpi_ids() {
     let tree = TempTree::new();
     tree.write("sys/bus/usb/devices/1-2/idVendor", "17ef\n");
     tree.write("sys/bus/usb/devices/1-2/idProduct", "7005\n");
+    fs::create_dir_all(tree.path("sys/bus/usb/devices/1-2:1.0"))
+        .expect("create MBIM interface fixture");
     tree.write("sys/bus/usb/devices/2-1/idVendor", "1234\n");
     tree.write("sys/bus/usb/devices/2-1/idProduct", "7005\n");
     fs::create_dir_all(tree.path("sys/bus/acpi/devices/QCOM2488:00"))
         .expect("create ACPI display fixture");
+    fs::create_dir_all(tree.path("sys/bus/acpi/devices/QCOM24B7:00"))
+        .expect("create role-switch fixture");
 
-    let devices = tree.hal().detect_magicbay().unwrap();
+    let inventory = tree.hal().detect_magicbay().unwrap();
 
-    assert_eq!(devices.len(), 2);
-    let lte = devices.iter().find(|device| device.bus == "usb").unwrap();
+    assert_eq!(inventory.devices.len(), 1);
+    let lte = &inventory.devices[0];
     assert_eq!(lte.vid, Some(0x17ef));
     assert_eq!(lte.pid, Some(0x7005));
     assert_eq!(lte.kind, MagicBayKind::Lte2);
     assert_eq!(lte.interfaces, vec!["mbim"]);
-    let display = devices.iter().find(|device| device.bus == "acpi").unwrap();
-    assert_eq!(display.kind, MagicBayKind::Hud);
-    assert_eq!(display.interfaces, vec!["display"]);
+    assert_eq!(inventory.acpi_devices.len(), 2);
+    assert!(inventory.acpi_devices.iter().any(|device| {
+        device.kind == MagicBayKind::DisplayBridge && device.interfaces == vec!["display"]
+    }));
+    assert!(inventory.acpi_devices.iter().any(|device| {
+        device.kind == MagicBayKind::UsbRoleSwitch && device.interfaces == vec!["usb_role_switch"]
+    }));
 }
 
 #[test]
@@ -561,6 +803,19 @@ fn update_capability_fails_closed_without_catalog_trust_contract() {
         capability,
         UpdateCapability::Unavailable { reason } if reason.contains("authenticated public update catalog")
     ));
+}
+
+#[test]
+fn conflict_detection_reports_vendor_controller_processes() {
+    let tree = TempTree::new();
+    tree.write("proc/123/comm", "LenovoVantageService\n");
+    tree.write("proc/123/cmdline", "LenovoVantageService\0--service\0");
+    tree.write("proc/456/comm", "unrelated\n");
+
+    assert_eq!(
+        tree.hal().active_vendor_controllers().unwrap(),
+        vec!["LenovoVantageService"]
+    );
 }
 
 fn tree_update_capability() -> UpdateCapability {

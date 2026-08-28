@@ -3,7 +3,11 @@ use std::collections::BTreeMap;
 use parking_lot::Mutex;
 
 use lctrl_core::LctrlError;
-use lctrl_hal_win::{WmiMethodResult, WmiObject, WmiTransport, WmiValue, active_instance};
+use lctrl_hal::ControlConflictDetection;
+use lctrl_hal_win::{
+    WindowsControlConflictDetector, WmiMethodResult, WmiObject, WmiTransport, WmiValue,
+    active_instance,
+};
 
 fn output(accepted: bool, data: WmiValue) -> WmiObject {
     BTreeMap::from([
@@ -135,7 +139,7 @@ fn absent_active_instance_is_unsupported() {
 }
 
 #[test]
-fn multiple_active_instances_fail_closed() {
+fn multiple_active_instances_select_documented_first_instance() {
     let object = |path: &str| {
         BTreeMap::from([
             ("__Path".into(), WmiValue::String(path.into())),
@@ -147,10 +151,12 @@ fn multiple_active_instances_fail_closed() {
         ..Default::default()
     };
 
-    assert!(matches!(
-        active_instance(&transport, "LENOVO_UTILITY_DATA"),
-        Err(LctrlError::ChannelUnavailable { .. })
-    ));
+    assert_eq!(
+        active_instance(&transport, "LENOVO_UTILITY_DATA")
+            .unwrap()
+            .path(),
+        "path-a"
+    );
 }
 
 #[test]
@@ -162,4 +168,24 @@ fn invalid_class_identifier_is_rejected_before_query() {
         Err(LctrlError::InvalidArgument { .. })
     ));
     assert!(transport.queries.lock().is_empty());
+}
+
+#[test]
+fn vendor_control_conflicts_are_discovered_through_read_only_process_inventory() {
+    let transport = FakeTransport {
+        objects: vec![
+            BTreeMap::from([(
+                "Name".into(),
+                WmiValue::String("LenovoVantageService.exe".into()),
+            )]),
+            BTreeMap::from([("Name".into(), WmiValue::String("explorer.exe".into()))]),
+        ],
+        ..Default::default()
+    };
+    let detector = WindowsControlConflictDetector::new(transport);
+
+    assert_eq!(
+        detector.active_vendor_controllers().unwrap(),
+        vec!["LenovoVantageService.exe"]
+    );
 }

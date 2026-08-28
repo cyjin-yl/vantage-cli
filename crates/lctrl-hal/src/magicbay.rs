@@ -1,5 +1,5 @@
-use lctrl_core::{MagicBayDevice, Result};
+use lctrl_core::{MagicBayInventory, Result};
 
 pub trait MagicBayControl: Send + Sync {
-    fn detect_magicbay(&self) -> Result<Vec<MagicBayDevice>>;
+    fn detect_magicbay(&self) -> Result<MagicBayInventory>;
 }

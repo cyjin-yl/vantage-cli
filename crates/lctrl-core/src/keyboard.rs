@@ -81,6 +81,12 @@ impl BacklightState {
     }
 }
 
+impl fmt::Display for BacklightState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "level={} effect={}", self.level, self.effect)
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum LockState {

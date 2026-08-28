@@ -1,7 +1,7 @@
-# HANDOFF · lctrl 净室实现交接文档
+# HANDOFF · vantage 净室实现交接文档
 
 > 致实现者(GPT 5.6 Sol):本包是 **Lenovo 21VG(ThinkBook 14+ 2026,Panther Lake)硬件控制中心**
-> 的完整净室接口规格。你的任务:用 Rust 实现跨平台(Windows/Linux)CLI `lctrl`,
+> 的完整净室接口规格。你的任务:用 Rust 实现跨平台(Windows/Linux)CLI `vantage`,
 > 覆盖 Lenovo Vantage + 联想电脑管家 + MagiCenter 的全部硬件控制功能,
 > 并为 Panther Lake 低功耗调优提供一等支持。
 
@@ -57,7 +57,7 @@
 - EC/GBMD 写:仅使用文档列出的已验证命令字;未知命令字一律先只读探测(01 §3.3 方法论)。
 - PL 写入:PL1 ≤ PL2;写前读默认值记录以便恢复;PL1 低于 ~7W 显著掉速(07 §3.1)。
 - 风扇表写:先 `Fan_Get_Table` 备份(03 §4)。
-- 互斥:Vantage / PCManager 与 lctrl 同时控制同一通道会冲突,启动检测与提示逻辑见 03 §1。
+- 互斥:Vantage / PCManager 与 `vantage` 同时控制同一通道会冲突,启动检测与提示逻辑见 03 §1。
 
 ## 7. 验收口径(规格组建议)
 

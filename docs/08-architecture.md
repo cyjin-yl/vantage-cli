@@ -18,7 +18,7 @@
 ## 2. 命令树
 
 ```
-lctrl
+vantage
 ├── info                                   # 机型/固件/通道能力矩阵(§5 探测结果)
 ├── battery
 │   ├── status [--json]                    # 02 §7 + §8(信息+适配器+模式回读)
@@ -99,21 +99,21 @@ sense/usb/magicbay.lte;P2 = 其余。
 ## 3. crate 划分(cargo workspace)
 
 ```
-lctrl/                 # 单一 workspace
+vantage/                 # 单一 workspace
 ├── crates/
-│   ├── lctrl-core/    # 领域模型:ChargeMode/FanCurve/PerfMode/Profile/Capability/Error
-│   │                  # 纯数据+纯逻辑,零 OS 依赖;所有单元测试在此
-│   ├── lctrl-hal/     # trait Hal { battery(), thermal(), kbd(), panel(), privacy(),
-│   │                  #          bios(), tuning(), events() } + 能力位结构
-│   ├── lctrl-hal-win/ # Windows 后端:WMI(wmi crate)/ DeviceIoControl(windows-sys)/
-│   │                  # Power API / SCM / 注册表;编译期 gate:cfg(windows)
+│   ├── lctrl-core/      # 领域模型:ChargeMode/FanCurve/PerfMode/Profile/Capability/Error
+│   │                    # 纯数据+纯逻辑,零 OS 依赖;所有单元测试在此
+│   ├── lctrl-hal/       # trait Hal { battery(), thermal(), kbd(), panel(), privacy(),
+│   │                    #          bios(), tuning(), events() } + 能力位结构
+│   ├── lctrl-hal-win/   # Windows 后端:WMI(wmi crate)/ DeviceIoControl(windows-sys)/
+│   │                    # Power API / SCM / 注册表;编译期 gate:cfg(windows)
 │   ├── lctrl-hal-linux/ # Linux 后端:sysfs / ideapad_laptop / acpi_call / powercap /
-│   │                  # intel_pstate / ModemManager D-Bus;cfg(unix)
-│   ├── lctrl-tune/    # 调优引擎:07 §6 模型求值器,触发器、约束、回退、防抖
-│   ├── lctrl-cli/     # clap 命令树(§2),--json 输出,退出码(§6)
-│   ├── lctrl-daemon/  # 可选常驻:事件订阅、自动策略、OSD 占位;与 CLI 同库零重复逻辑
-│   └── lctrl-ipc/     # CLI↔daemon 协议(§4.3),Unix socket / Windows named pipe
-└── lctrl (bin)        # 薄壳:lctrl-cli main
+│   │                    # intel_pstate / ModemManager D-Bus;cfg(unix)
+│   ├── lctrl-tune/      # 调优引擎:07 §6 模型求值器,触发器、约束、回退、防抖
+│   ├── vantage-cli/     # clap 命令树(§2),--json 输出,退出码(§6)
+│   ├── vantage-daemon/  # 可选常驻:事件订阅、自动策略、OSD 占位;与 CLI 同库零重复逻辑
+│   ├── vantage-gui/     # 可选图形仪表盘
+│   └── vantage (bin)    # 薄壳:vantage-cli main
 ```
 
 依赖方向:`cli/daemon → tune → core ← hal ← hal-{win,linux}`。
@@ -143,10 +143,10 @@ lctrl/                 # 单一 workspace
 ### 4.3 IPC
 
 - 协议:单行 JSON 请求/响应 + 事件流(server-push);schema 与 `--json` 输出同构。
-- 通道:Windows `\\.\pipe\lctrl.sock`;Linux `$XDG_RUNTIME_DIR/lctrl.sock`(fallback `/run/lctrl.sock`)。
+- 通道:Windows `\\.\pipe\vantage.sock`;Linux `$XDG_RUNTIME_DIR/vantage.sock`(fallback `/run/vantage.sock`)。
 - 鉴权:Windows pipe ACL = 本机 Administrators + 当前用户;Linux = 同 uid + SO_PEERCRED 校验。
 
-## 5. 能力探测(`lctrl info`)
+## 5. 能力探测(`vantage info`)
 
 启动时按矩阵探测并缓存于进程内(每次 CLI 调用重探,无持久缓存):
 
@@ -162,7 +162,7 @@ lctrl/                 # 单一 workspace
 | MagicBay | USB VID_17EF&PID_7005 存在性 | magicbay 显示「未插入」 |
 | Dolby/降噪 | 音频端点 + 对应 SDK 服务 | audio 子命令提示依赖缺失 |
 
-输出:`lctrl info --json` 输出完整能力位,供脚本与 daemon 消费。
+输出:`vantage info --json` 输出完整能力位,供脚本与 daemon 消费。
 
 ## 6. 错误模型与退出码
 
@@ -192,7 +192,7 @@ enum LctrlError {
 | L3 风险写 | bios set/save/defaults/password、thresholds 极端值、overdrive | L2 + **二次确认**(TTY 交互 `--yes` 跳过),操作前打印影响与恢复路径 |
 
 二次确认内容必须含:将写入的键与值、生效时机(即时/重启)、恢复命令。
-`lctrl bios defaults` 额外要求输入机型名确认(brick 风险,05 §6)。
+`vantage bios defaults` 额外要求输入机型名确认(brick 风险,05 §6)。
 
 ## 8. 插件化调优 trait(与 07 §6、10 §2 呼应)
 

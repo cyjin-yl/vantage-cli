@@ -58,9 +58,10 @@ where
     fn capabilities(&self) -> Result<CapabilitySet> {
         let mut capabilities = CapabilitySet::new(Platform::Windows);
 
-        match active_instance(&self.wmi, "LENOVO_UTILITY_DATA") {
+        let wmi_available = match active_instance(&self.wmi, "LENOVO_UTILITY_DATA") {
             Ok(_) => {
                 capabilities.record("channel.wmi.root", Availability::Available, None)?;
+                true
             }
             Err(error) => {
                 capabilities.record(
@@ -68,12 +69,13 @@ where
                     Availability::Unavailable,
                     Some(error.to_string()),
                 )?;
+                false
             }
-        }
-
-        match EnergyDriver::new(&self.ioctl).gbmd_status() {
+        };
+        let energy_available = match EnergyDriver::new(&self.ioctl).gbmd_status() {
             Ok(_) => {
                 capabilities.record("channel.energy_driver", Availability::Available, None)?;
+                true
             }
             Err(error) => {
                 capabilities.record(
@@ -81,8 +83,9 @@ where
                     Availability::Unavailable,
                     Some(error.to_string()),
                 )?;
+                false
             }
-        }
+        };
 
         capabilities.record(
             "battery.thresholds",
@@ -100,6 +103,100 @@ where
             Some("21VG firmware returns Invalid object for the GAMEZONE method family".into()),
         )?;
 
+        match active_instance(&self.wmi, "LENOVO_LIGHTING_DATA") {
+            Ok(_) => {
+                capabilities.record("kbd.backlight", Availability::Available, None)?;
+            }
+            Err(error) => {
+                capabilities.record(
+                    "kbd.backlight",
+                    Availability::Unavailable,
+                    Some(error.to_string()),
+                )?;
+            }
+        }
+        let battery_availability = if energy_available {
+            Availability::Available
+        } else {
+            Availability::Unavailable
+        };
+        let battery_detail =
+            (!energy_available).then(|| "EnergyDrv is unavailable for battery telemetry".into());
+        for feature in ["battery.info", "battery.status", "battery.adapter"] {
+            capabilities.record(feature, battery_availability, battery_detail.clone())?;
+        }
+        capabilities.record(
+            "battery.charge_mode",
+            Availability::Unavailable,
+            Some("target has no independently verified charge-mode readback channel".into()),
+        )?;
+        capabilities.record(
+            "diagnostics.inventory",
+            if wmi_available {
+                Availability::Available
+            } else {
+                Availability::Unavailable
+            },
+            (!wmi_available).then(|| "root WMI inventory channel is unavailable".into()),
+        )?;
+        capabilities.record(
+            "magicbay.inventory",
+            Availability::Limited,
+            Some("SetupAPI inventory is provided by the separate MagicBay service".into()),
+        )?;
+        for feature in [
+            "privacy.camera",
+            "privacy.microphone",
+            "privacy.fingerprint",
+        ] {
+            capabilities.record(
+                feature,
+                if wmi_available {
+                    Availability::Limited
+                } else {
+                    Availability::Unavailable
+                },
+                Some("persistent BIOS privacy service is required for writes".into()),
+            )?;
+        }
+        capabilities.record(
+            "panel.refresh",
+            if wmi_available {
+                Availability::Limited
+            } else {
+                Availability::Unavailable
+            },
+            Some("panel rate metadata is readable; verified mode writer is unavailable".into()),
+        )?;
+        capabilities.record(
+            "perf.temp",
+            Availability::Unavailable,
+            Some("GAMEZONE temperature methods are not implemented by target firmware".into()),
+        )?;
+        capabilities.record(
+            "power.scheme",
+            Availability::Available,
+            Some("Windows Power API service is attached by the composition root".into()),
+        )?;
+        for (feature, detail) in [
+            (
+                "perf.mode",
+                "target performance-mode write path is unavailable",
+            ),
+            (
+                "perf.fan.mode",
+                "target GAMEZONE fan methods are unavailable",
+            ),
+            ("tune.pl1", "Windows raw MSR/RAPL writes are unavailable"),
+            ("tune.pl2", "Windows raw MSR/RAPL writes are unavailable"),
+            ("tune.tau", "Windows raw MSR/RAPL writes are unavailable"),
+            ("tune.epp", "no verified Windows EPP mutator"),
+            ("tune.turbo", "no verified Windows turbo mutator"),
+            ("gpu.mode", "no verified target GPU-mode mutator"),
+            ("tune.background", "no process-policy tuning executor"),
+        ] {
+            capabilities.record(feature, Availability::Unavailable, Some(detail.into()))?;
+        }
         Ok(capabilities)
     }
 }

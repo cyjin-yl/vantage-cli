@@ -1,6 +1,5 @@
 use lctrl_core::{LctrlError, Result};
 
-pub const IOCTL_GENERIC_SET: u32 = 0x8310_20c0;
 pub const IOCTL_GENERIC_GET: u32 = 0x8310_20c4;
 pub const IOCTL_GENERIC_GET_VARIANT: u32 = 0x8310_20e8;
 pub const IOCTL_GBMD: u32 = 0x8310_20f8;
@@ -13,8 +12,6 @@ pub struct GbmdCommand(u8);
 
 impl GbmdCommand {
     pub const STATUS: Self = Self(0xff);
-    pub const CONSERVATION_ON_GEN1: Self = Self(0x03);
-    pub const CONSERVATION_OFF_GEN1: Self = Self(0x05);
     pub const CONSERVATION_ON_GEN2: Self = Self(0x0d);
     pub const CONSERVATION_OFF_GEN2: Self = Self(0x0f);
     pub const RAPID_ON: Self = Self(0x07);
@@ -48,29 +45,6 @@ impl GenericGet {
 
     pub fn decode(output: &[u8]) -> Result<u32> {
         decode_u32_exact(output, "generic GET")
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct GenericSet {
-    cmd: u32,
-    p1: u32,
-    p2: u32,
-}
-
-impl GenericSet {
-    #[must_use]
-    pub const fn new(cmd: u32, p1: u32, p2: u32) -> Self {
-        Self { cmd, p1, p2 }
-    }
-
-    #[must_use]
-    pub fn encode(self) -> [u8; 12] {
-        let mut output = [0; 12];
-        output[0..4].copy_from_slice(&self.cmd.to_le_bytes());
-        output[4..8].copy_from_slice(&self.p1.to_le_bytes());
-        output[8..12].copy_from_slice(&self.p2.to_le_bytes());
-        output
     }
 }
 
