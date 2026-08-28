@@ -275,11 +275,11 @@ fn telemetry_maps_unsupported_sentinels_to_absent_fields() {
 }
 
 #[test]
-fn telemetry_reads_documented_unsigned_current_field() {
+fn telemetry_decodes_signed_discharge_current() {
     let mut raw = telemetry_fixture();
-    raw[16..18].copy_from_slice(&850u16.to_le_bytes());
+    raw[16..18].copy_from_slice(&(-850i16).to_le_bytes());
     let telemetry = BatteryTelemetry::parse(&raw).unwrap();
-    assert_eq!(telemetry.current_ma, Some(850));
+    assert_eq!(telemetry.current_ma, Some(-850));
 }
 
 #[test]

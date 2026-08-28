@@ -108,6 +108,29 @@ fn capability_probe_reports_real_channels_and_fixed_dead_ends() {
 }
 
 #[test]
+fn capability_probe_requires_battery_detail_for_battery_telemetry() {
+    let hal = WindowsHal::new(FakeWmi::default(), FakeIoctl::default());
+    let capabilities = hal.capabilities().unwrap();
+
+    assert_eq!(
+        capabilities.get("battery.info").unwrap().availability,
+        Availability::Unavailable
+    );
+    assert_eq!(
+        capabilities.get("battery.status").unwrap().availability,
+        Availability::Unavailable
+    );
+    assert_eq!(
+        capabilities.get("battery.adapter").unwrap().availability,
+        Availability::Available
+    );
+    assert_eq!(
+        capabilities.get("power.scheme").unwrap().availability,
+        Availability::Limited
+    );
+}
+
+#[test]
 fn capability_probe_never_queries_gamezone_methods() {
     let wmi = FakeWmi::default();
     let hal = WindowsHal::new(wmi, FakeIoctl::default());
