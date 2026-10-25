@@ -240,7 +240,9 @@ fn telemetry_parses_verified_target_layout() {
     assert_eq!(telemetry.design_voltage_mv, None);
     assert_eq!(telemetry.remaining_percent, None);
     assert_eq!(telemetry.life_percent, None);
-    assert_eq!(telemetry.charge_status, Some(ChargeStatus::Charging));
+    // Offset 0x0a is an inferred vendor status/alert word, not a documented
+    // ChargeStatus code, so the vendor structure alone reports no status.
+    assert_eq!(telemetry.charge_status, None);
     assert_eq!(telemetry.remaining_time_min, None);
     assert_eq!(telemetry.charge_completion_time_min, None);
     assert_eq!(telemetry.wattage_w, None);
@@ -344,7 +346,7 @@ fn telemetry_serializes_with_stable_field_names() {
     let json = serde_json::to_value(telemetry).unwrap();
     assert_eq!(json["design_capacity_mwh"], 99_900);
     assert_eq!(json["current_ma"], 1200);
-    assert_eq!(json["charge_status"], "charging");
+    assert!(json["charge_status"].is_null());
     assert_eq!(json["temperature_deci_kelvin"], 3061);
     assert_eq!(json["voltage_mv"], 15_600);
     assert_eq!(json["chemistry"], "Lion");

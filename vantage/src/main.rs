@@ -330,10 +330,15 @@ fn main() {
     }
     let hal =
         lctrl_hal_win::NativeWindowsHal::new(lctrl_hal_win::NativeWmi, lctrl_hal_win::NativeIoctl);
-    let battery = lctrl_hal_win::WindowsBatteryP0::new(
+    let vendor_battery = lctrl_hal_win::WindowsBatteryP0::new(
         lctrl_hal_win::NativeIoctl,
         lctrl_hal_win::UnverifiedChargeModeReader,
     );
+    let os_battery = lctrl_hal_win::WindowsOsBattery::new(
+        lctrl_hal_win::NativeWmi,
+        lctrl_hal_win::NativeSystemPowerStatus,
+    );
+    let battery = lctrl_hal_win::WindowsBatteryFallback::new(vendor_battery, os_battery);
     let conflicts = lctrl_hal_win::WindowsControlConflictDetector::new(lctrl_hal_win::NativeWmi);
     let bios = lctrl_hal_win::WindowsBiosController::new(lctrl_hal_win::NativeWmi);
     let performance =

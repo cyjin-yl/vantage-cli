@@ -8,6 +8,56 @@ use serde::Serialize;
 
 use crate::error::{LctrlError, Result};
 
+/// A battery reading taken from the operating system's own battery
+/// interfaces (the Windows battery class and system power status).
+///
+/// This is the portable channel: it needs no vendor driver, so it stays
+/// available on machines that never had the EnergyDrv driver installed.
+/// Every field is optional because the OS exposes different subsets per
+/// machine and per firmware.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize)]
+pub struct OsBatterySnapshot {
+    pub remaining_capacity_mwh: Option<u32>,
+    pub full_charge_capacity_mwh: Option<u32>,
+    pub design_capacity_mwh: Option<u32>,
+    pub voltage_mv: Option<u16>,
+    /// Charge rate in mA; positive while the pack is taking on charge.
+    pub charge_rate_ma: Option<i32>,
+    /// Discharge rate in mA; positive while the pack is losing charge.
+    pub discharge_rate_ma: Option<i32>,
+    pub remaining_percent: Option<u16>,
+    pub cycle_count: Option<u16>,
+    pub temperature_deci_kelvin: Option<u16>,
+    pub estimated_runtime_min: Option<u16>,
+    pub power_online: Option<bool>,
+    pub charging: Option<bool>,
+    pub discharging: Option<bool>,
+    pub critical: Option<bool>,
+}
+
+/// The operating system's aggregate power status.
+///
+/// This is the only portable source for "is the charger connected", so it
+/// backs the adapter view when the vendor adapter channel is unavailable.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize)]
+pub struct SystemPowerStatus {
+    /// `true` when running on external power, `false` on battery, `None`
+    /// when the platform did not report the line state.
+    pub ac_line_status: Option<bool>,
+    pub battery_flag: Option<u8>,
+    pub battery_life_percent: Option<u8>,
+    pub battery_life_time: Option<u32>,
+    pub battery_full_life_time: Option<u32>,
+}
+
+impl SystemPowerStatus {
+    /// The remaining charge percentage, when the platform reported one.
+    #[must_use]
+    pub fn battery_life_percent(&self) -> Option<u16> {
+        self.battery_life_percent.map(u16::from)
+    }
+}
+
 /// A user-selected charging mode (`BatteryChargeModeType`, docs/02 §3.1).
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -273,7 +323,12 @@ impl BatteryTelemetry {
         // The target's verified EnergyDrv layout (docs/01 §3.3) differs from
         // the generic BATTERY_INFORMATION_EX sketch in docs/02. Keep the
         // target offsets here; never infer dates or percentages from tail bytes.
-        let status = scalar(u16_at(0x0a)).map(ChargeStatus::decode);
+        // Offset 0x0a carries an inferred vendor status/alert word, not one
+        // of the documented ChargeStatus codes (docs/01 §3.3). Decoding it as
+        // an enum produced meaningless values such as `unknown (17714)`, so
+        // the charge status is left to the operating-system channel, which
+        // reports the actual charging and discharging flags.
+        let status: Option<ChargeStatus> = None;
         let temperature = scalar(u16_at(0x0e));
         let current_ma = signed_scalar(u16_at(0x10));
         let voltage_mv = scalar(u16_at(0x14));
@@ -319,6 +374,123 @@ impl BatteryTelemetry {
     pub fn temperature_celsius(&self) -> Option<f32> {
         self.temperature_deci_kelvin
             .map(|t| (f32::from(t) - 2731.6) / 10.0)
+    }
+
+    /// Build telemetry from an operating-system battery reading.
+    ///
+    /// The OS channel reports fewer identity fields than the vendor
+    /// structure, so unavailable fields stay `None` instead of being
+    /// inferred. Life percentage is derived only when both the design and
+    /// full-charge capacities are known; a zero design capacity is rejected
+    /// rather than divided by.
+    pub fn from_os_snapshot(snapshot: &OsBatterySnapshot) -> Result<Self> {
+        if snapshot.design_capacity_mwh == Some(0) {
+            return Err(LctrlError::FirmwareRejected {
+                detail: "operating-system battery report carries a zero design capacity".into(),
+            });
+        }
+
+        let charge_status = match (snapshot.charging, snapshot.discharging) {
+            (Some(true), _) => Some(ChargeStatus::Charging),
+            (_, Some(true)) if snapshot.power_online == Some(true) => {
+                Some(ChargeStatus::DischargingWithAc)
+            }
+            (_, Some(true)) => Some(ChargeStatus::Discharging),
+            _ => Some(ChargeStatus::NoActivity),
+        };
+
+        let current_ma = match (snapshot.charging, snapshot.discharging) {
+            (Some(true), _) => snapshot.charge_rate_ma,
+            (_, Some(true)) => snapshot.discharge_rate_ma.map(|rate| -rate),
+            _ => None,
+        };
+
+        let (life_percent, health) = match (
+            snapshot.design_capacity_mwh,
+            snapshot.full_charge_capacity_mwh,
+        ) {
+            (Some(design), Some(full)) if design > 0 => {
+                let life = (full * 100 / design).min(100) as u16;
+                (Some(life), Some(health_from_life_percent(life)))
+            }
+            _ => (None, None),
+        };
+
+        Ok(Self {
+            design_capacity_mwh: snapshot.design_capacity_mwh,
+            full_charge_capacity_mwh: snapshot.full_charge_capacity_mwh,
+            remaining_capacity_mwh: snapshot.remaining_capacity_mwh,
+            voltage_mv: snapshot.voltage_mv,
+            current_ma,
+            temperature_deci_kelvin: snapshot.temperature_deci_kelvin,
+            manufacture_date: None,
+            first_used_date: None,
+            design_voltage_mv: None,
+            remaining_percent: snapshot.remaining_percent,
+            life_percent,
+            charge_status,
+            health,
+            remaining_time_min: snapshot.estimated_runtime_min,
+            charge_completion_time_min: None,
+            wattage_w: None,
+            cycle_count: snapshot.cycle_count,
+            manufacturer: None,
+            model_name: None,
+            firmware_version: None,
+            serial_number: None,
+            chemistry: None,
+        })
+    }
+
+    /// Fill fields this reading left unknown from a second reading.
+    ///
+    /// Used to combine a rich vendor channel with the portable operating
+    /// system channel: a field already known here is never overwritten, so
+    /// the more specific source always wins.
+    pub fn fill_missing_from(&mut self, other: &Self) {
+        macro_rules! fill {
+            ($($field:ident),+ $(,)?) => {
+                $(if self.$field.is_none() {
+                    self.$field = other.$field.clone();
+                })+
+            };
+        }
+        fill!(
+            design_capacity_mwh,
+            full_charge_capacity_mwh,
+            remaining_capacity_mwh,
+            voltage_mv,
+            current_ma,
+            temperature_deci_kelvin,
+            manufacture_date,
+            first_used_date,
+            design_voltage_mv,
+            remaining_percent,
+            life_percent,
+            charge_status,
+            health,
+            remaining_time_min,
+            charge_completion_time_min,
+            wattage_w,
+            cycle_count,
+            manufacturer,
+            model_name,
+            firmware_version,
+            serial_number,
+            chemistry,
+        );
+    }
+}
+
+/// Map a remaining-life percentage onto the documented health codes
+/// (docs/02 §7.2): 1=Green, 2=Yellow, 3=Red.
+fn health_from_life_percent(life: u16) -> BatteryHealth {
+    if life >= 80 {
+        BatteryHealth::Green
+    } else if life >= 60 {
+        BatteryHealth::Yellow
+    } else {
+        BatteryHealth::Red
     }
 }
 
@@ -489,6 +661,24 @@ impl AdapterInfo {
         match self.detail {
             Some(detail) => detail.is_underpowered(),
             None => false,
+        }
+    }
+
+    /// Build the adapter view from the operating system's power status.
+    ///
+    /// The OS reports only whether external power is present, so the charger
+    /// model, wattage and authentication stay unknown instead of being
+    /// guessed from the vendor adapter channel.
+    #[must_use]
+    pub fn from_system_power_status(status: &SystemPowerStatus) -> Self {
+        Self {
+            ac_connected: status.ac_line_status,
+            status: None,
+            connector_type: None,
+            wattage_w: None,
+            authentication: AdapterAuthentication::Unknown,
+            has_detail: false,
+            detail: None,
         }
     }
 }
