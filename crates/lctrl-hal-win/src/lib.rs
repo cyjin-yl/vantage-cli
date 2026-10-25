@@ -1,3 +1,4 @@
+mod battery_fallback;
 mod bios;
 mod codec;
 mod conflict;
@@ -12,7 +13,10 @@ mod native_performance;
 #[cfg(windows)]
 mod native_power;
 #[cfg(windows)]
+mod native_power_status;
+#[cfg(windows)]
 mod native_wmi;
+mod os_battery;
 mod p0;
 mod performance_p0;
 mod peripherals;
@@ -20,6 +24,7 @@ mod power_p0;
 mod windows_hal;
 mod wmi_contract;
 
+pub use battery_fallback::WindowsBatteryFallback;
 pub use bios::WindowsBiosController;
 pub use codec::{
     AdapterDetail, BatteryDetail83, GbmdCommand, GenericGet, IOCTL_BATTERY_CONFIG,
@@ -39,7 +44,10 @@ pub use native_performance::NativePerformanceRegistry;
 #[cfg(windows)]
 pub use native_power::NativePowerApi;
 #[cfg(windows)]
+pub use native_power_status::NativeSystemPowerStatus;
+#[cfg(windows)]
 pub use native_wmi::NativeWmi;
+pub use os_battery::{OsBatteryChannel, SystemPowerStatusReader, WindowsOsBattery};
 pub use p0::{ChargeModeReader, UnverifiedChargeModeReader, WindowsBatteryP0};
 pub use performance_p0::{PerformanceRegistryReader, WindowsPerformanceP0};
 pub use peripherals::WindowsPeripheralController;
