@@ -1,0 +1,27 @@
+log:
+  level: info
+runner:
+  file: /data/.runner
+  capacity: 1
+  timeout: 60m
+  shutdown_timeout: 1m
+  insecure: false
+  fetch_interval: 10s
+  env_file: ''
+  labels:
+    - vantage:docker://vantage-ci-job:latest
+cache:
+  enabled: false
+container:
+  network: doesportal_default
+  privileged: false
+  # This disables Docker socket inheritance into jobs and services while
+  # allowing the runner itself to use its explicitly mounted host socket.
+  docker_host: '-'
+  valid_volumes:
+    - /tank/docker/doescontainer/binds/vantage-runner/cargo-target
+    - /tank/docker/doescontainer/binds/vantage-runner/ci-actions
+  force_pull: false
+  force_rebuild: false
+host:
+  workdir_parent: /data/workdir
