@@ -40,6 +40,12 @@ jobs:
         run: cargo test --workspace --all-targets
       - name: Build release binaries
         run: cargo build --release --workspace
+      - name: Collect release binaries
+        # cargo writes into the persistent cache directory, not into the
+        # workspace, so bring the artefacts back before uploading them.
+        run: |
+          mkdir -p target
+          cp -a "$CARGO_TARGET_DIR/release/." target/release/
       - name: Upload release binaries
         # Gitea 1.27 rejects upload-artifact v4, which targets the GitHub
         # Enterprise artifact API. Version 3 is the supported one here.
