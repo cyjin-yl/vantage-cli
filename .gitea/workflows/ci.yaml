@@ -8,60 +8,80 @@ on:
 permissions:
   contents: read
 
-# The internal runner executes Linux jobs only: the Docker engine on this
-# host is Linux and carries no Windows container image, so a Windows job
-# could not build here. The Windows lane stays on the GitHub workflow in
-# .github/workflows/ci.yml, and the target-machine smoke test runs on the
-# 21VG host.
-#
-# The job image carries the Rust toolchain and the native build
-# dependencies, so a run does not depend on downloading them.
+# This runner covers Linux only. Native Windows builds require a separate
+# Windows runner; neither cross-compilation nor Windows smoke is claimed here.
+# The locally installed image and action runtimes are preseeded; no external
+# action resolution or toolchain/registry downloads are required by these steps.
 jobs:
   test:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest]
     runs-on: vantage
     timeout-minutes: 60
     container:
       image: vantage-ci-job:latest
+      options: --cpus=4 --memory=8g --memory-swap=8g --pids-limit=512
+      volumes:
+        - /tank/docker/doescontainer/binds/vantage-runner/cargo-target:/usr/local/cargo-target
+        - /tank/docker/doescontainer/binds/vantage-runner/ci-actions:/opt/vantage-ci-actions:ro
     steps:
-      # The action repositories are mirrored into this Gitea instance: the
-      # network has no route to GitHub and the proxy budget is limited.
-      - uses: ezra/checkout@v4
-        with:
-          persist-credentials: false
+      - name: Check out exact source commit
+        # The image has Node but no git. Execute the preseeded checkout
+        # runtime directly so its REST archive fallback needs no bootstrap
+        # checkout, remote action resolution or additional dependencies.
+        # Only Gitea's repository-scoped job token is supplied.
+        env:
+          INPUT_TOKEN: ${{ github.token }}
+          INPUT_REPOSITORY: ${{ github.repository }}
+          INPUT_REF: ${{ github.sha }}
+          INPUT_PATH: '.'
+          INPUT_FETCH-DEPTH: '1'
+          INPUT_PERSIST-CREDENTIALS: 'false'
+          INPUT_SET-SAFE-DIRECTORY: 'false'
+          INPUT_SUBMODULES: 'false'
+          INPUT_LFS: 'false'
+          # Empty intentionally: checkout then uses the runner-provided
+          # GITHUB_API_URL instead of deriving a GitHub Enterprise URL.
+          INPUT_GITHUB-SERVER-URL: ''
+        run: |
+          set +x
+          cd /opt/vantage-ci-actions
+          sha256sum --check SHA256SUMS
+          cd "$GITHUB_WORKSPACE"
+          node /opt/vantage-ci-actions/checkout/dist/index.js
+      - name: Prepare preseeded artifact uploader
+        run: |
+          cd /opt/vantage-ci-actions
+          sha256sum --check SHA256SUMS
+          cd "$GITHUB_WORKSPACE"
+          mkdir -p ci-runtime
+          cp -R /opt/vantage-ci-actions/upload-artifact ci-runtime/upload-artifact
       - name: Check formatting
         run: cargo fmt --all -- --check
       - name: Lint workspace
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --locked --offline --workspace --all-targets -- -D warnings
       - name: Test workspace
-        run: cargo test --workspace --all-targets
+        run: cargo test --locked --offline --workspace --all-targets
       - name: Build release binaries
-        run: cargo build --release --workspace
+        run: cargo build --locked --offline --release --workspace
       - name: Collect release binaries
-        # cargo writes into the persistent cache directory, not into the
-        # workspace, so bring the artefacts back before uploading them.
         run: |
-          mkdir -p target
-          cp -a "$CARGO_TARGET_DIR/release/." target/release/
+          mkdir -p ci-runtime/release
+          for binary in vantage vantaged vantage-gui; do
+            cp "$CARGO_TARGET_DIR/release/$binary" "ci-runtime/release/$binary"
+          done
       - name: Upload release binaries
-        # Gitea 1.27 rejects upload-artifact v4, which targets the GitHub
-        # Enterprise artifact API. Version 3 is the supported one here.
-        uses: ezra/upload-artifact@v3
+        # Preseeded upload-artifact v3, compatible with Gitea's artifact API.
+        uses: ./ci-runtime/upload-artifact
         with:
           name: vantage-${{ runner.os }}-${{ runner.arch }}
           if-no-files-found: error
           path: |
-            target/release/vantage
-            target/release/vantage.exe
-            target/release/vantaged
-            target/release/vantaged.exe
-            target/release/vantage-gui
-            target/release/vantage-gui.exe
+            ci-runtime/release/vantage
+            ci-runtime/release/vantaged
+            ci-runtime/release/vantage-gui
     env:
       RUSTFLAGS: -Dwarnings
-      # Reuse the compiled artefacts from earlier runs instead of rebuilding
-      # the whole dependency tree on every push.
+      CARGO_HOME: /usr/local/cargo
+      RUSTUP_HOME: /usr/local/rustup
       CARGO_TARGET_DIR: /usr/local/cargo-target
+      CARGO_NET_OFFLINE: 'true'
+      CARGO_BUILD_JOBS: '4'
