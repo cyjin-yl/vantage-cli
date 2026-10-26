@@ -27,7 +27,9 @@ jobs:
     container:
       image: vantage-ci-job:latest
     steps:
-      - uses: actions/checkout@v4
+      # The action repositories are served from the local git daemon: this
+      # network has no route to GitHub and the proxy budget is limited.
+      - uses: git://10.10.10.12/checkout@v4
         with:
           persist-credentials: false
       - name: Check formatting
@@ -41,7 +43,7 @@ jobs:
       - name: Upload release binaries
         # Gitea 1.27 rejects upload-artifact v4, which targets the GitHub
         # Enterprise artifact API. Version 3 is the supported one here.
-        uses: https://gitea.com/actions/upload-artifact@v3
+        uses: git://10.10.10.12/upload-artifact@v3
         with:
           name: vantage-${{ runner.os }}-${{ runner.arch }}
           if-no-files-found: error
