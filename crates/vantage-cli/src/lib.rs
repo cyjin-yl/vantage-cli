@@ -2571,7 +2571,7 @@ fn replace_file_atomic(temporary: &Path, destination: &Path) -> lctrl_core::Resu
         if replaced == 0 {
             return Err(LctrlError::Io(std::io::Error::last_os_error()));
         }
-        return Ok(());
+        Ok(())
     }
     #[cfg(not(windows))]
     fs::rename(temporary, destination).map_err(LctrlError::Io)

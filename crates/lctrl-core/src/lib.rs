@@ -17,7 +17,7 @@ pub use audio::{DolbyProfile, NoiseCancellationMode};
 pub use battery::{
     AdapterAuthentication, AdapterConnectorType, AdapterDetailValues, AdapterInfo, AdapterStatus,
     BatteryDate, BatteryHealth, BatteryTelemetry, ChargeMode, ChargeModeActual, ChargePrimitive,
-    ChargeStatus, decode_charge_mode, plan_charge_mode,
+    ChargeStatus, OsBatterySnapshot, SystemPowerStatus, decode_charge_mode, plan_charge_mode,
 };
 pub use bios::{
     BiosChange, BiosItem, BiosName, BiosPasswordStatus, BiosRisk, BiosValue, classify_risk,
