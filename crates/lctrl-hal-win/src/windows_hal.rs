@@ -1,7 +1,10 @@
 use lctrl_core::{Availability, CapabilitySet, HardwareInfo, Platform, Result};
 use lctrl_hal::Hal;
 
-use crate::{EnergyDriver, IoctlTransport, WmiObject, WmiTransport, WmiValue, active_instance};
+use crate::{
+    EnergyDriver, IoctlTransport, WmiObject, WmiTransport, WmiValue, active_instance,
+    wmi_contract::ROOT_WMI,
+};
 
 const ROOT_CIMV2: &str = "ROOT\\CIMV2";
 
@@ -96,6 +99,12 @@ where
             Some("EnergyDrv is unavailable for battery telemetry".into())
         };
         let battery_telemetry_available = battery_detail_error.is_none();
+        let os_battery_error = match self.wmi.query(ROOT_WMI, "SELECT * FROM BatteryStatus") {
+            Ok(objects) if !objects.is_empty() => None,
+            Ok(_) => Some("the Windows battery class exposed no instance".into()),
+            Err(error) => Some(error.to_string()),
+        };
+        let os_battery_available = os_battery_error.is_none();
         let inventory_error = match self
             .wmi
             .query(ROOT_CIMV2, "SELECT Model FROM Win32_ComputerSystem")
@@ -137,22 +146,33 @@ where
         for feature in ["battery.info", "battery.status"] {
             capabilities.record(
                 feature,
-                if battery_telemetry_available {
+                if battery_telemetry_available || os_battery_available {
                     Availability::Available
                 } else {
                     Availability::Unavailable
                 },
-                telemetry_detail.clone(),
+                match (battery_telemetry_available, os_battery_available) {
+                    (true, true) => None,
+                    (true, false) => telemetry_detail.clone(),
+                    (false, true) => None,
+                    (false, false) => telemetry_detail.clone(),
+                },
             )?;
         }
         capabilities.record(
             "battery.adapter",
-            if energy_available {
+            if energy_available || os_battery_available {
                 Availability::Available
             } else {
                 Availability::Unavailable
             },
-            (!energy_available).then(|| "EnergyDrv is unavailable for adapter telemetry".into()),
+            match (energy_available, os_battery_available) {
+                (true, _) => None,
+                (false, true) => None,
+                (false, false) => {
+                    Some("neither EnergyDrv nor the Windows battery class is available".into())
+                }
+            },
         )?;
         capabilities.record(
             "battery.charge_mode",

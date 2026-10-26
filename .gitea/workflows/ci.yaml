@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main, work/vantage-implementation]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: vantage
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install GPUI native dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libxcb1-dev \
+            libxkbcommon-dev \
+            libxkbcommon-x11-dev \
+            pkg-config
+      - name: Check formatting
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo fmt --all -- --check
+      - name: Lint workspace
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Test workspace
+        run: cargo test --workspace --all-targets
+      - name: Build release binaries
+        run: cargo build --release --workspace
+      - name: Upload release binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: vantage-${{ runner.os }}-${{ runner.arch }}
+          if-no-files-found: error
+          path: |
+            target/release/vantage
+            target/release/vantage.exe
+            target/release/vantaged
+            target/release/vantaged.exe
+            target/release/vantage-gui
+            target/release/vantage-gui.exe
+    env:
+      RUSTFLAGS: -Dwarnings
