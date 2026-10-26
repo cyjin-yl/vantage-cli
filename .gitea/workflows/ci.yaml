@@ -58,7 +58,9 @@ jobs:
       - name: Build release binaries
         run: cargo build --release --workspace
       - name: Upload release binaries
-        uses: actions/upload-artifact@v4
+        # Gitea 1.27 rejects upload-artifact v4, which targets the GitHub
+        # Enterprise artifact API. Version 3 is the supported one here.
+        uses: https://gitea.com/actions/upload-artifact@v3
         with:
           name: vantage-${{ runner.os }}-${{ runner.arch }}
           if-no-files-found: error
