@@ -30,6 +30,7 @@ jobs:
             apt-get update
             apt-get install -y --no-install-recommends ca-certificates curl gcc pkg-config
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable
+            "$HOME/.cargo/bin/rustup" component add rustfmt clippy
             echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
             echo "CARGO_HOME=$HOME/.cargo" >> "$GITHUB_ENV"
           fi
