@@ -165,7 +165,10 @@ impl LinuxHal {
             match self.read_optional_path(self.path(energy)) {
                 Ok(Some(_)) => return Ok(true),
                 Ok(None) | Err(LctrlError::PermissionDenied { .. }) => continue,
-                Err(error) => return Err(error),
+                // A probe must never abort the whole capability report: an
+                // unreadable energy file (wrong type, restricted device,
+                // transient error) means this channel is not usable here.
+                Err(_) => continue,
             }
         }
         Ok(false)

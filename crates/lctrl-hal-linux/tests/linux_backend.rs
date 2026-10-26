@@ -609,20 +609,16 @@ fn rapid_charge_is_blocked_for_39wh_or_missing_design_capacity() {
 #[test]
 fn unreadable_rapl_telemetry_marks_capability_unavailable_without_aborting_info() {
     let tree = TempTree::new();
-    let path = tree.path("sys/class/powercap/intel-rapl/intel-rapl:0/energy_uj");
-    tree.write(
-        "sys/class/powercap/intel-rapl/intel-rapl:0/energy_uj",
-        "123\n",
-    );
-    fs::set_permissions(&path, fs::Permissions::from_mode(0o000)).expect("make unreadable");
+    // A directory in place of the energy file makes the read fail for every
+    // user, including root, which ignores file permission bits.
+    fs::create_dir_all(tree.path("sys/class/powercap/intel-rapl/intel-rapl:0/energy_uj"))
+        .expect("create unreadable energy path");
 
     let capabilities = tree.hal().capabilities().expect("probe must not abort");
     assert_eq!(
         capabilities.get("tune.rapl").unwrap().availability,
         Availability::Unavailable
     );
-
-    fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).expect("restore cleanup mode");
 }
 
 #[test]
