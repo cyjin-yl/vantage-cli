@@ -13,6 +13,9 @@ permissions:
 # could not build here. The Windows lane stays on the GitHub workflow in
 # .github/workflows/ci.yml, and the target-machine smoke test runs on the
 # 21VG host.
+#
+# The job image carries the Rust toolchain and the native build
+# dependencies, so a run does not depend on downloading them.
 jobs:
   test:
     strategy:
@@ -22,33 +25,11 @@ jobs:
     runs-on: vantage
     timeout-minutes: 60
     container:
-      image: node:22-bookworm-slim
+      image: vantage-ci-job:latest
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Install Rust toolchain
-        run: |
-          apt-get update
-          apt-get install -y --no-install-recommends \
-            ca-certificates \
-            curl \
-            gcc \
-            g++ \
-            libc6-dev \
-            pkg-config
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable
-          "$HOME/.cargo/bin/rustup" component add rustfmt clippy
-          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-          echo "CARGO_HOME=$HOME/.cargo" >> "$GITHUB_ENV"
-      - name: Install GPUI native dependencies
-        run: |
-          apt-get update
-          apt-get install -y --no-install-recommends \
-            libxcb1-dev \
-            libxkbcommon-dev \
-            libxkbcommon-x11-dev \
-            pkg-config
       - name: Check formatting
         run: cargo fmt --all -- --check
       - name: Lint workspace
@@ -73,3 +54,6 @@ jobs:
             target/release/vantage-gui.exe
     env:
       RUSTFLAGS: -Dwarnings
+      # Reuse the compiled artefacts from earlier runs instead of rebuilding
+      # the whole dependency tree on every push.
+      CARGO_TARGET_DIR: /usr/local/cargo-target
