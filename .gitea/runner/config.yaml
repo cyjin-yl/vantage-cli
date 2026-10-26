@@ -1,7 +1,7 @@
 log:
   level: info
 runner:
-  file: /data/.runner
+  file: /data/identity/.runner
   capacity: 1
   timeout: 60m
   shutdown_timeout: 1m

@@ -11,7 +11,13 @@ checkout_cached=/root/.cache/act/a73a5a8327b9339595b6329aef98816745aa9873ff08864
 
 # Keep existing registration and the preseeded 2.4GB image. Fail rather than
 # downloading replacement inputs or silently registering another runner.
-test -s "$base/.runner"
+if [ ! -s "$base/identity/.runner" ]; then
+  # One-time migration of our existing registration, not a new runner.
+  test -s "$base/.runner"
+  install -d -m 0700 "$base/identity"
+  cp -p "$base/.runner" "$base/identity/.runner"
+  chmod 0600 "$base/identity/.runner"
+fi
 docker image inspect vantage-ci-job:latest >/dev/null
 docker image inspect gitea/act_runner:0.2.13 >/dev/null
 
