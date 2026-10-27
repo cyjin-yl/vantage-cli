@@ -410,7 +410,7 @@ where
         // Pair exact records first. Otherwise removing one of several records
         // with the same fallback identity could be misreported as a mutation.
         while before_index < before.len() && after_index < after.len() {
-            match before[before_index].cmp(&after[after_index]) {
+            match before[before_index].cmp(after[after_index]) {
                 std::cmp::Ordering::Equal => {
                     before_index += 1;
                     after_index += 1;

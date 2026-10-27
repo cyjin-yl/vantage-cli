@@ -394,9 +394,10 @@ pub enum UpdateWeekday {
 
 /// Advisory scheduling preference only. No scheduler is registered and this
 /// value never authorizes an automatic install or reboot.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum UpdateSchedule {
+    #[default]
     Off,
     Daily {
         hour: u8,
@@ -407,12 +408,6 @@ pub enum UpdateSchedule {
         hour: u8,
         minute: u8,
     },
-}
-
-impl Default for UpdateSchedule {
-    fn default() -> Self {
-        Self::Off
-    }
 }
 
 impl UpdateSchedule {
