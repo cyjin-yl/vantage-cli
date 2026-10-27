@@ -455,12 +455,16 @@ SetBiosSetting("Name,Value;")   ← 写事务缓冲区（NVRAM staging）
    …多次 Set 累积…
 SaveBiosSettings(";")           ← commit：全部写入 NVRAM
    or
-DiscardBiosSettings(...)        ← rollback：丢弃本次缓冲区全部未提交更改
+DiscardBiosSettings(...)        ← 丢弃缓冲区未提交更改（归属范围未证实）
 ```
 
 - 每次 `Set` 不落盘；`Save` 一次性提交**缓冲区里所有**未提交项。
 - `Save` 之后的部分项（网络/虚拟化/显卡模式/启动项）**需要重启才真正生效**；官方证据：PCManager 的 `SetBIOSOC`"需重启生效"（`电脑管家电源组件内部接口说明` L144）。
 - 官方代码序贯写多项时，任一项失败即**中止且不 Save**（§3.4）——防止"改坏一半"。
+- 暂存区是否跨 WMI 会话、进程或官方工具共享尚无目标机契约；不能认为 `Discard` 只影响
+  当前调用者。[Lenovo 公共 WMI 指南](https://docs.lenovocdrt.com/ref/bios/wmi/wmi_guide/#limitations-and-notes)
+  对所列 ThinkPad/ThinkCentre/ThinkStation 说明一次 Save 保存所有变更，但未声明 ThinkBook
+  21VG 适用。Gitea #28 已请求所有权、pending 状态及故障语义契约。
 
 ### 6.2 官方调用序列（`SetIOControlItem`，逐字节对照）
 
@@ -592,10 +596,10 @@ success = (ret == "Success")
 
 ### 8.4 vantage 建议的安全策略
 
-- 高危项（§8.2 表"高"）要求 `--yes` 双确认；`defaults`/`password` 子命令加 `--experimental`/交互确认。
-- `set` 失败后自动丢弃缓冲区（调 `DiscardBiosSettings`），保持"要么全成功要么无变更"。
-- `set` 前对值做存在性校验（`GetBiosSelections` 或至少与枚举清单比对；枚举不到的项拒绝裸写，除非 `--force`）。
-- 写前快照当前值，`save` 失败时给出可复原的旧值报告。
+- 真实 Windows 后端当前拒绝 stage/save/discard：尚不能证明暂存区仅属于本事务；
+  不自动丢弃可能由其他调用者创建的待提交设置。读取、值域查询与 dry-run 仍可用。
+- 契约明确前，`--yes` 不能绕过隔离门禁；defaults 和密码写入均不支持。未来实现必须
+  预检值域、保存前值并区分镜像读回与实际生效。
 
 **证据**
 
@@ -607,29 +611,21 @@ success = (ret == "Success")
 
 ---
 
-## 9. `vantage bios` 子命令设计建议
+## 9. `vantage bios` 子命令与边界
 
 ```text
-vantage bios list [--json]            # 枚举全部项 + 当前值 (+ 每项 Selections, 带 --selections 开关)
-vantage bios get <Item>               # 输出 "Name,Value" 或单值
-vantage bios set <Item> <Value> [--save] [--yes]
-vantage bios save                     # 提交当前缓冲
-vantage bios discard                  # 回滚当前缓冲
-vantage bios defaults                 # 恢复出厂 (--yes 强确认, --experimental)
-vantage bios password status          # 读 PasswordState (bit1)
-vantage bios password set|clear <new> # 写密码 (--experimental, 需实机验证 §5.3)
+vantage bios list                     # 只读枚举
+vantage bios get <Item>               # 只读当前镜像
+vantage --dry-run bios set <Item> <Value> --save  # 只读计划，不证明可提交
+vantage bios password status          # 只读密码状态
 ```
 
 ### 9.1 实现要点
 
-1. **值域校验**：`set` 先 `GetBiosSelections(Item)`；失败/无 Selections 时退回枚举清单比对；仍未知 → 拒绝或 `--force`。
-2. **大小写与拼写差异**：不做规范化，`set` 原样传值；提示用户以 `list --selections` 输出为准（`Enabled/Enable` 混用）。
-3. **项名转义**：项名含括号（`Thunderbolt(TM)`）与逗号（理论上），按原始串处理；CLI 解析用"第一逗号前=名，其后=值"。
-4. **缓冲语义**：`set` 默认**不 Save**，可连发多个 `set` 后一次 `save`（与官方一致）；`discard` 丢弃全部未提交项。
-5. **退出码**：`0` 成功；`2` 参数/项不存在；`3` 权限不足；`4` BIOS 返回非 `Success`（stderr 打印原样错误串）；`5` 该机型不支持（WBEM 0x80041010/0F）。
-6. **幂等与重试**：Set 重试 1 次仍非 `Success` 即失败；不做自动回滚（由用户显式 `discard`），但**失败后不 Save**（官方同款）。
-7. **输出**：`--json` 输出 `[{name, value, selections?}]`，`--json` 失败时退出码仍按上述约定，JSON 写入 stderr 的错误对象。
-8. Linux 后端：读侧可用 `/sys/firmware/dmi/tables/smbios`（只读，非本接口）；写侧无对等通道，命令应明确报"仅 Windows"（见 09 文档）。
+1. CLI `set` 与库的批量事务 API 预检固件返回的精确 Selections；实际提交还须通过暂存区所有权门禁。
+2. `bios save` 不支持独立全局提交；`bios discard` 同样受所有权门禁。
+3. 项名/值不得包含 NUL、逗号或分号；JSON 失败采用统一错误对象和非零退出码。
+4. Linux 不提供本 WMI 写入通道。密码 set/clear/verify 和恢复出厂均未开放。
 
 ### 9.2 与其它模块的协同
 
@@ -650,7 +646,7 @@ vantage bios password set|clear <new> # 写密码 (--experimental, 需实机验�
 7. ISET 索引 ≥12 的实例号（vantage-device.md 记录，未在原采集复核）。
 8. 密码设置后 `PasswordMode`/`PasswordState` 两口的值变化规律。
 
-> 这些未决项不影响 `list/get/set/save/discard/defaults` 的实现（均有官方对照）；仅 `password` 的**写**方向受影响。
+> 以上未决项及暂存区归属会阻断安全写入；当前只读能力不等于已完成 BIOS 写入验收。
 
 ---
 

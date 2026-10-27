@@ -395,6 +395,7 @@ struct FakeBios {
     saves: AtomicUsize,
     discards: AtomicUsize,
     fail_save: bool,
+    isolated: bool,
 }
 
 impl FakeBios {
@@ -404,6 +405,7 @@ impl FakeBios {
             saves: AtomicUsize::new(0),
             discards: AtomicUsize::new(0),
             fail_save: false,
+            isolated: true,
         }
     }
 
@@ -413,11 +415,22 @@ impl FakeBios {
             saves: AtomicUsize::new(0),
             discards: AtomicUsize::new(0),
             fail_save: true,
+            isolated: true,
         }
     }
 }
 
 impl BiosControl for FakeBios {
+    fn require_owned_staging(&self) -> lctrl_core::Result<()> {
+        if self.isolated {
+            Ok(())
+        } else {
+            Err(LctrlError::ChannelUnavailable {
+                channel: "unverified staging ownership".into(),
+            })
+        }
+    }
+
     fn list(&self) -> lctrl_core::Result<Vec<lctrl_core::BiosItem>> {
         Ok(vec![lctrl_core::BiosItem {
             name: "Camera".into(),
@@ -470,6 +483,29 @@ impl BiosControl for FakeBios {
     fn password_status(&self) -> lctrl_core::Result<lctrl_core::BiosPasswordStatus> {
         Ok(lctrl_core::BiosPasswordStatus::from_raw(1, 128, 0))
     }
+}
+
+#[test]
+fn unverified_bios_staging_blocks_set_and_discard_before_mutation() {
+    let hal = FakeHal::new("unused");
+    let mut bios = FakeBios::new();
+    bios.isolated = false;
+    let set = Cli::try_parse_from([
+        "vantage", "--yes", "bios", "set", "Camera", "Disable", "--save",
+    ])
+    .unwrap();
+    assert!(matches!(
+        execute_with_services(set, CommandServices::new(&hal).with_bios(&bios)),
+        Err(LctrlError::ChannelUnavailable { .. })
+    ));
+    let discard = Cli::try_parse_from(["vantage", "--yes", "bios", "discard"]).unwrap();
+    assert!(matches!(
+        execute_with_services(discard, CommandServices::new(&hal).with_bios(&bios)),
+        Err(LctrlError::ChannelUnavailable { .. })
+    ));
+    assert!(bios.staged.lock().is_empty());
+    assert_eq!(bios.saves.load(Ordering::SeqCst), 0);
+    assert_eq!(bios.discards.load(Ordering::SeqCst), 0);
 }
 
 #[test]
