@@ -13,7 +13,7 @@
 | Fn/Ctrl 互换 | BIOS `FoolProofFnCtrl` | `kbd fn-ctrl-swap {on|off}` |
 | F1-F12 主功能 | BIOS `HotkeyMode` + `F1-F12AsPrimaryFunction` | `kbd fnlock {on|off}` |
 | Win 键锁定 | WMI `LENOVO_GAMEZONE_DATA.SetWinKeyStatus` | `kbd winlock {on|off}` |
-| 触控板开关 | GAMEZONE WMI;21VG 使用 Windows PnP 输入叶节点 | `touchpad {on|off}` |
+| 触控板开关 | GAMEZONE WMI;21VG 使用 Windows PnP 输入叶节点 | `touchpad {status|on|off|recover}` |
 | 面板刷新率 | WMI `LENOVO_INTERNAL_PANEL_REFRESH_RATE_DATA` + ChangeDisplaySettingsEx | `panel rate {60|120|auto}` |
 | 面板色彩/显示模式 | WMI `LENOVO_PANEL_METHOD` | `panel color MODE` |
 | 超分辨率(SR) | 注册表 + SmartEngine | `panel super-resolution {on|off}` |
@@ -79,6 +79,12 @@
   也不切换配置/vendor-defined 集合或其他鼠标。
 - dry-run 不写设备;已处于请求状态时不重启输入节点。提交逐节点回读,
   失败时恢复所有可能已发生变化的尝试节点,包括返回错误但可能已经生效的那一次调用。
+- `touchpad status` 只读输入叶聚合状态；叶状态分裂或不可读时返回错误，不伪装成单一状态。
+- `touchpad recover` 用于崩溃后 digitizer/mouse 输入叶状态分裂：先读取全部叶并要求
+  至少一个 mouse 叶（输入叶总数上限 16，超限拒绝），只启用当前禁用的输入叶，逐叶
+  独立回读，不触碰控制器或其他设备。单节点报错时仍尝试其余禁用叶，保留错误并非零
+  退出；可再次执行。`--dry-run touchpad recover` 只输出各叶前值和目标，不写设备。
+  新路径的目标机真实恢复效果尚未验收。
 - 禁用 ACPI 控制器会令 HID 子节点消失,使下一次 CLI 无法重新发现触控板。
   若旧版本留下该状态,用已确认的原控制器完整 instance ID 执行
   `pnputil /enable-device "<instance-id>"`,再检查控制器及各子节点状态;不要扫描或批量启用其他设备。
