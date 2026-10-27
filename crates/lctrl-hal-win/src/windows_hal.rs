@@ -190,8 +190,8 @@ where
             "battery.charge_mode",
             Availability::Unavailable,
             Some(
-                "GBMD conservation/express writes are accepted, but 21VG firmware exposes no \
-                 independent charge-mode readback (docs/C-acceptance.md C2)"
+                "no verified independent charge-mode reader is attached; the tested 21VG \
+                 read channels did not reveal a state change (docs/C-acceptance.md C2)"
                     .into(),
             ),
         )?;

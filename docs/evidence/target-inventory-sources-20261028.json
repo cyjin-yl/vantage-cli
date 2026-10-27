@@ -1,0 +1,52 @@
+{
+  "scope": "Read-only public CIM source probes on TB14P-EZRA; this is not execution or acceptance of the unfinished inventory CLI.",
+  "privacy": "No UUID, serial number, device identifier, software name, account name, SSID or MAC address is retained.",
+  "machine_identity": {
+    "source": "Win32_ComputerSystemProduct.UUID",
+    "valid_nonzero_nonallff_uuid": true,
+    "raw_value_retained": false
+  },
+  "remaining_selected_queries": [
+    {"name": "operating_system", "state": "ok", "record_count": 1, "elapsed_ms": 201},
+    {"name": "product", "state": "ok", "record_count": 1, "elapsed_ms": 14},
+    {"name": "system", "state": "ok", "record_count": 1, "elapsed_ms": 22},
+    {"name": "motherboard", "state": "ok", "record_count": 1, "elapsed_ms": 16},
+    {"name": "bios", "state": "ok", "record_count": 1, "elapsed_ms": 12},
+    {"name": "cpu", "state": "ok", "record_count": 1, "elapsed_ms": 14},
+    {"name": "memory", "state": "ok", "record_count": 8, "elapsed_ms": 15},
+    {"name": "gpu", "state": "ok", "record_count": 3, "elapsed_ms": 54},
+    {"name": "disk", "state": "ok", "record_count": 2, "elapsed_ms": 19},
+    {"name": "network", "state": "ok", "record_count": 5, "elapsed_ms": 526},
+    {"name": "devices", "state": "ok", "record_count": 273, "elapsed_ms": 164},
+    {"name": "services", "state": "ok", "record_count": 348, "elapsed_ms": 742},
+    {"name": "updates", "state": "ok", "record_count": 5, "elapsed_ms": 1051}
+  ],
+  "selected_query_results": [
+    {
+      "name": "driver_inventory",
+      "query": "SELECT DeviceID, DeviceName, Manufacturer, DriverProviderName, DriverVersion, InfName, IsSigned FROM Win32_PnPSignedDriver",
+      "state": "ok",
+      "record_count": 276,
+      "elapsed_ms": 5447
+    },
+    {
+      "name": "firmware_inventory",
+      "query": "SELECT DeviceID, DeviceName, Manufacturer, ClassGuid, DriverProviderName, DriverVersion, InfName, Status FROM Win32_PnPSignedDriver WHERE DeviceClass = 'FIRMWARE'",
+      "state": "ok",
+      "record_count": 10,
+      "elapsed_ms": 5254
+    },
+    {
+      "name": "software_inventory",
+      "query": "SELECT Name, Vendor, Version FROM Win32_InstalledWin32Program",
+      "state": "ok",
+      "record_count": 185,
+      "elapsed_ms": 6929
+    }
+  ],
+  "limitations": [
+    "CIM source probes were run with PowerShell and are not proof that the Rust CLI captured the same data.",
+    "Selected provider query completion times are observations, not a latency bound.",
+    "The inventory, snapshot and machine-bound recovery changes have not yet been built or accepted on Windows."
+  ]
+}
