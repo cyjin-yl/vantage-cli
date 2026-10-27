@@ -1,0 +1,32 @@
+{
+  "scope": "PR44 touchpad read-only status and recovery dry-run; no actual touchpad state mutation",
+  "source_commit": "69bd462dc938600f12681cc25d46a148a4bd9e49",
+  "merged_main_commit": "aaa6825fcfdb7aca14eb21dc4ecd96caea5cf546",
+  "source_archive_sha256": "267345c7a8f3221629a2b8996a3858eec9f8c0734f8b57d4967c4a91c8399199",
+  "source_manifest_sha256": "25a104ac8f840eee37cddcf8e4aef904b8a3b3168072bea31df3056cb5d2d7ee",
+  "source_file_count": 167,
+  "source_file_sha256_length_and_membership_verified": true,
+  "gitea_ci": {"run": 551, "event": "pull_request", "status": "success"},
+  "published_merge": {"parent_commit": "3849d93feb88a07dd4e425dc6e5914f57447b438", "tree_and_parents_verified": true, "changed_file_bytes_verified": 12},
+  "windows": {
+    "machine": "TB14P-EZRA",
+    "release_build_exit": 0,
+    "binary_sha256": "3074c7de8e058d70fcbbd8a4cbf95f0841a4b37dc3ba5a22b49bdee7ce383c80",
+    "binary_bytes": 3657728,
+    "fake_pnp_tests_passed": 33,
+    "fake_pnp_tests_failed": 0,
+    "status_exit": 0,
+    "status_actual": "enabled",
+    "recover_dry_run_exit": 0,
+    "recover_dry_run_mode": "dry_run",
+    "dry_run_leaves": [
+      {"role": "digitizer", "previous": "enabled", "requested": "enabled", "actual_reported": false},
+      {"role": "mouse", "previous": "enabled", "requested": "enabled", "actual_reported": false}
+    ],
+    "independent_pnp_before_count": 5,
+    "independent_pnp_after_count": 5,
+    "independent_pnp_status_and_problem_unchanged": true,
+    "touchpad_write_executed": false
+  },
+  "boundary": "Fake tests and real non-mutating reads/dry-run only; actual split recovery and complete off/on hardware effect remain unverified."
+}

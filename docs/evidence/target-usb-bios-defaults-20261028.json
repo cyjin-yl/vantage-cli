@@ -1,0 +1,15 @@
+{
+  "scope": "Read-only BIOS saved-setting mirror observations; no runtime USB power or physical effect claim.",
+  "machine": "TB14P-EZRA",
+  "binary_commit": "a0e3598f8fb7f3188343f817f7aa6b530bffa3f2",
+  "binary_sha256": "b6b74b2d2496d4a39453caa8b9f5ccab8ff66efe916d40c16e29e8c54b042bca",
+  "observations": [
+    {"command": "bios get AlwaysOnUSB", "exit": 0, "mirror_value": "Enable"},
+    {"command": "bios get ChargeInBatteryMode", "exit": 0, "mirror_value": "Enable"}
+  ],
+  "limitations": [
+    "The mirror describes a saved firmware setting, not an independently measured running or powered-off USB port.",
+    "No BIOS setting was staged, saved, discarded, or otherwise modified.",
+    "The runtime USB override and status channels remain unverified."
+  ]
+}
