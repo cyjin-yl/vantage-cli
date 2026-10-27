@@ -732,8 +732,15 @@ fn power_scheme_get_and_apply_resolve_the_same_friendly_name() {
     let power = FakeSchemes {
         mutations: Mutex::new(Vec::new()),
     };
-    let cli = Cli::try_parse_from(["vantage", "--dry-run", "power", "scheme", "apply", "balanced"])
-        .unwrap();
+    let cli = Cli::try_parse_from([
+        "vantage",
+        "--dry-run",
+        "power",
+        "scheme",
+        "apply",
+        "balanced",
+    ])
+    .unwrap();
 
     let output = execute_with_services(cli, CommandServices::new(&hal).with_power(&power)).unwrap();
 
@@ -752,8 +759,15 @@ fn unknown_power_scheme_name_is_rejected_without_activation() {
     let power = FakeSchemes {
         mutations: Mutex::new(Vec::new()),
     };
-    let cli = Cli::try_parse_from(["vantage", "--dry-run", "power", "scheme", "apply", "missing"])
-        .unwrap();
+    let cli = Cli::try_parse_from([
+        "vantage",
+        "--dry-run",
+        "power",
+        "scheme",
+        "apply",
+        "missing",
+    ])
+    .unwrap();
 
     let result = execute_with_services(cli, CommandServices::new(&hal).with_power(&power));
 
@@ -770,11 +784,7 @@ impl lctrl_hal::TuningControl for FakeTune {
         Ok(128)
     }
 
-    fn set_epp(
-        &self,
-        value: u8,
-        apply: ApplyMode,
-    ) -> lctrl_core::Result<ChangeReport<u8>> {
+    fn set_epp(&self, value: u8, apply: ApplyMode) -> lctrl_core::Result<ChangeReport<u8>> {
         self.epp_calls.lock().push((value, apply));
         Ok(ChangeReport::dry_run(128, value))
     }
@@ -798,7 +808,10 @@ impl lctrl_hal::TuningControl for FakeTune {
 #[test]
 fn tune_restore_dry_run_neither_writes_nor_consumes_the_recovery_snapshot() {
     let _lock = SNAPSHOT_ENV_LOCK.lock().unwrap();
-    let path = std::env::temp_dir().join(format!("vantage-tune-restore-test-{}.json", std::process::id()));
+    let path = std::env::temp_dir().join(format!(
+        "vantage-tune-restore-test-{}.json",
+        std::process::id()
+    ));
     let state = serde_json::json!({
         "version": 1,
         "platform": "linux",
@@ -819,11 +832,8 @@ fn tune_restore_dry_run_neither_writes_nor_consumes_the_recovery_snapshot() {
     };
 
     let dry_run = Cli::try_parse_from(["vantage", "--dry-run", "tune", "restore"]).unwrap();
-    let preview = execute_with_services(
-        dry_run,
-        CommandServices::new(&hal).with_tuning(&tuning),
-    )
-    .unwrap();
+    let preview =
+        execute_with_services(dry_run, CommandServices::new(&hal).with_tuning(&tuning)).unwrap();
 
     assert_eq!(preview.json["changes"][0]["mode"], "dry_run");
     assert_eq!(&*tuning.epp_calls.lock(), &[(64, ApplyMode::DryRun)]);
@@ -836,18 +846,26 @@ fn tune_restore_dry_run_neither_writes_nor_consumes_the_recovery_snapshot() {
     ]);
     std::fs::write(&path, serde_json::to_vec(&invalid).unwrap()).unwrap();
     let dry_run = Cli::try_parse_from(["vantage", "--dry-run", "tune", "restore"]).unwrap();
-    assert!(execute_with_services(
-        dry_run,
-        CommandServices::new(&hal).with_tuning(&tuning)
-    ).is_err());
-    assert!(tuning.epp_calls.lock().iter().all(|(_, mode)| *mode == ApplyMode::DryRun));
+    assert!(
+        execute_with_services(dry_run, CommandServices::new(&hal).with_tuning(&tuning)).is_err()
+    );
+    assert!(
+        tuning
+            .epp_calls
+            .lock()
+            .iter()
+            .all(|(_, mode)| *mode == ApplyMode::DryRun)
+    );
     assert!(path.is_file());
     std::fs::write(&path, serde_json::to_vec(&state).unwrap()).unwrap();
 
     let commit = Cli::try_parse_from(["vantage", "tune", "restore"]).unwrap();
     execute_with_services(commit, CommandServices::new(&hal).with_tuning(&tuning)).unwrap();
 
-    assert_eq!(tuning.epp_calls.lock().last(), Some(&(64, ApplyMode::Commit)));
+    assert_eq!(
+        tuning.epp_calls.lock().last(),
+        Some(&(64, ApplyMode::Commit))
+    );
     assert!(!path.exists());
     unsafe { std::env::remove_var("VANTAGE_STATE_PATH") };
 }

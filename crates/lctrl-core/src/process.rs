@@ -233,8 +233,7 @@ impl ProcessWorkingSet {
                 feature: format!("process working-set flags 0x{:x}", self.flags),
             });
         }
-        if (self.flags & Self::HARDWS_MIN_ENABLE != 0
-            && self.flags & Self::HARDWS_MIN_DISABLE != 0)
+        if (self.flags & Self::HARDWS_MIN_ENABLE != 0 && self.flags & Self::HARDWS_MIN_DISABLE != 0)
             || (self.flags & Self::HARDWS_MAX_ENABLE != 0
                 && self.flags & Self::HARDWS_MAX_DISABLE != 0)
         {

@@ -1,7 +1,6 @@
 use lctrl_core::{
     ApplyMode, ChangeReport, LctrlError, PowerGuid, PowerMutation, PowerSettingKey,
-    PowerSettingValue, PowerSource, PowerSourceValues, PowerValueRange, ProcessorBoostMode,
-    Result,
+    PowerSettingValue, PowerSource, PowerSourceValues, PowerValueRange, ProcessorBoostMode, Result,
 };
 use lctrl_hal::{PowerLimitKind, ProcessorPowerControl, TuningControl};
 
@@ -138,41 +137,33 @@ where
                 }
                 // The failed DC mutation has already attempted its own
                 // rollback. Restore the successful AC mutation as well.
-                return Err(match self.apply_source_mutation(
-                    ac_report.previous().clone(),
-                    ApplyMode::Commit,
-                    range,
-                ) {
-                    Ok(_) => error,
-                    Err(rollback) => LctrlError::FirmwareRejected {
-                        detail: format!(
-                            "AC/DC power-policy write failed ({error}); restoring AC also failed ({rollback})"
-                        ),
+                return Err(
+                    match self.apply_source_mutation(
+                        ac_report.previous().clone(),
+                        ApplyMode::Commit,
+                        range,
+                    ) {
+                        Ok(_) => error,
+                        Err(rollback) => LctrlError::FirmwareRejected {
+                            detail: format!(
+                                "AC/DC power-policy write failed ({error}); restoring AC also failed ({rollback})"
+                            ),
+                        },
                     },
-                });
+                );
             }
         };
 
-        let previous = PowerSourceValues::new(
-            ac_report.previous().clone(),
-            dc_report.previous().clone(),
-        );
-        let requested = PowerSourceValues::new(
-            ac_report.requested().clone(),
-            dc_report.requested().clone(),
-        );
+        let previous =
+            PowerSourceValues::new(ac_report.previous().clone(), dc_report.previous().clone());
+        let requested =
+            PowerSourceValues::new(ac_report.requested().clone(), dc_report.requested().clone());
         if apply == ApplyMode::DryRun {
             return Ok(ChangeReport::dry_run(previous, requested));
         }
         let actual = PowerSourceValues::new(
-            ac_report
-                .actual()
-                .cloned()
-                .ok_or_else(missing_actual)?,
-            dc_report
-                .actual()
-                .cloned()
-                .ok_or_else(missing_actual)?,
+            ac_report.actual().cloned().ok_or_else(missing_actual)?,
+            dc_report.actual().cloned().ok_or_else(missing_actual)?,
         );
         Ok(ChangeReport::committed(previous, requested, actual))
     }
@@ -226,7 +217,8 @@ where
         values: PowerSourceValues<ProcessorBoostMode>,
         apply: ApplyMode,
     ) -> Result<ChangeReport<PowerSourceValues<ProcessorBoostMode>>> {
-        let report = self.set_index_ac_dc(boost_key(), values.map(ProcessorBoostMode::get), apply)?;
+        let report =
+            self.set_index_ac_dc(boost_key(), values.map(ProcessorBoostMode::get), apply)?;
         convert_change(&report, |value| Ok(ProcessorBoostMode::from_raw(*value)))
     }
 }

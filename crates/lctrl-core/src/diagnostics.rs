@@ -353,10 +353,7 @@ impl Default for DiagnosticRunOptions {
 
 impl DiagnosticRunOptions {
     #[must_use]
-    pub fn new(
-        cancellation: DiagnosticCancellationToken,
-        per_item_deadline: Duration,
-    ) -> Self {
+    pub fn new(cancellation: DiagnosticCancellationToken, per_item_deadline: Duration) -> Self {
         Self {
             cancellation,
             per_item_deadline,

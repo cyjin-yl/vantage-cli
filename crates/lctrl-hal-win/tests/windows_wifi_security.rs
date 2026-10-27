@@ -136,11 +136,12 @@ impl WlanNetshRunner for FakeNetsh {
             .lock()
             .unwrap()
             .push(format!("profile:{name}:{}", interface.unwrap_or("")));
-        self.details.get(name).cloned().ok_or_else(|| {
-            LctrlError::ChannelUnavailable {
+        self.details
+            .get(name)
+            .cloned()
+            .ok_or_else(|| LctrlError::ChannelUnavailable {
                 channel: format!("missing fake profile {name}"),
-            }
-        })
+            })
     }
 }
 
@@ -236,7 +237,10 @@ Security settings
         .iter()
         .find(|profile| profile.name == "Disconnected Only")
         .unwrap();
-    assert_eq!(saved_disconnected.interface_name.as_deref(), Some("Wi-Fi 2"));
+    assert_eq!(
+        saved_disconnected.interface_name.as_deref(),
+        Some("Wi-Fi 2")
+    );
     assert_eq!(
         saved_disconnected.assessment.finding,
         WifiSecurityFinding::Open
@@ -400,8 +404,14 @@ fn security_mapping_is_conservative_for_legacy_and_unknown_values() {
 
     for (authentication, cipher, finding, reason) in cases {
         let assessment = assess_wifi_security(authentication, cipher);
-        assert_eq!(assessment.finding, finding, "authentication={authentication:?}, cipher={cipher:?}");
-        assert_eq!(assessment.reason, reason, "authentication={authentication:?}, cipher={cipher:?}");
+        assert_eq!(
+            assessment.finding, finding,
+            "authentication={authentication:?}, cipher={cipher:?}"
+        );
+        assert_eq!(
+            assessment.reason, reason,
+            "authentication={authentication:?}, cipher={cipher:?}"
+        );
     }
 }
 
@@ -433,8 +443,8 @@ Security settings
     Key Content            : {SECRET}
 "#
     );
-    let runner = FakeNetsh::new(disconnected, profiles)
-        .with_details([("Keyless View", detail.as_str())]);
+    let runner =
+        FakeNetsh::new(disconnected, profiles).with_details([("Keyless View", detail.as_str())]);
     let queries = Arc::clone(&runner.queries);
     let service = WindowsWifiSecurity::new(runner);
 

@@ -161,10 +161,7 @@ fn object(entries: &[(&str, WmiValue)]) -> WmiObject {
 
 fn thermal_zone(instance_name: &str, deci_kelvin: u32) -> WmiObject {
     object(&[
-        (
-            "InstanceName",
-            WmiValue::String(instance_name.to_owned()),
-        ),
+        ("InstanceName", WmiValue::String(instance_name.to_owned())),
         ("CurrentTemperature", WmiValue::U32(deci_kelvin)),
     ])
 }
@@ -173,14 +170,8 @@ fn fan_inventory() -> WmiObject {
     object(&[
         ("NumOfFans", WmiValue::U32(1)),
         ("FanId", WmiValue::Array(vec![WmiValue::U32(1)])),
-        (
-            "FanMinSpeed",
-            WmiValue::Array(vec![WmiValue::U32(2100)]),
-        ),
-        (
-            "FanMaxSpeed",
-            WmiValue::Array(vec![WmiValue::U32(5100)]),
-        ),
+        ("FanMinSpeed", WmiValue::Array(vec![WmiValue::U32(2100)])),
+        ("FanMaxSpeed", WmiValue::Array(vec![WmiValue::U32(5100)])),
     ])
 }
 
@@ -197,10 +188,7 @@ fn temperatures_preserve_source_identity_and_convert_deci_kelvin() {
     let first = r"ACPI\ThermalZone\TZ00_0";
     let second = r"ACPI\ThermalZone\TZ01_0";
     let wmi = FakeWmi::new(
-        WmiReply::Objects(vec![
-            thermal_zone(second, 3152),
-            thermal_zone(first, 3000),
-        ]),
+        WmiReply::Objects(vec![thermal_zone(second, 3152), thermal_zone(first, 3000)]),
         WmiReply::Objects(Vec::new()),
     );
     let controller = WindowsThermal::new(wmi, FakeBattery::telemetry(Some(3017)));
@@ -322,10 +310,7 @@ fn battery_failures_other_than_absence_are_preserved() {
         WmiReply::Objects(vec![thermal_zone("zone0", 3152)]),
         WmiReply::Objects(Vec::new()),
     );
-    let controller = WindowsThermal::new(
-        wmi,
-        FakeBattery::new(BatteryReply::PermissionDenied),
-    );
+    let controller = WindowsThermal::new(wmi, FakeBattery::new(BatteryReply::PermissionDenied));
 
     assert!(matches!(
         controller.temperature_sensors(),

@@ -144,25 +144,11 @@ where
             return if Self::preserve_prewrite_error(&error) {
                 Err(error)
             } else {
-                Err(self.rollback_value(
-                    key,
-                    *source,
-                    previous_raw,
-                    &previous,
-                    &range,
-                    error,
-                ))
+                Err(self.rollback_value(key, *source, previous_raw, &previous, &range, error))
             };
         }
         if let Err(error) = self.api.apply_active_scheme() {
-            return Err(self.rollback_value(
-                key,
-                *source,
-                previous_raw,
-                &previous,
-                &range,
-                error,
-            ));
+            return Err(self.rollback_value(key, *source, previous_raw, &previous, &range, error));
         }
         match poll_readback(&requested, 10, Duration::from_millis(50), || {
             let actual_raw = self.api.read_value(key, *source)?;
@@ -173,14 +159,9 @@ where
             })
         }) {
             Ok(actual) => Ok(ChangeReport::committed(previous, requested, actual)),
-            Err(error) => Err(self.rollback_value(
-                key,
-                *source,
-                previous_raw,
-                &previous,
-                &range,
-                error,
-            )),
+            Err(error) => {
+                Err(self.rollback_value(key, *source, previous_raw, &previous, &range, error))
+            }
         }
     }
 

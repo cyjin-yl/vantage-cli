@@ -133,11 +133,7 @@ where
         })
     }
 
-    fn set_fan_mode(
-        &self,
-        _mode: FanMode,
-        _apply: ApplyMode,
-    ) -> Result<ChangeReport<FanMode>> {
+    fn set_fan_mode(&self, _mode: FanMode, _apply: ApplyMode) -> Result<ChangeReport<FanMode>> {
         Err(LctrlError::Unsupported {
             feature: "perf.fan.mode.set".into(),
         })
@@ -155,10 +151,7 @@ where
             let ids = required_array(object, "FanId")?;
             let min_speeds = required_array(object, "FanMinSpeed")?;
             let max_speeds = required_array(object, "FanMaxSpeed")?;
-            if ids.len() != count
-                || min_speeds.len() != count
-                || max_speeds.len() != count
-            {
+            if ids.len() != count || min_speeds.len() != count || max_speeds.len() != count {
                 return Err(LctrlError::ChannelUnavailable {
                     channel: format!(
                         "LENOVO_FAN_TEST_DATA NumOfFans is {count}, but FanId/FanMinSpeed/FanMaxSpeed lengths are {}/{}/{}",

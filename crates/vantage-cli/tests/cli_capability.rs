@@ -1,12 +1,11 @@
+use lctrl_core::CommandSelector;
 use lctrl_core::{
-    Availability, CapabilitySet,
-    HardwareInfo, MagicBayInventory, Platform, StateLayer,
+    Availability, CapabilitySet, HardwareInfo, MagicBayInventory, Platform, StateLayer,
 };
 use lctrl_hal::{
-    Hal, MagicBayControl, command_capability_for,
-    command_registry, minimal_dependency_checklist, SwitchAction,
+    Hal, MagicBayControl, SwitchAction, command_capability_for, command_registry,
+    minimal_dependency_checklist,
 };
-use lctrl_core::CommandSelector;
 use vantage_cli::{
     Cli, CommandServices, ObservedStatus, command_capabilities, command_selector,
     execute_with_services,
@@ -36,7 +35,11 @@ impl Hal for FakeHal {
     fn capabilities(&self) -> lctrl_core::Result<CapabilitySet> {
         let mut set = CapabilitySet::new(Platform::Linux);
         set.record("battery.status", Availability::Available, None)?;
-        set.record("perf.mode", Availability::Unavailable, Some("target".to_owned()))?;
+        set.record(
+            "perf.mode",
+            Availability::Unavailable,
+            Some("target".to_owned()),
+        )?;
         Ok(set)
     }
 }
@@ -61,36 +64,64 @@ fn registry_covers_every_command_id() {
 
 #[test]
 fn usb_and_privacy_layers_are_distinct_entries() {
-    assert!(command_capability_for(CommandSelector::new(
-        lctrl_core::CommandId::USB_ALWAYS_ON,
-        StateLayer::Runtime
-    ))
-    .is_some());
-    assert!(command_capability_for(CommandSelector::new(
-        lctrl_core::CommandId::USB_ALWAYS_ON,
-        StateLayer::BiosPersistent
-    ))
-    .is_some());
-    assert!(command_capability_for(CommandSelector::new(
-        lctrl_core::CommandId::PRIVACY_CAM,
-        StateLayer::Runtime
-    ))
-    .is_some());
-    assert!(command_capability_for(CommandSelector::new(
-        lctrl_core::CommandId::PRIVACY_CAM,
-        StateLayer::BiosPersistent
-    ))
-    .is_some());
+    assert!(
+        command_capability_for(CommandSelector::new(
+            lctrl_core::CommandId::USB_ALWAYS_ON,
+            StateLayer::Runtime
+        ))
+        .is_some()
+    );
+    assert!(
+        command_capability_for(CommandSelector::new(
+            lctrl_core::CommandId::USB_ALWAYS_ON,
+            StateLayer::BiosPersistent
+        ))
+        .is_some()
+    );
+    assert!(
+        command_capability_for(CommandSelector::new(
+            lctrl_core::CommandId::PRIVACY_CAM,
+            StateLayer::Runtime
+        ))
+        .is_some()
+    );
+    assert!(
+        command_capability_for(CommandSelector::new(
+            lctrl_core::CommandId::PRIVACY_CAM,
+            StateLayer::BiosPersistent
+        ))
+        .is_some()
+    );
 }
 
 #[test]
 fn cli_aliases_map_to_expected_registry_rows() {
     let paths: &[(&[&str], lctrl_core::CommandId, StateLayer)] = &[
-        (&["vantage", "battery"], lctrl_core::CommandId::BATTERY_STATUS, StateLayer::Runtime),
-        (&["vantage", "power", "scheme"], lctrl_core::CommandId::POWER_SCHEME_ACTIVE, StateLayer::OsPersistent),
-        (&["vantage", "perf", "fan"], lctrl_core::CommandId::PERF_FAN_STATUS, StateLayer::Runtime),
-        (&["vantage", "perf", "temp"], lctrl_core::CommandId::PERF_TEMP_LIST, StateLayer::Runtime),
-        (&["vantage", "bios"], lctrl_core::CommandId::BIOS_LIST, StateLayer::BiosPersistent),
+        (
+            &["vantage", "battery"],
+            lctrl_core::CommandId::BATTERY_STATUS,
+            StateLayer::Runtime,
+        ),
+        (
+            &["vantage", "power", "scheme"],
+            lctrl_core::CommandId::POWER_SCHEME_ACTIVE,
+            StateLayer::OsPersistent,
+        ),
+        (
+            &["vantage", "perf", "fan"],
+            lctrl_core::CommandId::PERF_FAN_STATUS,
+            StateLayer::Runtime,
+        ),
+        (
+            &["vantage", "perf", "temp"],
+            lctrl_core::CommandId::PERF_TEMP_LIST,
+            StateLayer::Runtime,
+        ),
+        (
+            &["vantage", "bios"],
+            lctrl_core::CommandId::BIOS_LIST,
+            StateLayer::BiosPersistent,
+        ),
     ];
     for (args, id, layer) in paths {
         let cli = Cli::try_parse_from(*args).unwrap();
@@ -104,7 +135,14 @@ fn cli_aliases_map_to_expected_registry_rows() {
     let cli = Cli::try_parse_from(["vantage", "privacy", "cam", "off", "--persistent"]).unwrap();
     let selector = command_selector(&cli.command).unwrap();
     assert_eq!(selector.layer, StateLayer::BiosPersistent);
-    assert!(command_selector(&Cli::try_parse_from(["vantage", "privacy", "cam", "off"]).unwrap().command).is_none());
+    assert!(
+        command_selector(
+            &Cli::try_parse_from(["vantage", "privacy", "cam", "off"])
+                .unwrap()
+                .command
+        )
+        .is_none()
+    );
 }
 
 #[test]
@@ -120,7 +158,9 @@ fn unknown_hardware_is_unsupported_without_service() {
     let observed = vantage_cli::evaluate_commands(&hal).unwrap();
     let row = observed
         .iter()
-        .find(|row| row.command.as_str() == "magicbay.lte.status" && row.layer == StateLayer::Runtime)
+        .find(|row| {
+            row.command.as_str() == "magicbay.lte.status" && row.layer == StateLayer::Runtime
+        })
         .unwrap();
     assert_eq!(row.status, ObservedStatus::Unsupported);
 }
@@ -170,7 +210,9 @@ fn runtime_and_persistent_layers_use_separate_services_and_statuses() {
         .unwrap();
     let persistent = observation
         .iter()
-        .find(|row| row.command.as_str() == "privacy.cam" && row.layer == StateLayer::BiosPersistent)
+        .find(|row| {
+            row.command.as_str() == "privacy.cam" && row.layer == StateLayer::BiosPersistent
+        })
         .unwrap();
     assert!(runtime.service_roles.contains(&"privacy"));
     assert!(persistent.service_roles.contains(&"bios"));
@@ -191,7 +233,9 @@ fn observed_absent_hardware_is_not_applicable_not_unsupported() {
     );
     let row = rows
         .iter()
-        .find(|row| row.command.as_str() == "magicbay.lte.status" && row.layer == StateLayer::Runtime)
+        .find(|row| {
+            row.command.as_str() == "magicbay.lte.status" && row.layer == StateLayer::Runtime
+        })
         .unwrap();
     assert_eq!(row.status, ObservedStatus::NotApplicable);
 }
@@ -202,7 +246,9 @@ fn mutations_have_required_readback_and_unsupported_have_honest_axes() {
     let rows = vantage_cli::evaluate_commands(&hal).unwrap();
     let charge = rows
         .iter()
-        .find(|row| row.command.as_str() == "battery.charge-mode" && row.layer == StateLayer::Runtime)
+        .find(|row| {
+            row.command.as_str() == "battery.charge-mode" && row.layer == StateLayer::Runtime
+        })
         .unwrap();
     assert_eq!(charge.axes.readback, lctrl_core::Readback::Required);
     assert_eq!(charge.axes.rollback, lctrl_core::Rollback::Transactional);
@@ -236,8 +282,10 @@ fn vendor_dependency_checklist_never_recommends_blanket_disable() {
         .iter()
         .find(|entry| entry.command.as_str() == "perf.mode")
         .unwrap();
-    assert!(perf
-        .dependencies
-        .iter()
-        .any(|dependency| dependency.dependency == lctrl_core::Dependency::LenovoProcessManagement));
+    assert!(
+        perf.dependencies
+            .iter()
+            .any(|dependency| dependency.dependency
+                == lctrl_core::Dependency::LenovoProcessManagement)
+    );
 }

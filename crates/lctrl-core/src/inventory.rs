@@ -256,11 +256,7 @@ impl<T> InventoryModuleDiff<T> {
         self.equal
     }
 
-    fn new(
-        added: Vec<T>,
-        removed: Vec<T>,
-        changed: Vec<InventoryRecordDiff<T>>,
-    ) -> Self {
+    fn new(added: Vec<T>, removed: Vec<T>, changed: Vec<InventoryRecordDiff<T>>) -> Self {
         let equal = added.is_empty() && removed.is_empty() && changed.is_empty();
         Self {
             equal,

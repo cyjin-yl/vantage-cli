@@ -100,7 +100,10 @@ impl FeatureBinding {
 
     #[must_use]
     pub const fn is_probed(self) -> bool {
-        matches!(self, Self::Capability(_) | Self::AnyOf(_) | Self::Dynamic(_))
+        matches!(
+            self,
+            Self::Capability(_) | Self::AnyOf(_) | Self::Dynamic(_)
+        )
     }
 
     #[must_use]
@@ -322,7 +325,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         FeatureBinding::Unprobed("battery.temporary-mode"),
         ServiceBinding::Unsupported,
         &[],
-        DispatchSupport::Unsupported("temporary-mode is read-only and no verified reader is attached"),
+        DispatchSupport::Unsupported(
+            "temporary-mode is read-only and no verified reader is attached",
+        ),
     ),
     CommandCapability::new(
         CommandId::BATTERY_WATCH,
@@ -337,11 +342,17 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
     ),
     CommandCapability::new(
         CommandId::USB_ALWAYS_ON,
-        CommandAxes::mutation(StateLayer::Runtime, Readback::Required, Rollback::PreviousState),
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
         FeatureBinding::Unprobed("usb.always-on"),
         ServiceBinding::One(ServiceRole::Usb),
         &[lctrl_core::required(Dependency::EnergyDriver)],
-        DispatchSupport::Unsupported("no verified runtime USB charging control service is attached"),
+        DispatchSupport::Unsupported(
+            "no verified runtime USB charging control service is attached",
+        ),
     ),
     CommandCapability::new(
         CommandId::USB_ALWAYS_ON,
@@ -357,7 +368,11 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
     ),
     CommandCapability::new(
         CommandId::USB_CHARGE_ON_BATTERY,
-        CommandAxes::mutation(StateLayer::Runtime, Readback::Required, Rollback::PreviousState),
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
         FeatureBinding::Unprobed("usb.charge-on-battery"),
         ServiceBinding::One(ServiceRole::Usb),
         &[lctrl_core::required(Dependency::EnergyDriver)],
@@ -442,7 +457,11 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
     ),
     CommandCapability::new(
         CommandId::POWER_SAVER_ONCE,
-        CommandAxes::mutation(StateLayer::Runtime, Readback::Unverified, Rollback::Unavailable),
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Unverified,
+            Rollback::Unavailable,
+        ),
         FeatureBinding::Unprobed("power.saver-once"),
         ServiceBinding::Composite(&[ServiceRole::Battery, ServiceRole::Power]),
         &[
@@ -1112,7 +1131,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         FeatureBinding::Unprobed("audio.dolby"),
         ServiceBinding::One(ServiceRole::Audio),
         &[lctrl_core::required(Dependency::DolbyAudioSdk)],
-        DispatchSupport::Unsupported("audio control requires an unavailable licensed/vendor channel"),
+        DispatchSupport::Unsupported(
+            "audio control requires an unavailable licensed/vendor channel",
+        ),
     ),
     CommandCapability::new(
         CommandId::AUDIO_NOISE_CANCEL,
@@ -1124,7 +1145,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         FeatureBinding::Unprobed("audio.noise-cancel"),
         ServiceBinding::One(ServiceRole::Audio),
         &[lctrl_core::required(Dependency::NoiseCancellationSdk)],
-        DispatchSupport::Unsupported("audio control requires an unavailable licensed/vendor channel"),
+        DispatchSupport::Unsupported(
+            "audio control requires an unavailable licensed/vendor channel",
+        ),
     ),
     CommandCapability::new(
         CommandId::BIOS_LIST,
@@ -1188,7 +1211,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         FeatureBinding::Unprobed("bios.defaults"),
         ServiceBinding::One(ServiceRole::Bios),
         &[lctrl_core::required(Dependency::LenovoFirmwareWmi)],
-        DispatchSupport::Unsupported("experimental or underspecified BIOS defaults are unavailable"),
+        DispatchSupport::Unsupported(
+            "experimental or underspecified BIOS defaults are unavailable",
+        ),
     ),
     CommandCapability::new(
         CommandId::BIOS_PASSWORD_STATUS,
@@ -1251,7 +1276,8 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             lctrl_core::required(Dependency::LinuxModemManager),
         ],
         DispatchSupport::Unsupported("standard MBIM control is not attached"),
-    ).with_hardware(HardwareRequirement::MagicBay),
+    )
+    .with_hardware(HardwareRequirement::MagicBay),
     CommandCapability::new(
         CommandId::MAGICBAY_LTE_CONNECT,
         CommandAxes::mutation(
@@ -1318,7 +1344,8 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             lctrl_core::required(Dependency::LinuxDrm),
         ],
         DispatchSupport::Unsupported("standard display control is not attached"),
-    ).with_hardware(HardwareRequirement::MagicBay),
+    )
+    .with_hardware(HardwareRequirement::MagicBay),
     CommandCapability::new(
         CommandId::MAGICBAY_WATCH,
         CommandAxes::read_only(StateLayer::Runtime),
@@ -1332,7 +1359,11 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
     ),
     CommandCapability::new(
         CommandId::OSD_ENABLE,
-        CommandAxes::mutation(StateLayer::OsPersistent, Readback::Unverified, Rollback::PreviousState),
+        CommandAxes::mutation(
+            StateLayer::OsPersistent,
+            Readback::Unverified,
+            Rollback::PreviousState,
+        ),
         FeatureBinding::Unprobed("osd.enable"),
         ServiceBinding::One(ServiceRole::Osd),
         &[
@@ -1344,7 +1375,11 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
     ),
     CommandCapability::new(
         CommandId::OSD_DISABLE,
-        CommandAxes::mutation(StateLayer::OsPersistent, Readback::Unverified, Rollback::PreviousState),
+        CommandAxes::mutation(
+            StateLayer::OsPersistent,
+            Readback::Unverified,
+            Rollback::PreviousState,
+        ),
         FeatureBinding::Unprobed("osd.disable"),
         ServiceBinding::One(ServiceRole::Osd),
         &[
@@ -1376,7 +1411,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             lctrl_core::required(Dependency::Win32WinTrust),
             lctrl_core::optional(Dependency::LocalFilesystem),
         ],
-        DispatchSupport::Unsupported("remote update checking has no authenticated catalog contract"),
+        DispatchSupport::Unsupported(
+            "remote update checking has no authenticated catalog contract",
+        ),
     ),
     CommandCapability::new(
         CommandId::UPDATE_LOCAL_INSTALL,
@@ -1515,7 +1552,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Unprobed("update.schedule.without-catalog"),
         ServiceBinding::One(ServiceRole::Update),
- &[lctrl_core::required(Dependency::LocalFilesystem)],
+        &[lctrl_core::required(Dependency::LocalFilesystem)],
         DispatchSupport::Unsupported("no remote update catalog is attached"),
     ),
     CommandCapability::new(
@@ -1574,7 +1611,11 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
     ),
     CommandCapability::new(
         CommandId::DAEMON_START,
-        CommandAxes::mutation(StateLayer::Runtime, Readback::Required, Rollback::Unavailable),
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::Unavailable,
+        ),
         FeatureBinding::ServiceOnly,
         ServiceBinding::External,
         &[lctrl_core::required(Dependency::LocalDaemon)],

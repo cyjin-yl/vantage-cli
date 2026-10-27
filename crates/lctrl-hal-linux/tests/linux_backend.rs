@@ -782,7 +782,10 @@ fn standard_diagnostics_report_inventory_only_without_fake_deep_pass() {
 
     let results = tree
         .hal()
-        .run_diagnostics(&[DiagnosticKind::Memory, DiagnosticKind::Battery], lctrl_core::DiagnosticRunOptions::default())
+        .run_diagnostics(
+            &[DiagnosticKind::Memory, DiagnosticKind::Battery],
+            lctrl_core::DiagnosticRunOptions::default(),
+        )
         .unwrap();
 
     assert_eq!(results[0].outcome, DiagnosticOutcome::Warning);

@@ -8,9 +8,9 @@ mod events;
 mod magicbay;
 mod network;
 mod performance;
-mod process;
 mod peripherals;
 mod power;
+mod process;
 mod setting;
 mod update;
 mod verify;
@@ -36,9 +36,9 @@ pub use network::{
 pub use performance::{
     FanControl, PerformanceControl, PowerLimitKind, TemperatureControl, TuningControl,
 };
-pub use process::ProcessControl;
 pub use peripherals::{KeyboardControl, PanelControl, PrivacyControl, TouchpadControl};
 pub use power::{PowerControl, ProcessorPowerControl};
+pub use process::ProcessControl;
 pub use setting::{Setting, apply_setting};
 pub use update::LocalUpdateControl;
 pub use verify::poll_readback;

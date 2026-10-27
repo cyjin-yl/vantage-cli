@@ -32,10 +32,7 @@ pub trait BiosAssistantControl: Send + Sync {
 /// Validate an entire batch and capture every previous value without staging
 /// anything. Names are de-duplicated with the same ASCII case-insensitive
 /// semantics as [`BiosControl::get`]; selection values remain case-sensitive.
-pub fn plan_bios_apply(
-    bios: &dyn BiosControl,
-    requested: &[BiosChange],
-) -> Result<BiosApplyPlan> {
+pub fn plan_bios_apply(bios: &dyn BiosControl, requested: &[BiosChange]) -> Result<BiosApplyPlan> {
     validate_batch(requested)?;
 
     let mut changes = Vec::with_capacity(requested.len());
@@ -85,10 +82,7 @@ pub fn apply_bios_transaction(
     requested: &[BiosChange],
 ) -> Result<BiosApplyResult> {
     let plan = plan_bios_apply(bios, requested)?;
-    stage_and_save(
-        bios,
-        plan.changes.iter().map(|change| &change.requested),
-    )?;
+    stage_and_save(bios, plan.changes.iter().map(|change| &change.requested))?;
 
     let mut readback = Vec::with_capacity(plan.changes.len());
     if let Err(error) = readback_mirror(
@@ -168,12 +162,12 @@ fn readback_mirror<'a>(
     mut observed: impl FnMut(BiosItem),
 ) -> Result<()> {
     for expected in expected {
-        let actual = bios.get(expected.name.as_str())?.ok_or_else(|| {
-            LctrlError::VerifyMismatch {
-                requested: format!("{}={}", expected.name, expected.value),
-                actual: "setting absent after save".into(),
-            }
-        })?;
+        let actual =
+            bios.get(expected.name.as_str())?
+                .ok_or_else(|| LctrlError::VerifyMismatch {
+                    requested: format!("{}={}", expected.name, expected.value),
+                    actual: "setting absent after save".into(),
+                })?;
         if !actual.name.eq_ignore_ascii_case(expected.name.as_str())
             || actual.value.as_str() != expected.value.as_str()
         {
@@ -192,17 +186,14 @@ fn recover_previous(
     plan: &BiosApplyPlan,
     original: LctrlError,
 ) -> LctrlError {
-    let recovery = stage_and_save(
-        bios,
-        plan.changes.iter().map(|change| &change.previous),
-    )
-    .and_then(|()| {
-        readback_mirror(
-            bios,
-            plan.changes.iter().map(|change| &change.previous),
-            |_| {},
-        )
-    });
+    let recovery = stage_and_save(bios, plan.changes.iter().map(|change| &change.previous))
+        .and_then(|()| {
+            readback_mirror(
+                bios,
+                plan.changes.iter().map(|change| &change.previous),
+                |_| {},
+            )
+        });
     match recovery {
         Ok(()) => original,
         Err(recovery) => LctrlError::FirmwareRejected {

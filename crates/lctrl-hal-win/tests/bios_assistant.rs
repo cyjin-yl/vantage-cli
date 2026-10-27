@@ -135,10 +135,7 @@ fn get_value_uses_exact_index_and_decodes_accepted_payload() {
     let calls = controller.transport().invocations.lock().clone();
     assert_eq!(calls.len(), 1);
     assert_eq!(calls[0].method, "GetValue");
-    assert_eq!(
-        calls[0].input.get("IndexData"),
-        Some(&WmiValue::U32(1))
-    );
+    assert_eq!(calls[0].input.get("IndexData"), Some(&WmiValue::U32(1)));
     assert!(!calls[0].input.contains_key("ValueData"));
 }
 

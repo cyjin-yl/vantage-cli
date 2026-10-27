@@ -141,7 +141,10 @@ impl lctrl_hal_win::LocalDriverUpdateApi for FakeApi {
     fn admit_local_inf(&self, path: &Path) -> lctrl_core::Result<PathBuf> {
         self.record(Call::Admit);
         let state = self.state.lock();
-        Ok(state.inf_override.clone().unwrap_or_else(|| path.to_path_buf()))
+        Ok(state
+            .inf_override
+            .clone()
+            .unwrap_or_else(|| path.to_path_buf()))
     }
 
     fn present_devices(&self) -> lctrl_core::Result<Vec<PresentPnpDevice>> {
@@ -181,7 +184,10 @@ impl lctrl_hal_win::LocalDriverUpdateApi for FakeApi {
             });
         }
         Ok(DriverSignature {
-            signer: state.trust_signer.clone().unwrap_or_else(|| package.signature.signer.clone()),
+            signer: state
+                .trust_signer
+                .clone()
+                .unwrap_or_else(|| package.signature.signer.clone()),
             signer_version: package.signature.signer_version.clone(),
         })
     }
@@ -265,25 +271,31 @@ fn absent_ambiguous_and_firmware_devices_refuse_before_package_trust() {
     let api = FakeApi::valid(&inf);
     api.state.lock().devices.clear();
     let controller = WindowsLocalUpdateController::new(api);
-    assert!(controller
-        .apply_local_driver_update(&update_request(&inf), ApplyMode::Commit)
-        .is_err());
+    assert!(
+        controller
+            .apply_local_driver_update(&update_request(&inf), ApplyMode::Commit)
+            .is_err()
+    );
 
     let api = FakeApi::valid(&inf);
     let mut device = device();
     device.device_instance_id = "second".into();
     api.state.lock().devices.push(device);
     let controller = WindowsLocalUpdateController::new(api);
-    assert!(controller
-        .apply_local_driver_update(&update_request(&inf), ApplyMode::Commit)
-        .is_err());
+    assert!(
+        controller
+            .apply_local_driver_update(&update_request(&inf), ApplyMode::Commit)
+            .is_err()
+    );
 
     let api = FakeApi::valid(&inf);
     api.state.lock().devices[0].class_guid = FIRMWARE.into();
     let controller = WindowsLocalUpdateController::new(api);
-    assert!(controller
-        .apply_local_driver_update(&update_request(&inf), ApplyMode::Commit)
-        .is_err());
+    assert!(
+        controller
+            .apply_local_driver_update(&update_request(&inf), ApplyMode::Commit)
+            .is_err()
+    );
 }
 
 #[test]
@@ -295,9 +307,11 @@ fn mismatched_package_class_or_hardware_id_is_refused_without_install() {
     api.state.lock().package = Some(package);
     let controller = WindowsLocalUpdateController::new(api);
 
-    assert!(controller
-        .apply_local_driver_update(&update_request(&inf), ApplyMode::Commit)
-        .is_err());
+    assert!(
+        controller
+            .apply_local_driver_update(&update_request(&inf), ApplyMode::Commit)
+            .is_err()
+    );
     assert_eq!(
         controller.api().calls(),
         vec![Call::Admit, Call::Devices, Call::Inspect]
@@ -310,16 +324,20 @@ fn unsigned_or_wrongly_signed_package_is_refused_before_install() {
     let api = FakeApi::valid(&inf);
     api.state.lock().trust_error = true;
     let controller = WindowsLocalUpdateController::new(api);
-    assert!(controller
-        .apply_local_driver_update(&update_request(&inf), ApplyMode::Commit)
-        .is_err());
+    assert!(
+        controller
+            .apply_local_driver_update(&update_request(&inf), ApplyMode::Commit)
+            .is_err()
+    );
 
     let api = FakeApi::valid(&inf);
     api.state.lock().trust_signer = Some("Different Publisher".into());
     let controller = WindowsLocalUpdateController::new(api);
-    assert!(controller
-        .apply_local_driver_update(&update_request(&inf), ApplyMode::Commit)
-        .is_err());
+    assert!(
+        controller
+            .apply_local_driver_update(&update_request(&inf), ApplyMode::Commit)
+            .is_err()
+    );
     assert!(!controller.api().calls().contains(&Call::Install));
 }
 
@@ -333,8 +351,14 @@ fn dry_run_verifies_and_binds_without_install_or_reboot_claim() {
         .apply_local_driver_update(&update_request(&inf), ApplyMode::DryRun)
         .unwrap();
     assert_eq!(report.mode, ApplyMode::DryRun);
-    assert_eq!(report.requested.driver_version, DriverVersion::new([1, 0, 3, 0]));
-    assert_eq!(report.previous.as_ref().unwrap().identity.driver_version, DriverVersion::new([1, 0, 2, 0]));
+    assert_eq!(
+        report.requested.driver_version,
+        DriverVersion::new([1, 0, 3, 0])
+    );
+    assert_eq!(
+        report.previous.as_ref().unwrap().identity.driver_version,
+        DriverVersion::new([1, 0, 2, 0])
+    );
     assert!(report.actual.is_none());
     assert!(report.reboot_required.is_none());
     assert_eq!(
@@ -412,12 +436,18 @@ fn previous_driver_store_restore_commits_once_and_verifies_restored_identity() {
         .unwrap();
     assert_eq!(report.mode, ApplyMode::Commit);
     assert!(report.backup_identity_verified);
-    assert_eq!(report.previous.identity.driver_version, DriverVersion::new([1, 0, 3, 0]));
+    assert_eq!(
+        report.previous.identity.driver_version,
+        DriverVersion::new([1, 0, 3, 0])
+    );
     assert_eq!(
         report.actual.as_ref().unwrap().identity.driver_version,
         DriverVersion::new([1, 0, 2, 0])
     );
-    assert_eq!(controller.api().calls(), vec![Call::Devices, Call::Read, Call::Rollback, Call::Read]);
+    assert_eq!(
+        controller.api().calls(),
+        vec![Call::Devices, Call::Read, Call::Rollback, Call::Read]
+    );
 }
 
 #[test]
@@ -511,10 +541,17 @@ fn policy_store_writes_exact_owner_path_without_credentials() {
             .unwrap(),
         )
         .unwrap();
-    let entry = store.record_install(&committed_report(), "2026-10-26T12:00:00Z").unwrap();
+    let entry = store
+        .record_install(&committed_report(), "2026-10-26T12:00:00Z")
+        .unwrap();
     assert_eq!(entry.id, 1);
     assert_eq!(
-        store.latest_for_device("usb\\VID_1234&PID_5678\\01").unwrap().unwrap().actual.driver_version,
+        store
+            .latest_for_device("usb\\VID_1234&PID_5678\\01")
+            .unwrap()
+            .unwrap()
+            .actual
+            .driver_version,
         DriverVersion::new([1, 0, 3, 0])
     );
 
@@ -590,7 +627,10 @@ fn report_shape_has_no_path_or_credential_surface() {
     let value = serde_json::to_value(&report).unwrap();
     let object = value.as_object().unwrap();
     assert!(object.keys().all(|key| !key.contains("path")));
-    assert_eq!(object.get("reboot_required"), Some(&serde_json::json!(false)));
+    assert_eq!(
+        object.get("reboot_required"),
+        Some(&serde_json::json!(false))
+    );
 }
 
 #[allow(dead_code)]
@@ -599,5 +639,7 @@ fn ensure_send_sync() {
     fn bound<T: Send + Sync>(_: T) {}
     let inf = package_inf();
     bound(WindowsLocalUpdateController::new(FakeApi::valid(&inf)));
-    bound(Arc::new(WindowsLocalUpdateController::new(FakeApi::valid(&inf))));
+    bound(Arc::new(WindowsLocalUpdateController::new(FakeApi::valid(
+        &inf,
+    ))));
 }

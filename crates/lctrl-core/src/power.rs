@@ -117,7 +117,10 @@ impl<T> PowerSourceValues<T> {
     where
         T: Copy,
     {
-        Self { ac: value, dc: value }
+        Self {
+            ac: value,
+            dc: value,
+        }
     }
 
     #[must_use]

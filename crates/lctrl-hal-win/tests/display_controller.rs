@@ -5,9 +5,7 @@ use lctrl_core::{
     PanelTarget, RefreshMode, Result,
 };
 use lctrl_hal::PanelControl;
-use lctrl_hal_win::{
-    DisplayApi, WindowsPanelController, WmiObject, WmiTransport, WmiValue,
-};
+use lctrl_hal_win::{DisplayApi, WindowsPanelController, WmiObject, WmiTransport, WmiValue};
 use parking_lot::Mutex;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -74,10 +72,7 @@ impl FakeDisplay {
         }
     }
 
-    fn with_apply_results(
-        mut self,
-        results: impl IntoIterator<Item = Result<()>>,
-    ) -> Self {
+    fn with_apply_results(mut self, results: impl IntoIterator<Item = Result<()>>) -> Self {
         self.apply_results = Mutex::new(results.into_iter().collect());
         self
     }
@@ -127,11 +122,7 @@ impl DisplayApi for FakeDisplay {
 
     fn apply_mode(&self, mode: &PanelMode) -> Result<()> {
         self.calls.lock().push(Call::Apply(mode.clone()));
-        let result = self
-            .apply_results
-            .lock()
-            .pop_front()
-            .unwrap_or(Ok(()));
+        let result = self.apply_results.lock().pop_front().unwrap_or(Ok(()));
         if result.is_ok() {
             *self.current.lock() = mode.clone();
         }
@@ -210,9 +201,7 @@ const fn refresh_mode_raw(mode: RefreshMode) -> u16 {
     }
 }
 
-fn controller(
-    display: FakeDisplay,
-) -> WindowsPanelController<FakeDisplay, FakeWmi> {
+fn controller(display: FakeDisplay) -> WindowsPanelController<FakeDisplay, FakeWmi> {
     WindowsPanelController::new(display, FakeWmi::fixture())
 }
 
@@ -239,12 +228,19 @@ fn fixed_rate_uses_exact_native_mode_and_preserves_layout() {
     assert_eq!(report.previous().refresh_hz, 60);
     assert_eq!(report.requested().refresh_hz, 120);
     assert_eq!(report.actual(), Some(report.requested()));
-    assert!(report.previous().same_mode_except_refresh(report.requested()));
+    assert!(
+        report
+            .previous()
+            .same_mode_except_refresh(report.requested())
+    );
     assert_eq!(report.requested().position_x, 40);
     assert_eq!(report.requested().position_y, -20);
     assert_eq!(report.requested().bits_per_pixel, 32);
     assert_eq!(report.requested().rotation, PanelRotation::Default);
-    assert_eq!(report.requested().target.adapter, report.previous().target.adapter);
+    assert_eq!(
+        report.requested().target.adapter,
+        report.previous().target.adapter
+    );
     assert_eq!(apply_rates(controller.display()), vec![120]);
 }
 
@@ -252,9 +248,9 @@ fn fixed_rate_uses_exact_native_mode_and_preserves_layout() {
 fn firmware_range_does_not_admit_a_mode_missing_from_native_enumeration() {
     let mut display = FakeDisplay::fixture();
     let current = display.current.lock().clone();
-    display.modes.retain(|mode| {
-        mode.refresh_hz != 120 || !current.same_mode_except_refresh(mode)
-    });
+    display
+        .modes
+        .retain(|mode| mode.refresh_hz != 120 || !current.same_mode_except_refresh(mode));
     let controller = controller(display);
 
     let error = controller

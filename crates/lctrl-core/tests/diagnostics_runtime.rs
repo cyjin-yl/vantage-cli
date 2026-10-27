@@ -13,7 +13,10 @@ fn cancellation_clones_share_the_first_structured_reason() {
     clone.cancel();
     token.cancel_with_reason(DiagnosticCancellationReason::DeadlineExceeded);
     assert!(token.is_cancelled());
-    assert_eq!(token.reason(), Some(DiagnosticCancellationReason::Requested));
+    assert_eq!(
+        token.reason(),
+        Some(DiagnosticCancellationReason::Requested)
+    );
 }
 
 #[test]
@@ -29,7 +32,9 @@ fn options_have_a_finite_default_and_explicit_per_item_deadline() {
 #[test]
 fn result_keeps_measurement_threshold_source_and_reason_structured() {
     let result = DiagnosticResult::new(
-        DiagnosticKind::Thermal, DiagnosticOutcome::Failed, "critical trip point reached",
+        DiagnosticKind::Thermal,
+        DiagnosticOutcome::Failed,
+        "critical trip point reached",
     )
     .with_measurement(DiagnosticMeasurement::new("CurrentTemperature", 80.0).with_unit("degC"))
     .with_threshold(DiagnosticThreshold::at_or_above("CriticalTripPoint", 80.0).with_unit("degC"))

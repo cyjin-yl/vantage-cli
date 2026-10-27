@@ -35,7 +35,10 @@ fn spawn_event_source(events: mpsc::Sender<DaemonEvent>) {
                 "magicbay": value_or_error(hal.detect_magicbay()),
             });
             if snapshot != previous {
-                if events.send(DaemonEvent::snapshot_changed(snapshot.clone())).is_err() {
+                if events
+                    .send(DaemonEvent::snapshot_changed(snapshot.clone()))
+                    .is_err()
+                {
                     break;
                 }
                 previous = snapshot;
@@ -54,10 +57,8 @@ fn spawn_event_source(events: mpsc::Sender<DaemonEvent>) {
 
         let result = (|| -> lctrl_core::Result<()> {
             let source = NativeWmiEventSource::new()?;
-            let mut reader = source.subscribe(
-                DOCUMENTED_LENOVO_EVENT_CLASSES,
-                EventCancellation::new(),
-            )?;
+            let mut reader =
+                source.subscribe(DOCUMENTED_LENOVO_EVENT_CLASSES, EventCancellation::new())?;
             while let Some(event) = reader.read()? {
                 if events.send(DaemonEvent::vendor_wmi(event)?).is_err() {
                     break;
@@ -94,7 +95,10 @@ fn spawn_windows_snapshot_source(events: mpsc::Sender<DaemonEvent>) {
                 "magicbay": value_or_error(magicbay.detect_magicbay()),
             });
             if snapshot != previous {
-                if events.send(DaemonEvent::snapshot_changed(snapshot.clone())).is_err() {
+                if events
+                    .send(DaemonEvent::snapshot_changed(snapshot.clone()))
+                    .is_err()
+                {
                     break;
                 }
                 previous = snapshot;
