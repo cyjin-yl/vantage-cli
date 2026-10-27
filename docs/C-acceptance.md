@@ -359,7 +359,7 @@ PR #42 精确 Windows 二进制在目标机只读执行 `bios get AlwaysOnUSB` �
 
 PR #44 head `69bd462dc938600f12681cc25d46a148a4bd9e49` 已合入 main
 `aaa6825fcfdb7aca14eb21dc4ecd96caea5cf546`；精确 head CI run 551 全绿，合并树、
-双亲和 12 个修改文件的服务端字节已核对。目标机验证 167 个源文件后 Windows release
+双亲和 12 个修改文件的服务端字节已核对，main push run 553 全绿。目标机验证 167 个源文件后 Windows release
 构建退出 0，binary SHA-256 `3074c7de8e058d70fcbbd8a4cbf95f0841a4b37dc3ba5a22b49bdee7ce383c80`；
 Windows fake PnP 测试 33 passed，未操作真实设备。
 
