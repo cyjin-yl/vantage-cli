@@ -19,6 +19,7 @@ pub enum RuntimeDeviceClass {
     Imaging,
     AudioEndpoint,
     Mouse,
+    HidClass,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -34,7 +35,7 @@ impl RuntimeDeviceKind {
         match self {
             Self::Camera => RuntimeDeviceClass::Imaging,
             Self::Microphone => RuntimeDeviceClass::AudioEndpoint,
-            Self::Touchpad => RuntimeDeviceClass::Mouse,
+            Self::Touchpad => RuntimeDeviceClass::HidClass,
         }
     }
 
@@ -101,6 +102,10 @@ pub struct RuntimeDevice {
     pub friendly_name: Option<String>,
     pub bus_description: Option<String>,
     pub audio_form_factor: Option<AudioEndpointFormFactor>,
+    /// Instance ID of the parent devnode, when the platform reports one. The
+    /// parent separates integrated hardware (ACPI/INTELAUDIO) from virtual
+    /// software devices (ROOT\...) without relying on localized names.
+    pub parent_instance_id: Option<String>,
 }
 
 impl RuntimeDevice {
@@ -115,6 +120,7 @@ impl RuntimeDevice {
             friendly_name: None,
             bus_description: None,
             audio_form_factor: None,
+            parent_instance_id: None,
         }
     }
 }
@@ -127,10 +133,7 @@ pub fn select_runtime_device(
     devices: &[RuntimeDevice],
 ) -> Result<RuntimeDevice> {
     let mut selected: Option<&RuntimeDevice> = None;
-    for device in devices
-        .iter()
-        .filter(|device| admits_device(kind, device))
-    {
+    for device in devices.iter().filter(|device| admits_device(kind, device)) {
         if let Some(first) = selected {
             if !first.instance_id.eq_ignore_ascii_case(&device.instance_id) {
                 return Err(LctrlError::ChannelUnavailable {
@@ -155,6 +158,98 @@ pub fn select_runtime_device(
     })
 }
 
+/// Select every devnode of one logical runtime device.
+///
+/// A camera is routinely exposed as more than one Imaging devnode: the reference
+/// machine publishes an RGB and an IR collection under a single USB parent, and
+/// both must move together for a privacy toggle to mean anything. Every other
+/// kind stays a single-device selection.
+pub fn select_runtime_devices(
+    kind: RuntimeDeviceKind,
+    devices: &[RuntimeDevice],
+) -> Result<Vec<RuntimeDevice>> {
+    if kind != RuntimeDeviceKind::Camera {
+        return select_runtime_device(kind, devices).map(|device| vec![device]);
+    }
+    let mut admitted: Vec<RuntimeDevice> = Vec::new();
+    for device in devices.iter().filter(|device| admits_device(kind, device)) {
+        if !admitted
+            .iter()
+            .any(|known| known.instance_id.eq_ignore_ascii_case(&device.instance_id))
+        {
+            admitted.push(device.clone());
+        }
+    }
+    let Some(first) = admitted.first() else {
+        return Err(LctrlError::Unsupported {
+            feature: format!(
+                "{}.runtime_pnp (no uniquely identifiable {:?} device)",
+                kind.feature(),
+                kind.class()
+            ),
+        });
+    };
+
+    if admitted.len() > 1 {
+        // Separate physical cameras would need separate consent; only devnodes
+        // that share one parent are treated as the same camera.
+        let parent = first.parent_instance_id.as_deref();
+        let Some(parent) = parent else {
+            return Err(LctrlError::ChannelUnavailable {
+                channel: format!(
+                    "{} runtime selection found {} devnodes without a parent identity; refusing to treat them as one camera",
+                    kind.feature(),
+                    admitted.len()
+                ),
+            });
+        };
+        let split = admitted.iter().any(|device| {
+            device
+                .parent_instance_id
+                .as_deref()
+                .is_none_or(|other| !other.eq_ignore_ascii_case(parent))
+        });
+        if split {
+            return Err(LctrlError::ChannelUnavailable {
+                channel: format!(
+                    "{} runtime selection spans multiple physical cameras; refusing to mutate any of them",
+                    kind.feature()
+                ),
+            });
+        }
+    }
+    Ok(admitted)
+}
+
+/// Select only the touchpad's digitizer and mouse-input collections. Never
+/// target the ACPI controller: disabling it removes the children needed to
+/// discover the device again in a subsequent process.
+pub fn select_touchpad_group(
+    mouse_devices: &[RuntimeDevice],
+    hid_devices: &[RuntimeDevice],
+) -> Result<Vec<RuntimeDevice>> {
+    let touchpad = select_runtime_device(RuntimeDeviceKind::Touchpad, hid_devices)?;
+    let mut group = vec![touchpad];
+    for device in mouse_devices {
+        if device.class == RuntimeDeviceClass::Mouse
+            && is_hid_collection(device)
+            && has_hid_usage(device, "HID_DEVICE_UP:0001_U:0002")
+            && device.parent_instance_id.as_deref().is_some_and(|parent| {
+                group[0]
+                    .parent_instance_id
+                    .as_deref()
+                    .is_some_and(|controller| parent.eq_ignore_ascii_case(controller))
+            })
+            && !group
+                .iter()
+                .any(|known| known.instance_id.eq_ignore_ascii_case(&device.instance_id))
+        {
+            group.push(device.clone());
+        }
+    }
+    Ok(group)
+}
+
 fn admits_device(kind: RuntimeDeviceKind, device: &RuntimeDevice) -> bool {
     if device.class != kind.class()
         || device.instance_id.is_empty()
@@ -164,14 +259,27 @@ fn admits_device(kind: RuntimeDeviceKind, device: &RuntimeDevice) -> bool {
     }
     match kind {
         RuntimeDeviceKind::Camera => is_internal_camera(device),
-        RuntimeDeviceKind::Microphone => {
-            matches!(
-                device.audio_form_factor,
-                Some(AudioEndpointFormFactor::Microphone)
-            )
-        }
+        RuntimeDeviceKind::Microphone => is_internal_microphone(device),
         RuntimeDeviceKind::Touchpad => is_touchpad(device),
     }
+}
+
+fn is_internal_microphone(device: &RuntimeDevice) -> bool {
+    let capture_endpoint = matches!(
+        device.audio_form_factor,
+        Some(AudioEndpointFormFactor::Microphone)
+    ) || device.instance_id.contains("{0.0.1.");
+    capture_endpoint
+        && device
+            .parent_instance_id
+            .as_deref()
+            .is_some_and(is_internal_audio_bus)
+}
+
+fn is_internal_audio_bus(parent: &str) -> bool {
+    // Intel Smart Sound and classic HD Audio own the integrated capture array;
+    // software endpoints live under ROOT\... devnodes.
+    starts_with_ascii(parent, "INTELAUDIO\\") || starts_with_ascii(parent, "HDAUDIO\\")
 }
 
 fn is_internal_camera(device: &RuntimeDevice) -> bool {
@@ -211,24 +319,24 @@ fn has_internal_camera_name(name: &str) -> bool {
 }
 
 fn is_touchpad(device: &RuntimeDevice) -> bool {
-    let has_hardware_id = device
+    is_hid_collection(device)
+        && has_hid_usage(device, "HID_DEVICE_UP:000D_U:0005")
+        && device
+            .parent_instance_id
+            .as_deref()
+            .is_some_and(|parent| starts_with_ascii(parent, "ACPI\\") && !parent.contains('\0'))
+}
+
+fn is_hid_collection(device: &RuntimeDevice) -> bool {
+    starts_with_ascii(&device.instance_id, "HID\\") && !device.instance_id.contains('\0')
+}
+
+fn has_hid_usage(device: &RuntimeDevice, usage: &str) -> bool {
+    device
         .hardware_ids
         .iter()
         .chain(&device.compatible_ids)
-        .any(|id| {
-            id.split(['\\', '&']).any(|component| {
-                component
-                    .trim_start_matches('*')
-                    .eq_ignore_ascii_case("PNP0C50")
-            }) || contains_ascii(id, "HID_DEVICE_UP:000D_U:0005")
-        });
-    has_hardware_id || names(device).any(|name| has_touchpad_name(name))
-}
-
-fn has_touchpad_name(name: &str) -> bool {
-    ["touchpad", "touch pad", "trackpad", "track pad"]
-        .iter()
-        .any(|marker| contains_ascii(name, marker))
+        .any(|id| id.eq_ignore_ascii_case(usage))
 }
 
 fn names(device: &RuntimeDevice) -> impl Iterator<Item = &str> {
@@ -296,7 +404,126 @@ where
         select_runtime_device(kind, &self.api.devices(kind.class())?)
     }
 
+    pub fn selected_devices(&self, kind: RuntimeDeviceKind) -> Result<Vec<RuntimeDevice>> {
+        select_runtime_devices(kind, &self.api.devices(kind.class())?)
+    }
+
+    pub fn camera_group(&self) -> Result<Vec<RuntimeDevice>> {
+        self.selected_devices(RuntimeDeviceKind::Camera)
+    }
+
+    /// Input leaves only; the controller, configuration and vendor-defined
+    /// collections remain enabled and discoverable.
+    pub fn touchpad_group(&self) -> Result<Vec<RuntimeDevice>> {
+        let hid = self.api.devices(RuntimeDeviceClass::HidClass)?;
+        let mouse = self.api.devices(RuntimeDeviceClass::Mouse)?;
+        select_touchpad_group(&mouse, &hid)
+    }
+
+    /// One privacy state for the whole camera group. A group that is split
+    /// between enabled and disabled devnodes has no single answer and refuses.
+    pub fn camera_group_state(&self) -> Result<DeviceState> {
+        let group = self.camera_group()?;
+        self.group_state(RuntimeDeviceKind::Camera, &group)
+    }
+
+    fn group_state(&self, kind: RuntimeDeviceKind, group: &[RuntimeDevice]) -> Result<DeviceState> {
+        let states = self.group_states(kind, group)?;
+        aggregate_group_state(kind, &states)
+    }
+
+    fn group_states(
+        &self,
+        kind: RuntimeDeviceKind,
+        group: &[RuntimeDevice],
+    ) -> Result<Vec<DeviceState>> {
+        let mut states = Vec::with_capacity(group.len());
+        for device in group {
+            states.push(self.selected_state(kind, device)?);
+        }
+        Ok(states)
+    }
+
+    pub fn set_camera_group(
+        &self,
+        state: DeviceState,
+        apply: ApplyMode,
+    ) -> Result<ChangeReport<DeviceState>> {
+        let group = self.camera_group()?;
+        self.set_group(RuntimeDeviceKind::Camera, group, state, apply)
+    }
+
+    fn set_group(
+        &self,
+        kind: RuntimeDeviceKind,
+        group: Vec<RuntimeDevice>,
+        state: DeviceState,
+        apply: ApplyMode,
+    ) -> Result<ChangeReport<DeviceState>> {
+        let states = self.group_states(kind, &group)?;
+        let previous = aggregate_group_state(kind, &states)?;
+        if apply == ApplyMode::DryRun {
+            return Ok(ChangeReport::dry_run(previous, state));
+        }
+        if previous == state {
+            return Ok(ChangeReport::committed(previous, state, state));
+        }
+        for (index, device) in group.iter().enumerate() {
+            if let Err(error) = self.api.set_state(&device.instance_id, state) {
+                // A failed call can have taken effect. Only a documented
+                // pre-write refusal excludes the attempted node from recovery.
+                let attempted = index + usize::from(!preserve_prewrite_error(&error));
+                return Err(self.rollback_group(
+                    kind,
+                    &group[..attempted],
+                    &states[..attempted],
+                    error,
+                ));
+            }
+        }
+        match poll_readback(&state, READBACK_ATTEMPTS, READBACK_DELAY, || {
+            self.group_state(kind, &group)
+        }) {
+            Ok(actual) => Ok(ChangeReport::committed(previous, state, actual)),
+            Err(error) => Err(self.rollback_group(kind, &group, &states, error)),
+        }
+    }
+
+    fn rollback_group(
+        &self,
+        kind: RuntimeDeviceKind,
+        group: &[RuntimeDevice],
+        previous: &[DeviceState],
+        error: LctrlError,
+    ) -> LctrlError {
+        let mut rollback_error = None;
+        for (device, before) in group.iter().zip(previous).rev() {
+            if let Err(failure) = self.api.set_state(&device.instance_id, *before) {
+                rollback_error.get_or_insert(failure);
+            }
+        }
+        for (device, before) in group.iter().zip(previous) {
+            if let Err(failure) = poll_readback(before, READBACK_ATTEMPTS, READBACK_DELAY, || {
+                self.selected_state(kind, device)
+            }) {
+                rollback_error.get_or_insert(failure);
+            }
+        }
+        match rollback_error {
+            None => error,
+            Some(rollback) => LctrlError::FirmwareRejected {
+                detail: format!(
+                    "{} PnP mutation failed ({error}); rollback also failed ({rollback})",
+                    kind.feature()
+                ),
+            },
+        }
+    }
+
     pub fn state(&self, kind: RuntimeDeviceKind) -> Result<DeviceState> {
+        if kind == RuntimeDeviceKind::Touchpad {
+            return self.group_state(kind, &self.touchpad_group()?);
+        }
         let device = self.selected_device(kind)?;
         self.selected_state(kind, &device)
     }
@@ -307,7 +534,21 @@ where
         state: DeviceState,
         apply: ApplyMode,
     ) -> Result<ChangeReport<DeviceState>> {
+        if kind == RuntimeDeviceKind::Touchpad {
+            return self.set_group(kind, self.touchpad_group()?, state, apply);
+        }
         let device = self.selected_device(kind)?;
+        self.set_device(kind, device, state, apply)
+    }
+
+    /// Apply a state change to one already admitted devnode.
+    fn set_device(
+        &self,
+        kind: RuntimeDeviceKind,
+        device: RuntimeDevice,
+        state: DeviceState,
+        apply: ApplyMode,
+    ) -> Result<ChangeReport<DeviceState>> {
         let previous = self.selected_state(kind, &device)?;
         if apply == ApplyMode::DryRun {
             return Ok(ChangeReport::dry_run(previous, state));
@@ -344,7 +585,11 @@ where
         self.set(RuntimeDeviceKind::Microphone, state, apply)
     }
 
-    fn selected_state(&self, kind: RuntimeDeviceKind, device: &RuntimeDevice) -> Result<DeviceState> {
+    fn selected_state(
+        &self,
+        kind: RuntimeDeviceKind,
+        device: &RuntimeDevice,
+    ) -> Result<DeviceState> {
         self.api.status(&device.instance_id)?.state(kind)
     }
 
@@ -386,12 +631,29 @@ fn preserve_prewrite_error(error: &LctrlError) -> bool {
     )
 }
 
+fn aggregate_group_state(kind: RuntimeDeviceKind, states: &[DeviceState]) -> Result<DeviceState> {
+    let Some(first) = states.first() else {
+        return Err(LctrlError::Unsupported {
+            feature: format!("{}.runtime_pnp (no devnode in the group)", kind.feature()),
+        });
+    };
+    if states.iter().all(|state| state == first) {
+        return Ok(*first);
+    }
+    Err(LctrlError::ChannelUnavailable {
+        channel: format!(
+            "{} devnodes report split states {states:?}; refusing to report one state",
+            kind.feature(),
+        ),
+    })
+}
+
 impl<A> PrivacyControl for WindowsRuntimeDevices<A>
 where
     A: RuntimeDeviceApi,
 {
     fn camera_state(&self) -> Result<DeviceState> {
-        self.state(RuntimeDeviceKind::Camera)
+        self.camera_group_state()
     }
 
     fn set_camera(
@@ -399,7 +661,19 @@ where
         state: DeviceState,
         apply: ApplyMode,
     ) -> Result<ChangeReport<DeviceState>> {
-        self.set(RuntimeDeviceKind::Camera, state, apply)
+        self.set_camera_group(state, apply)
+    }
+
+    fn microphone_state(&self) -> Result<DeviceState> {
+        self.state(RuntimeDeviceKind::Microphone)
+    }
+
+    fn set_microphone(
+        &self,
+        state: DeviceState,
+        apply: ApplyMode,
+    ) -> Result<ChangeReport<DeviceState>> {
+        self.set(RuntimeDeviceKind::Microphone, state, apply)
     }
 }
 
@@ -429,31 +703,28 @@ mod native {
         Win32::{
             Devices::{
                 DeviceAndDriverInstallation::{
-                    CM_Disable_DevNode, CM_Enable_DevNode, CM_Get_DevNode_Status,
-                    CM_LOCATE_DEVNODE_NORMAL, CM_Locate_DevNodeW, CM_MapCrToWin32Err,
-                    CM_PROB_DISABLED, CM_DISABLE_UI_NOT_OK, CR_ACCESS_DENIED,
+                    CM_DISABLE_UI_NOT_OK, CM_Disable_DevNode, CM_Enable_DevNode,
+                    CM_Get_DevNode_Status, CM_LOCATE_DEVNODE_NORMAL, CM_Locate_DevNodeW,
+                    CM_MapCrToWin32Err, CM_PROB_DISABLED, CR_ACCESS_DENIED,
                     CR_CALL_NOT_IMPLEMENTED, CR_DEVICE_NOT_THERE, CR_INVALID_API,
-                    CR_INVALID_DEVNODE, CR_NEED_RESTART, CR_NOT_DISABLEABLE, CR_NO_CM_SERVICES,
-                    CR_NO_SUCH_DEVNODE, CR_SUCCESS, DIGCF_PRESENT, DN_HAS_PROBLEM, DN_STARTED,
-                    GUID_DEVCLASS_IMAGE, GUID_DEVCLASS_MOUSE, HDEVINFO, SP_DEVINFO_DATA,
+                    CR_INVALID_DEVNODE, CR_NEED_RESTART, CR_NO_CM_SERVICES, CR_NO_SUCH_DEVNODE,
+                    CR_NOT_DISABLEABLE, CR_SUCCESS, DIGCF_PRESENT, DN_HAS_PROBLEM, DN_STARTED,
+                    GUID_DEVCLASS_HIDCLASS, GUID_DEVCLASS_MOUSE, HDEVINFO, SP_DEVINFO_DATA,
                     SetupDiDestroyDeviceInfoList, SetupDiEnumDeviceInfo, SetupDiGetClassDevsW,
                     SetupDiGetDeviceInstanceIdW, SetupDiGetDevicePropertyW,
                 },
                 Properties::{
                     DEVPKEY_Device_BusReportedDeviceDesc, DEVPKEY_Device_CompatibleIds,
                     DEVPKEY_Device_DeviceDesc, DEVPKEY_Device_FriendlyName,
-                    DEVPKEY_Device_HardwareIds, DEVPROP_TYPE_STRING, DEVPROP_TYPE_STRING_LIST,
-                    DEVPROP_TYPE_UINT32,
+                    DEVPKEY_Device_HardwareIds, DEVPKEY_Device_Parent, DEVPROP_TYPE_STRING,
+                    DEVPROP_TYPE_STRING_LIST, DEVPROP_TYPE_UINT32,
                 },
             },
             Foundation::{
                 DEVPROPKEY, ERROR_GEN_FAILURE, ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS,
                 ERROR_NOT_FOUND, GetLastError,
             },
-            Media::{
-                Audio::{Microphone, PKEY_AudioEndpoint_FormFactor},
-                KernelStreaming::AUDIOENDPOINT_CLASS_UUID,
-            },
+            Media::Audio::{Microphone, PKEY_AudioEndpoint_FormFactor},
         },
         core::GUID,
     };
@@ -468,6 +739,15 @@ mod native {
     pub struct NativeRuntimeDeviceApi;
 
     pub type NativeWindowsRuntimeDevices = super::WindowsRuntimeDevices<NativeRuntimeDeviceApi>;
+
+    /// The modern Windows "Camera" setup class. `GUID_DEVCLASS_IMAGE` enumerates
+    /// an empty set on the reference machine, while this class lists the UVC
+    /// camera devnodes and excludes the firmware-update interface of the same
+    /// USB composite device.
+    const CAMERA_CLASS_GUID: GUID = GUID::from_u128(0xCA3E7AB9_B4C3_4AE6_8251_579EF933890F);
+
+    /// The "AudioEndpoint" setup class reported by the audio endpoint devnodes.
+    const AUDIO_ENDPOINT_CLASS_GUID: GUID = GUID::from_u128(0xC166523C_FE0C_4A94_A586_F1A80CFBBF3E);
 
     impl RuntimeDeviceApi for NativeRuntimeDeviceApi {
         fn devices(&self, class: RuntimeDeviceClass) -> Result<Vec<RuntimeDevice>> {
@@ -519,6 +799,12 @@ mod native {
                     &DEVPKEY_Device_BusReportedDeviceDesc,
                     "DEVPKEY_Device_BusReportedDeviceDesc",
                 )?;
+                device.parent_instance_id = string_property(
+                    set.0,
+                    &info,
+                    &DEVPKEY_Device_Parent,
+                    "DEVPKEY_Device_Parent",
+                )?;
                 if class == RuntimeDeviceClass::AudioEndpoint {
                     device.audio_form_factor = audio_form_factor(set.0, &info)?;
                 }
@@ -532,9 +818,7 @@ mod native {
             let mut flags = 0u32;
             let mut problem = 0u32;
             let status = unsafe { CM_Get_DevNode_Status(&mut flags, &mut problem, devinst, 0) };
-            require_configret(status, || {
-                format!("CM_Get_DevNode_Status({instance_id})")
-            })?;
+            require_configret(status, || format!("CM_Get_DevNode_Status({instance_id})"))?;
             Ok(PnpDeviceStatus {
                 started: flags & DN_STARTED != 0,
                 problem: if flags & DN_HAS_PROBLEM == 0 {
@@ -570,9 +854,8 @@ mod native {
     impl DeviceInfoSet {
         fn open(class: RuntimeDeviceClass) -> Result<Self> {
             let guid = class_guid(class);
-            let set = unsafe {
-                SetupDiGetClassDevsW(&guid, ptr::null(), ptr::null_mut(), DIGCF_PRESENT)
-            };
+            let set =
+                unsafe { SetupDiGetClassDevsW(&guid, ptr::null(), ptr::null_mut(), DIGCF_PRESENT) };
             if set == -1isize {
                 return Err(map_win_error(
                     unsafe { GetLastError() },
@@ -593,9 +876,10 @@ mod native {
 
     fn class_guid(class: RuntimeDeviceClass) -> GUID {
         match class {
-            RuntimeDeviceClass::Imaging => GUID_DEVCLASS_IMAGE,
-            RuntimeDeviceClass::AudioEndpoint => AUDIOENDPOINT_CLASS_UUID,
+            RuntimeDeviceClass::Imaging => CAMERA_CLASS_GUID,
+            RuntimeDeviceClass::AudioEndpoint => AUDIO_ENDPOINT_CLASS_GUID,
             RuntimeDeviceClass::Mouse => GUID_DEVCLASS_MOUSE,
+            RuntimeDeviceClass::HidClass => GUID_DEVCLASS_HIDCLASS,
         }
     }
 
@@ -607,12 +891,9 @@ mod native {
         }
         let wide: Vec<u16> = instance_id.encode_utf16().chain(Some(0)).collect();
         let mut devinst = 0u32;
-        let status = unsafe {
-            CM_Locate_DevNodeW(&mut devinst, wide.as_ptr(), CM_LOCATE_DEVNODE_NORMAL)
-        };
-        require_configret(status, || {
-            format!("CM_Locate_DevNodeW({instance_id})")
-        })?;
+        let status =
+            unsafe { CM_Locate_DevNodeW(&mut devinst, wide.as_ptr(), CM_LOCATE_DEVNODE_NORMAL) };
+        require_configret(status, || format!("CM_Locate_DevNodeW({instance_id})"))?;
         Ok(devinst)
     }
 
@@ -767,12 +1048,13 @@ mod native {
                 channel: format!("{context} returned odd UTF-16 byte length {required}"),
             });
         }
-        let mut buffer = vec![
-            0u16;
-            usize::try_from(required / 2).map_err(|_| LctrlError::ChannelUnavailable {
-                channel: format!("{context} length exceeds usize"),
-            })?
-        ];
+        let mut buffer =
+            vec![
+                0u16;
+                usize::try_from(required / 2).map_err(|_| LctrlError::ChannelUnavailable {
+                    channel: format!("{context} length exceeds usize"),
+                })?
+            ];
         let mut actual_type = 0u32;
         let mut actual_size = 0u32;
         let success = unsafe {
@@ -800,7 +1082,10 @@ mod native {
         Ok(Some(buffer))
     }
 
-    fn audio_form_factor(set: HDEVINFO, info: &SP_DEVINFO_DATA) -> Result<Option<AudioEndpointFormFactor>> {
+    fn audio_form_factor(
+        set: HDEVINFO,
+        info: &SP_DEVINFO_DATA,
+    ) -> Result<Option<AudioEndpointFormFactor>> {
         // PROPERTYKEY and DEVPROPKEY have the same public fmtid/pid layout.
         // SetupAPI reports this Core Audio property as VT_UI4/DEVPROP_TYPE_UINT32.
         let key = DEVPROPKEY {
@@ -827,10 +1112,7 @@ mod native {
             if error == ERROR_NOT_FOUND {
                 return Ok(None);
             }
-            return Err(map_win_error(
-                error,
-                "PKEY_AudioEndpoint_FormFactor",
-            ));
+            return Err(map_win_error(error, "PKEY_AudioEndpoint_FormFactor"));
         }
         if property_type != DEVPROP_TYPE_UINT32
             || required != u32::try_from(mem::size_of::<u32>()).expect("u32 size fits u32")

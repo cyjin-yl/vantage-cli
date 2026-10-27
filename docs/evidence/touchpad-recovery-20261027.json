@@ -1,0 +1,56 @@
+{
+  "recorded_at_utc": "2026-10-27T12:04:17.764143+00:00",
+  "machine": "TB14P-EZRA / LENOVO 21VG / ThinkBook 14 G8+ IPH",
+  "controller_instance_id": "ACPI\\GXTP5100\\4&30ed0a95&0",
+  "incident": "Controller-level disable removed HID children; subsequent CLI on failed device discovery and left the controller disabled.",
+  "scope": "Restore the exact known controller; no further off commit after user confirmation.",
+  "before_controller": {
+    "exit_code": 0,
+    "stdout": "=== Goodix touchpad controller ===\r\nMicrosoft PnP Utility\r\n\r\nInstance ID:                ACPI\\GXTP5100\\4&30ed0a95&0\r\nDevice Description:         I2C HID Device\r\nClass Name:                 HIDClass\r\nClass GUID:                 {745a17a0-74d3-11d0-b6fe-00a0c90f57da}\r\nManufacturer Name:          Microsoft\r\nStatus:                     Disabled\r\nDriver Name:                hidi2c.inf\r\n\r\nENUM_EXIT=0\r\n",
+    "stderr": "#< CLIXML\r\n<Objs Version=\"1.1.0.1\" xmlns=\"http://schemas.microsoft.com/powershell/2004/04\"><Obj S=\"progress\" RefId=\"0\"><TN RefId=\"0\"><T>System.Management.Automation.PSCustomObject</T><T>System.Object</T></TN><MS><I64 N=\"SourceId\">1</I64><PR N=\"Record\"><AV>Preparing modules for first use.</AV><AI>0</AI><Nil /><PI>-1</PI><PC>-1</PC><T>Completed</T><SR>-1</SR><SD> </SD></PR></MS></Obj></Objs>"
+  },
+  "restore": {
+    "exit_code": 0,
+    "stdout": "=== Restoring the original Goodix touchpad controller ===\r\nMicrosoft PnP Utility\r\n\r\nEnabling device:          ACPI\\GXTP5100\\4&30ed0a95&0\r\nDevice enabled successfully.\r\n\r\nENABLE_EXIT=0\r\n=== Independent PnP readback ===\r\nMicrosoft PnP Utility\r\n\r\nInstance ID:                ACPI\\GXTP5100\\4&30ed0a95&0\r\nDevice Description:         I2C HID Device\r\nClass Name:                 HIDClass\r\nClass GUID:                 {745a17a0-74d3-11d0-b6fe-00a0c90f57da}\r\nManufacturer Name:          Microsoft\r\nStatus:                     Started\r\nDriver Name:                hidi2c.inf\r\nParent:                     PCI\\VEN_8086&DEV_E478&SUBSYS_386917AA&REV_01\\3&11583659&0&A8\r\nChildren:                   HID\\GXTP5100&Col01\\5&43d3fe9&0&0000\r\n                            HID\\GXTP5100&Col02\\5&43d3fe9&0&0001\r\n                            HID\\GXTP5100&Col03\\5&43d3fe9&0&0002\r\n                            HID\\GXTP5100&Col04\\5&43d3fe9&0&0003\r\n\r\nREADBACK_EXIT=0\r\n",
+    "stderr": ""
+  },
+  "restored_children": {
+    "exit_code": 0,
+    "stdout": "Microsoft PnP Utility\r\n\r\nInstance ID:                HID\\GXTP5100&Col01\\5&43d3fe9&0&0000\r\nDevice Description:         HID-compliant mouse\r\nClass Name:                 Mouse\r\nClass GUID:                 {4d36e96f-e325-11ce-bfc1-08002be10318}\r\nManufacturer Name:          Microsoft\r\nStatus:                     Started\r\nDriver Name:                msmouse.inf\r\n\r\nMicrosoft PnP Utility\r\n\r\nInstance ID:                HID\\GXTP5100&Col02\\5&43d3fe9&0&0001\r\nDevice Description:         HID-compliant touch pad\r\nClass Name:                 HIDClass\r\nClass GUID:                 {745a17a0-74d3-11d0-b6fe-00a0c90f57da}\r\nManufacturer Name:          (Standard system devices)\r\nStatus:                     Started\r\nDriver Name:                input.inf\r\n\r\nMicrosoft PnP Utility\r\n\r\nInstance ID:                HID\\GXTP5100&Col03\\5&43d3fe9&0&0002\r\nDevice Description:         Microsoft Input Configuration Device\r\nClass Name:                 HIDClass\r\nClass GUID:                 {745a17a0-74d3-11d0-b6fe-00a0c90f57da}\r\nManufacturer Name:          Microsoft\r\nStatus:                     Started\r\nDriver Name:                mtconfig.inf\r\n\r\nMicrosoft PnP Utility\r\n\r\nInstance ID:                HID\\GXTP5100&Col04\\5&43d3fe9&0&0003\r\nDevice Description:         HID-compliant vendor-defined device\r\nClass Name:                 HIDClass\r\nClass GUID:                 {745a17a0-74d3-11d0-b6fe-00a0c90f57da}\r\nManufacturer Name:          (Standard system devices)\r\nStatus:                     Started\r\nDriver Name:                input.inf\r\n\r\nTOUCHPAD_USER_ENABLED=1\r\nWINDOWS_BUILD=10.0.26300.0\r\n",
+    "stderr": ""
+  },
+  "user_confirmation": "触控板能用了",
+  "transferred_sources_before_format": {
+    "crates/lctrl-hal-win/src/runtime_devices.rs": {
+      "sha256": "9b229b60ebc4e11f675ff88d2d476fc81a13950a4d4fbe811d8523f72a24459f",
+      "length": 39816
+    },
+    "crates/lctrl-hal-win/tests/windows_runtime_devices.rs": {
+      "sha256": "688d8c26bdb53b51861a206dae1cd7893f16e359966d8995c18543e569d6cace",
+      "length": 30398
+    }
+  },
+  "canonical_sources_after_format": {
+    "crates/lctrl-hal-win/src/runtime_devices.rs": {
+      "sha256": "a022d9698d06859c50f267797dc8292b7894fe0454d6e6121114c1f255b6d99a",
+      "length": 39820
+    },
+    "crates/lctrl-hal-win/tests/windows_runtime_devices.rs": {
+      "sha256": "f5607908036c80aca6228c6cd8524613b70b73da26d23e10191f863c9e09d4e8",
+      "length": 30730
+    }
+  },
+  "native_build_and_regressions": {
+    "exit_code": 0,
+    "stdout": "SOURCE_VERIFIED crates/lctrl-hal-win/src/runtime_devices.rs\r\nSOURCE_VERIFIED crates/lctrl-hal-win/tests/windows_runtime_devices.rs\r\n\nrunning 28 tests\ntest acpi_camera_identity_does_not_depend_on_a_friendly_name ... ok\ntest microphone_admission_requires_an_integrated_audio_bus_parent ... ok\ntest camera_group_prewrite_permission_error_keeps_the_primary_error ... ok\ntest camera_group_split_state_is_not_reported_as_one_answer ... ok\ntest camera_group_selection_accepts_rgb_and_ir_devnodes_of_one_parent ... ok\ntest camera_group_dry_run_never_writes_a_devnode ... ok\ntest camera_group_selection_refuses_two_physical_cameras ... ok\ntest camera_selection_rejects_missing_and_ambiguous_devices ... ok\ntest camera_group_failure_restores_every_changed_devnode ... ok\ntest commit_writes_the_admitted_device_and_independently_reads_back ... ok\ntest controller_names_and_acpi_parentage_are_not_touchpad_input_evidence ... ok\ntest enabling_an_already_enabled_touchpad_does_not_restart_input_devices ... ok\ntest every_dry_run_entry_point_reads_without_any_device_write ... ok\ntest camera_group_selection_refuses_missing_parent_identity ... ok\ntest camera_group_toggle_moves_every_devnode_and_reads_back ... ok\ntest camera_admission_requires_imaging_class_and_internal_identity ... ok\ntest readback_failure_restores_previous_state_and_preserves_primary_error ... ok\ntest prewrite_permission_failure_is_primary_and_does_not_trigger_rollback ... ok\ntest pnp_state_requires_public_started_or_disabled_evidence ... ok\ntest microphone_admission_uses_audio_endpoint_form_factor ... ok\ntest selection_and_initial_read_failures_never_attempt_a_write ... ok\ntest selection_rejects_empty_or_nul_terminated_instance_ids ... ok\ntest touchpad_dry_run_does_not_change_any_input_or_controller_state ... ok\ntest touchpad_admission_requires_digitizer_usage_and_integrated_parent ... ok\ntest touchpad_failure_after_effect_restores_both_attempted_leaves ... ok\ntest touchpad_input_toggle_preserves_controller_and_can_be_restored_by_a_fresh_client ... ok\ntest readback_mismatch_also_rolls_back ... ok\ntest rollback_failure_reports_both_errors_without_hiding_the_primary ... ok\n\ntest result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.46s\n\nRECOVERY_TEST_EXIT=0\r\nRECOVERY_BUILD_EXIT=0\r\nFORMATTED_SOURCE crates/lctrl-hal-win/src/runtime_devices.rs a022d9698d06859c50f267797dc8292b7894fe0454d6e6121114c1f255b6d99a 39820\r\nFORMATTED_SOURCE crates/lctrl-hal-win/tests/windows_runtime_devices.rs f5607908036c80aca6228c6cd8524613b70b73da26d23e10191f863c9e09d4e8 30730\r\nBUILT_EXE_SHA256=8888c6f771c51f86ef7216d856a66a3952eb0b64ab4de0100fe66fe58154bfa5\r\n",
+    "stderr": "   Compiling lctrl-hal-win v0.1.0 (C:\\Users\\ezra\\vantage-replacement-build-r7\\crates\\lctrl-hal-win)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.33s\n     Running tests\\windows_runtime_devices.rs (C:\\Users\\ezra\\vantage-replacement-target-r7\\debug\\deps\\windows_runtime_devices-876580b55e24953a.exe)\n   Compiling lctrl-hal-win v0.1.0 (C:\\Users\\ezra\\vantage-replacement-build-r7\\crates\\lctrl-hal-win)\n   Compiling vantage-daemon v0.1.0 (C:\\Users\\ezra\\vantage-replacement-build-r7\\crates\\vantage-daemon)\n   Compiling vantage v0.1.0 (C:\\Users\\ezra\\vantage-replacement-build-r7\\vantage)\n    Finished `release` profile [optimized] target(s) in 40.60s\n"
+  },
+  "native_cli_smoke": {
+    "exit_code": 0,
+    "stdout": "BEFORE=[{\"InstanceId\":\"ACPI\\\\GXTP5100\\\\4\\u002630ED0A95\\u00260\",\"Status\":\"OK\",\"Problem\":0},{\"InstanceId\":\"HID\\\\GXTP5100\\u0026COL01\\\\5\\u002643D3FE9\\u00260\\u00260000\",\"Status\":\"OK\",\"Problem\":0},{\"InstanceId\":\"HID\\\\GXTP5100\\u0026COL02\\\\5\\u002643D3FE9\\u00260\\u00260001\",\"Status\":\"OK\",\"Problem\":0},{\"InstanceId\":\"HID\\\\GXTP5100\\u0026COL03\\\\5\\u002643D3FE9\\u00260\\u00260002\",\"Status\":\"OK\",\"Problem\":0},{\"InstanceId\":\"HID\\\\GXTP5100\\u0026COL04\\\\5\\u002643D3FE9\\u00260\\u00260003\",\"Status\":\"OK\",\"Problem\":0}]\r\n=== Real CLI: dry-run off (no mutation) ===\r\n{\"mode\":\"dry_run\",\"previous\":\"enabled\",\"requested\":\"disabled\"}\r\n\r\n=== Real CLI: already-enabled on (no-op) ===\r\n{\"actual\":\"enabled\",\"mode\":\"commit\",\"previous\":\"enabled\",\"requested\":\"enabled\"}\r\n\r\nAFTER=[{\"InstanceId\":\"ACPI\\\\GXTP5100\\\\4\\u002630ED0A95\\u00260\",\"Status\":\"OK\",\"Problem\":0},{\"InstanceId\":\"HID\\\\GXTP5100\\u0026COL01\\\\5\\u002643D3FE9\\u00260\\u00260000\",\"Status\":\"OK\",\"Problem\":0},{\"InstanceId\":\"HID\\\\GXTP5100\\u0026COL02\\\\5\\u002643D3FE9\\u00260\\u00260001\",\"Status\":\"OK\",\"Problem\":0},{\"InstanceId\":\"HID\\\\GXTP5100\\u0026COL03\\\\5\\u002643D3FE9\\u00260\\u00260002\",\"Status\":\"OK\",\"Problem\":0},{\"InstanceId\":\"HID\\\\GXTP5100\\u0026COL04\\\\5\\u002643D3FE9\\u00260\\u00260003\",\"Status\":\"OK\",\"Problem\":0}]\r\nPASS: real CLI paths executed; controller and all four collections remain OK with problem code 0; no off commit executed.\r\n",
+    "stderr": ""
+  },
+  "executable": "C:\\Users\\ezra\\vantage-replacement-target-r7\\release\\vantage.exe",
+  "executable_sha256": "8888c6f771c51f86ef7216d856a66a3952eb0b64ab4de0100fe66fe58154bfa5",
+  "acceptance_limit": "Full new leaf-level disable/re-enable hardware acceptance remains unexecuted; current proof is recovery, user-confirmed use, non-disruptive native CLI smoke and simulated failure recovery."
+}
