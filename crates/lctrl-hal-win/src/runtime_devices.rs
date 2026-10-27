@@ -625,7 +625,6 @@ fn preserve_prewrite_error(error: &LctrlError) -> bool {
     matches!(
         error,
         LctrlError::PermissionDenied { .. }
-            | LctrlError::ChannelUnavailable { .. }
             | LctrlError::Unsupported { .. }
             | LctrlError::InvalidArgument { .. }
     )

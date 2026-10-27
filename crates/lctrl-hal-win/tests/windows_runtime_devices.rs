@@ -784,6 +784,24 @@ fn touchpad_failure_after_effect_restores_both_attempted_leaves() {
     assert_eq!(*api.states.lock(), original);
 }
 
+#[test]
+fn channel_failure_after_effect_also_restores_the_attempted_touchpad_leaf() {
+    let mut api = touchpad_topology().with_failure(
+        2,
+        FakeError::Channel("device unavailable after effect"),
+    );
+    api.failed_write_takes_effect = true;
+    let original = api.states.lock().clone();
+    let error = WindowsRuntimeDevices::new(&api)
+        .set_touchpad(DeviceState::Disabled, ApplyMode::Commit)
+        .unwrap_err();
+    assert!(matches!(
+        error,
+        LctrlError::ChannelUnavailable { ref channel } if channel == "device unavailable after effect"
+    ));
+    assert_eq!(*api.states.lock(), original);
+}
+
 fn camera_pair() -> (RuntimeDevice, RuntimeDevice) {
     let rgb = camera("USB\\CAM&MI_00");
     let mut ir = camera("USB\\CAM&MI_02");
