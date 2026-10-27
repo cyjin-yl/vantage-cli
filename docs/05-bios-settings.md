@@ -1,6 +1,6 @@
 # 05 · BIOS 设置读写接口规范（`root\WMI` `Lenovo_*` 族）
 
-> 读者：**实现者**（用 Rust 重写 lctrl、覆盖 BIOS 设置读写功能的人）。
+> 读者：**实现者**（用 Rust 重写 vantage、覆盖 BIOS 设置读写功能的人）。
 > 前置：`00-cleanroom-charter.md`（术语与文档地图）、`01-hal-interfaces.md`（通道总览与特权要求）、`A-wmi-reference.md`（全量类签名索引）。
 > 状态：v1 · 2026-08-27 · 目标机 Lenovo ThinkBook 21VG（Panther Lake，SMBIOS `THINKBOOK_14_G8+_IPH`）。
 > 范围：**BIOS 设置读写**（枚举、读、写、保存/回滚/恢复默认、supervisor 密码查询）。不含 EC 直连通道（见 01/02 文档）、不含 Linux 后端（见 09 文档）。
@@ -226,7 +226,7 @@ ret    = outPar.GetPropertyValue("return").ToString()     # "Success" | 错误�
 ### 2.3 权限
 
 - 管理员或 SYSTEM；普通用户调用会抛 `ManagementException`（`root\WMI` ACL，见 01 文档 §0 决策铁律 1 与 §7 特权表）。
-- lctrl 实现：Windows 侧建议以 `runas`/服务方式提权；CLI 在非提权时给出明确错误退出码（§9）。
+- vantage 实现：Windows 侧建议以 `runas`/服务方式提权；CLI 在非提权时给出明确错误退出码（§9）。
 
 ### 2.4 异常与错误码（官方容错模式）
 
@@ -291,7 +291,7 @@ ret    = outPar.GetPropertyValue("return").ToString()     # "Success" | 错误�
 
 ## 4. 设置项发现
 
-### 4.1 枚举算法（`lctrl bios list`）
+### 4.1 枚举算法（`vantage bios list`）
 
 官方快照收集器（`BiosSettings.cs::CaptureThinkPadBiosSettings`）的算法即实现模板：
 
@@ -432,7 +432,7 @@ PasswordState = (num & 2) == 2;   // bit1 = supervisor 密码已设置
 
 - Vantage：只在 `Bios.Assistant` 契约里暴露 `CheckBiosPasswordSet`（读状态，用于 UI 提示），**无设置/清除 UI**。
 - 快照：读 `Win32_ComputerSystem.AdminPasswordStatus` + `Lenovo_BiosPasswordSettings`（收集展示）。
-- 结论：官方软件对密码接口"只读不写"；`lctrl bios password` 的写功能是超集扩展。
+- 结论：官方软件对密码接口"只读不写"；`vantage bios password` 的写功能是超集扩展。
 
 **证据**
 
@@ -472,12 +472,12 @@ ret = SaveBiosSettings(parameter = ";")
 success = (ret == "Success")
 ```
 
-来源 `WmiAgent.cs` L225-261。这是实现者 `lctrl bios set` 的标准模板。
+来源 `WmiAgent.cs` L225-261。这是实现者 `vantage bios set` 的标准模板。
 
 ### 6.3 `Save` 与重启的关系
 
 - `SaveBiosSettings` 返回 `"Success"` = NVRAM 写入成功，**不需要在 Save 后强制重启**（官方调用后不触发重启）。
-- 生效时机由项决定：热键/IO 开关类（`IntegratedCamera` 等硬件断供）官方文档语境即插即用或下次设备枚举生效；CPU 相关（VT、OC）需重启。**lctrl 应在 save 成功后提示"部分更改需重启后生效"**。
+- 生效时机由项决定：热键/IO 开关类（`IntegratedCamera` 等硬件断供）官方文档语境即插即用或下次设备枚举生效；CPU 相关（VT、OC）需重启。**vantage 应在 save 成功后提示"部分更改需重启后生效"**。
 - `LENOVO_GAMEZONE_DATA.SetBIOSOC` 等通过 BIOS 放行的 OC 项官方标注"需重启生效"（`电脑管家电源组件内部接口说明` L144）。
 
 ### 6.4 `Discard` / `LoadDefault`
@@ -569,7 +569,7 @@ success = (ret == "Success")
 3. **失败即中止**：官方 `SetIOControlItem` 任一 Set 失败立即 break 且不 Save（§3.4）——防止"部分成功"的脏状态。
 4. **BIOS Assistant 位域通道**：`LENOVO_BIOS_ASSISTANT` 只暴露 3 个功能索引（v1），且每次返回带 bit31 成功位，失败可预期。
 
-### 8.2 Brick/锁死风险项（`lctrl bios set` 必须重点标注）
+### 8.2 Brick/锁死风险项（`vantage bios set` 必须重点标注）
 
 | 项 | 风险 | 后果 |
 |---|---|---|
@@ -584,13 +584,13 @@ success = (ret == "Success")
 
 ### 8.3 官方的保护逻辑（实现者照抄的最低标准）
 
-1. **UI 白名单 ≠ 通道白名单**：官方 UI 只向用户暴露白名单项（§4.1 两份清单），但 `SetIOControlItem` 对任意 `ItemName/ItemValue` 直接透传——**通道本身不过滤**，lctrl 必须自己维护保护清单。
+1. **UI 白名单 ≠ 通道白名单**：官方 UI 只向用户暴露白名单项（§4.1 两份清单），但 `SetIOControlItem` 对任意 `ItemName/ItemValue` 直接透传——**通道本身不过滤**，vantage 必须自己维护保护清单。
 2. **进程占用检查（GPU 模式）**：从混合模式切 iGPU-only 前检查前台进程列表，非空则拒绝（`WmiAgent.cs` L153-169）。
 3. **不自动重启**：Save 成功提示"需重启"，但绝不代用户重启（官方亦然）。
 4. **只读密码**：官方从不在软件里写密码（§5.4）。
 5. **枚举容错**：查询/枚举单项失败不中断整体（§4.1）。
 
-### 8.4 lctrl 建议的安全策略
+### 8.4 vantage 建议的安全策略
 
 - 高危项（§8.2 表"高"）要求 `--yes` 双确认；`defaults`/`password` 子命令加 `--experimental`/交互确认。
 - `set` 失败后自动丢弃缓冲区（调 `DiscardBiosSettings`），保持"要么全成功要么无变更"。
@@ -607,17 +607,17 @@ success = (ret == "Success")
 
 ---
 
-## 9. `lctrl bios` 子命令设计建议
+## 9. `vantage bios` 子命令设计建议
 
 ```text
-lctrl bios list [--json]            # 枚举全部项 + 当前值 (+ 每项 Selections, 带 --selections 开关)
-lctrl bios get <Item>               # 输出 "Name,Value" 或单值
-lctrl bios set <Item> <Value> [--save] [--yes]
-lctrl bios save                     # 提交当前缓冲
-lctrl bios discard                  # 回滚当前缓冲
-lctrl bios defaults                 # 恢复出厂 (--yes 强确认, --experimental)
-lctrl bios password status          # 读 PasswordState (bit1)
-lctrl bios password set|clear <new> # 写密码 (--experimental, 需实机验证 §5.3)
+vantage bios list [--json]            # 枚举全部项 + 当前值 (+ 每项 Selections, 带 --selections 开关)
+vantage bios get <Item>               # 输出 "Name,Value" 或单值
+vantage bios set <Item> <Value> [--save] [--yes]
+vantage bios save                     # 提交当前缓冲
+vantage bios discard                  # 回滚当前缓冲
+vantage bios defaults                 # 恢复出厂 (--yes 强确认, --experimental)
+vantage bios password status          # 读 PasswordState (bit1)
+vantage bios password set|clear <new> # 写密码 (--experimental, 需实机验证 §5.3)
 ```
 
 ### 9.1 实现要点
@@ -635,7 +635,7 @@ lctrl bios password set|clear <new> # 写密码 (--experimental, 需实机验证
 
 - 键盘 FnLock 开关（04 文档）：读写 `HotkeyMode`/`F1-F12AsPrimaryFunction` 时**两个项一起改并一次 Save**，保持状态一致。
 - 隐私开关（04 文档）：`IntegratedCamera`/`Microphone` 硬断与 EC Privacy Guard（`SetPrivacyGuardEnabled`）是两层，勿混用语义。
-- 电源页（02 文档）：AlwaysOnUSB 的**运行态**写 EnergyDrv IOCTL，**开机默认**写本接口——lctrl 两个子命令应共享同一抽象并注明层。
+- 电源页（02 文档）：AlwaysOnUSB 的**运行态**写 EnergyDrv IOCTL，**开机默认**写本接口——vantage 两个子命令应共享同一抽象并注明层。
 
 ---
 

@@ -1,6 +1,6 @@
 # 03 · 散热 / 风扇 / 性能模式规范
 
-> 本文档面向 **实现者**,规定 `lctrl perf` 命令子树在 Lenovo 21VG (ThinkBook 14+ 2026, Panther Lake) 上实现时的全部行为契约:性能模式状态机、风扇控制、温度读取、功耗墙 (PL1/PL2/DBDC) 与超频、智能调度、PCManager 省电策略、WMI 事件订阅。
+> 本文档面向 **实现者**,规定 `vantage perf` 命令子树在 Lenovo 21VG (ThinkBook 14+ 2026, Panther Lake) 上实现时的全部行为契约:性能模式状态机、风扇控制、温度读取、功耗墙 (PL1/PL2/DBDC) 与超频、智能调度、PCManager 省电策略、WMI 事件订阅。
 
 依赖:
 - 通道与设备节点详见 01 (`01-hal-interfaces.md`)。
@@ -16,15 +16,15 @@
 
 | 子系统 | 顶层命令 | 硬件通路 |
 |---|---|---|
-| 性能模式 (Fn+Q) | `lctrl perf mode` | WMI `LENOVO_GAMEZONE_DATA` + `LenovoProcessManagement` 服务 |
-| 风扇 | `lctrl perf fan` | WMI `LENOVO_FAN_TABLE_DATA` / `LENOVO_FAN_METHOD` / `LENOVO_FAN_MAX_SPEED_DATA` / `LENOVO_FAN_TEST_DATA` |
-| 温度 | `lctrl perf temp` | WMI `LENOVO_GAMEZONE_DATA` 方法族 + (可选) Linux `/sys/class/thermal/` |
-| 功耗墙 | `lctrl perf pl1` / `lctrl perf pl2` / `lctrl perf dbdc` | ESIF IPC (ipfsvc) + Windows Power API |
-| 超频 | `lctrl perf oc` | WMI `LENOVO_CPU_OVERCLOCKING_DATA` / `LENOVO_GPU_OVERCLOCKING_DATA` / `LENOVO_MEMORY_OC_DATA` |
+| 性能模式 (Fn+Q) | `vantage perf mode` | WMI `LENOVO_GAMEZONE_DATA` + `LenovoProcessManagement` 服务 |
+| 风扇 | `vantage perf fan` | WMI `LENOVO_FAN_TABLE_DATA` / `LENOVO_FAN_METHOD` / `LENOVO_FAN_MAX_SPEED_DATA` / `LENOVO_FAN_TEST_DATA` |
+| 温度 | `vantage perf temp` | WMI `LENOVO_GAMEZONE_DATA` 方法族 + (可选) Linux `/sys/class/thermal/` |
+| 功耗墙 | `vantage perf pl1` / `vantage perf pl2` / `vantage perf dbdc` | ESIF IPC (ipfsvc) + Windows Power API |
+| 超频 | `vantage perf oc` | WMI `LENOVO_CPU_OVERCLOCKING_DATA` / `LENOVO_GPU_OVERCLOCKING_DATA` / `LENOVO_MEMORY_OC_DATA` |
 
 **关键约束**:所有"下发型"命令在 Windows 上均要求以管理员权限执行,且 `AcpiVpc.sys` (EnergyVpc) 与 `ipf_acpi` 驱动必须已加载;Linux 后端仅通过 `ideapad_laptop` / sysfs / ACPI 暴露能力,若缺失应返回 `ENOTSUP`。
 
-**与 PCManager / Vantage 互斥**:同一时刻只能有一方控制 `LENOVO_GAMEZONE_DATA` 与 `LenovoProcessManagement` 服务;`lctrl` 应主动检测二者是否运行 (`QueryServiceStatus` / `GetNamedSecurityInfo` 命名管道),并提示用户先停止官方软件。
+**与 PCManager / Vantage 互斥**:同一时刻只能有一方控制 `LENOVO_GAMEZONE_DATA` 与 `LenovoProcessManagement` 服务;`vantage` 应主动检测二者是否运行 (`QueryServiceStatus` / `GetNamedSecurityInfo` 命名管道),并提示用户先停止官方软件。
 
 ---
 
@@ -32,7 +32,7 @@
 
 ### 2.1 模式枚举
 
-Windows 上的 ITS/Dispatcher 服务(`LenovoProcessManagement`)和 WMI `LENOVO_GAMEZONE_DATA` 各有一套独立的模式编号体系。`lctrl` 必须对二者同时写入,语义才能一致。
+Windows 上的 ITS/Dispatcher 服务(`LenovoProcessManagement`)和 WMI `LENOVO_GAMEZONE_DATA` 各有一套独立的模式编号体系。`vantage` 必须对二者同时写入,语义才能一致。
 
 **A) ITS/Dispatcher 服务枚举 (`ItsModeType`)**
 
@@ -55,17 +55,17 @@ WMI 类没有暴露枚举;通过方法 `SetSmartFanMode(in Data)` / `GetSmartFan
 | 2 | 性能 (Performance) | 对应 ITS MmcPerformance |
 | 3 | 自定义 (Custom) | 走 `Fan_Set_Table` 的自定义曲线 |
 
-**C) `lctrl perf mode` 对外枚举**
+**C) `vantage perf mode` 对外枚举**
 
 实现者应统一映射为三个面向用户的一级模式,内部同时更新 ITS 与 WMI:
 
-| `lctrl` 参数 | ITS 服务值 | WMI `SetSmartFanMode` | WMI `SetFanCooling` |
+| `vantage` 参数 | ITS 服务值 | WMI `SetSmartFanMode` | WMI `SetFanCooling` |
 |---|---|---|---|
 | `quiet` (节能) | `MmcCool=2` | `1` (Silent) | `1` |
 | `balanced` (智能/平衡) | `ItsAuto=1` | `0` (Standard) | `1` |
 | `performance` (野兽) | `MmcPerformance=3` | `2` (Performance) | `2` |
 
-> Geek 模式 (`MmcGeek=4`) 仅在 `IsDispatcherV4()` 返回 true 时可用,单独作为 `lctrl perf mode --geek` 子选项暴露。
+> Geek 模式 (`MmcGeek=4`) 仅在 `IsDispatcherV4()` 返回 true 时可用,单独作为 `vantage perf mode --geek` 子选项暴露。
 
 ### 2.2 注册表键
 
@@ -140,7 +140,7 @@ else → 老 ITS 通道 (回退)
 
 ### 2.4 回读与轮询
 
-下发后 `lctrl` 必须**确认生效**,采用与 Vantage 一致的轮询策略:每 50 ms 读一次当前模式,最多 10 次 (500 ms 总超时),直到读回值与下发值一致。
+下发后 `vantage` 必须**确认生效**,采用与 Vantage 一致的轮询策略:每 50 ms 读一次当前模式,最多 10 次 (500 ms 总超时),直到读回值与下发值一致。
 
 - Dispatcher V4+: `GetDispatcherMode()` — 从 WMI `Lenovo_SetBiosSetting.CurrentSetting` 或 `LENOVO_GAMEZONE_DATA.GetThermalMode()` 联合推断,返回值是 `SupportedMmcModeType` bitmask。
 - Dispatcher V2/V3 或 ITS: `GetITSMode()` — 从注册表 `CURRENT_STATE` 或 `CURRENT_SETTING` 读。
@@ -162,7 +162,7 @@ bit 0x10 = MmcGeek      (仅 V4+)
     ▼
 [InitialMode]
     │
-    ├── Fn+Q 按键 (EC 上报 → 服务通知 → `lctrl` 或官方软件拦截)
+    ├── Fn+Q 按键 (EC 上报 → 服务通知 → `vantage` 或官方软件拦截)
     │     └─► Intelligent ↔ Performance 循环切换 (默认行为)
     │
     ├── 电池电量 < 阈值 (AC/DC 事件, RegisterPowerSettingNotification)
@@ -171,18 +171,18 @@ bit 0x10 = MmcGeek      (仅 V4+)
     ├── AI 场景识别 (LENOVO_AI_SCENARIO_TYPE_EVENT)
     │     └─► Intelligent 子模式 (SetIntelligentSubMode 0/1)
     │
-    └── 手动 CLI: `lctrl perf mode set <quiet|balanced|performance>`
+    └── 手动 CLI: `vantage perf mode set <quiet|balanced|performance>`
           └─► 直接下发,覆盖 CURRENT_SETTING
 
 [Auto Transition 开启]
     └─► 服务在 MmcCool ↔ MmcPerformance 之间自切换, CURRENT_STATE 变化但 CURRENT_SETTING 不变
 ```
 
-### 2.6 `lctrl` CLI 契约
+### 2.6 `vantage` CLI 契约
 
 ```
-lctrl perf mode [get | set <quiet|balanced|performance> | list | geek-enable | geek-disable]
-lctrl perf mode status                       # 输出: 模式, ITS版本, 支持子模式 bitmask
+vantage perf mode [get | set <quiet|balanced|performance> | list | geek-enable | geek-disable]
+vantage perf mode status                       # 输出: 模式, ITS版本, 支持子模式 bitmask
 ```
 
 - `set`: 首选 SCM,失败回退 WMI + 注册表;返回 `ModeResult{ mode, its_version, readback_ok }`。
@@ -311,9 +311,9 @@ WMI `LENOVO_FAN_METHOD`(§3.3 `Fan_Set_Table`)已覆盖风扇曲线写入,`LnCoo
 
 ### 3.5 手动 / 自动 / 全速模式
 
-`lctrl` 应暴露三种风扇控制"档位",各自对应 WMI 层不同组合:
+`vantage` 应暴露三种风扇控制"档位",各自对应 WMI 层不同组合:
 
-| `lctrl` 档 | WMI 组合 |
+| `vantage` 档 | WMI 组合 |
 |---|---|
 | `auto` (默认) | `SetSmartFanMode(2)` + `SetFanCooling(1)` |
 | `manual <rpm\|%>` | `SetSmartFanMode(3)` + `Fan_Set_Table([...])` 构建单台阶曲线 |
@@ -329,14 +329,14 @@ WMI `LENOVO_FAN_METHOD`(§3.3 `Fan_Set_Table`)已覆盖风扇曲线写入,`LnCoo
 
 **`fullspeed` 语义**:全速模式。除调用 `SetFanCooling(2)` 外,还建议通过 `LENOVO_GAMEZONE_DATA.IsSupportOD(out Data)` + `SetODStatus(1)` 开启 OverDrive (若硬件支持)。
 
-### 3.6 `lctrl` CLI 契约
+### 3.6 `vantage` CLI 契约
 
 ```
-lctrl perf fan list                          # 输出所有风扇: FanId, MinSpeed, MaxSpeed
-lctrl perf fan status                        # 输出当前策略: SmartFanMode, FanCooling, SmartFanEnabled
-lctrl perf fan table <fan-id>                # 输出当前曲线的温度-转速对
-lctrl perf fan set <mode> [--rpm N | --pct P]  mode ∈ {auto|manual|smart|fullspeed|off}
-lctrl perf fan table-write <path.json>       # 加载外部 JSON 曲线 (自定义模式)
+vantage perf fan list                          # 输出所有风扇: FanId, MinSpeed, MaxSpeed
+vantage perf fan status                        # 输出当前策略: SmartFanMode, FanCooling, SmartFanEnabled
+vantage perf fan table <fan-id>                # 输出当前曲线的温度-转速对
+vantage perf fan set <mode> [--rpm N | --pct P]  mode ∈ {auto|manual|smart|fullspeed|off}
+vantage perf fan table-write <path.json>       # 加载外部 JSON 曲线 (自定义模式)
 ```
 
 JSON 曲线 schema:
@@ -360,7 +360,7 @@ JSON 曲线 schema:
 
 ### 4.1 传感器来源
 
-`lctrl perf temp` 需要聚合三种温度来源:
+`vantage perf temp` 需要聚合三种温度来源:
 
 | 来源 | WMI/接口 | 粒度 |
 |---|---|---|
@@ -387,7 +387,7 @@ Linux 上应优先使用 `/sys/class/thermal/` 下的内核热区:
 /sys/class/thermal/thermal_zone0/temp   → 温度, 单位 mK
 ```
 
-`lctrl` 应构建**别名映射**:
+`vantage` 应构建**别名映射**:
 
 | WMI 语义 | Linux 类型字符串 |
 |---|---|
@@ -396,12 +396,12 @@ Linux 上应优先使用 `/sys/class/thermal/` 下的内核热区:
 | 电池 | `BAT0`, `battery` |
 | 主板 | `acer_wmi` (ThinkBook 无, 仅参考), `ideapad` |
 
-### 4.4 `lctrl` CLI 契约
+### 4.4 `vantage` CLI 契约
 
 ```
-lctrl perf temp list          # 列出所有传感器: id, name, source, location
-lctrl perf temp read <id>     # 读取单一传感器 (°C)
-lctrl perf temp watch         # 持续轮询 (默认 1s 间隔)
+vantage perf temp list          # 列出所有传感器: id, name, source, location
+vantage perf temp read <id>     # 读取单一传感器 (°C)
+vantage perf temp watch         # 持续轮询 (默认 1s 间隔)
 ```
 
 返回 JSON:
@@ -422,7 +422,7 @@ lctrl perf temp watch         # 持续轮询 (默认 1s 间隔)
 
 ### 5.1 通道判定 (关键)
 
-`lctrl perf pl1` / `pl2` 的下发通道**取决于运行平台与 DTT 状态**:
+`vantage perf pl1` / `pl2` 的下发通道**取决于运行平台与 DTT 状态**:
 
 | 平台 | 首选通道 | 降级通道 |
 |---|---|---|
@@ -455,7 +455,7 @@ lctrl perf temp watch         # 持续轮询 (默认 1s 间隔)
 4. Linux: 写 `/sys/devices/system/cpu/intel_pstate/max_perf_pct` 或 RAPL sysfs(若只写百分比, 换算: W = TDP × pct / 100)。
 
 **PL2 差异**:PL2 是短时 (10s) 峰值功率, 在 ESIF/DTT 参与者的 `PPLimitShort` 字段
-(对应 MSR 0x610 的 Limit2 位段 / RAPL `constraint_1_*`)。`lctrl` 应:
+(对应 MSR 0x610 的 Limit2 位段 / RAPL `constraint_1_*`)。`vantage` 应:
 - 枚举 ESIF 参与者列表,定位 TPWR(Power Participant,`ACPI\INTC10D8\TPWR`)。
 - 分别读 `PPLimit` (PL1) 和 `PPLimitShort` (PL2) 字段。
 
@@ -480,12 +480,12 @@ ROS_Power    = [对应 3 档系统可用功率]
 
 语义:当电池电量 ≥ 某档 `Threshold[i]` 时,EC 限制电池放电电流为 `CurrentLimit[i]`,系统功率上限为 `ROS_Power[i]`。典型行为:电池满电 (≥ 100%) 允许最大放电;电量 < 20% 时严格限流以保护电池。
 
-**`lctrl perf dbdc get`**:输出三档阈值与上限。
-**`lctrl perf dbdc set <threshold> <limit_mA>`**:通过 `LENOVO_OTHER_METHOD.SetFeatureValue(IDs=<DBDC_ID>, value=<limit>)` 写入 (IDs 常量需从 `LENOVO_CAPABILITY_DATA_00` / `_01` / `_02` 枚举中获得)。
+**`vantage perf dbdc get`**:输出三档阈值与上限。
+**`vantage perf dbdc set <threshold> <limit_mA>`**:通过 `LENOVO_OTHER_METHOD.SetFeatureValue(IDs=<DBDC_ID>, value=<limit>)` 写入 (IDs 常量需从 `LENOVO_CAPABILITY_DATA_00` / `_01` / `_02` 枚举中获得)。
 
 ### 5.4 超频 (CPU / GPU / 内存 OC 数据类)
 
-> **硬件适配提示**:目标机 21VG (Panther Lake) **没有独立 GPU**, `LENOVO_GPU_OVERCLOCKING_DATA` 实例通常返回"不支持";CPU 与内存 OC 也可能被 SMBIOS 过滤。`lctrl` 应**先枚举**再暴露子命令;若所有 OC 能力均 `IsSupport=0`, 则隐藏 `lctrl perf oc` 命令并在 help 中说明 "OC not supported on this platform"。
+> **硬件适配提示**:目标机 21VG (Panther Lake) **没有独立 GPU**, `LENOVO_GPU_OVERCLOCKING_DATA` 实例通常返回"不支持";CPU 与内存 OC 也可能被 SMBIOS 过滤。`vantage` 应**先枚举**再暴露子命令;若所有 OC 能力均 `IsSupport=0`, 则隐藏 `vantage perf oc` 命令并在 help 中说明 "OC not supported on this platform"。
 
 **CPU 超频**:`LENOVO_CPU_OVERCLOCKING_DATA` + `LENOVO_CPU_METHOD` + `LENOVO_GAMEZONE_CPU_OC_DATA`
 
@@ -546,18 +546,18 @@ ROS_Power    = [对应 3 档系统可用功率]
 
 ### 5.5 功耗墙与超频的联动
 
-- 超频启用后,PCManager 会通过 `OCBindWithThermal` 将 OC 与温控模式绑定:智能模式下禁用 OC,野兽模式下启用 OC。`lctrl` 应实现类似策略:当 `perf mode set performance` 时,若硬件支持 OC 且用户配置 `oc_with_perf=1`,则自动开启 CPU OC。
+- 超频启用后,PCManager 会通过 `OCBindWithThermal` 将 OC 与温控模式绑定:智能模式下禁用 OC,野兽模式下启用 OC。`vantage` 应实现类似策略:当 `perf mode set performance` 时,若硬件支持 OC 且用户配置 `oc_with_perf=1`,则自动开启 CPU OC。
 - GPU OC 与 `SetGpuTDPWithSMFAN_DT` / `SetGpuTemperatureWithSMFAN_DT` 联动:OC 模式下 GPU TDP 上限提高,GPU 温度墙提高 (从默认 75°C 提高到 85°C) [推断自笔记 3.3 参数表]。
 
-### 5.6 `lctrl` CLI 契约
+### 5.6 `vantage` CLI 契约
 
 ```
-lctrl perf pl1 [get | set <mW>]           # CPU 长时功耗墙
-lctrl perf pl2 [get | set <mW>]           # CPU 短时峰值
-lctrl perf dbdc [get | set <thr> <mA>]    # DBDC 电池直充
-lctrl perf oc cpu   [get | set <MHz> | enable | disable]
-lctrl perf oc gpu   [get | set <MHz> | enable | disable]
-lctrl perf oc mem   [get | set-xmp <n> | customize <json>]
+vantage perf pl1 [get | set <mW>]           # CPU 长时功耗墙
+vantage perf pl2 [get | set <mW>]           # CPU 短时峰值
+vantage perf dbdc [get | set <thr> <mA>]    # DBDC 电池直充
+vantage perf oc cpu   [get | set <MHz> | enable | disable]
+vantage perf oc gpu   [get | set <MHz> | enable | disable]
+vantage perf oc mem   [get | set-xmp <n> | customize <json>]
 ```
 
 ---
@@ -608,14 +608,14 @@ NEWPLUGIN_WSWORKINGSETPLUGIN_MESSAGE_CHECKPARAMTER
 
 策略加载:本地规则 (`LOADCONFIG`) → 云端热更新 (`UPDATECONFIG` + `GetContentHash` 校验) → `QueryProcesses` 防抖触发 → `RestoreProcesses` 还原。
 
-### 6.4 `lctrl` 的最小可用等价
+### 6.4 `vantage` 的最小可用等价
 
-`lctrl` 是**无状态 CLI**,不支持持续进程调度守护。因此 `lctrl perf schedule` 只做**一次性**动作:
+`vantage` 是**无状态 CLI**,不支持持续进程调度守护。因此 `vantage perf schedule` 只做**一次性**动作:
 
 ```
-lctrl perf schedule top        # 输出当前前台 + 高 CPU 进程 (读)
-lctrl perf schedule boost <pid> [--core=p|e|auto]   # 提升单一进程优先级/亲和性
-lctrl perf schedule throttle <pid>                   # 降低优先级 + 工作集收缩
+vantage perf schedule top        # 输出当前前台 + 高 CPU 进程 (读)
+vantage perf schedule boost <pid> [--core=p|e|auto]   # 提升单一进程优先级/亲和性
+vantage perf schedule throttle <pid>                   # 降低优先级 + 工作集收缩
 ```
 
 - `boost`:调用 `SetProcessPriorityBoost`, `SetThreadPriority(HIGH)`, 若识别到 P/E 组则设置亲和性到 P-core。
@@ -630,7 +630,7 @@ Linux 后端:用 `ps` / `/proc/<pid>/stat` 替代 PDH;`chrt` 设置调度策略;
 
 ### 7.1 不新增电源方案
 
-PCManager **不创建新的电源计划**,而是复用系统内置方案 (平衡 / 节能 / 高性能) 后,通过 `PowerWrite*ValueIndex` 覆盖高级电源设置。`lctrl` 应遵循同一策略,避免污染系统电源方案列表。
+PCManager **不创建新的电源计划**,而是复用系统内置方案 (平衡 / 节能 / 高性能) 后,通过 `PowerWrite*ValueIndex` 覆盖高级电源设置。`vantage` 应遵循同一策略,避免污染系统电源方案列表。
 
 ### 7.2 覆盖的 GUID 域
 
@@ -664,27 +664,25 @@ PCManager **不创建新的电源计划**,而是复用系统内置方案 (平衡
 | 硬盘停止 | 短 | 中 | 关 |
 | 内存 OC | 关 | 关 | 允许 |
 
-### 7.5 `lctrl` 持久化
+### 7.5 `vantage` 持久化
 
-`lctrl` 应将每次 `pl1` / `pl2` / `mode` 变更**同时写入注册表**(Windows) 或 `~/.config/lctrl/perf.json`(Linux),以支持 `--restore` 恢复默认。
+`vantage` 应将每次 `pl1` / `pl2` / `mode` 变更**同时写入注册表**(Windows) 或 `~/.config/vantage/perf.json`(Linux),以支持 `--restore` 恢复默认。
 
 ```
-lctrl perf mode set performance   # 同时写入 CURRENT_SETTING
-lctrl perf pl1 set 15000          # 写入 GUID_PROCESSOR_THROTTLE 与注册表
-lctrl perf pl1 restore            # 从注册表恢复
+vantage perf mode set performance   # 同时写入 CURRENT_SETTING
+vantage perf pl1 set 15000          # 写入 GUID_PROCESSOR_THROTTLE 与注册表
+vantage perf pl1 restore            # 从注册表恢复
 ```
 
 ---
 
 ## 8. WMI 事件订阅
 
-`lctrl perf watch` 与 daemon 模式需要订阅以下 WMI 事件类 (通过 WQL `SELECT * FROM __InstanceModificationEvent` 或 `__EventFilter` + `__FileWatcher`)。
-
 ### 8.1 事件类全表
 
-| WMI 事件类 | 关键字段 | 触发时机 | `lctrl` 用途 |
-|---|---|---|---|
+
 | `LENOVO_GAMEZONE_THERMAL_MODE_EVENT` | `mode: UInt32` | 温控模式变化 (Fn+Q / CLI) | 同步 `mode` 状态 |
+|---|---|---|---|
 | `LENOVO_GAMEZONE_SMART_FAN_MODE_EVENT` | `mode: UInt32`, `version: UInt32` | Smart Fan 模式变化 | 同步风扇策略 |
 | `LENOVO_GAMEZONE_SMART_FAN_SETTING_EVENT` | `mode: UInt32` | 用户修改自定义曲线 | 重载 `fan table` |
 | `LENOVO_GAMEZONE_FAN_COOLING_EVENT` | `EventId: UInt32` | 风扇冷却启停 | 同步 `fan status` |
@@ -705,7 +703,7 @@ Windows 上通过 WMI Event Query:
 WQL: "SELECT * FROM LENOVO_GAMEZONE_THERMAL_MODE_EVENT"
 ```
 
-`lctrl perf watch` 应:
+`vantage perf watch` 应:
 1. 打开 `root\WMI` 命名空间。
 2. 创建 `__EventFilter` + `__EventConsumer` (或直接 `IWbemServices::CreateAsyncQuery`)。
 3. 循环读取事件,格式化为 JSON 行输出。
@@ -727,7 +725,7 @@ Linux 上无 WMI;应:
 | 2 | 高温 (触发降频) |
 | 3 | 过热 (触发关机保护) |
 
-`lctrl` 在收到 Status ≥ 1 时应输出告警日志。
+`vantage` 在收到 Status ≥ 1 时应输出告警日志。
 
 ---
 

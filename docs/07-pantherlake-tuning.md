@@ -8,7 +8,7 @@
 ## 1. 功耗控制栈全貌(分层职责)
 
 ```
-┌─ 用户策略层   lctrl tune / daemon 自动策略(本工具,替代 Vantage SmartScenario + PCManager AiTurbo)
+┌─ 用户策略层   vantage tune / daemon 自动策略(本工具,替代 Vantage SmartScenario + PCManager AiTurbo)
 ├─ OS 电源层    Windows Power Scheme(GUID_PROCESSOR_THROTTLE 等)/ Linux intel_pstate EPP
 ├─ 调度提示层   HWP/EPP + Thread Director(异构调度提示)/ PCManager ResScheduler(进程亲和性)
 ├─ DPTF/IPF 层  Intel Innovation Platform Framework:IETM 管理器 + 参与者(SEN1-5/CHRG/TPWR)
