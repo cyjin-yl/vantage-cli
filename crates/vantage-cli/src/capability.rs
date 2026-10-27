@@ -80,10 +80,10 @@ pub fn command_layer(command: &crate::Command) -> lctrl_core::StateLayer {
             command: Some(crate::TuneCommand::Epp { .. } | crate::TuneCommand::Turbo { .. }),
         } => StateLayer::PlatformDependent,
         Command::Tune {
-            command: Some(crate::TuneCommand::Telemetry { .. } | crate::TuneCommand::Watch { .. }),
+            command: Some(crate::TuneCommand::Telemetry { .. } | crate::TuneCommand::Watch),
         } => StateLayer::Runtime,
         Command::Tune {
-            command: Some(crate::TuneCommand::Pl1 { .. } | crate::TuneCommand::Restore { .. }),
+            command: Some(crate::TuneCommand::Pl1 { .. } | crate::TuneCommand::Restore),
         } => StateLayer::Composite,
         Command::Tune { command: None } => StateLayer::NotApplicable,
         Command::Kbd {
@@ -112,7 +112,7 @@ pub fn command_layer(command: &crate::Command) -> lctrl_core::StateLayer {
             command:
                 Some(
                     BiosCommand::Set { .. }
-                    | BiosCommand::Save { .. }
+                    | BiosCommand::Save
                     | BiosCommand::Discard
                     | BiosCommand::Defaults
                     | BiosCommand::Password { command: Some(_) },
@@ -462,7 +462,7 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
             command: Some(BiosCommand::Set { .. }),
         } => CommandId::BIOS_SET,
         Command::Bios {
-            command: Some(BiosCommand::Save { .. }),
+            command: Some(BiosCommand::Save),
         } => CommandId::BIOS_SAVE,
         Command::Bios {
             command: Some(BiosCommand::Discard),
@@ -785,7 +785,6 @@ fn feature_presence(
         FeatureBinding::Unprobed(_) => FeaturePresence::Unverified,
         FeatureBinding::Capability(feature) => capability_presence(feature, capabilities),
         FeatureBinding::AnyOf(features) => {
-            let mut present = false;
             let mut limited = false;
             let mut unavailable = false;
             for feature in features {
@@ -796,14 +795,11 @@ fn feature_presence(
                     FeaturePresence::Unsupported => unavailable = true,
                     FeaturePresence::Unverified => {}
                 }
-                present = true;
             }
             if limited {
                 FeaturePresence::Limited
             } else if unavailable {
                 FeaturePresence::Unavailable
-            } else if present {
-                FeaturePresence::Unverified
             } else {
                 FeaturePresence::Unverified
             }
