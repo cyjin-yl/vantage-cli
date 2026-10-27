@@ -1,0 +1,3580 @@
+{
+  "binary_sha256": "191de126366105b19297b560536a7eac8dc68f2f7f03ac3cd314c808d48a8b86",
+  "scope": "Native read-only/zero-write admission smoke only. No hardware-control or overall replacement acceptance.",
+  "cases": [
+    {
+      "command": "capability",
+      "exit_code": 0,
+      "deadline": false,
+      "output": [
+        {
+          "command": "info",
+          "layer": "not_applicable",
+          "status": "available",
+          "reason": "capability_available",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "not_applicable"
+          },
+          "feature_ids": [],
+          "service_roles": [
+            "hal"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [],
+          "hardware": "not_applicable",
+          "detail": null
+        },
+        {
+          "command": "doctor",
+          "layer": "not_applicable",
+          "status": "available",
+          "reason": "capability_available",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "not_applicable"
+          },
+          "feature_ids": [],
+          "service_roles": [
+            "hal"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [],
+          "hardware": "not_applicable",
+          "detail": null
+        },
+        {
+          "command": "capability",
+          "layer": "not_applicable",
+          "status": "available",
+          "reason": "capability_available",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "not_applicable"
+          },
+          "feature_ids": [],
+          "service_roles": [
+            "hal"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [],
+          "hardware": "not_applicable",
+          "detail": "read-only matrix of this command surface"
+        },
+        {
+          "command": "battery.status",
+          "layer": "runtime",
+          "status": "available",
+          "reason": "capability_available",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "battery.status"
+          ],
+          "service_roles": [
+            "battery"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "energy_driver",
+              "usage": "optional"
+            },
+            {
+              "dependency": "public_win32_cim",
+              "usage": "optional"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "HAL capability battery.status is available"
+        },
+        {
+          "command": "battery.adapter",
+          "layer": "runtime",
+          "status": "available",
+          "reason": "capability_available",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "battery.adapter"
+          ],
+          "service_roles": [
+            "battery"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "energy_driver",
+              "usage": "optional"
+            },
+            {
+              "dependency": "public_win32_cim",
+              "usage": "optional"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "HAL capability battery.adapter is available"
+        },
+        {
+          "command": "battery.charge-mode",
+          "layer": "runtime",
+          "status": "unavailable",
+          "reason": "capability_unavailable",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "battery.charge_mode"
+          ],
+          "service_roles": [
+            "battery"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "energy_driver",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "GBMD conservation/express writes are accepted, but 21VG firmware exposes no independent charge-mode readback (docs/C-acceptance.md C2)"
+        },
+        {
+          "command": "battery.thresholds",
+          "layer": "runtime",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "battery.thresholds"
+          ],
+          "service_roles": [],
+          "missing_service_roles": [],
+          "dependencies": [],
+          "hardware": "not_applicable",
+          "detail": "the target has no verified arbitrary-threshold writer"
+        },
+        {
+          "command": "battery.extreme-life",
+          "layer": "runtime",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "battery.extreme-life"
+          ],
+          "service_roles": [],
+          "missing_service_roles": [],
+          "dependencies": [],
+          "hardware": "not_applicable",
+          "detail": "no verified extreme-life channel is attached"
+        },
+        {
+          "command": "battery.night-charge",
+          "layer": "runtime",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "battery.night-charge"
+          ],
+          "service_roles": [],
+          "missing_service_roles": [],
+          "dependencies": [],
+          "hardware": "not_applicable",
+          "detail": "no verified night-charge channel is attached"
+        },
+        {
+          "command": "battery.temporary-mode",
+          "layer": "runtime",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "battery.temporary-mode"
+          ],
+          "service_roles": [],
+          "missing_service_roles": [],
+          "dependencies": [],
+          "hardware": "not_applicable",
+          "detail": "temporary-mode is read-only and no verified reader is attached"
+        },
+        {
+          "command": "battery.watch",
+          "layer": "runtime",
+          "status": "unverified",
+          "reason": "capability_unprobed",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "runtime"
+          },
+          "feature_ids": [],
+          "service_roles": [
+            "events"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "windows_wmi_events",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "the executor has no independent HAL capability probe; subscribes to the attached WMI event source; no hardware acceptance is claimed"
+        },
+        {
+          "command": "usb.always-on",
+          "layer": "runtime",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "usb.always-on"
+          ],
+          "service_roles": [
+            "usb"
+          ],
+          "missing_service_roles": [
+            "usb"
+          ],
+          "dependencies": [
+            {
+              "dependency": "energy_driver",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no verified runtime USB charging control service is attached"
+        },
+        {
+          "command": "usb.always-on",
+          "layer": "bios_persistent",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "layer": "bios_persistent"
+          },
+          "feature_ids": [
+            "usb.always-on"
+          ],
+          "service_roles": [
+            "bios"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no BIOS USB-charging transaction is attached"
+        },
+        {
+          "command": "usb.charge-on-battery",
+          "layer": "runtime",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "usb.charge-on-battery"
+          ],
+          "service_roles": [
+            "usb"
+          ],
+          "missing_service_roles": [
+            "usb"
+          ],
+          "dependencies": [
+            {
+              "dependency": "energy_driver",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no verified battery-mode USB charging control service is attached"
+        },
+        {
+          "command": "usb.charge-on-battery",
+          "layer": "bios_persistent",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "layer": "bios_persistent"
+          },
+          "feature_ids": [
+            "usb.charge-on-battery"
+          ],
+          "service_roles": [
+            "bios"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no BIOS USB-charging transaction is attached"
+        },
+        {
+          "command": "power.scheme",
+          "layer": "os_persistent",
+          "status": "limited",
+          "reason": "capability_limited",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "os_persistent"
+          },
+          "feature_ids": [
+            "power.scheme"
+          ],
+          "service_roles": [
+            "power"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "win32_power_api",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "Power API readiness is probed by the power service at command time"
+        },
+        {
+          "command": "power.scheme.list",
+          "layer": "os_persistent",
+          "status": "limited",
+          "reason": "capability_limited",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "os_persistent"
+          },
+          "feature_ids": [
+            "power.scheme"
+          ],
+          "service_roles": [
+            "power"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "win32_power_api",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "Power API readiness is probed by the power service at command time"
+        },
+        {
+          "command": "power.scheme.get",
+          "layer": "os_persistent",
+          "status": "limited",
+          "reason": "capability_limited",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "os_persistent"
+          },
+          "feature_ids": [
+            "power.scheme"
+          ],
+          "service_roles": [
+            "power"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "win32_power_api",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "Power API readiness is probed by the power service at command time"
+        },
+        {
+          "command": "power.scheme.apply",
+          "layer": "os_persistent",
+          "status": "limited",
+          "reason": "capability_limited",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "layer": "os_persistent"
+          },
+          "feature_ids": [
+            "power.scheme"
+          ],
+          "service_roles": [
+            "power"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "win32_power_api",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "Power API readiness is probed by the power service at command time"
+        },
+        {
+          "command": "power.scheme.set",
+          "layer": "os_persistent",
+          "status": "unverified",
+          "reason": "capability_unprobed",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "layer": "os_persistent"
+          },
+          "feature_ids": [
+            "power.scheme.setting"
+          ],
+          "service_roles": [
+            "power"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "win32_power_api",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no HAL capability probe is registered for power.scheme.setting"
+        },
+        {
+          "command": "power.saver-once",
+          "layer": "os_persistent",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "layer": "os_persistent"
+          },
+          "feature_ids": [
+            "power.saver-once"
+          ],
+          "service_roles": [
+            "battery",
+            "power"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "energy_driver",
+              "usage": "required"
+            },
+            {
+              "dependency": "win32_power_api",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "composite saver workflow has no transactional executor"
+        },
+        {
+          "command": "perf.mode",
+          "layer": "runtime",
+          "status": "limited",
+          "reason": "capability_limited",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "previous_state",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "perf.mode"
+          ],
+          "service_roles": [
+            "performance"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "lenovo_process_management",
+              "usage": "required"
+            },
+            {
+              "dependency": "win32_registry",
+              "usage": "required"
+            },
+            {
+              "dependency": "win32_scm",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "ITS mode is readable from the documented Dispatcher registry; the write channel needs vendor service control codes that are not documented numerically"
+        },
+        {
+          "command": "perf.fan.status",
+          "layer": "runtime",
+          "status": "available",
+          "reason": "capability_available",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "perf.fan.mode",
+            "perf.fan.inventory"
+          ],
+          "service_roles": [
+            "fan"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "perf.fan.mode: no verified fan-mode write channel on 21VG firmware; perf.fan.inventory: HAL capability perf.fan.inventory is available"
+        },
+        {
+          "command": "perf.fan.auto",
+          "layer": "runtime",
+          "status": "unavailable",
+          "reason": "capability_unavailable",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "previous_state",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "perf.fan.mode"
+          ],
+          "service_roles": [
+            "fan"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no verified fan-mode write channel on 21VG firmware"
+        },
+        {
+          "command": "perf.fan.manual",
+          "layer": "runtime",
+          "status": "unavailable",
+          "reason": "capability_unavailable",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "previous_state",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "perf.fan.mode"
+          ],
+          "service_roles": [
+            "fan"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no verified fan-mode write channel on 21VG firmware"
+        },
+        {
+          "command": "perf.fan.fullspeed",
+          "layer": "runtime",
+          "status": "unavailable",
+          "reason": "capability_unavailable",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "previous_state",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "perf.fan.mode"
+          ],
+          "service_roles": [
+            "fan"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no verified fan-mode write channel on 21VG firmware"
+        },
+        {
+          "command": "perf.fan.smart",
+          "layer": "runtime",
+          "status": "unavailable",
+          "reason": "capability_unavailable",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "previous_state",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "perf.fan.mode"
+          ],
+          "service_roles": [
+            "fan"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no verified fan-mode write channel on 21VG firmware"
+        },
+        {
+          "command": "perf.fan.curve",
+          "layer": "runtime",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "perf.fan.curve"
+          ],
+          "service_roles": [
+            "fan"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no verified fan-table kernel interface is attached"
+        },
+        {
+          "command": "perf.temp",
+          "layer": "runtime",
+          "status": "available",
+          "reason": "capability_available",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "perf.temp"
+          ],
+          "service_roles": [
+            "temperature"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "public_win32_cim",
+              "usage": "required"
+            },
+            {
+              "dependency": "energy_driver",
+              "usage": "optional"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "HAL capability perf.temp is available"
+        },
+        {
+          "command": "perf.temp.read",
+          "layer": "runtime",
+          "status": "available",
+          "reason": "capability_available",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "perf.temp"
+          ],
+          "service_roles": [
+            "temperature"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "public_win32_cim",
+              "usage": "required"
+            },
+            {
+              "dependency": "energy_driver",
+              "usage": "optional"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "HAL capability perf.temp is available"
+        },
+        {
+          "command": "perf.temp.watch",
+          "layer": "runtime",
+          "status": "unverified",
+          "reason": "capability_unprobed",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "runtime"
+          },
+          "feature_ids": [],
+          "service_roles": [
+            "events"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [],
+          "hardware": "not_applicable",
+          "detail": "the executor has no independent HAL capability probe; bounded labeled temperature polling; no documented temperature-sample event class exists"
+        },
+        {
+          "command": "perf.pl1",
+          "layer": "runtime",
+          "status": "unavailable",
+          "reason": "capability_unavailable",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "tune.pl1"
+          ],
+          "service_roles": [
+            "tuning"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "intel_dptf",
+              "usage": "optional"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "Windows raw MSR/RAPL writes are unavailable"
+        },
+        {
+          "command": "perf.pl2",
+          "layer": "runtime",
+          "status": "unavailable",
+          "reason": "capability_unavailable",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "tune.pl2"
+          ],
+          "service_roles": [
+            "tuning"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "intel_dptf",
+              "usage": "optional"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "Windows raw MSR/RAPL writes are unavailable"
+        },
+        {
+          "command": "perf.top",
+          "layer": "not_applicable",
+          "status": "unverified",
+          "reason": "capability_unprobed",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "not_applicable"
+          },
+          "feature_ids": [
+            "perf.top"
+          ],
+          "service_roles": [
+            "process"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "win32_process_api",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no HAL capability probe is registered for perf.top"
+        },
+        {
+          "command": "perf.boost",
+          "layer": "runtime",
+          "status": "unverified",
+          "reason": "capability_unprobed",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "perf.boost"
+          ],
+          "service_roles": [
+            "process"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "win32_process_api",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no HAL capability probe is registered for perf.boost"
+        },
+        {
+          "command": "perf.throttle",
+          "layer": "runtime",
+          "status": "unverified",
+          "reason": "capability_unprobed",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "perf.throttle"
+          ],
+          "service_roles": [
+            "process"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "win32_process_api",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no HAL capability probe is registered for perf.throttle"
+        },
+        {
+          "command": "perf.restore",
+          "layer": "runtime",
+          "status": "unverified",
+          "reason": "capability_unprobed",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "perf.restore"
+          ],
+          "service_roles": [
+            "process"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "win32_process_api",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no HAL capability probe is registered for perf.restore; service attachment is not hardware acceptance"
+        },
+        {
+          "command": "perf.trim",
+          "layer": "runtime",
+          "status": "unverified",
+          "reason": "capability_unprobed",
+          "axes": {
+            "read": false,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "perf.trim"
+          ],
+          "service_roles": [
+            "process"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "win32_process_api",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no HAL capability probe is registered for perf.trim; service attachment is not hardware acceptance; one-shot working-set trim is nonreversible, is not a persistent quota, and requires --allow-nonreversible"
+        },
+        {
+          "command": "tune.profile.list",
+          "layer": "local_persistent",
+          "status": "available",
+          "reason": "capability_available",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "local_persistent"
+          },
+          "feature_ids": [],
+          "service_roles": [],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": null
+        },
+        {
+          "command": "tune.profile.show",
+          "layer": "local_persistent",
+          "status": "available",
+          "reason": "capability_available",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "local_persistent"
+          },
+          "feature_ids": [],
+          "service_roles": [],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": null
+        },
+        {
+          "command": "tune.profile.apply",
+          "layer": "composite",
+          "status": "limited",
+          "reason": "capability_limited",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "layer": "composite"
+          },
+          "feature_ids": [
+            "battery.charge_mode",
+            "perf.mode",
+            "perf.fan.mode",
+            "tune.epp",
+            "tune.pl1",
+            "tune.pl2",
+            "tune.tau",
+            "kbd.backlight"
+          ],
+          "service_roles": [
+            "battery",
+            "performance",
+            "fan",
+            "tuning",
+            "keyboard"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "battery.charge_mode: GBMD conservation/express writes are accepted, but 21VG firmware exposes no independent charge-mode readback (docs/C-acceptance.md C2); perf.mode: ITS mode is readable from the documented Dispatcher registry; the write channel needs vendor service control codes that are not documented numerically; perf.fan.mode: no verified fan-mode write channel on 21VG firmware; tune.epp: PERFEPP percentage writes are verified with AC/DC readback; raw values without an exact percentage inverse are refused (docs/C-acceptance.md C5); tune.pl1: Windows raw MSR/RAPL writes are unavailable; tune.pl2: Windows raw MSR/RAPL writes are unavailable; tune.tau: Windows raw MSR/RAPL writes are unavailable; kbd.backlight: ROOT\\WMI query: WMI HRESULT 0x8004100C"
+        },
+        {
+          "command": "tune.pl1",
+          "layer": "composite",
+          "status": "unavailable",
+          "reason": "capability_unavailable",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "layer": "composite"
+          },
+          "feature_ids": [
+            "tune.pl1",
+            "tune.pl2",
+            "tune.tau"
+          ],
+          "service_roles": [
+            "tuning"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "intel_dptf",
+              "usage": "optional"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "tune.pl1: Windows raw MSR/RAPL writes are unavailable; tune.pl2: Windows raw MSR/RAPL writes are unavailable; tune.tau: Windows raw MSR/RAPL writes are unavailable"
+        },
+        {
+          "command": "tune.epp",
+          "layer": "platform_dependent",
+          "status": "available",
+          "reason": "capability_available",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "layer": "platform_dependent"
+          },
+          "feature_ids": [
+            "tune.epp"
+          ],
+          "service_roles": [
+            "tuning"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "win32_power_api",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "PERFEPP percentage writes are verified with AC/DC readback; raw values without an exact percentage inverse are refused (docs/C-acceptance.md C5)"
+        },
+        {
+          "command": "tune.turbo",
+          "layer": "platform_dependent",
+          "status": "available",
+          "reason": "capability_available",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "layer": "platform_dependent"
+          },
+          "feature_ids": [
+            "tune.turbo"
+          ],
+          "service_roles": [
+            "processor_power"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "win32_power_api",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "PERFBOOSTMODE policy writes are verified with AC/DC readback; the effect stays an OS policy, not a frequency guarantee (docs/C-acceptance.md C6); Windows PERFBOOSTMODE policy readback is not a hardware-frequency guarantee; see C6 acceptance evidence"
+        },
+        {
+          "command": "tune.restore",
+          "layer": "composite",
+          "status": "limited",
+          "reason": "capability_limited",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "layer": "composite"
+          },
+          "feature_ids": [
+            "battery.charge_mode",
+            "perf.mode",
+            "perf.fan.mode",
+            "tune.epp",
+            "tune.pl1",
+            "tune.pl2",
+            "tune.tau",
+            "kbd.backlight"
+          ],
+          "service_roles": [
+            "battery",
+            "performance",
+            "fan",
+            "tuning",
+            "keyboard"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "battery.charge_mode: GBMD conservation/express writes are accepted, but 21VG firmware exposes no independent charge-mode readback (docs/C-acceptance.md C2); perf.mode: ITS mode is readable from the documented Dispatcher registry; the write channel needs vendor service control codes that are not documented numerically; perf.fan.mode: no verified fan-mode write channel on 21VG firmware; tune.epp: PERFEPP percentage writes are verified with AC/DC readback; raw values without an exact percentage inverse are refused (docs/C-acceptance.md C5); tune.pl1: Windows raw MSR/RAPL writes are unavailable; tune.pl2: Windows raw MSR/RAPL writes are unavailable; tune.tau: Windows raw MSR/RAPL writes are unavailable; kbd.backlight: ROOT\\WMI query: WMI HRESULT 0x8004100C"
+        },
+        {
+          "command": "tune.telemetry",
+          "layer": "runtime",
+          "status": "available",
+          "reason": "capability_available",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "tune.epp",
+            "tune.pl1",
+            "tune.pl2",
+            "tune.tau",
+            "battery.status",
+            "perf.mode"
+          ],
+          "service_roles": [
+            "tuning",
+            "battery",
+            "performance"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [],
+          "hardware": "not_applicable",
+          "detail": "tune.epp: PERFEPP percentage writes are verified with AC/DC readback; raw values without an exact percentage inverse are refused (docs/C-acceptance.md C5)"
+        },
+        {
+          "command": "tune.watch",
+          "layer": "runtime",
+          "status": "unverified",
+          "reason": "capability_unprobed",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "runtime"
+          },
+          "feature_ids": [],
+          "service_roles": [
+            "events"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "windows_wmi_events",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "the executor has no independent HAL capability probe; subscribes to the attached WMI event source; no hardware acceptance is claimed"
+        },
+        {
+          "command": "kbd.backlight",
+          "layer": "runtime",
+          "status": "unavailable",
+          "reason": "capability_unavailable",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "kbd.backlight"
+          ],
+          "service_roles": [
+            "keyboard"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "ROOT\\WMI query: WMI HRESULT 0x8004100C"
+        },
+        {
+          "command": "kbd.fnlock",
+          "layer": "bios_persistent",
+          "status": "unverified",
+          "reason": "capability_unprobed",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "layer": "bios_persistent"
+          },
+          "feature_ids": [
+            "kbd.fnlock"
+          ],
+          "service_roles": [
+            "bios"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no HAL capability probe is registered for kbd.fnlock"
+        },
+        {
+          "command": "kbd.fn-ctrl-swap",
+          "layer": "bios_persistent",
+          "status": "unverified",
+          "reason": "capability_unprobed",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "layer": "bios_persistent"
+          },
+          "feature_ids": [
+            "kbd.fn-ctrl-swap"
+          ],
+          "service_roles": [
+            "bios"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no HAL capability probe is registered for kbd.fn-ctrl-swap; service attachment is not hardware acceptance"
+        },
+        {
+          "command": "kbd.winlock",
+          "layer": "runtime",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "wmi.gamezone.methods"
+          ],
+          "service_roles": [],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "GAMEZONE Win-key methods are not verified on the target"
+        },
+        {
+          "command": "touchpad",
+          "layer": "platform_dependent",
+          "status": "unverified",
+          "reason": "capability_unprobed",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "layer": "platform_dependent"
+          },
+          "feature_ids": [
+            "touchpad"
+          ],
+          "service_roles": [
+            "touchpad"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "win32_device_management",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no HAL capability probe is registered for touchpad; source support is not C7 hardware acceptance; the leaf disable/restore cycle remains unaccepted"
+        },
+        {
+          "command": "panel.rate",
+          "layer": "runtime",
+          "status": "available",
+          "reason": "capability_available",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "panel.refresh"
+          ],
+          "service_roles": [
+            "panel"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "win32_display_api",
+              "usage": "required"
+            },
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "verified 60/120 Hz internal-panel transitions; requires the interactive desktop session (docs/C-acceptance.md C1)"
+        },
+        {
+          "command": "panel.color",
+          "layer": "runtime",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "panel.color.write"
+          ],
+          "service_roles": [
+            "panel"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no verified panel color writer is attached"
+        },
+        {
+          "command": "panel.super-resolution",
+          "layer": "runtime",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "panel.super-resolution.write"
+          ],
+          "service_roles": [],
+          "missing_service_roles": [],
+          "dependencies": [],
+          "hardware": "not_applicable",
+          "detail": "no verified SmartEngine writer is attached"
+        },
+        {
+          "command": "panel.overdrive",
+          "layer": "runtime",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "panel.overdrive.write"
+          ],
+          "service_roles": [
+            "panel"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no verified overdrive writer is attached"
+        },
+        {
+          "command": "panel.eye-care",
+          "layer": "runtime",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "panel.eye-care.write"
+          ],
+          "service_roles": [
+            "panel"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no verified eye-care writer is attached"
+        },
+        {
+          "command": "privacy.cam",
+          "layer": "runtime",
+          "status": "limited",
+          "reason": "capability_limited",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "privacy.camera"
+          ],
+          "service_roles": [
+            "privacy"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "win32_device_management",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "persistent BIOS privacy service is required for writes"
+        },
+        {
+          "command": "privacy.cam",
+          "layer": "bios_persistent",
+          "status": "limited",
+          "reason": "capability_limited",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "layer": "bios_persistent"
+          },
+          "feature_ids": [
+            "privacy.camera"
+          ],
+          "service_roles": [
+            "bios"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "persistent BIOS privacy service is required for writes"
+        },
+        {
+          "command": "privacy.mic",
+          "layer": "runtime",
+          "status": "limited",
+          "reason": "capability_limited",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "privacy.microphone"
+          ],
+          "service_roles": [
+            "privacy"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "win32_device_management",
+              "usage": "required"
+            },
+            {
+              "dependency": "windows_audio",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "persistent BIOS privacy service is required for writes"
+        },
+        {
+          "command": "privacy.mic",
+          "layer": "bios_persistent",
+          "status": "limited",
+          "reason": "capability_limited",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "layer": "bios_persistent"
+          },
+          "feature_ids": [
+            "privacy.microphone"
+          ],
+          "service_roles": [
+            "bios"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "persistent BIOS privacy service is required for writes"
+        },
+        {
+          "command": "privacy.fingerprint",
+          "layer": "composite",
+          "status": "limited",
+          "reason": "capability_limited",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "layer": "composite"
+          },
+          "feature_ids": [
+            "privacy.fingerprint"
+          ],
+          "service_roles": [
+            "bios"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "persistent BIOS privacy service is required for writes"
+        },
+        {
+          "command": "privacy.status",
+          "layer": "composite",
+          "status": "limited",
+          "reason": "capability_limited",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "composite"
+          },
+          "feature_ids": [
+            "privacy.camera",
+            "privacy.microphone",
+            "privacy.fingerprint"
+          ],
+          "service_roles": [
+            "privacy",
+            "bios"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            },
+            {
+              "dependency": "win32_device_management",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "privacy.camera: persistent BIOS privacy service is required for writes; privacy.microphone: persistent BIOS privacy service is required for writes; privacy.fingerprint: persistent BIOS privacy service is required for writes"
+        },
+        {
+          "command": "sense.status",
+          "layer": "runtime",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "sense.status"
+          ],
+          "service_roles": [
+            "sense"
+          ],
+          "missing_service_roles": [
+            "sense"
+          ],
+          "dependencies": [
+            {
+              "dependency": "smart_sense",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "SmartSense requires an unavailable vendor RPC channel"
+        },
+        {
+          "command": "sense.lock-on-leave",
+          "layer": "runtime",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "sense.lock-on-leave"
+          ],
+          "service_roles": [
+            "sense"
+          ],
+          "missing_service_roles": [
+            "sense"
+          ],
+          "dependencies": [
+            {
+              "dependency": "smart_sense",
+              "usage": "required"
+            },
+            {
+              "dependency": "windows_hpd",
+              "usage": "optional"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "SmartSense requires an unavailable vendor RPC channel"
+        },
+        {
+          "command": "sense.wake-on-approach",
+          "layer": "runtime",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "sense.wake-on-approach"
+          ],
+          "service_roles": [
+            "sense"
+          ],
+          "missing_service_roles": [
+            "sense"
+          ],
+          "dependencies": [
+            {
+              "dependency": "smart_sense",
+              "usage": "required"
+            },
+            {
+              "dependency": "windows_hpd",
+              "usage": "optional"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "SmartSense requires an unavailable vendor RPC channel"
+        },
+        {
+          "command": "sense.pause-video",
+          "layer": "runtime",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "sense.pause-video"
+          ],
+          "service_roles": [
+            "sense"
+          ],
+          "missing_service_roles": [
+            "sense"
+          ],
+          "dependencies": [
+            {
+              "dependency": "smart_sense",
+              "usage": "required"
+            },
+            {
+              "dependency": "windows_hpd",
+              "usage": "optional"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "SmartSense requires an unavailable vendor RPC channel"
+        },
+        {
+          "command": "sense.attention-tracking",
+          "layer": "runtime",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "sense.attention-tracking"
+          ],
+          "service_roles": [
+            "sense"
+          ],
+          "missing_service_roles": [
+            "sense"
+          ],
+          "dependencies": [
+            {
+              "dependency": "smart_sense",
+              "usage": "required"
+            },
+            {
+              "dependency": "windows_hpd",
+              "usage": "optional"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "SmartSense requires an unavailable vendor RPC channel"
+        },
+        {
+          "command": "sense.kbd-light-auto",
+          "layer": "runtime",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "sense.kbd-light-auto"
+          ],
+          "service_roles": [
+            "sense"
+          ],
+          "missing_service_roles": [
+            "sense"
+          ],
+          "dependencies": [
+            {
+              "dependency": "smart_sense",
+              "usage": "required"
+            },
+            {
+              "dependency": "windows_hpd",
+              "usage": "optional"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "SmartSense requires an unavailable vendor RPC channel"
+        },
+        {
+          "command": "audio.dolby",
+          "layer": "runtime",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "previous_state",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "audio.dolby"
+          ],
+          "service_roles": [
+            "audio"
+          ],
+          "missing_service_roles": [
+            "audio"
+          ],
+          "dependencies": [
+            {
+              "dependency": "dolby_audio_sdk",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "audio control requires an unavailable licensed/vendor channel"
+        },
+        {
+          "command": "audio.noise-cancel",
+          "layer": "runtime",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "previous_state",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "audio.noise-cancel"
+          ],
+          "service_roles": [
+            "audio"
+          ],
+          "missing_service_roles": [
+            "audio"
+          ],
+          "dependencies": [
+            {
+              "dependency": "noise_cancellation_sdk",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "audio control requires an unavailable licensed/vendor channel"
+        },
+        {
+          "command": "wifi.security",
+          "layer": "local_persistent",
+          "status": "unverified",
+          "reason": "capability_unprobed",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "layer": "local_persistent"
+          },
+          "feature_ids": [
+            "wifi.security"
+          ],
+          "service_roles": [
+            "wifi_security"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "win32_wlan",
+              "usage": "required"
+            },
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no HAL capability probe is registered for wifi.security; service attachment is not hardware acceptance; a commit appends observations to the bounded user-local history file; --dry-run does not write"
+        },
+        {
+          "command": "wifi.history",
+          "layer": "local_persistent",
+          "status": "available",
+          "reason": "capability_available",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "local_persistent"
+          },
+          "feature_ids": [],
+          "service_roles": [
+            "wifi_security"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "history is a bounded user-local file; it is not a system-wide tracking database"
+        },
+        {
+          "command": "wifi.history.clear",
+          "layer": "local_persistent",
+          "status": "available",
+          "reason": "capability_available",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "unavailable",
+            "layer": "local_persistent"
+          },
+          "feature_ids": [],
+          "service_roles": [
+            "wifi_security"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "removes the user-local history file; the cleared observations are not restorable"
+        },
+        {
+          "command": "wifi.policy",
+          "layer": "local_persistent",
+          "status": "available",
+          "reason": "capability_available",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "local_persistent"
+          },
+          "feature_ids": [],
+          "service_roles": [
+            "wifi_security"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "reports the memory-only history policy; it does not change OS Wi-Fi settings"
+        },
+        {
+          "command": "bios.list",
+          "layer": "bios_persistent",
+          "status": "unverified",
+          "reason": "capability_unprobed",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "bios_persistent"
+          },
+          "feature_ids": [
+            "bios"
+          ],
+          "service_roles": [
+            "bios"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no HAL capability probe is registered for bios; service attachment is not hardware acceptance"
+        },
+        {
+          "command": "bios.get",
+          "layer": "bios_persistent",
+          "status": "unverified",
+          "reason": "capability_unprobed",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "bios_persistent"
+          },
+          "feature_ids": [
+            "bios"
+          ],
+          "service_roles": [
+            "bios"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no HAL capability probe is registered for bios; service attachment is not hardware acceptance"
+        },
+        {
+          "command": "bios.set",
+          "layer": "bios_persistent",
+          "status": "unverified",
+          "reason": "capability_unprobed",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "layer": "bios_persistent"
+          },
+          "feature_ids": [
+            "bios"
+          ],
+          "service_roles": [
+            "bios"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no HAL capability probe is registered for bios; service attachment is not hardware acceptance"
+        },
+        {
+          "command": "bios.save",
+          "layer": "bios_persistent",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": false,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "layer": "bios_persistent"
+          },
+          "feature_ids": [
+            "bios.save.global-buffer"
+          ],
+          "service_roles": [
+            "bios"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "standalone global BIOS-buffer save is not supported"
+        },
+        {
+          "command": "bios.apply",
+          "layer": "bios_persistent",
+          "status": "unverified",
+          "reason": "capability_unprobed",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "layer": "bios_persistent"
+          },
+          "feature_ids": [
+            "bios.apply"
+          ],
+          "service_roles": [
+            "bios"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no HAL capability probe is registered for bios.apply; service attachment is not hardware acceptance; one firmware transaction for the whole batch; effect timing may still require reboot"
+        },
+        {
+          "command": "bios.discard",
+          "layer": "bios_persistent",
+          "status": "unverified",
+          "reason": "capability_unprobed",
+          "axes": {
+            "read": false,
+            "write": true,
+            "readback": "not_applicable",
+            "rollback": "unavailable",
+            "layer": "bios_persistent"
+          },
+          "feature_ids": [
+            "bios.discard"
+          ],
+          "service_roles": [
+            "bios"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no HAL capability probe is registered for bios.discard; service attachment is not hardware acceptance"
+        },
+        {
+          "command": "bios.defaults",
+          "layer": "bios_persistent",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "layer": "bios_persistent"
+          },
+          "feature_ids": [
+            "bios.defaults"
+          ],
+          "service_roles": [
+            "bios"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "experimental or underspecified BIOS defaults are unavailable"
+        },
+        {
+          "command": "bios.password.status",
+          "layer": "bios_persistent",
+          "status": "unverified",
+          "reason": "capability_unprobed",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "bios_persistent"
+          },
+          "feature_ids": [
+            "bios.password.status"
+          ],
+          "service_roles": [
+            "bios"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no HAL capability probe is registered for bios.password.status; service attachment is not hardware acceptance"
+        },
+        {
+          "command": "bios.password.set",
+          "layer": "bios_persistent",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "layer": "bios_persistent"
+          },
+          "feature_ids": [
+            "bios.password.set"
+          ],
+          "service_roles": [
+            "bios"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "SetBiosPassword parameter encoding is underspecified"
+        },
+        {
+          "command": "bios.password.clear",
+          "layer": "bios_persistent",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "layer": "bios_persistent"
+          },
+          "feature_ids": [
+            "bios.password.clear"
+          ],
+          "service_roles": [
+            "bios"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "SetBiosPassword parameter encoding is underspecified"
+        },
+        {
+          "command": "bios.password.verify",
+          "layer": "bios_persistent",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "bios_persistent"
+          },
+          "feature_ids": [
+            "bios.password.verify"
+          ],
+          "service_roles": [
+            "bios"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "SetBiosPassword parameter encoding is underspecified"
+        },
+        {
+          "command": "magicbay.detect",
+          "layer": "not_applicable",
+          "status": "limited",
+          "reason": "capability_limited",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "not_applicable"
+          },
+          "feature_ids": [
+            "magicbay.inventory"
+          ],
+          "service_roles": [
+            "magicbay"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "win32_setup_api",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "SetupAPI inventory is provided by the separate MagicBay service"
+        },
+        {
+          "command": "magicbay.lte.status",
+          "layer": "runtime",
+          "status": "not_applicable",
+          "reason": "hardware_not_applicable",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "magicbay.lte"
+          ],
+          "service_roles": [
+            "mobile_broadband"
+          ],
+          "missing_service_roles": [
+            "mobile_broadband"
+          ],
+          "dependencies": [
+            {
+              "dependency": "win32_mobile_broadband",
+              "usage": "required"
+            }
+          ],
+          "hardware": "absent",
+          "detail": "required MagicBay hardware is absent"
+        },
+        {
+          "command": "magicbay.lte.connect",
+          "layer": "runtime",
+          "status": "not_applicable",
+          "reason": "hardware_not_applicable",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "magicbay.lte"
+          ],
+          "service_roles": [
+            "mobile_broadband"
+          ],
+          "missing_service_roles": [
+            "mobile_broadband"
+          ],
+          "dependencies": [
+            {
+              "dependency": "win32_mobile_broadband",
+              "usage": "required"
+            }
+          ],
+          "hardware": "absent",
+          "detail": "required MagicBay hardware is absent"
+        },
+        {
+          "command": "magicbay.lte.disconnect",
+          "layer": "runtime",
+          "status": "not_applicable",
+          "reason": "hardware_not_applicable",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "magicbay.lte"
+          ],
+          "service_roles": [
+            "mobile_broadband"
+          ],
+          "missing_service_roles": [
+            "mobile_broadband"
+          ],
+          "dependencies": [
+            {
+              "dependency": "win32_mobile_broadband",
+              "usage": "required"
+            }
+          ],
+          "hardware": "absent",
+          "detail": "required MagicBay hardware is absent"
+        },
+        {
+          "command": "magicbay.lte.apn",
+          "layer": "os_persistent",
+          "status": "not_applicable",
+          "reason": "hardware_not_applicable",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "layer": "os_persistent"
+          },
+          "feature_ids": [
+            "magicbay.lte"
+          ],
+          "service_roles": [
+            "mobile_broadband"
+          ],
+          "missing_service_roles": [
+            "mobile_broadband"
+          ],
+          "dependencies": [
+            {
+              "dependency": "win32_mobile_broadband",
+              "usage": "required"
+            }
+          ],
+          "hardware": "absent",
+          "detail": "required MagicBay hardware is absent"
+        },
+        {
+          "command": "magicbay.cam",
+          "layer": "runtime",
+          "status": "not_applicable",
+          "reason": "hardware_not_applicable",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "magicbay.cam"
+          ],
+          "service_roles": [
+            "magicbay_camera"
+          ],
+          "missing_service_roles": [
+            "magicbay_camera"
+          ],
+          "dependencies": [
+            {
+              "dependency": "win32_media_foundation",
+              "usage": "required"
+            }
+          ],
+          "hardware": "absent",
+          "detail": "required MagicBay hardware is absent"
+        },
+        {
+          "command": "magicbay.display",
+          "layer": "runtime",
+          "status": "not_applicable",
+          "reason": "hardware_not_applicable",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "magicbay.display"
+          ],
+          "service_roles": [
+            "magicbay_display"
+          ],
+          "missing_service_roles": [
+            "magicbay_display"
+          ],
+          "dependencies": [
+            {
+              "dependency": "win32_display_api",
+              "usage": "required"
+            }
+          ],
+          "hardware": "absent",
+          "detail": "required MagicBay hardware is absent"
+        },
+        {
+          "command": "magicbay.watch",
+          "layer": "runtime",
+          "status": "not_applicable",
+          "reason": "hardware_not_applicable",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "runtime"
+          },
+          "feature_ids": [],
+          "service_roles": [
+            "events"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "win32_device_notifications",
+              "usage": "required"
+            }
+          ],
+          "hardware": "absent",
+          "detail": "required MagicBay hardware is absent"
+        },
+        {
+          "command": "osd.enable",
+          "layer": "os_persistent",
+          "status": "unverified",
+          "reason": "capability_unprobed",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "previous_state",
+            "layer": "os_persistent"
+          },
+          "feature_ids": [
+            "osd.enable"
+          ],
+          "service_roles": [
+            "osd"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "local_daemon",
+              "usage": "optional"
+            },
+            {
+              "dependency": "lenovo_utility_service",
+              "usage": "optional"
+            },
+            {
+              "dependency": "lenovo_fn_and_function_keys",
+              "usage": "optional"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no HAL capability probe is registered for osd.enable; service attachment is not hardware acceptance"
+        },
+        {
+          "command": "osd.disable",
+          "layer": "os_persistent",
+          "status": "unverified",
+          "reason": "capability_unprobed",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "previous_state",
+            "layer": "os_persistent"
+          },
+          "feature_ids": [
+            "osd.disable"
+          ],
+          "service_roles": [
+            "osd"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "local_daemon",
+              "usage": "optional"
+            },
+            {
+              "dependency": "lenovo_utility_service",
+              "usage": "optional"
+            },
+            {
+              "dependency": "lenovo_fn_and_function_keys",
+              "usage": "optional"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no HAL capability probe is registered for osd.disable; service attachment is not hardware acceptance"
+        },
+        {
+          "command": "osd.test",
+          "layer": "runtime",
+          "status": "unverified",
+          "reason": "capability_unprobed",
+          "axes": {
+            "read": false,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "osd.test"
+          ],
+          "service_roles": [
+            "osd"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "local_daemon",
+              "usage": "optional"
+            },
+            {
+              "dependency": "lenovo_utility_service",
+              "usage": "optional"
+            },
+            {
+              "dependency": "lenovo_fn_and_function_keys",
+              "usage": "optional"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no HAL capability probe is registered for osd.test; service attachment is not hardware acceptance"
+        },
+        {
+          "command": "update.check",
+          "layer": "not_applicable",
+          "status": "unverified",
+          "reason": "capability_unprobed",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "not_applicable"
+          },
+          "feature_ids": [
+            "update.capability"
+          ],
+          "service_roles": [
+            "update"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [],
+          "hardware": "not_applicable",
+          "detail": "no HAL capability probe is registered for update.capability; service attachment is not hardware acceptance; reports trusted local-INF capability only; no remote catalog check is claimed"
+        },
+        {
+          "command": "update.local.install",
+          "layer": "not_applicable",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "layer": "not_applicable"
+          },
+          "feature_ids": [
+            "update.local_driver"
+          ],
+          "service_roles": [
+            "update"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "win32_setup_api",
+              "usage": "required"
+            },
+            {
+              "dependency": "win32_win_trust",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no local update subcommand or executor is attached to this command surface"
+        },
+        {
+          "command": "update.local.rollback",
+          "layer": "not_applicable",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "layer": "not_applicable"
+          },
+          "feature_ids": [
+            "update.local_driver.rollback"
+          ],
+          "service_roles": [
+            "update"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "win32_setup_api",
+              "usage": "required"
+            },
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no local update subcommand or executor is attached to this command surface"
+        },
+        {
+          "command": "update.local.history",
+          "layer": "local_persistent",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "local_persistent"
+          },
+          "feature_ids": [
+            "update.local_driver.policy"
+          ],
+          "service_roles": [
+            "update"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no local update subcommand or executor is attached to this command surface"
+        },
+        {
+          "command": "update.local.ignore",
+          "layer": "local_persistent",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "layer": "local_persistent"
+          },
+          "feature_ids": [
+            "update.local_driver.policy"
+          ],
+          "service_roles": [
+            "update"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no local update subcommand or executor is attached to this command surface"
+        },
+        {
+          "command": "update.local.schedule",
+          "layer": "local_persistent",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "layer": "local_persistent"
+          },
+          "feature_ids": [
+            "update.local_driver.policy"
+          ],
+          "service_roles": [
+            "update"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no local update subcommand or executor is attached to this command surface"
+        },
+        {
+          "command": "update.download",
+          "layer": "local_persistent",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "transactional",
+            "layer": "local_persistent"
+          },
+          "feature_ids": [
+            "update.download.without-authenticated-manifest"
+          ],
+          "service_roles": [
+            "update"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "authenticated_update_catalog",
+              "usage": "required"
+            },
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no authenticated remote update manifest is attached"
+        },
+        {
+          "command": "update.install",
+          "layer": "not_applicable",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "layer": "not_applicable"
+          },
+          "feature_ids": [
+            "update.install.without-authenticated-manifest"
+          ],
+          "service_roles": [
+            "update"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "authenticated_update_catalog",
+              "usage": "required"
+            },
+            {
+              "dependency": "win32_setup_api",
+              "usage": "required"
+            },
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no authenticated remote update manifest is attached"
+        },
+        {
+          "command": "update.history",
+          "layer": "local_persistent",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "local_persistent"
+          },
+          "feature_ids": [
+            "update.history.without-catalog"
+          ],
+          "service_roles": [
+            "update"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no remote update catalog is attached"
+        },
+        {
+          "command": "update.ignore",
+          "layer": "local_persistent",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "layer": "local_persistent"
+          },
+          "feature_ids": [
+            "update.ignore.without-catalog"
+          ],
+          "service_roles": [
+            "update"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no remote update catalog is attached"
+        },
+        {
+          "command": "update.rollback",
+          "layer": "not_applicable",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "layer": "not_applicable"
+          },
+          "feature_ids": [
+            "update.rollback.without-install-ledger"
+          ],
+          "service_roles": [
+            "update"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "win32_setup_api",
+              "usage": "required"
+            },
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no remote update install ledger is attached"
+        },
+        {
+          "command": "update.schedule",
+          "layer": "local_persistent",
+          "status": "unsupported",
+          "reason": "dispatch_unsupported",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "layer": "local_persistent"
+          },
+          "feature_ids": [
+            "update.schedule.without-catalog"
+          ],
+          "service_roles": [
+            "update"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no remote update catalog is attached"
+        },
+        {
+          "command": "scan.list",
+          "layer": "not_applicable",
+          "status": "available",
+          "reason": "capability_available",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "not_applicable"
+          },
+          "feature_ids": [
+            "diagnostics.inventory"
+          ],
+          "service_roles": [
+            "diagnostics"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "public_win32_cim",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "HAL capability diagnostics.inventory is available"
+        },
+        {
+          "command": "scan.run",
+          "layer": "not_applicable",
+          "status": "available",
+          "reason": "capability_available",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "not_applicable"
+          },
+          "feature_ids": [
+            "diagnostics.inventory"
+          ],
+          "service_roles": [
+            "diagnostics"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "public_win32_cim",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "HAL capability diagnostics.inventory is available"
+        },
+        {
+          "command": "scan.cancel",
+          "layer": "local_persistent",
+          "status": "available",
+          "reason": "capability_available",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "not_applicable",
+            "layer": "local_persistent"
+          },
+          "feature_ids": [],
+          "service_roles": [
+            "diagnostics"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "requests cancellation of a running scan through a local request file"
+        },
+        {
+          "command": "scan.status",
+          "layer": "runtime",
+          "status": "unverified",
+          "reason": "capability_unprobed",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "runtime"
+          },
+          "feature_ids": [
+            "diagnostics.status"
+          ],
+          "service_roles": [
+            "diagnostics"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "optional"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "no HAL capability probe is registered for diagnostics.status; service attachment is not hardware acceptance"
+        },
+        {
+          "command": "snapshot.capture",
+          "layer": "local_persistent",
+          "status": "limited",
+          "reason": "capability_limited",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "layer": "local_persistent"
+          },
+          "feature_ids": [
+            "battery.charge_mode",
+            "perf.mode",
+            "perf.fan.mode",
+            "tune.epp",
+            "tune.pl1",
+            "tune.pl2",
+            "tune.tau",
+            "kbd.backlight",
+            "touchpad",
+            "privacy.camera",
+            "power.scheme"
+          ],
+          "service_roles": [
+            "battery",
+            "performance",
+            "fan",
+            "tuning",
+            "keyboard",
+            "touchpad",
+            "privacy",
+            "power"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "battery.charge_mode: GBMD conservation/express writes are accepted, but 21VG firmware exposes no independent charge-mode readback (docs/C-acceptance.md C2); perf.mode: ITS mode is readable from the documented Dispatcher registry; the write channel needs vendor service control codes that are not documented numerically; perf.fan.mode: no verified fan-mode write channel on 21VG firmware; tune.epp: PERFEPP percentage writes are verified with AC/DC readback; raw values without an exact percentage inverse are refused (docs/C-acceptance.md C5); tune.pl1: Windows raw MSR/RAPL writes are unavailable; tune.pl2: Windows raw MSR/RAPL writes are unavailable; tune.tau: Windows raw MSR/RAPL writes are unavailable; kbd.backlight: ROOT\\WMI query: WMI HRESULT 0x8004100C; touchpad: no HAL capability probe is registered for touchpad; privacy.camera: persistent BIOS privacy service is required for writes; power.scheme: Power API readiness is probed by the power service at command time"
+        },
+        {
+          "command": "snapshot.diff",
+          "layer": "composite",
+          "status": "limited",
+          "reason": "capability_limited",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "composite"
+          },
+          "feature_ids": [
+            "battery.charge_mode",
+            "perf.mode",
+            "perf.fan.mode",
+            "tune.epp",
+            "tune.pl1",
+            "tune.pl2",
+            "tune.tau",
+            "kbd.backlight",
+            "touchpad",
+            "privacy.camera",
+            "power.scheme"
+          ],
+          "service_roles": [
+            "battery",
+            "performance",
+            "fan",
+            "tuning",
+            "keyboard",
+            "touchpad",
+            "privacy",
+            "power"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "battery.charge_mode: GBMD conservation/express writes are accepted, but 21VG firmware exposes no independent charge-mode readback (docs/C-acceptance.md C2); perf.mode: ITS mode is readable from the documented Dispatcher registry; the write channel needs vendor service control codes that are not documented numerically; perf.fan.mode: no verified fan-mode write channel on 21VG firmware; tune.epp: PERFEPP percentage writes are verified with AC/DC readback; raw values without an exact percentage inverse are refused (docs/C-acceptance.md C5); tune.pl1: Windows raw MSR/RAPL writes are unavailable; tune.pl2: Windows raw MSR/RAPL writes are unavailable; tune.tau: Windows raw MSR/RAPL writes are unavailable; kbd.backlight: ROOT\\WMI query: WMI HRESULT 0x8004100C; touchpad: no HAL capability probe is registered for touchpad; privacy.camera: persistent BIOS privacy service is required for writes; power.scheme: Power API readiness is probed by the power service at command time"
+        },
+        {
+          "command": "snapshot.restore",
+          "layer": "local_persistent",
+          "status": "limited",
+          "reason": "capability_limited",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "layer": "local_persistent"
+          },
+          "feature_ids": [
+            "battery.charge_mode",
+            "perf.mode",
+            "perf.fan.mode",
+            "tune.epp",
+            "tune.pl1",
+            "tune.pl2",
+            "tune.tau",
+            "kbd.backlight",
+            "touchpad",
+            "privacy.camera",
+            "power.scheme"
+          ],
+          "service_roles": [
+            "battery",
+            "performance",
+            "fan",
+            "tuning",
+            "keyboard",
+            "touchpad",
+            "privacy",
+            "power"
+          ],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": "battery.charge_mode: GBMD conservation/express writes are accepted, but 21VG firmware exposes no independent charge-mode readback (docs/C-acceptance.md C2); perf.mode: ITS mode is readable from the documented Dispatcher registry; the write channel needs vendor service control codes that are not documented numerically; perf.fan.mode: no verified fan-mode write channel on 21VG firmware; tune.epp: PERFEPP percentage writes are verified with AC/DC readback; raw values without an exact percentage inverse are refused (docs/C-acceptance.md C5); tune.pl1: Windows raw MSR/RAPL writes are unavailable; tune.pl2: Windows raw MSR/RAPL writes are unavailable; tune.tau: Windows raw MSR/RAPL writes are unavailable; kbd.backlight: ROOT\\WMI query: WMI HRESULT 0x8004100C; touchpad: no HAL capability probe is registered for touchpad; privacy.camera: persistent BIOS privacy service is required for writes; power.scheme: Power API readiness is probed by the power service at command time"
+        },
+        {
+          "command": "daemon.start",
+          "layer": "runtime",
+          "status": "external",
+          "reason": "external_dispatch",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "required",
+            "rollback": "unavailable",
+            "layer": "runtime"
+          },
+          "feature_ids": [],
+          "service_roles": [],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "local_daemon",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": null
+        },
+        {
+          "command": "daemon.stop",
+          "layer": "runtime",
+          "status": "external",
+          "reason": "external_dispatch",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "layer": "runtime"
+          },
+          "feature_ids": [],
+          "service_roles": [],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "local_daemon",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": null
+        },
+        {
+          "command": "daemon.status",
+          "layer": "runtime",
+          "status": "external",
+          "reason": "external_dispatch",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "runtime"
+          },
+          "feature_ids": [],
+          "service_roles": [],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "local_daemon",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": null
+        },
+        {
+          "command": "daemon.install",
+          "layer": "os_persistent",
+          "status": "external",
+          "reason": "external_dispatch",
+          "axes": {
+            "read": true,
+            "write": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "layer": "os_persistent"
+          },
+          "feature_ids": [],
+          "service_roles": [],
+          "missing_service_roles": [],
+          "dependencies": [
+            {
+              "dependency": "local_daemon",
+              "usage": "required"
+            },
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            },
+            {
+              "dependency": "win32_task_scheduler",
+              "usage": "required"
+            }
+          ],
+          "hardware": "not_applicable",
+          "detail": null
+        },
+        {
+          "command": "completions",
+          "layer": "not_applicable",
+          "status": "available",
+          "reason": "capability_available",
+          "axes": {
+            "read": true,
+            "write": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "layer": "not_applicable"
+          },
+          "feature_ids": [],
+          "service_roles": [],
+          "missing_service_roles": [],
+          "dependencies": [],
+          "hardware": "not_applicable",
+          "detail": null
+        }
+      ],
+      "stderr": ""
+    },
+    {
+      "command": "perf.top",
+      "exit_code": 0,
+      "deadline": false,
+      "output": {
+        "topology": {
+          "classes": [
+            {
+              "efficiency_class": 0,
+              "group_masks": [
+                {
+                  "group": 0,
+                  "mask": 65520
+                }
+              ]
+            },
+            {
+              "efficiency_class": 1,
+              "group_masks": [
+                {
+                  "group": 0,
+                  "mask": 15
+                }
+              ]
+            }
+          ]
+        },
+        "topology_error": null,
+        "inventory": {
+          "observed_process_count": 10,
+          "skipped_processes": 1
+        },
+        "projection_note": "Process identities and image paths excluded from this capability-admission receipt."
+      },
+      "stderr": ""
+    },
+    {
+      "command": "wifi.security.dry_run",
+      "exit_code": 0,
+      "deadline": false,
+      "output": {
+        "interfaces": [
+          {
+            "observed_at_unix_ms": 1793111881483,
+            "interface_description": "Intel(R) Wi-Fi 7 BE213 160MHz",
+            "connection_state": "connected",
+            "live_network": {
+              "ssid": "[redacted]",
+              "authentication": "wpa2",
+              "cipher": "ccmp",
+              "signal_percent": 81,
+              "assessment": {
+                "finding": "safe",
+                "reason": "wpa2_ccmp"
+              }
+            }
+          }
+        ]
+      },
+      "stderr": ""
+    }
+  ]
+}
