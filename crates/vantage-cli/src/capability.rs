@@ -679,7 +679,7 @@ fn evaluate_command(
                     ObservedStatus::NotApplicable,
                     Some(reason.into()),
                     service_roles,
-                    dependencies(entry),
+                    dependencies(entry, platform),
                 );
             }
             return make(
@@ -688,16 +688,16 @@ fn evaluate_command(
                 ObservedStatus::Unsupported,
                 Some(reason.into()),
                 service_roles,
-                dependencies(entry),
+                dependencies(entry, platform),
             );
         }
-        (DispatchSupport::Implemented, ServicePresence::Unexposed, _) => ObservedStatus::Unverified,
         (DispatchSupport::Implemented, _service, FeaturePresence::Unsupported) => {
             ObservedStatus::Unsupported
         }
         (DispatchSupport::Implemented, _service, FeaturePresence::Unavailable) => {
             ObservedStatus::Unavailable
         }
+        (DispatchSupport::Implemented, ServicePresence::Unexposed, _) => ObservedStatus::Unverified,
         (DispatchSupport::Implemented, _service, FeaturePresence::Limited) => {
             ObservedStatus::Limited
         }
@@ -720,7 +720,7 @@ fn evaluate_command(
         status,
         None,
         service_roles,
-        dependencies(entry),
+        dependencies(entry, platform),
     )
 }
 
@@ -750,27 +750,13 @@ fn service_presence(binding: ServiceBinding) -> ServicePresence {
 }
 
 fn role_presence(roles: &[ServiceRole]) -> ServicePresence {
-    if roles.is_empty() {
-        return ServicePresence::Unexposed;
-    }
-    match roles[0] {
-        ServiceRole::Hal
-        | ServiceRole::Battery
-        | ServiceRole::Bios
-        | ServiceRole::Diagnostics
-        | ServiceRole::Fan
-        | ServiceRole::Keyboard
-        | ServiceRole::MagicBay
-        | ServiceRole::Performance
-        | ServiceRole::Power
-        | ServiceRole::Privacy
-        | ServiceRole::Touchpad
-        | ServiceRole::Panel
-        | ServiceRole::Temperature
-        | ServiceRole::Tuning
-        | ServiceRole::Update
-        | ServiceRole::ProcessorPower => ServicePresence::Present,
-        _ => ServicePresence::Unexposed,
+    // The current evaluator receives only the root HAL, not the composition
+    // root's optional service attachments. Never infer that a hardware
+    // service is attached merely because a capability name exists.
+    if !roles.is_empty() && roles.iter().all(|role| *role == ServiceRole::Hal) {
+        ServicePresence::Present
+    } else {
+        ServicePresence::Unexposed
     }
 }
 
@@ -846,8 +832,21 @@ fn service_role_names(binding: ServiceBinding) -> Vec<&'static str> {
     }
 }
 
-fn dependencies(entry: &CommandCapability) -> Vec<lctrl_core::CommandDependency> {
-    entry.dependencies.to_vec()
+fn dependencies(
+    entry: &CommandCapability,
+    platform: lctrl_core::Platform,
+) -> Vec<lctrl_core::CommandDependency> {
+    entry
+        .dependencies
+        .iter()
+        .copied()
+        .filter(|dependency| {
+            dependency
+                .dependency
+                .platform()
+                .is_none_or(|required| required == platform)
+        })
+        .collect()
 }
 
 fn make(
