@@ -1,0 +1,3711 @@
+{
+  "recorded_at_utc": "2026-10-27T12:23:28.943955+00:00",
+  "repo": "ezra/vantage-cli",
+  "tracker_number": 39,
+  "local_source_head": "0d149130feb7779bb15ba25095c38b33bd60a58b",
+  "source_note": "Native executable includes touchpad recovery working changes documented in C7; baseline precedes in-flight capability/automation/process/WiFi work.",
+  "published_branches": {
+    "work/vantage-implementation": "489438060e8539240e54d325f1f673a40dde7cc6",
+    "feature/windows-public-battery-channel": "5c2c60ac1ec66402c4289cc63974727460ba9946",
+    "work/lctrl-implementation": "841a2b1d87e8baa16f5d61049a7976d493ed839a",
+    "main": "e5edaf40eebd6b1edf8d3fd9408902f1b2801219"
+  },
+  "native_executable_sha256": "8888c6f771c51f86ef7216d856a66a3952eb0b64ab4de0100fe66fe58154bfa5",
+  "domain_count": 38,
+  "native_registry_row_count": 111,
+  "native_read_case_count": 12,
+  "native_read_failures": 0,
+  "gpu_readback": [
+    {
+      "Name": "GameViewer Virtual Display Adapter",
+      "AdapterCompatibility": "GameViewer",
+      "PNPDeviceID": "ROOT\\DISPLAY\\0000",
+      "DriverVersion": "15.6.5.199"
+    },
+    {
+      "Name": "OrayIddDriver Device",
+      "AdapterCompatibility": "Shanghai Best Oray Information Technology Co., Ltd.",
+      "PNPDeviceID": "ROOT\\DISPLAY\\0001",
+      "DriverVersion": "17.50.19.949"
+    },
+    {
+      "Name": "Intel(R) Arc(TM) B390 GPU",
+      "AdapterCompatibility": "Intel Corporation",
+      "PNPDeviceID": "PCI\\VEN_8086&DEV_B080&SUBSYS_809917AA&REV_04\\3&11583659&0&10",
+      "DriverVersion": "32.0.101.9033"
+    }
+  ],
+  "magicbay_readback": {
+    "acpi_devices": [],
+    "devices": []
+  },
+  "safety_boundaries": [
+    "No more touchpad off commits during owner use",
+    "No vendor binary inspection",
+    "No unknown control-code/Feature-ID/IOCTL sweeps",
+    "No VBS/HVCI bypass",
+    "No firmware or BIOS password writes",
+    "Keep required official drivers/services until verified replacement cutover"
+  ],
+  "completion_gates": [
+    "For each applicable write: actual effect, independent readback, dry-run no side effect and recovery",
+    "Classify hardware inapplicability separately from missing contract and missing implementation",
+    "Do not infer hardware support from tests, source, metadata or CI",
+    "Do not advise removal of official components without verified minimal dependency coverage"
+  ],
+  "domains": [
+    {
+      "issue": 1,
+      "title": "[Feature][Windows][P1] 接通真实硬件事件和 CLI watch 流",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/1\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:33:36Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：`battery watch`、`perf temp watch`、`tune watch`、`magicbay watch`；背光、模式、AC、电池和热插拔变化\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\ndaemon 已有 authenticated IPC、Subscribe 和 bounded history；Windows event source 仍是每 2 秒读取部分状态的轮询，CLI 多个 watch 分支直接 Unsupported，温度 watch 同样未接通。不是要求重写现有 IPC，而是补齐生产者—订阅—命令消费者的完整通路。\n\n## 实现／规格依据\n- [crates/vantage-daemon/src/main.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-daemon/src/main.rs#L51-L85)\n- [crates/vantage-daemon/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-daemon/src/lib.rs#L9-L18)\n- [crates/vantage-cli/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs#L1590-L1618)\n- [docs/08-architecture.md](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/08-architecture.md)\n- [电池规格 §11 事件](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/02-power-battery.md)\n- [外设规格 §2.3 事件](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/04-peripherals.md)\n\n## 验收条件\n- [ ] 将已验证 AC/电池/Dispatcher/lighting/thermal/device 事件或明确标注的有界轮询映射到稳定事件 schema；传感器和 MagicBay 数据源分别复用对应 feature 的 HAL。\n- [ ] 每个 watch 命令实际消费事件，含时间、来源、设备标识、旧／新状态或明确不可读原因；不得只输出一个快照后静默成功。\n- [ ] 验证实际变化、无重复空事件、断连重订阅、设备拔出及 Ctrl+C 退出；订阅线程和缓冲均有界，退出后资源释放。\n- [ ] 无 daemon 时按规格直接订阅；不支持的事件源返回准确原因，不依赖长期管理员后台进程。\n\n- [ ] MagicBay watch 覆盖 USB＋ACPI／显示通知与休眠恢复，按规格完成 300ms detach 重查，不把临时移除当永久拔出。\n\n## 安全与明确边界\n保留现有 IPC 鉴权与 bounded history；不要全局捕获用户键入、不要盲目扫描固件事件。该 issue 只负责通路，设备控制和自动策略各自建单。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010614922 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "battery.watch",
+          "dependencies": [
+            {
+              "dependency": "windows_wmi_events",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_udev",
+              "usage": "required"
+            }
+          ],
+          "detail": "battery event streaming requires an event service",
+          "feature_ids": [],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "events"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "perf.temp.watch",
+          "dependencies": [],
+          "detail": "no documented temperature-sample event class exists",
+          "feature_ids": [],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "events"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "tune.watch",
+          "dependencies": [
+            {
+              "dependency": "windows_wmi_events",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_udev",
+              "usage": "required"
+            }
+          ],
+          "detail": "tuning event streaming requires an event service",
+          "feature_ids": [],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "events"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "magicbay.watch",
+          "dependencies": [
+            {
+              "dependency": "win32_device_notifications",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_udev",
+              "usage": "required"
+            }
+          ],
+          "detail": "no documented MagicBay event class exists",
+          "feature_ids": [],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "events"
+          ],
+          "status": "unsupported"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 2,
+      "title": "[Feature][Windows][P1] 实现官方场景策略替代：自动 profile、主配置恢复与安全回退",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/2\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:33:39Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：`config.toml` 偏好恢复、AC/DC／进程／温度／电量／时间触发、`tune profile` 自动切换、外部覆写处理、背光闲置策略\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\n已有 profile TOML 解析、继承、优先级排序、计划及手动 apply/restore；模型包含 triggers/constraints/fallback，但没有 daemon 自动求值／执行闭环。`TunePlan` 对含运行时 constraints 的 Commit 明确拒绝；daemon 当前只广播状态，主 config.toml 偏好加载／恢复也未形成完整路径。\n\n## 实现／规格依据\n- [crates/lctrl-tune/src/model.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-tune/src/model.rs#L286-L401)\n- [crates/lctrl-tune/src/plan.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-tune/src/plan.rs#L20-L32)\n- [crates/vantage-daemon/src/main.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-daemon/src/main.rs)\n- [调优规格 §6 求值／施加／回退](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/07-pantherlake-tuning.md)\n- [配置规格 §1–4](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/10-config-schema.md)\n\n## 验收条件\n- [ ] 复用现有 parser/catalog/plan 与 HAL，实现真实触发求值：process > thermal > power source/battery > time > resident，含 hysteresis、min_dwell、max_reapply。\n- [ ] 实现主配置查找／覆盖、严格字段校验及用户明确启用后的重登／AC 变化偏好恢复；启动不得未经授权批量改硬件。\n- [ ] 自动执行前记录各目标前值；温度越限立即按 fallback 回退，外部软件持续覆写时限次后让出控制并明确报告。\n- [ ] 所有 profile 目标要么真实执行并回读，要么在执行前标明 unsupported，不得悄悄丢弃 GPU／刷新率／后台策略等目标。\n- [ ] 以真实 AC/DC、进程启动退出和有界可控温度输入验收自动转换、休眠恢复、重登、退出恢复及无反复抖动。\n\n## 安全与明确边界\n本项不克隆厂商云端 AI／进程白名单；用本地用户规则替代。不绕过 DPTF/EC 安全仲裁。具体执行目标由电源、性能、显示等 feature 提供。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010615299 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "composite",
+            "read": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "write": true
+          },
+          "command": "tune.profile.apply",
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "battery.charge_mode",
+            "perf.mode",
+            "perf.fan.mode",
+            "tune.epp",
+            "tune.pl1",
+            "tune.pl2",
+            "tune.tau",
+            "kbd.backlight"
+          ],
+          "hardware": "unknown",
+          "layer": "composite",
+          "service_roles": [
+            "battery",
+            "performance",
+            "fan",
+            "tuning",
+            "keyboard"
+          ],
+          "status": "limited"
+        },
+        {
+          "axes": {
+            "layer": "composite",
+            "read": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "write": true
+          },
+          "command": "tune.restore",
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "battery.charge_mode",
+            "perf.mode",
+            "perf.fan.mode",
+            "tune.epp",
+            "tune.pl1",
+            "tune.pl2",
+            "tune.tau",
+            "kbd.backlight"
+          ],
+          "hardware": "unknown",
+          "layer": "composite",
+          "service_roles": [
+            "battery",
+            "performance",
+            "fan",
+            "tuning",
+            "keyboard"
+          ],
+          "status": "limited"
+        },
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "required",
+            "rollback": "unavailable",
+            "write": true
+          },
+          "command": "daemon.start",
+          "dependencies": [
+            {
+              "dependency": "local_daemon",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [],
+          "status": "external"
+        },
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "write": true
+          },
+          "command": "daemon.stop",
+          "dependencies": [
+            {
+              "dependency": "local_daemon",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [],
+          "status": "external"
+        },
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "daemon.status",
+          "dependencies": [
+            {
+              "dependency": "local_daemon",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [],
+          "status": "external"
+        },
+        {
+          "axes": {
+            "layer": "os_persistent",
+            "read": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "write": true
+          },
+          "command": "daemon.install",
+          "dependencies": [
+            {
+              "dependency": "local_daemon",
+              "usage": "required"
+            },
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            },
+            {
+              "dependency": "win32_task_scheduler",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_systemd",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [],
+          "hardware": "unknown",
+          "layer": "os_persistent",
+          "service_roles": [],
+          "status": "external"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 3,
+      "title": "[Feature][Windows][P2] 提供官方热键／状态变化的轻量 OSD",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/3\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:33:42Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：`osd enable|disable|test`；Fn 模式、背光、触控板、隐私等状态提示\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\nCLI 已解析 osd 子命令，但统一落入 Unsupported；daemon 提供 IPC 并不等于拥有热键反馈或 OSD 后端。现有 GUI 是只读 dashboard，不应将其存在视为本功能已实现。\n\n## 实现／规格依据\n- [CLI 的 OsdCommand 与 unsupported_reason](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs)\n- [crates/vantage-daemon/src/main.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-daemon/src/main.rs)\n- [架构 §4.2 OSD 职责](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/08-architecture.md)\n- [外设／OSD 规格](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/04-peripherals.md)\n\n## 验收条件\n- [ ] enable/disable 持久控制用户会话中的轻量 overlay；test 能实际显示并自动消失。\n- [ ] 连接真实已验证状态事件，显示回读的实际结果，而非按键请求值；不支持／被拒绝的操作不能显示成功提示。\n- [ ] 按显示缩放、多屏、全屏应用、远程会话验证不夺焦点、可关闭、超时销毁及退出无残留。\n- [ ] 不依赖整个 Vantage Addin 宿主；说明仍需保留的热键／设备驱动组件和与官方 OSD 的互斥方法。\n\n- [ ] 提供受支持热键动作的用户可编程绑定，复用 LENOVO_UTILITY_EVENT 与已有控制原语；无需接管固件热键，不全局截获普通键入。\n\n## 安全与明确边界\n不记录键入、不打低级全局键盘钩子来推测硬件状态；复用已验证 WMI／设备事件，不抢占安全和热管理服务。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010615612 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "os_persistent",
+            "read": true,
+            "readback": "unverified",
+            "rollback": "previous_state",
+            "write": true
+          },
+          "command": "osd.enable",
+          "dependencies": [
+            {
+              "dependency": "local_daemon",
+              "usage": "required"
+            },
+            {
+              "dependency": "lenovo_utility_service",
+              "usage": "optional"
+            },
+            {
+              "dependency": "lenovo_fn_and_function_keys",
+              "usage": "optional"
+            }
+          ],
+          "detail": "OSD is daemon-only and no OSD backend is attached",
+          "feature_ids": [
+            "osd.enable"
+          ],
+          "hardware": "unknown",
+          "layer": "os_persistent",
+          "service_roles": [
+            "osd"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "os_persistent",
+            "read": true,
+            "readback": "unverified",
+            "rollback": "previous_state",
+            "write": true
+          },
+          "command": "osd.disable",
+          "dependencies": [
+            {
+              "dependency": "local_daemon",
+              "usage": "required"
+            },
+            {
+              "dependency": "lenovo_utility_service",
+              "usage": "optional"
+            },
+            {
+              "dependency": "lenovo_fn_and_function_keys",
+              "usage": "optional"
+            }
+          ],
+          "detail": "OSD is daemon-only and no OSD backend is attached",
+          "feature_ids": [
+            "osd.disable"
+          ],
+          "hardware": "unknown",
+          "layer": "os_persistent",
+          "service_roles": [
+            "osd"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": false,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "osd.test",
+          "dependencies": [
+            {
+              "dependency": "local_daemon",
+              "usage": "required"
+            },
+            {
+              "dependency": "lenovo_utility_service",
+              "usage": "optional"
+            },
+            {
+              "dependency": "lenovo_fn_and_function_keys",
+              "usage": "optional"
+            }
+          ],
+          "detail": "OSD is daemon-only and no OSD backend is attached",
+          "feature_ids": [
+            "osd.test"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "osd"
+          ],
+          "status": "unsupported"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 4,
+      "title": "[Feature][Windows][P0] 建立可执行的官方替代能力矩阵与最小依赖切换检查",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/4\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:33:46Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：`vantage info --json`、`doctor --json`；逐命令 read/write/verify 能力、官方组件保留清单和替代就绪检查\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\n已有 info/doctor 和 Windows capability 集合，但完整替代需要区分已实现、当前固件不可用、尚未验证、仅支持读取、仅支持 BIOS 持久设置等状态，且与实际 composition root 一致。当前多个功能没有 backend，部分 capability 原因比已实现 BIOS 路径更粗；不能用“关闭所有联想服务”作为替代验收。\n\n## 实现／规格依据\n- [crates/lctrl-hal-win/src/windows_hal.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal-win/src/windows_hal.rs)\n- [vantage/src/main.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/vantage/src/main.rs#L334-L371)\n- [crates/vantage-cli/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs#L1150-L1312)\n- [架构 §5 能力探测](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/08-architecture.md)\n- [净室总纲 §5.2 官方组件分层](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/00-cleanroom-charter.md)\n\n## 验收条件\n- [ ] 为全部官方范围内命令列出实际 read/write/readback/rollback 和当前设备 availability，原因可由程序消费；执行路径与报告一致。\n- [ ] 明确每项是否依赖 EnergyDrv、LenovoProcessManagement、SmartSense、热键、音频 SDK 等；不能声称替代 UI 就等于可以删除所有驱动／服务。\n- [ ] 提供默认只读的替代就绪报告：哪些刚需仍须官方 Vantage，哪些能独立工作，哪些仅经 BIOS 生效；不做 blanket service disable。\n- [ ] 以本批功能清单做完整覆盖验收；已实现的 BIOS set --save、FnLock/FnCtrlSwap、持久隐私和电源计划不重复实现。\n- [ ] 替代发布前至少完成 Windows 可运行二进制、CI 通过和目标机安全读写 smoke；构建通过本身不能升级硬件能力。\n\n## 安全与明确边界\n只报告依赖与用户可审阅的迁移步骤；未经明确授权不卸载／停用任何官方服务或驱动，不声称修复本次内存泄漏。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010616142 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "not_applicable",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "info",
+          "dependencies": [],
+          "detail": null,
+          "feature_ids": [],
+          "hardware": "unknown",
+          "layer": "not_applicable",
+          "service_roles": [
+            "hal"
+          ],
+          "status": "available"
+        },
+        {
+          "axes": {
+            "layer": "not_applicable",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "doctor",
+          "dependencies": [],
+          "detail": null,
+          "feature_ids": [],
+          "hardware": "unknown",
+          "layer": "not_applicable",
+          "service_roles": [
+            "hal"
+          ],
+          "status": "available"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 5,
+      "title": "[Feature][Windows][P0] 补齐电池健康、寿命与普通适配器遥测",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/5\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:33:50Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：`battery status`、`battery adapter`；容量／健康／循环／日期／剩余时间／功率与供电状态\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\n已有 EnergyDrv 83B 电池基础解析和 GBMD/GAPD 适配器读取，但核心模型多个扩展字段固定为 None；无 GAPD 详情时普通适配器的 AC 状态／功率／接口等仍未知。不是从零实现已有读取。\n\n## 实现／规格依据\n- [crates/lctrl-core/src/battery.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-core/src/battery.rs#L262-L320)\n- [crates/lctrl-core/src/battery.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-core/src/battery.rs#L451-L484)\n- [crates/lctrl-hal-win/src/p0.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal-win/src/p0.rs#L104-L145)\n- [电源规格 §7–8](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/02-power-battery.md)\n- [HAL §3.3 结构勘误](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/01-hal-interfaces.md)\n\n## 验收条件\n- [ ] 保留已有基础读取，以公开 Windows 电池／电源 API 或明确规格补齐实际可读字段；每个指标记录来源、单位和不可用原因。\n- [ ] 正常插电但不支持 GAPD 的适配器不能误报未插电；AC/DC、接口、供电能力、当前功率分别报告。\n- [ ] 在目标机对照系统／官方界面读数；校验电流符号、容量单位、无电池、容量未知和不同适配器状态。\n\n## 安全与明确边界\n规格不同版本的结构偏移／字段语义有差异；不得猜测未知尾字节、伪造健康百分比或生产日期。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010616679 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "battery.status",
+          "dependencies": [
+            {
+              "dependency": "energy_driver",
+              "usage": "optional"
+            },
+            {
+              "dependency": "public_win32_cim",
+              "usage": "optional"
+            },
+            {
+              "dependency": "linux_sysfs",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "battery.status"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "battery"
+          ],
+          "status": "available"
+        },
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "battery.adapter",
+          "dependencies": [
+            {
+              "dependency": "energy_driver",
+              "usage": "optional"
+            },
+            {
+              "dependency": "public_win32_cim",
+              "usage": "optional"
+            },
+            {
+              "dependency": "linux_sysfs",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "battery.adapter"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "battery"
+          ],
+          "status": "available"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 6,
+      "title": "[Feature][Windows][P0] 打通有独立回读的充电模式，并明确任意阈值的硬件限制",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/6\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:33:57Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：`battery charge-mode normal|conservation|rapid`、状态／恢复；`battery thresholds START STOP` admission\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\n生产 composition root 使用 UnverifiedChargeModeReader，必定拒绝充电状态回读，因此现有三态写序列不能成为可用功能；thresholds 仅解析后拒绝。现有序列、快充容量保护和恢复逻辑应复用。\n\n## 实现／规格依据\n- [vantage/src/main.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/vantage/src/main.rs#L324-L356)\n- [crates/lctrl-hal-win/src/p0.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal-win/src/p0.rs#L11-L96)\n- [crates/lctrl-hal-win/src/p0.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal-win/src/p0.rs#L145-L168)\n- [电源 §3、§4.2、§13](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/02-power-battery.md)\n\n## 验收条件\n- [ ] 先补充经目标机验证的充电实际状态读取契约，再接入 reader；所有三态切换显示请求／回读并在失败时恢复。\n- [ ] 保留快充与养护互斥顺序、39Wh／容量未知的快充拒绝及有界回读。\n- [ ] 阈值参数校验 5≤start≤95、10≤stop≤100、start<stop；配置阈值与 charge_mode 互斥。\n- [ ] 21VG 无任意阈值写通道、Storage80 能力位为 0 的事实应明确可查询；不支持仍拒绝，其他设备也须按真实能力开放。\n\n## 安全与明确边界\n待补的是独立 reader 契约，不是删掉安全门禁。禁止危险 GBMD 0x03（运输模式）；模式 9 不能伪装任意阈值或 Storage80。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010617447 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "write": true
+          },
+          "command": "battery.charge-mode",
+          "dependencies": [
+            {
+              "dependency": "energy_driver",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_sysfs",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "battery.charge_mode"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "battery"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "write": true
+          },
+          "command": "battery.thresholds",
+          "dependencies": [],
+          "detail": "the target has no verified arbitrary-threshold writer",
+          "feature_ids": [
+            "battery.thresholds"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [],
+          "status": "unsupported"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [
+        "C2"
+      ],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 7,
+      "title": "[Feature][Windows][P1] 实现夜间充电与临时充电模式的真实状态和能力探测",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/7\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:34:02Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：`battery night-charge on|off`、night 状态／恢复；`battery temporary-mode`\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\n命令已解析，但无对应生产领域接口和传输；unsupported_reason 明确拒绝。支持性探测与真正的当前状态／写入 payload 尚不能混同。\n\n## 实现／规格依据\n- [BatteryCommand / unsupported_reason](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs)\n- [crates/lctrl-hal-win/src/native_ioctl.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal-win/src/native_ioctl.rs#L30-L49)\n- [电源 §5 夜间／临时模式](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/02-power-battery.md)\n\n## 验收条件\n- [ ] 分别输出支持性、当前启用状态和只读 temporary-mode 原始值及语义，读取失败不能冒充 off。\n- [ ] 补齐已验证 night set/read 契约后才开放开关，保留原状态并验证恢复。\n- [ ] 验证未插电／切换适配器、不同 temporary bitmask 和不支持机型的结构化拒绝。\n\n## 安全与明确边界\n`0x83102150` 是支持性探测线索，不等于现成写通道；契约不全先补规格，不扫描 IOCTL 或尝试未知 GBMD 命令。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010617952 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "write": true
+          },
+          "command": "battery.night-charge",
+          "dependencies": [],
+          "detail": "no verified night-charge channel is attached",
+          "feature_ids": [
+            "battery.night-charge"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "battery.temporary-mode",
+          "dependencies": [],
+          "detail": "temporary-mode is read-only and no verified reader is attached",
+          "feature_ids": [
+            "battery.temporary-mode"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [],
+          "status": "unsupported"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 8,
+      "title": "[Feature][Windows][P1] 接通 USB 关机供电／电池供电的运行覆盖与 BIOS 默认值",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/8\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:34:06Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：`usb always-on on|off [--persistent]`、`usb charge-on-battery on|off [--persistent]`\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\nUSB 命令整体落入 Unsupported。通用 BIOS set/save/Selections/回读事务已经实现，缺的是 USB 领域接线、运行时控制及分层状态，而不是重写 BIOS 底层。\n\n## 实现／规格依据\n- [UsbCommand / unsupported_reason / execute_bios](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs)\n- [电源 §6、§12](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/02-power-battery.md)\n- [AlwaysOnUSB / ChargeInBatteryMode](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/05-bios-settings.md)\n\n## 验收条件\n- [ ] 单独报告运行覆盖、持久 BIOS 默认值、请求层及生效时机，不把 BIOS 修改当成即时覆盖。\n- [ ] --persistent 复用已有 selections→set/save→回读／恢复；运行态通过明确验证的 payload 实现。\n- [ ] 目标机验证 AC/DC、可用 USB 端口、重登／重启后默认值及失败恢复；不支持层返回准确原因。\n\n## 安全与明确边界\n规格中 USB `0x831020e8` 有读／开关叙述差异，需先澄清准确读写契约；不得据同一码猜测写法或绕过供电安全策略。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010618400 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "write": true
+          },
+          "command": "usb.always-on",
+          "dependencies": [
+            {
+              "dependency": "energy_driver",
+              "usage": "required"
+            }
+          ],
+          "detail": "no verified runtime USB charging control service is attached",
+          "feature_ids": [
+            "usb.always-on"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "usb"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "bios_persistent",
+            "read": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "write": true
+          },
+          "command": "usb.always-on",
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "detail": "no BIOS USB-charging transaction is attached",
+          "feature_ids": [
+            "usb.always-on"
+          ],
+          "hardware": "unknown",
+          "layer": "bios_persistent",
+          "service_roles": [
+            "bios"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "write": true
+          },
+          "command": "usb.charge-on-battery",
+          "dependencies": [
+            {
+              "dependency": "energy_driver",
+              "usage": "required"
+            }
+          ],
+          "detail": "no verified battery-mode USB charging control service is attached",
+          "feature_ids": [
+            "usb.charge-on-battery"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "usb"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "bios_persistent",
+            "read": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "write": true
+          },
+          "command": "usb.charge-on-battery",
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "detail": "no BIOS USB-charging transaction is attached",
+          "feature_ids": [
+            "usb.charge-on-battery"
+          ],
+          "hardware": "unknown",
+          "layer": "bios_persistent",
+          "service_roles": [
+            "bios"
+          ],
+          "status": "unsupported"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 9,
+      "title": "[Feature][Windows][P1] 完善现有电源计划的高级设置读取与方案名称一致性",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/9\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:34:09Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：`power scheme get|apply|set`；AC/DC 高级设置、范围／步进／访问能力\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\n现有 Windows Power API 已真实实现枚举、活动方案、切换、写入、回读及失败恢复；不足是高级设置显式读取、可访问性与语义化域，以及 apply 与 get 的 NAME 解析不一致。\n\n## 实现／规格依据\n- [crates/vantage-cli/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs#L1700-L1761)\n- [crates/lctrl-hal-win/src/native_power.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal-win/src/native_power.rs#L29-L141)\n- [crates/lctrl-hal-win/src/power_p0.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal-win/src/power_p0.rs#L44-L154)\n- [crates/lctrl-hal/src/power.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal/src/power.rs)\n- [电源 §10](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/02-power-battery.md)\n- [散热性能 §7](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/03-thermal-performance.md)\n\n## 验收条件\n- [ ] 公开实际 AC/DC 高级设置值、范围／步进和访问可用性，覆盖 CPU throttle、video/GPU 节能、idle/C-state、disk、PROC_THR_STATE 等已有官方设置域。\n- [ ] get/apply 对同一已枚举方案名称／GUID采用一致语义；不要因输入友好名而偷偷创建新方案。\n- [ ] 复用现有写后回读／失败恢复，验证不同活动方案和 AC/DC 隔离。\n\n## 安全与明确边界\nOS 配置回读成功不等于硬件精确功耗达到目标；不得把百分比设置报告成 PL1 瓦数。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010618890 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "os_persistent",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "power.scheme",
+          "dependencies": [
+            {
+              "dependency": "win32_power_api",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_sysfs",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "power.scheme"
+          ],
+          "hardware": "unknown",
+          "layer": "os_persistent",
+          "service_roles": [
+            "power"
+          ],
+          "status": "limited"
+        },
+        {
+          "axes": {
+            "layer": "os_persistent",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "power.scheme.list",
+          "dependencies": [
+            {
+              "dependency": "win32_power_api",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_sysfs",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "power.scheme"
+          ],
+          "hardware": "unknown",
+          "layer": "os_persistent",
+          "service_roles": [
+            "power"
+          ],
+          "status": "limited"
+        },
+        {
+          "axes": {
+            "layer": "os_persistent",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "power.scheme.get",
+          "dependencies": [
+            {
+              "dependency": "win32_power_api",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_sysfs",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "power.scheme"
+          ],
+          "hardware": "unknown",
+          "layer": "os_persistent",
+          "service_roles": [
+            "power"
+          ],
+          "status": "limited"
+        },
+        {
+          "axes": {
+            "layer": "os_persistent",
+            "read": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "write": true
+          },
+          "command": "power.scheme.apply",
+          "dependencies": [
+            {
+              "dependency": "win32_power_api",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_sysfs",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "power.scheme"
+          ],
+          "hardware": "unknown",
+          "layer": "os_persistent",
+          "service_roles": [
+            "power"
+          ],
+          "status": "limited"
+        },
+        {
+          "axes": {
+            "layer": "os_persistent",
+            "read": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "write": true
+          },
+          "command": "power.scheme.set",
+          "dependencies": [
+            {
+              "dependency": "win32_power_api",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_sysfs",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "power.scheme.setting"
+          ],
+          "hardware": "unknown",
+          "layer": "os_persistent",
+          "service_roles": [
+            "power"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 10,
+      "title": "[Feature][Windows][P0] 实现版本化性能模式控制与完整实际状态查询",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/10\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:34:12Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：`perf mode` 的 status/list/get 与 auto/cool/performance/geek 写入；Intelligent Cooling、iEPM、quiet/performance 智能子模式\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\nWindowsPerformanceP0 已读 Dispatcher requested/active/automatic/version/capabilities，但 writer 明确 Unsupported；现有 CLI 也缺完整模式查询与部分官方子模式入口。\n\n## 实现／规格依据\n- [crates/lctrl-hal-win/src/performance_p0.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal-win/src/performance_p0.rs#L35-L61)\n- [crates/vantage-cli/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs#L1390-L1417)\n- [散热性能 §2](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/03-thermal-performance.md)\n\n## 验收条件\n- [ ] 先暴露已有 requested/active/automatic/version/mask，明确用户请求与硬件实际态不同。\n- [ ] 补齐版本绑定、语义明确的 SCM/ITS 控制契约并接入生产 writer；Geek 等模式同时按版本及能力位门控。\n- [ ] 实际切换后独立回读，失败恢复原模式；报告与官方控制器冲突及自动／手动仲裁。\n- [ ] 目标机覆盖正常模式往返及拒绝路径；不支持的智能子模式清楚标明，不假设所有型号都提供。\n\n## 安全与明确边界\n禁止遍历 SCM 0x80..0x8F，禁止把 ControlService 成功当生效，禁止直接写 CURRENT_SETTING 冒充控制。21VG GAMEZONE 方法未实现，精确替代契约缺失先补规格。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010619203 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "unverified",
+            "rollback": "previous_state",
+            "write": true
+          },
+          "command": "perf.mode",
+          "dependencies": [
+            {
+              "dependency": "lenovo_process_management",
+              "usage": "required"
+            },
+            {
+              "dependency": "win32_registry",
+              "usage": "required"
+            },
+            {
+              "dependency": "win32_scm",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_sysfs",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "perf.mode"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "performance"
+          ],
+          "status": "limited"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [
+        "C4"
+      ],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 11,
+      "title": "[Feature][Windows][P0] 补齐风扇清单、实际转速、手动策略与曲线事务",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/11\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:34:30Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：`perf fan list|status|table`、auto/smart/manual/fullspeed/off、RPM/% 参数、自定义 curve 与恢复\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\nWindows composition root 未挂接 fan 服务；HAL 缺曲线写接口，CLI curve 拒绝，manual 没有 RPM/% 参数，若干模式被合并，不能据此认定官方语义已实现。风扇数据类存在也不等于方法可用。\n\n## 实现／规格依据\n- [vantage/src/main.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/vantage/src/main.rs#L324-L356)\n- [crates/lctrl-hal/src/performance.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal/src/performance.rs#L6-L43)\n- [crates/vantage-cli/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs#L1579-L1645)\n- [散热性能 §3](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/03-thermal-performance.md)\n\n## 验收条件\n- [ ] 先交付独立只读枚举：fan/sensor 关联、曲线、min/max/default、单位、目标 RPM 和实际 RPM，查询失败不能吞成空清单。\n- [ ] 为有验证通道的设备接入策略／RPM／百分比／曲线写；复用已有范围与 FanTable 校验。\n- [ ] 写前备份原表，校验温度顺序、台阶／步进及转速范围，写后真实回读并在失败时恢复。\n- [ ] mode 含义独立验收；不能把 Performance 当全速、Custom 当固定 RPM。\n\n## 安全与明确边界\n21VG FAN_METHOD 曾报告 Not supported；无安全通道时保持 unavailable。缺 SIO IOCTL 不扫描、不解析厂商二进制。主力机不实测停风扇、不绕过 EC 温控。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010621324 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "perf.fan.status",
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_sysfs",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "perf.fan.mode",
+            "perf.fan.inventory"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "fan"
+          ],
+          "status": "available"
+        },
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "unverified",
+            "rollback": "previous_state",
+            "write": true
+          },
+          "command": "perf.fan.auto",
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_sysfs",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "perf.fan.mode"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "fan"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "unverified",
+            "rollback": "previous_state",
+            "write": true
+          },
+          "command": "perf.fan.manual",
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_sysfs",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "perf.fan.mode"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "fan"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "unverified",
+            "rollback": "previous_state",
+            "write": true
+          },
+          "command": "perf.fan.fullspeed",
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_sysfs",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "perf.fan.mode"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "fan"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "unverified",
+            "rollback": "previous_state",
+            "write": true
+          },
+          "command": "perf.fan.smart",
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_sysfs",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "perf.fan.mode"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "fan"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "write": true
+          },
+          "command": "perf.fan.curve",
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_sysfs",
+              "usage": "required"
+            }
+          ],
+          "detail": "no verified fan-table kernel interface is attached",
+          "feature_ids": [
+            "perf.fan.curve"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "fan"
+          ],
+          "status": "unsupported"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 12,
+      "title": "[Feature][Windows][P0] 补齐原生温度与功耗遥测，并实现有界定时采样",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/12\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:34:33Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：`perf temp` 枚举/read/list、`tune telemetry --interval`；温度／频率／包功率／C-state／电池功率／DBDC\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\nWindows 未挂接 temperature/tuning 服务；诊断已有 ACPI 热区查询但只计数，telemetry 只做一次电池／性能及可选限值读取，dispatch 丢弃 interval。watch 通路归事件 feature，定时采样不应被强制依赖 daemon。\n\n## 实现／规格依据\n- [crates/vantage-cli/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs#L1538-L1618)\n- [crates/lctrl-hal-win/src/diagnostics.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal-win/src/diagnostics.rs#L32-L85)\n- [散热性能 §4](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/03-thermal-performance.md)\n- [调优 §4、§7](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/07-pantherlake-tuning.md)\n\n## 验收条件\n- [ ] 复用现有安全 ACPI/PDH/Windows 电源接口输出实际测量值，标明来源、单位、传感器位置及不可用原因。\n- [ ] --interval 实际控制采样；单次读取、无 daemon 定时输出与 Ctrl+C 退出均可用且资源有界。\n- [ ] 验证不同状态下频率、温度与功率；不支持的指标明确缺失，不能输出 0 伪装可用。\n\n## 安全与明确边界\n板载 ACPI 热区不能命名为 CPU 核心温度；不启用 ring0，不依赖没有解码描述的 DPTF 事件，不把估算功率当精确 PL 回读。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010621641 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "perf.temp",
+          "dependencies": [
+            {
+              "dependency": "public_win32_cim",
+              "usage": "required"
+            },
+            {
+              "dependency": "energy_driver",
+              "usage": "optional"
+            },
+            {
+              "dependency": "linux_sysfs",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "perf.temp"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "temperature"
+          ],
+          "status": "available"
+        },
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "tune.telemetry",
+          "dependencies": [],
+          "detail": null,
+          "feature_ids": [
+            "tune.epp",
+            "tune.pl1",
+            "tune.pl2",
+            "tune.tau",
+            "battery.status",
+            "perf.mode"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "tuning",
+            "battery",
+            "performance"
+          ],
+          "status": "available"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 13,
+      "title": "[Feature][Windows][P2] 增加 DBDC 电池限流表读取与受验证门控的控制",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/13\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:34:36Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：新增 DBDC 查询领域入口（如 `perf dbdc get`）；有确证契约后再开放 set\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\n规格列出 DBDC 数据及官方控制面，但当前没有命令、模型或 Windows 服务；读功能可独立于尚未明确的写 Feature ID 交付。\n\n## 实现／规格依据\n- [散热性能 §5.3](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/03-thermal-performance.md)\n- [调优 §2.3](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/07-pantherlake-tuning.md)\n- [crates/lctrl-hal/src/performance.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal/src/performance.rs)\n- [PerfCommand / Windows dispatch](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs)\n\n## 验收条件\n- [ ] 枚举 Counts/Threshold/CurrentLimit/ROS_Power，校验并保留数组原始数据、单位与来源。\n- [ ] 将推断的分档含义与已验证事实分开输出。\n- [ ] 只有取得确切 Feature ID、单位、档位与独立回读后才允许写；写入具备前值备份／恢复，否则保持不可用。\n\n## 安全与明确边界\n不得猜 DBDC_ID 或遍历 SetFeatureValue；当前规格中的部分电量分档解释仍是推断，不能硬编码为安全事实。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010621933 -->",
+      "native_command_observations": [],
+      "registry_coverage": "no command entry in current native registry",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 14,
+      "title": "[Feature][Windows][P2] 补齐 CPU/GPU/内存超频与 SuperBoost 的条件式能力模型",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/14\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:34:38Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：CPU/GPU OC get/set/enable/disable、内存状态/XMP/customize、模式联动 opt-in；SuperBoost 支持性\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\n这些属于规格列出的官方硬件控制面，但命令树和 Windows 服务尚未覆盖。目标 21VG 无独显，SuperBoost 能力位为 0，CPU/内存 OC 支持未知，不能把通用规格当成本机保证。\n\n## 实现／规格依据\n- [散热性能 §5.4–5.6](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/03-thermal-performance.md)\n- [BIOS Assistant 超频/SuperBoost](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/05-bios-settings.md)\n- [现有 Perf/Tune 命令](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs)\n- [crates/lctrl-hal/src/performance.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal/src/performance.rs)\n\n## 验收条件\n- [ ] 先提供逐项真实能力与状态、min/max/interval/scale；硬件不适用与通道未验证分别标注。\n- [ ] 仅在支持的专用测试机、明确授权及确证契约下开放写入，并保存默认／当前值、验证读回与恢复。\n- [ ] 显式 opt-in 联动而非自动启用；需要重启的改变说明生效时机，不自动重启。\n\n## 安全与明确边界\n这是能力受限 feature/research，不承诺 21VG 通过超频写验收。无新增风险授权不碰电压／内存时序，不绕过 HVCI，不因存在 GAMEZONE 类就声称支持。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010622247 -->",
+      "native_command_observations": [],
+      "registry_coverage": "no command entry in current native registry",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 15,
+      "title": "[Feature][Windows][P2] 补齐 GPU 模式、GPU 功耗／温度墙与安全切换流程",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/15\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:34:42Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：igpu/hybrid/auto/dgpu、GPU TDP／温度上限、Smart Fan *_DT 联动；领域查询／控制与 profile 目标\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\n规格包含相关官方能力；当前 DSL 只有 IGP_PRIORITY 等语义，缺完整领域命令和执行器。已有通用 BIOS GraphicsDevice 写入不算全无支持，缺的是型别化实时／下次启动态与安全流程。\n\n## 实现／规格依据\n- [散热性能 §5.1、§5.5、§7.4](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/03-thermal-performance.md)\n- [调优 §2.2](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/07-pantherlake-tuning.md)\n- [crates/lctrl-tune/src/model.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-tune/src/model.rs#L221-L224)\n- [profile 目标执行分支](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs)\n\n## 验收条件\n- [ ] 明确设备是否有 dGPU、支持哪些模式、实时态与待下次启动的值；复用已有 BIOS 事务而非第二套。\n- [ ] 切换前检查 GPU 占用／能力、给出影响和恢复路径；仅在真实通道允许时执行。\n- [ ] GPU TDP／温度墙需独立单位、范围及语义回读契约；profile 不能把未执行的 GPU 目标标成成功。\n\n## 安全与明确边界\n21VG 无 dGPU、相关 GPUMode 能力为 0 时明确不适用。温度表是推断，不能当安全上限。*_DT 是 RPC 契约名而非假想 WMI 类；ESIF 会话连接不是调参授权或能力证明。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010622730 -->",
+      "native_command_observations": [],
+      "registry_coverage": "no command entry in current native registry",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 16,
+      "title": "[Feature][Windows][P1] 复用现有 Power API 实现 Windows EPP 与睿频策略",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/16\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:34:45Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：`tune epp`、`tune turbo on|off` 及 profile 对应目标\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\n已有 CLI EPP raw/preset 解析、通用 Power API 及 DSL 语义，但 Windows composition root 无 tuning 服务，turbo 直接 Unsupported。\n\n## 实现／规格依据\n- [crates/lctrl-hal/src/performance.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal/src/performance.rs)\n- [crates/vantage-cli/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs#L1517-L1536)\n- [crates/lctrl-hal-win/src/native_power.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal-win/src/native_power.rs)\n- [调优 §3.2](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/07-pantherlake-tuning.md)\n- [目标映射 §2.4](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/10-config-schema.md)\n\n## 验收条件\n- [ ] 接入真实 Windows tuning 控制器；明确 EPP raw 0–255 与 Windows GUID 0–100 的换算、舍入和回读。\n- [ ] 保留 AC/DC 隔离，写前记录原电源设置，退出／restore 能恢复。\n- [ ] turbo 使用公开且已验证的 OS 策略；说明配置值与硬件实际睿频表现的区别。\n\n## 安全与明确边界\n不得将 192/255 直接写到 0–100 设置。最大处理器状态 99% 是间接策略，未经硬件证据不能声称绝对关闭 turbo；不引入 MSR 驱动。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010623054 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "platform_dependent",
+            "read": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "write": true
+          },
+          "command": "tune.epp",
+          "dependencies": [
+            {
+              "dependency": "win32_power_api",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_sysfs",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "tune.epp"
+          ],
+          "hardware": "unknown",
+          "layer": "platform_dependent",
+          "service_roles": [
+            "tuning"
+          ],
+          "status": "available"
+        },
+        {
+          "axes": {
+            "layer": "platform_dependent",
+            "read": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "write": true
+          },
+          "command": "tune.turbo",
+          "dependencies": [
+            {
+              "dependency": "win32_power_api",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_sysfs",
+              "usage": "required"
+            }
+          ],
+          "detail": "no verified turbo mutator is attached",
+          "feature_ids": [
+            "tune.turbo"
+          ],
+          "hardware": "unknown",
+          "layer": "platform_dependent",
+          "service_roles": [
+            "processor_power"
+          ],
+          "status": "unsupported"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [
+        "C5",
+        "C6"
+      ],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 17,
+      "title": "[Feature][Windows][P2] 补齐精确 PL1/PL2/tau 的安全能力与单位契约",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/17\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:34:48Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：`perf pl1/pl2`、`tune pl1 --pl2 --tau`；限值 get/set/restore 与 OS 百分比限值区分\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\n已有通用限值排序／回滚逻辑，但 Windows 无可靠精确限值 transport，planner 正确地拒绝精确 PL 目标。规格与 CLI 入口还存在 W/mW 等表达差异，缺明确查询／恢复契约。\n\n## 实现／规格依据\n- [crates/vantage-cli/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs#L1420-L1514)\n- [crates/lctrl-tune/src/plan.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-tune/src/plan.rs)\n- [散热性能 §5.2、§7.5](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/03-thermal-performance.md)\n- [调优 §3.1、§3.1.1](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/07-pantherlake-tuning.md)\n\n## 验收条件\n- [ ] 统一并公开 W/mW/µW、s/µs，参数无效与硬件不支持用不同错误返回。\n- [ ] 有验证通道的机器复用现有 PL1≤PL2 的有序事务，先读原值再写、读回并恢复；不能猜出厂 SKU 限值。\n- [ ] 在本机明确说明 ring0 封闭、ESIF R0 无已验证 verb 面、精确回读缺失；保持拒绝，不因建单就开放写入。\n\n## 安全与明确边界\n本单是受限能力／安全契约补齐，不要求绕过 VBS/HVCI。不得用 CPU 最大百分比伪装瓦数，不扫描 ESIF 请求或控制码。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010623487 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "write": true
+          },
+          "command": "perf.pl1",
+          "dependencies": [
+            {
+              "dependency": "intel_dptf",
+              "usage": "optional"
+            },
+            {
+              "dependency": "linux_powercap",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "tune.pl1"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "tuning"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "write": true
+          },
+          "command": "perf.pl2",
+          "dependencies": [
+            {
+              "dependency": "intel_dptf",
+              "usage": "optional"
+            },
+            {
+              "dependency": "linux_powercap",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "tune.pl2"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "tuning"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "write": true
+          },
+          "command": "tune.pl1",
+          "dependencies": [
+            {
+              "dependency": "intel_dptf",
+              "usage": "optional"
+            },
+            {
+              "dependency": "linux_powercap",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "tune.pl1",
+            "tune.pl2",
+            "tune.tau"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "tuning"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 18,
+      "title": "[Feature][Windows][P1] 实现 PCManager 对等的进程监视与可恢复调度策略",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/18\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:34:52Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：`perf top|boost|throttle`，前台／TopCPU、线程优先级、P/E/auto 亲和性、工作集策略\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\n现有命令只解析后落入 Unsupported；官方 ResScheduler 对等原语未接入。多份规格命名不同应统一用户入口，不创建多套重复实现。\n\n## 实现／规格依据\n- [PerfCommand / unsupported_reason](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs)\n- [散热性能 §6](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/03-thermal-performance.md)\n- [调优 §3.3](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/07-pantherlake-tuning.md)\n\n## 验收条件\n- [ ] 基于真实 PID／创建时间／线程身份和 CPU 拓扑枚举，逐进程报告请求／实际／失败原因。\n- [ ] 保存原优先级与亲和性并提供恢复；进程退出／PID 复用不误操作新进程。\n- [ ] P/E/auto 映射来自真实拓扑，不假设 group 编号对应核类型；持续自动调度复用 automation feature。\n- [ ] 工作集收缩、禁止 trim、游戏名单优先级按真实 OS 能力暴露，不将 shrink 当硬内存限额。\n\n## 安全与明确边界\n不操作关键／受保护系统进程，不用 realtime priority，不锁处理器组。EcoQoS 是规格标注的可选超集，不列为官方对等必过项。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010623999 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "not_applicable",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "perf.top",
+          "dependencies": [
+            {
+              "dependency": "win32_process_api",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_procfs",
+              "usage": "required"
+            }
+          ],
+          "detail": "process telemetry is not attached",
+          "feature_ids": [
+            "perf.top"
+          ],
+          "hardware": "unknown",
+          "layer": "not_applicable",
+          "service_roles": [
+            "process"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "not_applicable",
+            "read": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "write": true
+          },
+          "command": "perf.boost",
+          "dependencies": [
+            {
+              "dependency": "win32_process_api",
+              "usage": "required"
+            }
+          ],
+          "detail": "process policy control is not attached",
+          "feature_ids": [
+            "perf.boost"
+          ],
+          "hardware": "unknown",
+          "layer": "not_applicable",
+          "service_roles": [
+            "process"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "not_applicable",
+            "read": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "write": true
+          },
+          "command": "perf.throttle",
+          "dependencies": [
+            {
+              "dependency": "win32_process_api",
+              "usage": "required"
+            }
+          ],
+          "detail": "process policy control is not attached",
+          "feature_ids": [
+            "perf.throttle"
+          ],
+          "hardware": "unknown",
+          "layer": "not_applicable",
+          "service_roles": [
+            "process"
+          ],
+          "status": "unsupported"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 19,
+      "title": "[Feature][Windows][P1] 补全手动 profile 目标执行及一键省电／极限续航事务",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/19\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:34:56Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：`tune profile list/show/apply`、`tune restore`、`power saver-once`、`battery extreme-life on|off`；完整五套配方与相关目标\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\n手动 profile 分层／继承／规划／部分执行和快照恢复已经存在；缺 turbo/panel/GPU/background 等 executor 与快照覆盖、动态背光／无线节能／游戏策略等配方目标。saver-once/extreme-life 仅解析；restore handler 没有接收 ApplyMode。自动触发求值另由 automation issue 负责。\n\n## 实现／规格依据\n- [crates/vantage-cli/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs#L1796-L2026)\n- [crates/vantage-cli/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs#L2353-L2391)\n- [crates/lctrl-tune/src/model.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-tune/src/model.rs)\n- [crates/lctrl-tune/src/catalog.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-tune/src/catalog.rs#L350-L449)\n- [电源 §4.1、§4.3](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/02-power-battery.md)\n- [调优 §5–6](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/07-pantherlake-tuning.md)\n- [目标映射与运行时状态](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/10-config-schema.md)\n\n## 验收条件\n- [ ] 复用现有 parser/catalog/plan；执行前检查全部目标与能力，补齐有实际通道的目标 executor，不支持的目标不能静默丢弃。\n- [ ] 所有实际写入均纳入绑定当前硬件的 snapshot、回读和反序回滚；--dry-run tune restore 必须零写入。\n- [ ] 一键省电／extreme-life 先报告完整计划，失败给出部分执行结果并恢复已改项；off 恢复原状态而非猜默认。\n- [ ] 完整表达五套内置配方的背光、无线节能、后台策略和游戏名单；控制原语复用各领域 feature。\n- [ ] 验证无 dGPU、缺充电 reader、目标部分不支持等情况下的准确拒绝，不能为让内置配方成功而弱化安全条件。\n\n## 安全与明确边界\n21VG 缺经确证的约 60% extreme-life 停充通道时拒绝该模式，不能用约 55% 养护或不存在的任意阈值代替。不新增自动重启，不声称 OS 策略设置等于硬件效果。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010624428 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "write": true
+          },
+          "command": "battery.extreme-life",
+          "dependencies": [],
+          "detail": "no verified extreme-life channel is attached",
+          "feature_ids": [
+            "battery.extreme-life"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "write": true
+          },
+          "command": "power.saver-once",
+          "dependencies": [
+            {
+              "dependency": "energy_driver",
+              "usage": "required"
+            },
+            {
+              "dependency": "win32_power_api",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_sysfs",
+              "usage": "required"
+            }
+          ],
+          "detail": "composite saver workflow has no transactional executor",
+          "feature_ids": [
+            "power.saver-once"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "battery",
+            "power"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "local_persistent",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "tune.profile.list",
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [],
+          "hardware": "unknown",
+          "layer": "local_persistent",
+          "service_roles": [],
+          "status": "available"
+        },
+        {
+          "axes": {
+            "layer": "local_persistent",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "tune.profile.show",
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [],
+          "hardware": "unknown",
+          "layer": "local_persistent",
+          "service_roles": [],
+          "status": "available"
+        },
+        {
+          "axes": {
+            "layer": "composite",
+            "read": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "write": true
+          },
+          "command": "tune.profile.apply",
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "battery.charge_mode",
+            "perf.mode",
+            "perf.fan.mode",
+            "tune.epp",
+            "tune.pl1",
+            "tune.pl2",
+            "tune.tau",
+            "kbd.backlight"
+          ],
+          "hardware": "unknown",
+          "layer": "composite",
+          "service_roles": [
+            "battery",
+            "performance",
+            "fan",
+            "tuning",
+            "keyboard"
+          ],
+          "status": "limited"
+        },
+        {
+          "axes": {
+            "layer": "composite",
+            "read": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "write": true
+          },
+          "command": "tune.restore",
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "battery.charge_mode",
+            "perf.mode",
+            "perf.fan.mode",
+            "tune.epp",
+            "tune.pl1",
+            "tune.pl2",
+            "tune.tau",
+            "kbd.backlight"
+          ],
+          "hardware": "unknown",
+          "layer": "composite",
+          "service_roles": [
+            "battery",
+            "performance",
+            "fan",
+            "tuning",
+            "keyboard"
+          ],
+          "status": "limited"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 20,
+      "title": "[Feature][Windows][P0] 补齐键盘灯能力与实际可用通道，覆盖受支持灯效",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/20\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:34:59Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：`kbd backlight` 状态／级别／灯效；static/breath/wave/reactive/flash（按能力）\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\n已有真实 Windows 背光控制器、dry-run、范围校验、回读和恢复，并非空实现；CLI 目前只提供 static/breath，目标机 2026-10-24 的同类 CIM 与 COM 只读查询均返回 Not supported。该环境证据不是 CLI 本体 smoke。\n\n## 实现／规格依据\n- [crates/lctrl-hal-win/src/peripherals.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal-win/src/peripherals.rs#L38-L151)\n- [crates/vantage-cli/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs#L493-L518)\n- [外设 §2.1–2.3、§8](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/04-peripherals.md)\n\n## 验收条件\n- [ ] 分别报告 metadata/getter/setter 是否可用；目标机失败不能被类名存在或 mock 成功掩盖。\n- [ ] 保留现有单色仅 static、级别范围、回读和恢复；其他灯效只按真实设备能力开放。\n- [ ] 若当前接口不支持，须先取得净室允许的替代契约并独立回读；无法取得时准确标明受限。\n\n## 安全与明确边界\n不回退到目标固件未实现的 GAMEZONE，不猜 EC 写。RGB 是跨型号条件能力，不是 21VG 缺少硬件的承诺；事件与闲置熄灯由 events/automation 提供。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010624746 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "write": true
+          },
+          "command": "kbd.backlight",
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_sysfs",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "kbd.backlight"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "keyboard"
+          ],
+          "status": "unsupported"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 21,
+      "title": "[Feature][Windows][P1] 增加按能力门控的 Win 键锁定和触控板运行时控制",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/21\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:35:12Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：`kbd winlock on|off`、`touchpad on|off` 与状态／支持性查询\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\nWinlock 落入 Unsupported；Windows 没有挂接 touchpad service。已有 BIOS FnLock 和 Fn/Ctrl 互换完整事务不属于此缺口。\n\n## 实现／规格依据\n- [vantage/src/main.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/vantage/src/main.rs#L324-L356)\n- [crates/lctrl-hal/src/peripherals.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal/src/peripherals.rs#L15-L22)\n- [crates/vantage-cli/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs#L3320-L3344)\n- [外设 §1.3–1.5、§4.2](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/04-peripherals.md)\n\n## 验收条件\n- [ ] 明确 Lenovo 固件、Windows PTP／OS 通道各自能力；支持探测、当前状态和写入分开。\n- [ ] 保留固件 Get/SetTPStatus 0=启用、1=禁用的反向语义，在已验证通道上读后写再回读／恢复。\n- [ ] 对目标 GAMEZONE 方法未实现给出明确拒绝；任何替代 OS 路径必须有独立契约和实际效果验证。\n\n## 安全与明确边界\n不因补 Windows backend 就声称 21VG 支持 GAMEZONE。测试触控板必须具备独立恢复输入设备，不在主力机盲试禁用。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010626327 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "write": true
+          },
+          "command": "kbd.winlock",
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "detail": "GAMEZONE Win-key methods are not verified on the target",
+          "feature_ids": [
+            "wmi.gamezone.methods"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "platform_dependent",
+            "read": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "write": true
+          },
+          "command": "touchpad",
+          "dependencies": [
+            {
+              "dependency": "win32_device_management",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_sysfs",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "touchpad"
+          ],
+          "hardware": "unknown",
+          "layer": "platform_dependent",
+          "service_roles": [
+            "touchpad"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [
+        "C7 (recovery and non-disruptive smoke only)"
+      ],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 22,
+      "title": "[Feature][Windows][P0] 实现内部屏幕实际刷新率切换与自动模式",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/22\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:35:18Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：`panel rate 60|120|auto`、当前实际刷新率和可选显示模式查询\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\n已有刷新率 metadata reader；HAL PanelControl 是只读，CLI writer 明确 Unsupported。本机可读 60–120Hz 元数据不能作为写入生效证据。\n\n## 实现／规格依据\n- [crates/lctrl-hal-win/src/peripherals.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal-win/src/peripherals.rs#L155-L188)\n- [crates/lctrl-hal/src/peripherals.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal/src/peripherals.rs#L33-L35)\n- [crates/vantage-cli/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs#L1649-L1683)\n- [外设 §3.1](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/04-peripherals.md)\n\n## 验收条件\n- [ ] 绑定正确的内置显示路径，按实际枚举模式验证，不能将 min/max 范围内任意整数当成可选模式。\n- [ ] 用公开 Windows 显示 API 或确证固件写入，保存原状态、验证实际模式并在失败时恢复。\n- [ ] auto 与固定刷新率分别定义、实际观察 AC/会话等条件下行为；dry-run 零显示修改。\n\n## 安全与明确边界\n不得误改外接屏或仅改注册表便报告生效；休眠恢复、缩放、多屏下保持目标身份，不能自动重启。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010626988 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "write": true
+          },
+          "command": "panel.rate",
+          "dependencies": [
+            {
+              "dependency": "win32_display_api",
+              "usage": "required"
+            },
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_drm",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "panel.refresh"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "panel"
+          ],
+          "status": "available"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [
+        "C1"
+      ],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 23,
+      "title": "[Feature][Windows][P1] 补齐色彩、面板增强、护眼及条件式高级显示控制",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/23\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:35:21Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：`panel color|overdrive|super-resolution|eye-care`；新增受支持的面板启用、gamut、low latency、PIP/MPRT、game aid、ShadowBoost/DynamicOD/BeyondVision、local ICC\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\n已有部分 enum／核心值映射，但 Windows PanelControl 只有刷新率读取；其他显示功能无生产 HAL。普通 Display_Mode、gamut 和推断的护眼映射不能混用。\n\n## 实现／规格依据\n- [crates/vantage-cli/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs#L521-L566)\n- [crates/vantage-cli/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs#L1684-L1697)\n- [crates/lctrl-core/src/panel.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-core/src/panel.rs)\n- [crates/lctrl-hal/src/peripherals.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal/src/peripherals.rs)\n- [外设 §3.2–3.5](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/04-peripherals.md)\n\n## 验收条件\n- [ ] 读取 Panel_Get_Support_Status 并逐功能门控，保留未知位／值；display mode 与 gamut switch 使用独立类型。\n- [ ] 支持的像素区域严格绑定选定显示器及有效范围；各控制须有实际 getter、写入、回读和恢复。\n- [ ] 补齐可合法使用的色彩／OD／低延迟／PIP/MPRT／FPS-sight-timer-countdown 等官方控制面，通道未验证则按项受限。\n- [ ] 明确 LowBlueLight 的已有 BIOS 路径与运行时增强差异；本地 ICC 不能冒充 X-Rite 云端等效能力。\n- [ ] SR/OD/ShadowBoost 等需要真实有效态证据，不能只改 registry preference；未知映射先补净室规格。\n\n## 安全与明确边界\nX-Rite 云端和 SR 按规格是条件／可选能力；不得盲发推断的 0/1/2 护眼值，不调用未授权 Tcon/私有 SDK，不复制厂商算法／资源。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010627382 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "write": true
+          },
+          "command": "panel.color",
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_drm",
+              "usage": "required"
+            }
+          ],
+          "detail": "no verified panel color writer is attached",
+          "feature_ids": [
+            "panel.color.write"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "panel"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "write": true
+          },
+          "command": "panel.super-resolution",
+          "dependencies": [],
+          "detail": "no verified SmartEngine writer is attached",
+          "feature_ids": [
+            "panel.super-resolution.write"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "write": true
+          },
+          "command": "panel.overdrive",
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_drm",
+              "usage": "required"
+            }
+          ],
+          "detail": "no verified overdrive writer is attached",
+          "feature_ids": [
+            "panel.overdrive.write"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "panel"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "write": true
+          },
+          "command": "panel.eye-care",
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_drm",
+              "usage": "required"
+            }
+          ],
+          "detail": "no verified eye-care writer is attached",
+          "feature_ids": [
+            "panel.eye-care.write"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "panel"
+          ],
+          "status": "unsupported"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 24,
+      "title": "[Feature][Windows][P1] 实现运行时摄像头／麦克风隐私与双层状态报告",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/24\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:35:25Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：`privacy cam|mic --runtime`、`privacy status`；有验证契约的 PrivacyGuard option/config/reset\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\n持久 camera/mic/fingerprint 已经通过 BIOS 事务实现。缺的是 Windows runtime privacy service、麦克风运行时接口和双层状态；当前 HAL 仅有 camera runtime 形状，CLI runtime mic 明确 Unsupported。\n\n## 实现／规格依据\n- [vantage/src/main.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/vantage/src/main.rs#L324-L356)\n- [crates/lctrl-hal/src/peripherals.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal/src/peripherals.rs#L24-L31)\n- [crates/vantage-cli/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs#L3453-L3560)\n- [外设 §4.1–4.3](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/04-peripherals.md)\n- [BIOS §9.2](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/05-bios-settings.md)\n\n## 验收条件\n- [ ] 分别显示 camera/mic 的 runtime、BIOS persistent 和未知／不可读状态，保留现有精确层选择与事务。\n- [ ] 先明确 UTILITY feature-ID/bit 映射及版本，再接入实例调用；datatype 支持本身不是该隐私功能的证明。\n- [ ] 设置后验证真实所选层，失败恢复；不能把 BIOS 禁用、Windows mute、app permission 或单纯偏好注册表当作硬件 PrivacyGuard 等价。\n\n## 安全与明确边界\n不暴力猜 feature ID，不新增假想 runtime fingerprint；reset 只有在独立文档确证并明确授权后才执行。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010627806 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "write": true
+          },
+          "command": "privacy.cam",
+          "dependencies": [
+            {
+              "dependency": "win32_device_management",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_sysfs",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "privacy.camera"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "privacy"
+          ],
+          "status": "limited"
+        },
+        {
+          "axes": {
+            "layer": "bios_persistent",
+            "read": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "write": true
+          },
+          "command": "privacy.cam",
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "privacy.camera"
+          ],
+          "hardware": "unknown",
+          "layer": "bios_persistent",
+          "service_roles": [
+            "bios"
+          ],
+          "status": "limited"
+        },
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "write": true
+          },
+          "command": "privacy.mic",
+          "dependencies": [
+            {
+              "dependency": "win32_device_management",
+              "usage": "required"
+            },
+            {
+              "dependency": "windows_audio",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_sysfs",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "privacy.microphone"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "privacy"
+          ],
+          "status": "limited"
+        },
+        {
+          "axes": {
+            "layer": "bios_persistent",
+            "read": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "write": true
+          },
+          "command": "privacy.mic",
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "privacy.microphone"
+          ],
+          "hardware": "unknown",
+          "layer": "bios_persistent",
+          "service_roles": [
+            "bios"
+          ],
+          "status": "limited"
+        },
+        {
+          "axes": {
+            "layer": "bios_persistent",
+            "read": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "write": true
+          },
+          "command": "privacy.fingerprint",
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "privacy.fingerprint"
+          ],
+          "hardware": "unknown",
+          "layer": "bios_persistent",
+          "service_roles": [
+            "bios"
+          ],
+          "status": "limited"
+        },
+        {
+          "axes": {
+            "layer": "composite",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "privacy.status",
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            },
+            {
+              "dependency": "win32_device_management",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_sysfs",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "privacy.camera",
+            "privacy.microphone",
+            "privacy.fingerprint"
+          ],
+          "hardware": "unknown",
+          "layer": "composite",
+          "service_roles": [
+            "privacy",
+            "bios"
+          ],
+          "status": "limited"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 25,
+      "title": "[Feature][Windows][P1] 补齐 SmartSense／HPD 全部已规格化控制与依赖探测",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/25\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:35:29Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：`sense status|lock-on-leave|wake-on-approach|pause-video|attention-tracking|kbd-light-auto`；补齐 28-command 表剩余控制\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\n当前仅有部分 parsed enum／值映射，CommandServices 无 sense 服务，全部落入 Unsupported。规格有 command constants，但并未提供完整 transport request/response framing。\n\n## 实现／规格依据\n- [crates/vantage-cli/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs#L594-L627)\n- [crates/lctrl-core/src/sensing.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-core/src/sensing.rs)\n- [外设 §5.1–5.2：28-command 表](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/04-peripherals.md)\n\n## 验收条件\n- [ ] 首先补齐净室允许的 ChangeSetting transport framing、读取／有效态与能力探测，再开放控制。\n- [ ] 覆盖 SST/HPD 总开关、BLC enable/auto、mode、离席锁屏／距离／等待／timer／leave action、靠近唤醒／距离、视频暂停及 presence 配置。\n- [ ] 覆盖 browsing time、camera detect/assist、auto-adjust、HPD reset、OS timer override、attention enable/timer/AC-only/dim、face sensing、外接屏 approach/leave/adjust；不是仅实现已有 enum。\n- [ ] 区分厘米与 15/30/50/80 ordinal、leave-wait 与 leave-timer；未定义范围先补规格，不猜校验值。\n- [ ] IR 缺失／BIOS 禁用摄像头时报告依赖失败；状态变更具备前值、回读与恢复，并以受控实体行为验证。\n\n## 安全与明确边界\n唤醒不得绕过 Windows 认证。reset 不作自动失败回退，不录制／上传人像；持续回调及场景求值复用 events/automation。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010628334 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "sense.status",
+          "dependencies": [
+            {
+              "dependency": "smart_sense",
+              "usage": "required"
+            }
+          ],
+          "detail": "SmartSense requires an unavailable vendor RPC channel",
+          "feature_ids": [
+            "sense.status"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "sense"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "write": true
+          },
+          "command": "sense.lock-on-leave",
+          "dependencies": [
+            {
+              "dependency": "smart_sense",
+              "usage": "required"
+            },
+            {
+              "dependency": "windows_hpd",
+              "usage": "optional"
+            }
+          ],
+          "detail": "SmartSense requires an unavailable vendor RPC channel",
+          "feature_ids": [
+            "sense.lock-on-leave"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "sense"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "write": true
+          },
+          "command": "sense.wake-on-approach",
+          "dependencies": [
+            {
+              "dependency": "smart_sense",
+              "usage": "required"
+            },
+            {
+              "dependency": "windows_hpd",
+              "usage": "optional"
+            }
+          ],
+          "detail": "SmartSense requires an unavailable vendor RPC channel",
+          "feature_ids": [
+            "sense.wake-on-approach"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "sense"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "write": true
+          },
+          "command": "sense.pause-video",
+          "dependencies": [
+            {
+              "dependency": "smart_sense",
+              "usage": "required"
+            },
+            {
+              "dependency": "windows_hpd",
+              "usage": "optional"
+            }
+          ],
+          "detail": "SmartSense requires an unavailable vendor RPC channel",
+          "feature_ids": [
+            "sense.pause-video"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "sense"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "write": true
+          },
+          "command": "sense.attention-tracking",
+          "dependencies": [
+            {
+              "dependency": "smart_sense",
+              "usage": "required"
+            },
+            {
+              "dependency": "windows_hpd",
+              "usage": "optional"
+            }
+          ],
+          "detail": "SmartSense requires an unavailable vendor RPC channel",
+          "feature_ids": [
+            "sense.attention-tracking"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "sense"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "write": true
+          },
+          "command": "sense.kbd-light-auto",
+          "dependencies": [
+            {
+              "dependency": "smart_sense",
+              "usage": "required"
+            },
+            {
+              "dependency": "windows_hpd",
+              "usage": "optional"
+            }
+          ],
+          "detail": "SmartSense requires an unavailable vendor RPC channel",
+          "feature_ids": [
+            "sense.kbd-light-auto"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "sense"
+          ],
+          "status": "unsupported"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 26,
+      "title": "[Feature][Windows][P2] 对已授权音频栈实现 Dolby 总开关与 profile 控制",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/26\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:35:32Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：`audio dolby off|movie|music|voice|game|personalize|dynamic`；enabled/profile/state/HSA-Fusion 支持性\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\nCLI 与核心库只有模式映射，Windows 无真实音频 service。基础控制不等于获得 Dolby DAX/DS1 许可证或 DSP 算法。\n\n## 实现／规格依据\n- [crates/vantage-cli/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs#L630-L633)\n- [crates/lctrl-core/src/audio.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-core/src/audio.rs)\n- [外设 §6.1](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/04-peripherals.md)\n- [诊断更新 §8 法律排除项](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/11-sysupdate-diagnostics.md)\n\n## 验收条件\n- [ ] 探测已安装且允许使用的音频端点／授权栈；只用已记录完整契约的合法 RPC 或端点接口。\n- [ ] 保留 profile 0–6 映射，显示真实 enabled/profile 状态，写后回读并恢复。\n- [ ] 缺授权／缺组件返回 unavailable，不将 parser 支持当音效支持。\n\n## 安全与明确边界\n不重实现 Dolby 算法，不扩张未授权专有 API，不分析／分发厂商二进制；RPC 符号不是完整 framing，缺规格先阻塞写入。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010628598 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "unverified",
+            "rollback": "previous_state",
+            "write": true
+          },
+          "command": "audio.dolby",
+          "dependencies": [
+            {
+              "dependency": "dolby_audio_sdk",
+              "usage": "required"
+            }
+          ],
+          "detail": "audio control requires an unavailable licensed/vendor channel",
+          "feature_ids": [
+            "audio.dolby"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "audio"
+          ],
+          "status": "unsupported"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 27,
+      "title": "[Feature][Windows][P2] 实现麦克风、扬声器及会议场景降噪能力与控制",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/27\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:35:34Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：`audio noise-cancel off|shared|single|spatial|voice-id|farfield`；mic/speaker/meeting capability/state\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\n仅有模式 enum／ID，未接入 DSP 或合法软件端点控制；单有一种 microphone 控制不能代表 speaker/meeting 场景齐全。\n\n## 实现／规格依据\n- [crates/vantage-cli/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs#L630-L633)\n- [crates/lctrl-core/src/audio.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-core/src/audio.rs)\n- [外设 §6.2](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/04-peripherals.md)\n\n## 验收条件\n- [ ] 保留模式 ID 0/1/2/3/4/10；按设备 DSP 和实际端点能力只开放已支持模式。\n- [ ] 区分麦克风、扬声器、会议设置与有效态，写后回读，保存并可恢复原端点配置。\n- [ ] 软件 fallback 仅可使用合法授权／文档化 SDK，明确与 DSP 路径的区别；以明确授权的有界音频效果观察验收。\n\n## 安全与明确边界\n无隐藏录音／上传，不复制算法或捆绑厂商资源；场景自动化复用 automation，不强制开启不支持模式。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010628864 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "unverified",
+            "rollback": "previous_state",
+            "write": true
+          },
+          "command": "audio.noise-cancel",
+          "dependencies": [
+            {
+              "dependency": "noise_cancellation_sdk",
+              "usage": "required"
+            }
+          ],
+          "detail": "audio control requires an unavailable licensed/vendor channel",
+          "feature_ids": [
+            "audio.noise-cancel"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "audio"
+          ],
+          "status": "unsupported"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 28,
+      "title": "[Feature][Windows][P1] 完善 BIOS 批量事务、风险／生效态与只读能力元数据",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/28\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:35:37Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：用户自有 batch/apply、受门控的 `bios defaults`；现有 list/get/set--save/FnLock/FnCtrlSwap/持久隐私的风险／effective-state／metadata\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\n单设置 BIOS 事务、FnLock 双项事务、持久隐私、password status 都已实现。缺口是安全暴露批量事务、defaults 确证契约、setting-specific 风险与 saved/effective 区分、Assistant 能力和完整只读元数据；盲目 bios save 的拒绝是正确保护。\n\n## 实现／规格依据\n- [crates/vantage-cli/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs#L3346-L3451)\n- [crates/vantage-cli/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs#L3745-L3897)\n- [crates/lctrl-hal-win/src/bios.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal-win/src/bios.rs#L12-L121)\n- [crates/lctrl-core/src/bios.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-core/src/bios.rs#L117-L159)\n- [BIOS §1.3–1.4、§4–6、§8](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/05-bios-settings.md)\n\n## 验收条件\n- [ ] 复用现有 stage/save/discard/recovery 实现用户明确拥有的多设置事务；事前校验全部值、捕获前值、单次 save、逐项回读，明确共享固件 buffer 仲裁。\n- [ ] 将启动介质／顺序、Secure Boot、rollback prevention、图形切换等风险分类接入提示；JSON 区分 accepted/saved/effective-now/pending-reboot/unknown。\n- [ ] defaults 仅在可恢复非主力机明确确证参数与效果后开放 --experimental＋强确认，先备份／dry-run，不盲试多个可变参数。\n- [ ] Assistant 解码 bit31 成功与业务能力位分离；已知目标 0x80000008 只代表相应 Fn/Ctrl 能力，不捏造 GPU/SuperBoost。\n- [ ] 完善 PasswordMode/SupportedEncodings/SupportedKeyboard/raw state 等只读元数据；selections 查询失败与真实空列表区分，保留精确固件拼写。\n\n## 安全与明确边界\n官方 Vantage 只读 BIOS 密码，password set/clear/verify 非官方对等需求，本批不要求实现；SetFunctionRequest、未经确认的 password/defaults 编码仍保持门禁。不得自动重启、刷写固件或把 BIOS mirror 读回称为实际硬件已生效。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010629178 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "bios_persistent",
+            "read": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "write": true
+          },
+          "command": "kbd.fnlock",
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "kbd.fnlock"
+          ],
+          "hardware": "unknown",
+          "layer": "bios_persistent",
+          "service_roles": [
+            "bios"
+          ],
+          "status": "unverified"
+        },
+        {
+          "axes": {
+            "layer": "bios_persistent",
+            "read": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "write": true
+          },
+          "command": "kbd.fn-ctrl-swap",
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "kbd.fn-ctrl-swap"
+          ],
+          "hardware": "unknown",
+          "layer": "bios_persistent",
+          "service_roles": [
+            "bios"
+          ],
+          "status": "unverified"
+        },
+        {
+          "axes": {
+            "layer": "bios_persistent",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "bios.list",
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "bios"
+          ],
+          "hardware": "unknown",
+          "layer": "bios_persistent",
+          "service_roles": [
+            "bios"
+          ],
+          "status": "unverified"
+        },
+        {
+          "axes": {
+            "layer": "bios_persistent",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "bios.get",
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "bios"
+          ],
+          "hardware": "unknown",
+          "layer": "bios_persistent",
+          "service_roles": [
+            "bios"
+          ],
+          "status": "unverified"
+        },
+        {
+          "axes": {
+            "layer": "bios_persistent",
+            "read": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "write": true
+          },
+          "command": "bios.set",
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "bios"
+          ],
+          "hardware": "unknown",
+          "layer": "bios_persistent",
+          "service_roles": [
+            "bios"
+          ],
+          "status": "unverified"
+        },
+        {
+          "axes": {
+            "layer": "bios_persistent",
+            "read": false,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "write": true
+          },
+          "command": "bios.save",
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "detail": "standalone global BIOS-buffer save is not supported",
+          "feature_ids": [
+            "bios.save.global-buffer"
+          ],
+          "hardware": "unknown",
+          "layer": "bios_persistent",
+          "service_roles": [
+            "bios"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "bios_persistent",
+            "read": false,
+            "readback": "not_applicable",
+            "rollback": "unavailable",
+            "write": true
+          },
+          "command": "bios.discard",
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "bios.discard"
+          ],
+          "hardware": "unknown",
+          "layer": "bios_persistent",
+          "service_roles": [
+            "bios"
+          ],
+          "status": "unverified"
+        },
+        {
+          "axes": {
+            "layer": "bios_persistent",
+            "read": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "write": true
+          },
+          "command": "bios.defaults",
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "detail": "experimental or underspecified BIOS defaults are unavailable",
+          "feature_ids": [
+            "bios.defaults"
+          ],
+          "hardware": "unknown",
+          "layer": "bios_persistent",
+          "service_roles": [
+            "bios"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "bios_persistent",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "bios.password.status",
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "bios.password.status"
+          ],
+          "hardware": "unknown",
+          "layer": "bios_persistent",
+          "service_roles": [
+            "bios"
+          ],
+          "status": "unverified"
+        },
+        {
+          "axes": {
+            "layer": "bios_persistent",
+            "read": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "write": true
+          },
+          "command": "bios.password.set",
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "detail": "SetBiosPassword parameter encoding is underspecified",
+          "feature_ids": [
+            "bios.password.set"
+          ],
+          "hardware": "unknown",
+          "layer": "bios_persistent",
+          "service_roles": [
+            "bios"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "bios_persistent",
+            "read": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "write": true
+          },
+          "command": "bios.password.clear",
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "detail": "SetBiosPassword parameter encoding is underspecified",
+          "feature_ids": [
+            "bios.password.clear"
+          ],
+          "hardware": "unknown",
+          "layer": "bios_persistent",
+          "service_roles": [
+            "bios"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "bios_persistent",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "bios.password.verify",
+          "dependencies": [
+            {
+              "dependency": "lenovo_firmware_wmi",
+              "usage": "required"
+            }
+          ],
+          "detail": "SetBiosPassword parameter encoding is underspecified",
+          "feature_ids": [
+            "bios.password.verify"
+          ],
+          "hardware": "unknown",
+          "layer": "bios_persistent",
+          "service_roles": [
+            "bios"
+          ],
+          "status": "unsupported"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 29,
+      "title": "[Feature][Windows][P1] 实现 MagicBay LTE 状态、连接及 APN 配置",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/29\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:35:40Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：`magicbay lte status|connect|disconnect|apn`，含经授权的 APN/凭据选项\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\n已有 USB/ACPI MagicBay 检测及 PID 表；MagicBayControl trait 只有 detect，LTE 命令整体没有 Windows 控制实现。\n\n## 实现／规格依据\n- [crates/lctrl-hal/src/magicbay.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal/src/magicbay.rs)\n- [crates/lctrl-hal-win/src/magicbay.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal-win/src/magicbay.rs)\n- [crates/vantage-cli/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs#L667-L684)\n- [MagicBay §4.2–4.4](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/06-magicbay.md)\n\n## 验收条件\n- [ ] 复用既有检测，将 Windows MBN modem 关联到正确附件，输出 radio/registration/PDP-IP、signal/carrier/APN 和 SIM 状态。\n- [ ] 区分设备缺失／SIM 缺失或锁定／无信号／radio off／APN 失败／已连接／未连接；不把异步请求接受当实际联网。\n- [ ] 使用标准 Windows MBN API 完成连接配置和断连，保护凭据，明确实际会话及恢复结果。\n- [ ] status/dry-run 不开启 radio、不解锁 SIM、不连接或产生流量；实体测试使用明确授权的 modem/SIM。\n\n## 安全与明确边界\n不新造私有 LTE 协议，不自动解 SIM 锁；公开回执不得含 IMEI/SIM 标识或凭据。事件／休眠重查归 events。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010629536 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "magicbay.lte.status",
+          "dependencies": [
+            {
+              "dependency": "win32_mobile_broadband",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_modem_manager",
+              "usage": "required"
+            }
+          ],
+          "detail": "standard MBIM control is not attached",
+          "feature_ids": [
+            "magicbay.lte"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "mobile_broadband"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "write": true
+          },
+          "command": "magicbay.lte.connect",
+          "dependencies": [
+            {
+              "dependency": "win32_mobile_broadband",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_modem_manager",
+              "usage": "required"
+            }
+          ],
+          "detail": "standard MBIM control is not attached",
+          "feature_ids": [
+            "magicbay.lte"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "mobile_broadband"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "write": true
+          },
+          "command": "magicbay.lte.disconnect",
+          "dependencies": [
+            {
+              "dependency": "win32_mobile_broadband",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_modem_manager",
+              "usage": "required"
+            }
+          ],
+          "detail": "standard MBIM control is not attached",
+          "feature_ids": [
+            "magicbay.lte"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "mobile_broadband"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "os_persistent",
+            "read": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "write": true
+          },
+          "command": "magicbay.lte.apn",
+          "dependencies": [
+            {
+              "dependency": "win32_mobile_broadband",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_modem_manager",
+              "usage": "required"
+            }
+          ],
+          "detail": "standard MBIM control is not attached",
+          "feature_ids": [
+            "magicbay.lte"
+          ],
+          "hardware": "unknown",
+          "layer": "os_persistent",
+          "service_roles": [
+            "mobile_broadband"
+          ],
+          "status": "unsupported"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 30,
+      "title": "[Feature][Windows][P2] 实现 MagicBay UVC 摄像头枚举与按设备控制",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/30\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:35:43Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：`magicbay cam status`、定向 `cam set prop=value`：input/format/resolution/FPS/exposure/brightness/contrast/saturation/gain/white-balance/privacy（按支持性）\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\n现有 bare cam 命令没有实际控制 backend；已做的 MagicBay detect 不等于 UVC 参数控制。\n\n## 实现／规格依据\n- [crates/lctrl-hal/src/magicbay.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal/src/magicbay.rs)\n- [crates/vantage-cli/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs#L667-L684)\n- [MagicBay §5.1–5.4](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/06-magicbay.md)\n\n## 验收条件\n- [ ] 用标准 Media Foundation／camera 接口枚举实际能力和父设备拓扑，不能把所有 UVC camera 都当 MagicBay。\n- [ ] 明确目标、参数范围及模式组合，读后写再回读，失败恢复；无支持字段明确不可用。\n- [ ] 区分外置附件摄像头与内置 BIOS camera 开关；配置读取不自动录像。\n\n## 安全与明确边界\n不探测私有 extension-unit 写入，不把主摄像头 BIOS 开关当附件隐私控制。影像观察须另获授权且有界，不隐式录制。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010629948 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "magicbay.cam",
+          "dependencies": [
+            {
+              "dependency": "win32_media_foundation",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_v4l2",
+              "usage": "required"
+            }
+          ],
+          "detail": "standard UVC camera control is not attached",
+          "feature_ids": [
+            "magicbay.cam"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "magicbay_camera"
+          ],
+          "status": "unsupported"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 31,
+      "title": "[Feature][Windows][P2] 实现 MagicBay 扩展屏关联、模式查询与安全切换",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/31\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:35:56Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：`magicbay display detect|status|set-mode WxH@R`，显式输出选择\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\n已有 ACPI／USB 存在性检测，但没有把附件桥与实际 Windows 显示路径、EDID 和当前模式连成可用控制；现有 trait 仅 detect。\n\n## 实现／规格依据\n- [crates/lctrl-hal-win/src/magicbay.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal-win/src/magicbay.rs)\n- [crates/lctrl-hal/src/magicbay.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal/src/magicbay.rs)\n- [MagicBay §6.1–6.5](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/06-magicbay.md)\n\n## 验收条件\n- [ ] 将 ACPI bridge 与实际 EDID／Windows display path 关联，分别报告桥存在、panel 接入、native/supported/current timings。\n- [ ] 不能仅因 QCOM2488/QCOM24B7 存在就称面板在线；查询期间不修改显示模式。\n- [ ] 修改只接受实际枚举目标／模式，先保存并验证，再应用／回读，失败恢复；若使用 nearest-mode 必须报告实际选择而非声称请求精确命中。\n- [ ] 事件及休眠恢复时稳定匹配附件身份，复用共享 watch 的 300ms detach 重查机制。\n\n## 安全与明确边界\n不实现私有 USB 显示协议，不因附件出现而擅改 DPTF 策略；不推断独立磁吸 GPIO 控制能力。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010631481 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "runtime",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "magicbay.display",
+          "dependencies": [
+            {
+              "dependency": "win32_display_api",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_drm",
+              "usage": "required"
+            }
+          ],
+          "detail": "standard display control is not attached",
+          "feature_ids": [
+            "magicbay.display"
+          ],
+          "hardware": "unknown",
+          "layer": "runtime",
+          "service_roles": [
+            "magicbay_display"
+          ],
+          "status": "unsupported"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 32,
+      "title": "[Feature][Windows][P1] 建立可信更新目录与硬件适用性检测契约",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/32\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:36:01Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：`update check --severity`、package metadata、critical/recent 查询、dock-aware applicability\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\nWindowsSystemInventory.update_capability 明确 unavailable，因为尚无被规格化的公开 catalog/authentication/trust 契约。现有结构化拒绝不是可通过猜接口绕开的实现 bug。\n\n## 实现／规格依据\n- [crates/lctrl-hal-win/src/diagnostics.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal-win/src/diagnostics.rs#L63-L71)\n- [crates/lctrl-hal/src/diagnostics.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal/src/diagnostics.rs)\n- [crates/vantage-cli/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs#L3216-L3227)\n- [更新诊断 §2.1–2.3](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/11-sysupdate-diagnostics.md)\n\n## 验收条件\n- [ ] 先确定可合法使用的公开目录端点、认证／信任根、包标识及完整性契约，再开放 search。\n- [ ] 对 XML metadata 的 And/Or/Not、依赖／安装版本及硬件/OS/dock 条件进行有界求值，unknown 检测项不得默认适用。\n- [ ] 返回明确的 applicable/inapplicable/unknown、severity 和原因；BIOS/固件包最多识别为需官方手动处理。\n\n## 安全与明确边界\n目录中的进程／IOCTL detection 不能变成任意代码执行入口；不分析 MCP、不复制官方私有包、不下载或刷写 firmware 来证明适用性。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010632152 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "not_applicable",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "update.check",
+          "dependencies": [
+            {
+              "dependency": "win32_setup_api",
+              "usage": "required"
+            },
+            {
+              "dependency": "win32_win_trust",
+              "usage": "required"
+            },
+            {
+              "dependency": "local_filesystem",
+              "usage": "optional"
+            }
+          ],
+          "detail": "remote update checking has no authenticated catalog contract",
+          "feature_ids": [
+            "update.capability"
+          ],
+          "hardware": "unknown",
+          "layer": "not_applicable",
+          "service_roles": [
+            "update"
+          ],
+          "status": "unsupported"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 33,
+      "title": "[Feature][Windows][P1] 实现完整性验证的更新下载与受控 Windows 驱动安装",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/33\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:36:06Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：`update download ID…`、`update install ID… [--reboot]`、proxy／经允许的 UNC 传输、安装 continuation/status\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\n命令存在但没有下载／安装领域方法或 Windows executor，全部落入明确 Unsupported；可信目录是前置依赖。\n\n## 实现／规格依据\n- [crates/vantage-cli/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs#L687-L713)\n- [crates/vantage-cli/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs#L3229-L3234)\n- [crates/lctrl-hal/src/diagnostics.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal/src/diagnostics.rs)\n- [更新诊断 §2.1–2.3、§2.5](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/11-sysupdate-diagnostics.md)\n\n## 验收条件\n- [ ] 仅下载已由可信目录准入的包，验证身份、大小／摘要／签名；下载阶段不执行包内容。\n- [ ] 复用 Windows DriverStore／SetupAPI 等公开路径，按依赖顺序安装受支持驱动，验证设备状态与安装版本。\n- [ ] 区分 search/download/install/failed/reboot-required/continuation，不只靠子进程退出 0 判成功；dry-run 列出具体设备和包影响且零执行。\n- [ ] proxy/UNC 凭据保持受保护并脱敏；不支持的 BITS/UNC 路径如实报告。\n- [ ] 重启必须额外明确授权，--reboot 语义可审阅；不将目录任意命令行当通用执行器。\n\n## 安全与明确边界\nIA/BootInstaller、BIOS/firmware flashing、私有 MCP 解包及厂商二进制分发均排除；不在主力机无恢复准备地自动更新驱动。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010632678 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "not_applicable",
+            "read": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "write": true
+          },
+          "command": "update.local.install",
+          "dependencies": [
+            {
+              "dependency": "win32_setup_api",
+              "usage": "required"
+            },
+            {
+              "dependency": "win32_win_trust",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "update.local_driver"
+          ],
+          "hardware": "unknown",
+          "layer": "not_applicable",
+          "service_roles": [
+            "update"
+          ],
+          "status": "unverified"
+        },
+        {
+          "axes": {
+            "layer": "local_persistent",
+            "read": true,
+            "readback": "unverified",
+            "rollback": "transactional",
+            "write": true
+          },
+          "command": "update.download",
+          "dependencies": [
+            {
+              "dependency": "authenticated_update_catalog",
+              "usage": "required"
+            },
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "detail": "no authenticated remote update manifest is attached",
+          "feature_ids": [
+            "update.download.without-authenticated-manifest"
+          ],
+          "hardware": "unknown",
+          "layer": "local_persistent",
+          "service_roles": [
+            "update"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "not_applicable",
+            "read": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "write": true
+          },
+          "command": "update.install",
+          "dependencies": [
+            {
+              "dependency": "authenticated_update_catalog",
+              "usage": "required"
+            },
+            {
+              "dependency": "win32_setup_api",
+              "usage": "required"
+            },
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "detail": "no authenticated remote update manifest is attached",
+          "feature_ids": [
+            "update.install.without-authenticated-manifest"
+          ],
+          "hardware": "unknown",
+          "layer": "not_applicable",
+          "service_roles": [
+            "update"
+          ],
+          "status": "unsupported"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 34,
+      "title": "[Feature][Windows][P1] 实现本地更新历史、可验证回滚、忽略策略和调度",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/34\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:36:10Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：`update history|rollback|ignore|schedule daily|weekly|off`；hardware-ID／package／driver 排除、auto/critical/recommended policy\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\n现有命令主要只有 parser 和 Unsupported；没有可靠历史／回滚 provenance、持久忽略策略或实际 scheduled execution。不能将 enum 解析／偏好写入等同调度生效。\n\n## 实现／规格依据\n- [crates/vantage-cli/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs#L713-L727)\n- [crates/vantage-cli/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs#L3235-L3246)\n- [更新诊断 §2.1–2.3、§9](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/11-sysupdate-diagnostics.md)\n\n## 验收条件\n- [ ] 持久保存本地 package/version/status/reboot/previous-state 历史，不上传厂商遥测；每次失败与未完成 continuation 可追踪。\n- [ ] 回滚仅在有 admitted uninstall/restore 路径时反依赖顺序执行并验证；manual/nonrollbackable 明确列出。\n- [ ] 实现 package/driver/hardware-ID 三层忽略和管理员策略优先级，search 解释每个排除原因。\n- [ ] schedule 创建真实且可查询的用户授权任务，daily/weekly/off、重登／重启、错过触发和卸载均有明确生命周期；任务不得默认自动安装／重启。\n\n## 安全与明确边界\n不伪造 rollback success，不擅自清空用户历史或厂商策略，不后台静默启动驱动安装。共享配置／事件基础可复用 automation，但更新任务闭环由本单验收。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010633125 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "not_applicable",
+            "read": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "write": true
+          },
+          "command": "update.local.rollback",
+          "dependencies": [
+            {
+              "dependency": "win32_setup_api",
+              "usage": "required"
+            },
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "update.local_driver.rollback"
+          ],
+          "hardware": "unknown",
+          "layer": "not_applicable",
+          "service_roles": [
+            "update"
+          ],
+          "status": "unverified"
+        },
+        {
+          "axes": {
+            "layer": "local_persistent",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "update.local.history",
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "update.local_driver.policy"
+          ],
+          "hardware": "unknown",
+          "layer": "local_persistent",
+          "service_roles": [
+            "update"
+          ],
+          "status": "unverified"
+        },
+        {
+          "axes": {
+            "layer": "local_persistent",
+            "read": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "write": true
+          },
+          "command": "update.local.ignore",
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "update.local_driver.policy"
+          ],
+          "hardware": "unknown",
+          "layer": "local_persistent",
+          "service_roles": [
+            "update"
+          ],
+          "status": "unverified"
+        },
+        {
+          "axes": {
+            "layer": "local_persistent",
+            "read": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "write": true
+          },
+          "command": "update.local.schedule",
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "update.local_driver.policy"
+          ],
+          "hardware": "unknown",
+          "layer": "local_persistent",
+          "service_roles": [
+            "update"
+          ],
+          "status": "unverified"
+        },
+        {
+          "axes": {
+            "layer": "local_persistent",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "update.history",
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "detail": "no remote update catalog is attached",
+          "feature_ids": [
+            "update.history.without-catalog"
+          ],
+          "hardware": "unknown",
+          "layer": "local_persistent",
+          "service_roles": [
+            "update"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "local_persistent",
+            "read": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "write": true
+          },
+          "command": "update.ignore",
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "detail": "no remote update catalog is attached",
+          "feature_ids": [
+            "update.ignore.without-catalog"
+          ],
+          "hardware": "unknown",
+          "layer": "local_persistent",
+          "service_roles": [
+            "update"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "not_applicable",
+            "read": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "write": true
+          },
+          "command": "update.rollback",
+          "dependencies": [
+            {
+              "dependency": "win32_setup_api",
+              "usage": "required"
+            },
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "detail": "no remote update install ledger is attached",
+          "feature_ids": [
+            "update.rollback.without-install-ledger"
+          ],
+          "hardware": "unknown",
+          "layer": "not_applicable",
+          "service_roles": [
+            "update"
+          ],
+          "status": "unsupported"
+        },
+        {
+          "axes": {
+            "layer": "local_persistent",
+            "read": true,
+            "readback": "required",
+            "rollback": "previous_state",
+            "write": true
+          },
+          "command": "update.schedule",
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "detail": "no remote update catalog is attached",
+          "feature_ids": [
+            "update.schedule.without-catalog"
+          ],
+          "hardware": "unknown",
+          "layer": "local_persistent",
+          "service_roles": [
+            "update"
+          ],
+          "status": "unsupported"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 35,
+      "title": "[Feature][Windows][P1] 将硬件 scan 从记录计数补齐为有界、可取消的实际诊断",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/35\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:36:13Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：`scan list|run [ITEM…]`、status/cancel；battery/thermal/storage/memory/firmware/network\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\n当前 Windows run_diagnostics 只查询 CIM/WMI 记录并返回记录数量，未评估已查询的健康值；这属于 inventory 而非实际硬件测试。结果模型也缺完整 fail/skip/cancel/resource-error 语义。\n\n## 实现／规格依据\n- [crates/lctrl-hal-win/src/diagnostics.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal-win/src/diagnostics.rs#L21-L59)\n- [crates/lctrl-hal-win/src/diagnostics.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal-win/src/diagnostics.rs#L74-L107)\n- [crates/lctrl-core/src/diagnostics.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-core/src/diagnostics.rs)\n- [crates/vantage-cli/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs#L3250-L3277)\n- [更新诊断 §3](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/11-sysupdate-diagnostics.md)\n\n## 验收条件\n- [ ] 保留 inventory 的准确名称，逐测试定义实际使用的公开检查、测量值、通过／失败条件与能力限制。\n- [ ] 区分 pass/fail/skipped/warning/unavailable/cancelled/resource-error，不能因有一条设备记录就报健康。\n- [ ] 对支持的六大项目实现有界、可取消检查，结果可回读；不支持的深度测试明确 unavailable。\n- [ ] 若要求规格提到的 LdeApi JSON 精确兼容，先补字段 schema，再声称兼容。\n\n## 安全与明确边界\n排除 LenovoDiagnosticsDriver.sys；无破坏性磁盘写、无无界内存压力／stress、无自动重启。诊断不修改设备／服务来掩盖问题。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010633479 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "not_applicable",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "scan.list",
+          "dependencies": [
+            {
+              "dependency": "public_win32_cim",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_diagnostic_tools",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "diagnostics.inventory"
+          ],
+          "hardware": "unknown",
+          "layer": "not_applicable",
+          "service_roles": [
+            "diagnostics"
+          ],
+          "status": "available"
+        },
+        {
+          "axes": {
+            "layer": "not_applicable",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "scan.run",
+          "dependencies": [
+            {
+              "dependency": "public_win32_cim",
+              "usage": "required"
+            },
+            {
+              "dependency": "linux_diagnostic_tools",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "diagnostics.inventory"
+          ],
+          "hardware": "unknown",
+          "layer": "not_applicable",
+          "service_roles": [
+            "diagnostics"
+          ],
+          "status": "available"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 36,
+      "title": "[Feature][Windows][P1] 提供透明可回滚的 MachineFix 检查、修复与本地跟踪",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/36\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:36:17Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：新增 `fix scan|run ISSUE…|track`、问题／规则能力清单、recurrence/notice\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\n官方 MachineFix 语义在规格范围内，但当前没有 Fix 命令或 Windows service；规格也没有给出完整规则目录。不能通过禁用整个 Vantage 或捏造万能自动修复替代。\n\n## 实现／规格依据\n- [crates/vantage-cli/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs#L250-L329)\n- [crates/lctrl-hal-win/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal-win/src/lib.rs)\n- [更新诊断 §4](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/11-sysupdate-diagnostics.md)\n\n## 验收条件\n- [ ] 建立透明的本地 detection 规则和 allowlisted service/registry/device 修复原语，规则缺契约时保持 unavailable。\n- [ ] 每项 scan 返回证据／原因；run 前显示实际影响、权限、原状态与恢复方案，dry-run 只读。\n- [ ] 每项动作验证目标状态，保留 primary failure、partial result 和 recovery outcome，不吞错／报假成功。\n- [ ] track 本地记录 recurrence、已确认／未修复／已恢复等状态，通知有界并可关闭，进程退出与重启后身份不混淆。\n\n## 安全与明确边界\n不提取厂商问题数据库、不加遥测、不 blanket disable Vantage/其他服务；不把用户未知问题匹配到不透明自动修复。任何写入需明确授权，持续通知可复用 automation/events。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010634019 -->",
+      "native_command_observations": [],
+      "registry_coverage": "no command entry in current native registry",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 37,
+      "title": "[Feature][Windows][P1] 补全系统／固件清单与可解释的多模块快照差异",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/37\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:36:19Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：`info` 系统详情、只读 UEFI 能力；已有 `snapshot capture|diff|restore` 的清单覆盖面\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\n当前 hardware_info 主要返回 product/family/BIOS version；已有 managed-settings snapshot 与硬件绑定恢复，不是快照功能全无。但缺完整硬件/软件/driver/registry inventory、UEFI 只读元数据及规格所称多模块差异。规格说 15 模块却未列全，需先补 schema。\n\n## 实现／规格依据\n- [crates/lctrl-hal-win/src/windows_hal.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal-win/src/windows_hal.rs#L40-L55)\n- [crates/lctrl-hal-win/src/diagnostics.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal-win/src/diagnostics.rs#L74-L107)\n- [crates/vantage-cli/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs#L2415-L2549)\n- [更新诊断 §2.4、§5–6](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/11-sysupdate-diagnostics.md)\n- [BIOS §7.4](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/05-bios-settings.md)\n\n## 验收条件\n- [ ] 用公开 CIM/Windows API 提供 MTM/model、disk/memory、boot type、CPU/GPU、network/WLAN、版本／驱动等清单，区分原始数据与解读。\n- [ ] UEFI LBSAVAR/LBLDVC 仅有界只读、版本／长度校验；非 UEFI／权限不足／变量缺失分别报告。\n- [ ] 定义并文档化所称 15 模块 schema，capture/diff 保留逐模块错误，不能把不可读视为空清单相等。\n- [ ] 保留既有 managed snapshot 与 identity/dry-run/recovery；restore 只限工具明确管理且安全准入的设置，不做任意软件／注册表／启动／安全回滚。\n\n## 安全与明确边界\n完整清单含敏感标识，应默认本地存放／输出脱敏选项；不在 issue 贴 serial/MAC 等。无 UEFI 写、logo修改、安全擦除、固件刷写，排除 Vpp/CDAT。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010634383 -->",
+      "native_command_observations": [
+        {
+          "axes": {
+            "layer": "not_applicable",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "info",
+          "dependencies": [],
+          "detail": null,
+          "feature_ids": [],
+          "hardware": "unknown",
+          "layer": "not_applicable",
+          "service_roles": [
+            "hal"
+          ],
+          "status": "available"
+        },
+        {
+          "axes": {
+            "layer": "local_persistent",
+            "read": true,
+            "readback": "unverified",
+            "rollback": "unavailable",
+            "write": true
+          },
+          "command": "snapshot.capture",
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "battery.charge_mode",
+            "perf.mode",
+            "perf.fan.mode",
+            "tune.epp",
+            "tune.pl1",
+            "tune.pl2",
+            "tune.tau",
+            "kbd.backlight",
+            "touchpad",
+            "privacy.camera",
+            "power.scheme"
+          ],
+          "hardware": "unknown",
+          "layer": "local_persistent",
+          "service_roles": [
+            "battery",
+            "performance",
+            "fan",
+            "tuning",
+            "keyboard",
+            "touchpad",
+            "privacy",
+            "power"
+          ],
+          "status": "limited"
+        },
+        {
+          "axes": {
+            "layer": "composite",
+            "read": true,
+            "readback": "not_applicable",
+            "rollback": "not_applicable",
+            "write": false
+          },
+          "command": "snapshot.diff",
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "battery.charge_mode",
+            "perf.mode",
+            "perf.fan.mode",
+            "tune.epp",
+            "tune.pl1",
+            "tune.pl2",
+            "tune.tau",
+            "kbd.backlight",
+            "touchpad",
+            "privacy.camera",
+            "power.scheme"
+          ],
+          "hardware": "unknown",
+          "layer": "composite",
+          "service_roles": [
+            "battery",
+            "performance",
+            "fan",
+            "tuning",
+            "keyboard",
+            "touchpad",
+            "privacy",
+            "power"
+          ],
+          "status": "limited"
+        },
+        {
+          "axes": {
+            "layer": "composite",
+            "read": true,
+            "readback": "required",
+            "rollback": "transactional",
+            "write": true
+          },
+          "command": "snapshot.restore",
+          "dependencies": [
+            {
+              "dependency": "local_filesystem",
+              "usage": "required"
+            }
+          ],
+          "detail": null,
+          "feature_ids": [
+            "battery.charge_mode",
+            "perf.mode",
+            "perf.fan.mode",
+            "tune.epp",
+            "tune.pl1",
+            "tune.pl2",
+            "tune.tau",
+            "kbd.backlight",
+            "touchpad",
+            "privacy.camera",
+            "power.scheme"
+          ],
+          "hardware": "unknown",
+          "layer": "composite",
+          "service_roles": [
+            "battery",
+            "performance",
+            "fan",
+            "tuning",
+            "keyboard",
+            "touchpad",
+            "privacy",
+            "power"
+          ],
+          "status": "limited"
+        }
+      ],
+      "registry_coverage": "present",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    },
+    {
+      "issue": 38,
+      "title": "[Feature][Windows][P2] 补齐 Wi-Fi 加密安全评估及本地策略／历史",
+      "state": "open",
+      "authoritative_acceptance": "来源：https://github.com/cyjin-yl/vantage-cli/issues/38\n\n原作者：`cyjin-yl`；原创建时间：2026-10-24T07:36:24Z。这是一次性导入，后续开发以本 Gitea 工单为准；历史正文中的编号沿用 GitHub 来源。\n\n---\n\n## 目标与范围\n补齐官方 Lenovo Vantage / PCManager / MagiCenter 的硬件控制功能对应能力；目标基线为 ThinkBook 21VG Windows。**规格中存在 ≠ 当前固件支持；当前代码存在 ≠ 已完成真机验收。**\n\n涉及命令／能力：新增 `wifi security`、当前 assessment、policy state／local history\n\n## 当前缺口（固定版本）\n审计 `work/vantage-implementation` @ `ec5809798367d85a0d459d73eab21f404b405115`；`main` 仍主要是规格。\n\n规格明确保留 Wi-Fi metadata 安全评估；当前无 Wifi 命令，scan 的 wifi 别名只是物理网卡 inventory，不读取实际认证／加密。\n\n## 实现／规格依据\n- [crates/vantage-cli/src/lib.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/vantage-cli/src/lib.rs#L250-L329)\n- [crates/lctrl-hal-win/src/diagnostics.rs](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/crates/lctrl-hal-win/src/diagnostics.rs#L101-L107)\n- [更新诊断 §7、§9](https://github.com/cyjin-yl/vantage-cli/blob/ec5809798367d85a0d459d73eab21f404b405115/docs/11-sysupdate-diagnostics.md)\n\n## 验收条件\n- [ ] 用 WlanApi 读取当前 auth/cipher，区分 open/WEP/WPA/WPA2/WPA3/unknown，并给出有依据的风险解释。\n- [ ] 策略与历史默认仅本地、容量有界、可清理，读取失败不判为安全。\n- [ ] assessment 不因网卡存在就报告安全，验证不同连接类型与未连接／访问受限。\n\n## 安全与明确边界\n不抓取网络载荷、不收集密码、不改变／重连网络；本功能不是排除的 antivirus/SecurityCenter 集成。\n\n共通要求：遵守净室章程，不获取／逆向／分发厂商二进制；所有新增写入提供 `--dry-run`、前值、独立语义回读和允许时的回滚；失败保留非零退出码及结构化原因。只在实际支持且完成目标机证据后提升 capability，禁止把 `Unsupported` 改成假成功。\n\n\n<!-- gitea-primary:github-issue:6010635010 -->",
+      "native_command_observations": [],
+      "registry_coverage": "no command entry in current native registry",
+      "current_acceptance_sections": [],
+      "completion": "not claimed complete",
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+    }
+  ]
+}

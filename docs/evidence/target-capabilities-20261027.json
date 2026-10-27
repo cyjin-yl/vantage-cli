@@ -1,0 +1,3181 @@
+[
+  {
+    "axes": {
+      "layer": "not_applicable",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "info",
+    "dependencies": [],
+    "detail": null,
+    "feature_ids": [],
+    "hardware": "unknown",
+    "layer": "not_applicable",
+    "service_roles": [
+      "hal"
+    ],
+    "status": "available"
+  },
+  {
+    "axes": {
+      "layer": "not_applicable",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "doctor",
+    "dependencies": [],
+    "detail": null,
+    "feature_ids": [],
+    "hardware": "unknown",
+    "layer": "not_applicable",
+    "service_roles": [
+      "hal"
+    ],
+    "status": "available"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "battery.status",
+    "dependencies": [
+      {
+        "dependency": "energy_driver",
+        "usage": "optional"
+      },
+      {
+        "dependency": "public_win32_cim",
+        "usage": "optional"
+      },
+      {
+        "dependency": "linux_sysfs",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "battery.status"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "battery"
+    ],
+    "status": "available"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "battery.adapter",
+    "dependencies": [
+      {
+        "dependency": "energy_driver",
+        "usage": "optional"
+      },
+      {
+        "dependency": "public_win32_cim",
+        "usage": "optional"
+      },
+      {
+        "dependency": "linux_sysfs",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "battery.adapter"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "battery"
+    ],
+    "status": "available"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "required",
+      "rollback": "transactional",
+      "write": true
+    },
+    "command": "battery.charge-mode",
+    "dependencies": [
+      {
+        "dependency": "energy_driver",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_sysfs",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "battery.charge_mode"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "battery"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "unverified",
+      "rollback": "unavailable",
+      "write": true
+    },
+    "command": "battery.thresholds",
+    "dependencies": [],
+    "detail": "the target has no verified arbitrary-threshold writer",
+    "feature_ids": [
+      "battery.thresholds"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "unverified",
+      "rollback": "unavailable",
+      "write": true
+    },
+    "command": "battery.extreme-life",
+    "dependencies": [],
+    "detail": "no verified extreme-life channel is attached",
+    "feature_ids": [
+      "battery.extreme-life"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "unverified",
+      "rollback": "unavailable",
+      "write": true
+    },
+    "command": "battery.night-charge",
+    "dependencies": [],
+    "detail": "no verified night-charge channel is attached",
+    "feature_ids": [
+      "battery.night-charge"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "battery.temporary-mode",
+    "dependencies": [],
+    "detail": "temporary-mode is read-only and no verified reader is attached",
+    "feature_ids": [
+      "battery.temporary-mode"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "battery.watch",
+    "dependencies": [
+      {
+        "dependency": "windows_wmi_events",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_udev",
+        "usage": "required"
+      }
+    ],
+    "detail": "battery event streaming requires an event service",
+    "feature_ids": [],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "events"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "required",
+      "rollback": "previous_state",
+      "write": true
+    },
+    "command": "usb.always-on",
+    "dependencies": [
+      {
+        "dependency": "energy_driver",
+        "usage": "required"
+      }
+    ],
+    "detail": "no verified runtime USB charging control service is attached",
+    "feature_ids": [
+      "usb.always-on"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "usb"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "bios_persistent",
+      "read": true,
+      "readback": "required",
+      "rollback": "previous_state",
+      "write": true
+    },
+    "command": "usb.always-on",
+    "dependencies": [
+      {
+        "dependency": "lenovo_firmware_wmi",
+        "usage": "required"
+      }
+    ],
+    "detail": "no BIOS USB-charging transaction is attached",
+    "feature_ids": [
+      "usb.always-on"
+    ],
+    "hardware": "unknown",
+    "layer": "bios_persistent",
+    "service_roles": [
+      "bios"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "required",
+      "rollback": "previous_state",
+      "write": true
+    },
+    "command": "usb.charge-on-battery",
+    "dependencies": [
+      {
+        "dependency": "energy_driver",
+        "usage": "required"
+      }
+    ],
+    "detail": "no verified battery-mode USB charging control service is attached",
+    "feature_ids": [
+      "usb.charge-on-battery"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "usb"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "bios_persistent",
+      "read": true,
+      "readback": "required",
+      "rollback": "previous_state",
+      "write": true
+    },
+    "command": "usb.charge-on-battery",
+    "dependencies": [
+      {
+        "dependency": "lenovo_firmware_wmi",
+        "usage": "required"
+      }
+    ],
+    "detail": "no BIOS USB-charging transaction is attached",
+    "feature_ids": [
+      "usb.charge-on-battery"
+    ],
+    "hardware": "unknown",
+    "layer": "bios_persistent",
+    "service_roles": [
+      "bios"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "os_persistent",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "power.scheme",
+    "dependencies": [
+      {
+        "dependency": "win32_power_api",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_sysfs",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "power.scheme"
+    ],
+    "hardware": "unknown",
+    "layer": "os_persistent",
+    "service_roles": [
+      "power"
+    ],
+    "status": "limited"
+  },
+  {
+    "axes": {
+      "layer": "os_persistent",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "power.scheme.list",
+    "dependencies": [
+      {
+        "dependency": "win32_power_api",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_sysfs",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "power.scheme"
+    ],
+    "hardware": "unknown",
+    "layer": "os_persistent",
+    "service_roles": [
+      "power"
+    ],
+    "status": "limited"
+  },
+  {
+    "axes": {
+      "layer": "os_persistent",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "power.scheme.get",
+    "dependencies": [
+      {
+        "dependency": "win32_power_api",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_sysfs",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "power.scheme"
+    ],
+    "hardware": "unknown",
+    "layer": "os_persistent",
+    "service_roles": [
+      "power"
+    ],
+    "status": "limited"
+  },
+  {
+    "axes": {
+      "layer": "os_persistent",
+      "read": true,
+      "readback": "required",
+      "rollback": "previous_state",
+      "write": true
+    },
+    "command": "power.scheme.apply",
+    "dependencies": [
+      {
+        "dependency": "win32_power_api",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_sysfs",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "power.scheme"
+    ],
+    "hardware": "unknown",
+    "layer": "os_persistent",
+    "service_roles": [
+      "power"
+    ],
+    "status": "limited"
+  },
+  {
+    "axes": {
+      "layer": "os_persistent",
+      "read": true,
+      "readback": "required",
+      "rollback": "previous_state",
+      "write": true
+    },
+    "command": "power.scheme.set",
+    "dependencies": [
+      {
+        "dependency": "win32_power_api",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_sysfs",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "power.scheme.setting"
+    ],
+    "hardware": "unknown",
+    "layer": "os_persistent",
+    "service_roles": [
+      "power"
+    ],
+    "status": "unverified"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "unverified",
+      "rollback": "unavailable",
+      "write": true
+    },
+    "command": "power.saver-once",
+    "dependencies": [
+      {
+        "dependency": "energy_driver",
+        "usage": "required"
+      },
+      {
+        "dependency": "win32_power_api",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_sysfs",
+        "usage": "required"
+      }
+    ],
+    "detail": "composite saver workflow has no transactional executor",
+    "feature_ids": [
+      "power.saver-once"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "battery",
+      "power"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "unverified",
+      "rollback": "previous_state",
+      "write": true
+    },
+    "command": "perf.mode",
+    "dependencies": [
+      {
+        "dependency": "lenovo_process_management",
+        "usage": "required"
+      },
+      {
+        "dependency": "win32_registry",
+        "usage": "required"
+      },
+      {
+        "dependency": "win32_scm",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_sysfs",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "perf.mode"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "performance"
+    ],
+    "status": "limited"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "perf.fan.status",
+    "dependencies": [
+      {
+        "dependency": "lenovo_firmware_wmi",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_sysfs",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "perf.fan.mode",
+      "perf.fan.inventory"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "fan"
+    ],
+    "status": "available"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "unverified",
+      "rollback": "previous_state",
+      "write": true
+    },
+    "command": "perf.fan.auto",
+    "dependencies": [
+      {
+        "dependency": "lenovo_firmware_wmi",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_sysfs",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "perf.fan.mode"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "fan"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "unverified",
+      "rollback": "previous_state",
+      "write": true
+    },
+    "command": "perf.fan.manual",
+    "dependencies": [
+      {
+        "dependency": "lenovo_firmware_wmi",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_sysfs",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "perf.fan.mode"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "fan"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "unverified",
+      "rollback": "previous_state",
+      "write": true
+    },
+    "command": "perf.fan.fullspeed",
+    "dependencies": [
+      {
+        "dependency": "lenovo_firmware_wmi",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_sysfs",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "perf.fan.mode"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "fan"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "unverified",
+      "rollback": "previous_state",
+      "write": true
+    },
+    "command": "perf.fan.smart",
+    "dependencies": [
+      {
+        "dependency": "lenovo_firmware_wmi",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_sysfs",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "perf.fan.mode"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "fan"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "unverified",
+      "rollback": "unavailable",
+      "write": true
+    },
+    "command": "perf.fan.curve",
+    "dependencies": [
+      {
+        "dependency": "lenovo_firmware_wmi",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_sysfs",
+        "usage": "required"
+      }
+    ],
+    "detail": "no verified fan-table kernel interface is attached",
+    "feature_ids": [
+      "perf.fan.curve"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "fan"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "perf.temp",
+    "dependencies": [
+      {
+        "dependency": "public_win32_cim",
+        "usage": "required"
+      },
+      {
+        "dependency": "energy_driver",
+        "usage": "optional"
+      },
+      {
+        "dependency": "linux_sysfs",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "perf.temp"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "temperature"
+    ],
+    "status": "available"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "perf.temp.read",
+    "dependencies": [
+      {
+        "dependency": "public_win32_cim",
+        "usage": "required"
+      },
+      {
+        "dependency": "energy_driver",
+        "usage": "optional"
+      },
+      {
+        "dependency": "linux_sysfs",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "perf.temp"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "temperature"
+    ],
+    "status": "available"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "perf.temp.watch",
+    "dependencies": [],
+    "detail": "no documented temperature-sample event class exists",
+    "feature_ids": [],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "events"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "required",
+      "rollback": "previous_state",
+      "write": true
+    },
+    "command": "perf.pl1",
+    "dependencies": [
+      {
+        "dependency": "intel_dptf",
+        "usage": "optional"
+      },
+      {
+        "dependency": "linux_powercap",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "tune.pl1"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "tuning"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "required",
+      "rollback": "previous_state",
+      "write": true
+    },
+    "command": "perf.pl2",
+    "dependencies": [
+      {
+        "dependency": "intel_dptf",
+        "usage": "optional"
+      },
+      {
+        "dependency": "linux_powercap",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "tune.pl2"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "tuning"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "not_applicable",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "perf.top",
+    "dependencies": [
+      {
+        "dependency": "win32_process_api",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_procfs",
+        "usage": "required"
+      }
+    ],
+    "detail": "process telemetry is not attached",
+    "feature_ids": [
+      "perf.top"
+    ],
+    "hardware": "unknown",
+    "layer": "not_applicable",
+    "service_roles": [
+      "process"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "not_applicable",
+      "read": true,
+      "readback": "required",
+      "rollback": "previous_state",
+      "write": true
+    },
+    "command": "perf.boost",
+    "dependencies": [
+      {
+        "dependency": "win32_process_api",
+        "usage": "required"
+      }
+    ],
+    "detail": "process policy control is not attached",
+    "feature_ids": [
+      "perf.boost"
+    ],
+    "hardware": "unknown",
+    "layer": "not_applicable",
+    "service_roles": [
+      "process"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "not_applicable",
+      "read": true,
+      "readback": "required",
+      "rollback": "previous_state",
+      "write": true
+    },
+    "command": "perf.throttle",
+    "dependencies": [
+      {
+        "dependency": "win32_process_api",
+        "usage": "required"
+      }
+    ],
+    "detail": "process policy control is not attached",
+    "feature_ids": [
+      "perf.throttle"
+    ],
+    "hardware": "unknown",
+    "layer": "not_applicable",
+    "service_roles": [
+      "process"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "local_persistent",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "tune.profile.list",
+    "dependencies": [
+      {
+        "dependency": "local_filesystem",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [],
+    "hardware": "unknown",
+    "layer": "local_persistent",
+    "service_roles": [],
+    "status": "available"
+  },
+  {
+    "axes": {
+      "layer": "local_persistent",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "tune.profile.show",
+    "dependencies": [
+      {
+        "dependency": "local_filesystem",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [],
+    "hardware": "unknown",
+    "layer": "local_persistent",
+    "service_roles": [],
+    "status": "available"
+  },
+  {
+    "axes": {
+      "layer": "composite",
+      "read": true,
+      "readback": "required",
+      "rollback": "transactional",
+      "write": true
+    },
+    "command": "tune.profile.apply",
+    "dependencies": [
+      {
+        "dependency": "local_filesystem",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "battery.charge_mode",
+      "perf.mode",
+      "perf.fan.mode",
+      "tune.epp",
+      "tune.pl1",
+      "tune.pl2",
+      "tune.tau",
+      "kbd.backlight"
+    ],
+    "hardware": "unknown",
+    "layer": "composite",
+    "service_roles": [
+      "battery",
+      "performance",
+      "fan",
+      "tuning",
+      "keyboard"
+    ],
+    "status": "limited"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "required",
+      "rollback": "transactional",
+      "write": true
+    },
+    "command": "tune.pl1",
+    "dependencies": [
+      {
+        "dependency": "intel_dptf",
+        "usage": "optional"
+      },
+      {
+        "dependency": "linux_powercap",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "tune.pl1",
+      "tune.pl2",
+      "tune.tau"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "tuning"
+    ],
+    "status": "unverified"
+  },
+  {
+    "axes": {
+      "layer": "platform_dependent",
+      "read": true,
+      "readback": "required",
+      "rollback": "previous_state",
+      "write": true
+    },
+    "command": "tune.epp",
+    "dependencies": [
+      {
+        "dependency": "win32_power_api",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_sysfs",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "tune.epp"
+    ],
+    "hardware": "unknown",
+    "layer": "platform_dependent",
+    "service_roles": [
+      "tuning"
+    ],
+    "status": "available"
+  },
+  {
+    "axes": {
+      "layer": "platform_dependent",
+      "read": true,
+      "readback": "required",
+      "rollback": "previous_state",
+      "write": true
+    },
+    "command": "tune.turbo",
+    "dependencies": [
+      {
+        "dependency": "win32_power_api",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_sysfs",
+        "usage": "required"
+      }
+    ],
+    "detail": "no verified turbo mutator is attached",
+    "feature_ids": [
+      "tune.turbo"
+    ],
+    "hardware": "unknown",
+    "layer": "platform_dependent",
+    "service_roles": [
+      "processor_power"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "composite",
+      "read": true,
+      "readback": "required",
+      "rollback": "transactional",
+      "write": true
+    },
+    "command": "tune.restore",
+    "dependencies": [
+      {
+        "dependency": "local_filesystem",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "battery.charge_mode",
+      "perf.mode",
+      "perf.fan.mode",
+      "tune.epp",
+      "tune.pl1",
+      "tune.pl2",
+      "tune.tau",
+      "kbd.backlight"
+    ],
+    "hardware": "unknown",
+    "layer": "composite",
+    "service_roles": [
+      "battery",
+      "performance",
+      "fan",
+      "tuning",
+      "keyboard"
+    ],
+    "status": "limited"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "tune.telemetry",
+    "dependencies": [],
+    "detail": null,
+    "feature_ids": [
+      "tune.epp",
+      "tune.pl1",
+      "tune.pl2",
+      "tune.tau",
+      "battery.status",
+      "perf.mode"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "tuning",
+      "battery",
+      "performance"
+    ],
+    "status": "available"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "tune.watch",
+    "dependencies": [
+      {
+        "dependency": "windows_wmi_events",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_udev",
+        "usage": "required"
+      }
+    ],
+    "detail": "tuning event streaming requires an event service",
+    "feature_ids": [],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "events"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "required",
+      "rollback": "transactional",
+      "write": true
+    },
+    "command": "kbd.backlight",
+    "dependencies": [
+      {
+        "dependency": "lenovo_firmware_wmi",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_sysfs",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "kbd.backlight"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "keyboard"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "bios_persistent",
+      "read": true,
+      "readback": "required",
+      "rollback": "transactional",
+      "write": true
+    },
+    "command": "kbd.fnlock",
+    "dependencies": [
+      {
+        "dependency": "lenovo_firmware_wmi",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "kbd.fnlock"
+    ],
+    "hardware": "unknown",
+    "layer": "bios_persistent",
+    "service_roles": [
+      "bios"
+    ],
+    "status": "unverified"
+  },
+  {
+    "axes": {
+      "layer": "bios_persistent",
+      "read": true,
+      "readback": "required",
+      "rollback": "transactional",
+      "write": true
+    },
+    "command": "kbd.fn-ctrl-swap",
+    "dependencies": [
+      {
+        "dependency": "lenovo_firmware_wmi",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "kbd.fn-ctrl-swap"
+    ],
+    "hardware": "unknown",
+    "layer": "bios_persistent",
+    "service_roles": [
+      "bios"
+    ],
+    "status": "unverified"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "unverified",
+      "rollback": "unavailable",
+      "write": true
+    },
+    "command": "kbd.winlock",
+    "dependencies": [
+      {
+        "dependency": "lenovo_firmware_wmi",
+        "usage": "required"
+      }
+    ],
+    "detail": "GAMEZONE Win-key methods are not verified on the target",
+    "feature_ids": [
+      "wmi.gamezone.methods"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "platform_dependent",
+      "read": true,
+      "readback": "required",
+      "rollback": "previous_state",
+      "write": true
+    },
+    "command": "touchpad",
+    "dependencies": [
+      {
+        "dependency": "win32_device_management",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_sysfs",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "touchpad"
+    ],
+    "hardware": "unknown",
+    "layer": "platform_dependent",
+    "service_roles": [
+      "touchpad"
+    ],
+    "status": "unverified"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "required",
+      "rollback": "previous_state",
+      "write": true
+    },
+    "command": "panel.rate",
+    "dependencies": [
+      {
+        "dependency": "win32_display_api",
+        "usage": "required"
+      },
+      {
+        "dependency": "lenovo_firmware_wmi",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_drm",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "panel.refresh"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "panel"
+    ],
+    "status": "available"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "unverified",
+      "rollback": "unavailable",
+      "write": true
+    },
+    "command": "panel.color",
+    "dependencies": [
+      {
+        "dependency": "lenovo_firmware_wmi",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_drm",
+        "usage": "required"
+      }
+    ],
+    "detail": "no verified panel color writer is attached",
+    "feature_ids": [
+      "panel.color.write"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "panel"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "unverified",
+      "rollback": "unavailable",
+      "write": true
+    },
+    "command": "panel.super-resolution",
+    "dependencies": [],
+    "detail": "no verified SmartEngine writer is attached",
+    "feature_ids": [
+      "panel.super-resolution.write"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "unverified",
+      "rollback": "unavailable",
+      "write": true
+    },
+    "command": "panel.overdrive",
+    "dependencies": [
+      {
+        "dependency": "lenovo_firmware_wmi",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_drm",
+        "usage": "required"
+      }
+    ],
+    "detail": "no verified overdrive writer is attached",
+    "feature_ids": [
+      "panel.overdrive.write"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "panel"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "unverified",
+      "rollback": "unavailable",
+      "write": true
+    },
+    "command": "panel.eye-care",
+    "dependencies": [
+      {
+        "dependency": "lenovo_firmware_wmi",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_drm",
+        "usage": "required"
+      }
+    ],
+    "detail": "no verified eye-care writer is attached",
+    "feature_ids": [
+      "panel.eye-care.write"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "panel"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "required",
+      "rollback": "previous_state",
+      "write": true
+    },
+    "command": "privacy.cam",
+    "dependencies": [
+      {
+        "dependency": "win32_device_management",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_sysfs",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "privacy.camera"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "privacy"
+    ],
+    "status": "limited"
+  },
+  {
+    "axes": {
+      "layer": "bios_persistent",
+      "read": true,
+      "readback": "required",
+      "rollback": "transactional",
+      "write": true
+    },
+    "command": "privacy.cam",
+    "dependencies": [
+      {
+        "dependency": "lenovo_firmware_wmi",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "privacy.camera"
+    ],
+    "hardware": "unknown",
+    "layer": "bios_persistent",
+    "service_roles": [
+      "bios"
+    ],
+    "status": "limited"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "required",
+      "rollback": "previous_state",
+      "write": true
+    },
+    "command": "privacy.mic",
+    "dependencies": [
+      {
+        "dependency": "win32_device_management",
+        "usage": "required"
+      },
+      {
+        "dependency": "windows_audio",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_sysfs",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "privacy.microphone"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "privacy"
+    ],
+    "status": "limited"
+  },
+  {
+    "axes": {
+      "layer": "bios_persistent",
+      "read": true,
+      "readback": "required",
+      "rollback": "transactional",
+      "write": true
+    },
+    "command": "privacy.mic",
+    "dependencies": [
+      {
+        "dependency": "lenovo_firmware_wmi",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "privacy.microphone"
+    ],
+    "hardware": "unknown",
+    "layer": "bios_persistent",
+    "service_roles": [
+      "bios"
+    ],
+    "status": "limited"
+  },
+  {
+    "axes": {
+      "layer": "bios_persistent",
+      "read": true,
+      "readback": "required",
+      "rollback": "transactional",
+      "write": true
+    },
+    "command": "privacy.fingerprint",
+    "dependencies": [
+      {
+        "dependency": "lenovo_firmware_wmi",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "privacy.fingerprint"
+    ],
+    "hardware": "unknown",
+    "layer": "bios_persistent",
+    "service_roles": [
+      "bios"
+    ],
+    "status": "limited"
+  },
+  {
+    "axes": {
+      "layer": "composite",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "privacy.status",
+    "dependencies": [
+      {
+        "dependency": "lenovo_firmware_wmi",
+        "usage": "required"
+      },
+      {
+        "dependency": "win32_device_management",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_sysfs",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "privacy.camera",
+      "privacy.microphone",
+      "privacy.fingerprint"
+    ],
+    "hardware": "unknown",
+    "layer": "composite",
+    "service_roles": [
+      "privacy",
+      "bios"
+    ],
+    "status": "limited"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "sense.status",
+    "dependencies": [
+      {
+        "dependency": "smart_sense",
+        "usage": "required"
+      }
+    ],
+    "detail": "SmartSense requires an unavailable vendor RPC channel",
+    "feature_ids": [
+      "sense.status"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "sense"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "unverified",
+      "rollback": "unavailable",
+      "write": true
+    },
+    "command": "sense.lock-on-leave",
+    "dependencies": [
+      {
+        "dependency": "smart_sense",
+        "usage": "required"
+      },
+      {
+        "dependency": "windows_hpd",
+        "usage": "optional"
+      }
+    ],
+    "detail": "SmartSense requires an unavailable vendor RPC channel",
+    "feature_ids": [
+      "sense.lock-on-leave"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "sense"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "unverified",
+      "rollback": "unavailable",
+      "write": true
+    },
+    "command": "sense.wake-on-approach",
+    "dependencies": [
+      {
+        "dependency": "smart_sense",
+        "usage": "required"
+      },
+      {
+        "dependency": "windows_hpd",
+        "usage": "optional"
+      }
+    ],
+    "detail": "SmartSense requires an unavailable vendor RPC channel",
+    "feature_ids": [
+      "sense.wake-on-approach"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "sense"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "unverified",
+      "rollback": "unavailable",
+      "write": true
+    },
+    "command": "sense.pause-video",
+    "dependencies": [
+      {
+        "dependency": "smart_sense",
+        "usage": "required"
+      },
+      {
+        "dependency": "windows_hpd",
+        "usage": "optional"
+      }
+    ],
+    "detail": "SmartSense requires an unavailable vendor RPC channel",
+    "feature_ids": [
+      "sense.pause-video"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "sense"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "unverified",
+      "rollback": "unavailable",
+      "write": true
+    },
+    "command": "sense.attention-tracking",
+    "dependencies": [
+      {
+        "dependency": "smart_sense",
+        "usage": "required"
+      },
+      {
+        "dependency": "windows_hpd",
+        "usage": "optional"
+      }
+    ],
+    "detail": "SmartSense requires an unavailable vendor RPC channel",
+    "feature_ids": [
+      "sense.attention-tracking"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "sense"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "unverified",
+      "rollback": "unavailable",
+      "write": true
+    },
+    "command": "sense.kbd-light-auto",
+    "dependencies": [
+      {
+        "dependency": "smart_sense",
+        "usage": "required"
+      },
+      {
+        "dependency": "windows_hpd",
+        "usage": "optional"
+      }
+    ],
+    "detail": "SmartSense requires an unavailable vendor RPC channel",
+    "feature_ids": [
+      "sense.kbd-light-auto"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "sense"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "unverified",
+      "rollback": "previous_state",
+      "write": true
+    },
+    "command": "audio.dolby",
+    "dependencies": [
+      {
+        "dependency": "dolby_audio_sdk",
+        "usage": "required"
+      }
+    ],
+    "detail": "audio control requires an unavailable licensed/vendor channel",
+    "feature_ids": [
+      "audio.dolby"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "audio"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "unverified",
+      "rollback": "previous_state",
+      "write": true
+    },
+    "command": "audio.noise-cancel",
+    "dependencies": [
+      {
+        "dependency": "noise_cancellation_sdk",
+        "usage": "required"
+      }
+    ],
+    "detail": "audio control requires an unavailable licensed/vendor channel",
+    "feature_ids": [
+      "audio.noise-cancel"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "audio"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "bios_persistent",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "bios.list",
+    "dependencies": [
+      {
+        "dependency": "lenovo_firmware_wmi",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "bios"
+    ],
+    "hardware": "unknown",
+    "layer": "bios_persistent",
+    "service_roles": [
+      "bios"
+    ],
+    "status": "unverified"
+  },
+  {
+    "axes": {
+      "layer": "bios_persistent",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "bios.get",
+    "dependencies": [
+      {
+        "dependency": "lenovo_firmware_wmi",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "bios"
+    ],
+    "hardware": "unknown",
+    "layer": "bios_persistent",
+    "service_roles": [
+      "bios"
+    ],
+    "status": "unverified"
+  },
+  {
+    "axes": {
+      "layer": "bios_persistent",
+      "read": true,
+      "readback": "required",
+      "rollback": "transactional",
+      "write": true
+    },
+    "command": "bios.set",
+    "dependencies": [
+      {
+        "dependency": "lenovo_firmware_wmi",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "bios"
+    ],
+    "hardware": "unknown",
+    "layer": "bios_persistent",
+    "service_roles": [
+      "bios"
+    ],
+    "status": "unverified"
+  },
+  {
+    "axes": {
+      "layer": "bios_persistent",
+      "read": false,
+      "readback": "unverified",
+      "rollback": "unavailable",
+      "write": true
+    },
+    "command": "bios.save",
+    "dependencies": [
+      {
+        "dependency": "lenovo_firmware_wmi",
+        "usage": "required"
+      }
+    ],
+    "detail": "standalone global BIOS-buffer save is not supported",
+    "feature_ids": [
+      "bios.save.global-buffer"
+    ],
+    "hardware": "unknown",
+    "layer": "bios_persistent",
+    "service_roles": [
+      "bios"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "bios_persistent",
+      "read": false,
+      "readback": "not_applicable",
+      "rollback": "unavailable",
+      "write": true
+    },
+    "command": "bios.discard",
+    "dependencies": [
+      {
+        "dependency": "lenovo_firmware_wmi",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "bios.discard"
+    ],
+    "hardware": "unknown",
+    "layer": "bios_persistent",
+    "service_roles": [
+      "bios"
+    ],
+    "status": "unverified"
+  },
+  {
+    "axes": {
+      "layer": "bios_persistent",
+      "read": true,
+      "readback": "unverified",
+      "rollback": "unavailable",
+      "write": true
+    },
+    "command": "bios.defaults",
+    "dependencies": [
+      {
+        "dependency": "lenovo_firmware_wmi",
+        "usage": "required"
+      }
+    ],
+    "detail": "experimental or underspecified BIOS defaults are unavailable",
+    "feature_ids": [
+      "bios.defaults"
+    ],
+    "hardware": "unknown",
+    "layer": "bios_persistent",
+    "service_roles": [
+      "bios"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "bios_persistent",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "bios.password.status",
+    "dependencies": [
+      {
+        "dependency": "lenovo_firmware_wmi",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "bios.password.status"
+    ],
+    "hardware": "unknown",
+    "layer": "bios_persistent",
+    "service_roles": [
+      "bios"
+    ],
+    "status": "unverified"
+  },
+  {
+    "axes": {
+      "layer": "bios_persistent",
+      "read": true,
+      "readback": "unverified",
+      "rollback": "unavailable",
+      "write": true
+    },
+    "command": "bios.password.set",
+    "dependencies": [
+      {
+        "dependency": "lenovo_firmware_wmi",
+        "usage": "required"
+      }
+    ],
+    "detail": "SetBiosPassword parameter encoding is underspecified",
+    "feature_ids": [
+      "bios.password.set"
+    ],
+    "hardware": "unknown",
+    "layer": "bios_persistent",
+    "service_roles": [
+      "bios"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "bios_persistent",
+      "read": true,
+      "readback": "unverified",
+      "rollback": "unavailable",
+      "write": true
+    },
+    "command": "bios.password.clear",
+    "dependencies": [
+      {
+        "dependency": "lenovo_firmware_wmi",
+        "usage": "required"
+      }
+    ],
+    "detail": "SetBiosPassword parameter encoding is underspecified",
+    "feature_ids": [
+      "bios.password.clear"
+    ],
+    "hardware": "unknown",
+    "layer": "bios_persistent",
+    "service_roles": [
+      "bios"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "bios_persistent",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "bios.password.verify",
+    "dependencies": [
+      {
+        "dependency": "lenovo_firmware_wmi",
+        "usage": "required"
+      }
+    ],
+    "detail": "SetBiosPassword parameter encoding is underspecified",
+    "feature_ids": [
+      "bios.password.verify"
+    ],
+    "hardware": "unknown",
+    "layer": "bios_persistent",
+    "service_roles": [
+      "bios"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "not_applicable",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "magicbay.detect",
+    "dependencies": [
+      {
+        "dependency": "win32_setup_api",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_sysfs",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "magicbay.inventory"
+    ],
+    "hardware": "unknown",
+    "layer": "not_applicable",
+    "service_roles": [
+      "magicbay"
+    ],
+    "status": "limited"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "magicbay.lte.status",
+    "dependencies": [
+      {
+        "dependency": "win32_mobile_broadband",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_modem_manager",
+        "usage": "required"
+      }
+    ],
+    "detail": "standard MBIM control is not attached",
+    "feature_ids": [
+      "magicbay.lte"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "mobile_broadband"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "required",
+      "rollback": "previous_state",
+      "write": true
+    },
+    "command": "magicbay.lte.connect",
+    "dependencies": [
+      {
+        "dependency": "win32_mobile_broadband",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_modem_manager",
+        "usage": "required"
+      }
+    ],
+    "detail": "standard MBIM control is not attached",
+    "feature_ids": [
+      "magicbay.lte"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "mobile_broadband"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "required",
+      "rollback": "previous_state",
+      "write": true
+    },
+    "command": "magicbay.lte.disconnect",
+    "dependencies": [
+      {
+        "dependency": "win32_mobile_broadband",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_modem_manager",
+        "usage": "required"
+      }
+    ],
+    "detail": "standard MBIM control is not attached",
+    "feature_ids": [
+      "magicbay.lte"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "mobile_broadband"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "os_persistent",
+      "read": true,
+      "readback": "required",
+      "rollback": "previous_state",
+      "write": true
+    },
+    "command": "magicbay.lte.apn",
+    "dependencies": [
+      {
+        "dependency": "win32_mobile_broadband",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_modem_manager",
+        "usage": "required"
+      }
+    ],
+    "detail": "standard MBIM control is not attached",
+    "feature_ids": [
+      "magicbay.lte"
+    ],
+    "hardware": "unknown",
+    "layer": "os_persistent",
+    "service_roles": [
+      "mobile_broadband"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "magicbay.cam",
+    "dependencies": [
+      {
+        "dependency": "win32_media_foundation",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_v4l2",
+        "usage": "required"
+      }
+    ],
+    "detail": "standard UVC camera control is not attached",
+    "feature_ids": [
+      "magicbay.cam"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "magicbay_camera"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "magicbay.display",
+    "dependencies": [
+      {
+        "dependency": "win32_display_api",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_drm",
+        "usage": "required"
+      }
+    ],
+    "detail": "standard display control is not attached",
+    "feature_ids": [
+      "magicbay.display"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "magicbay_display"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "magicbay.watch",
+    "dependencies": [
+      {
+        "dependency": "win32_device_notifications",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_udev",
+        "usage": "required"
+      }
+    ],
+    "detail": "no documented MagicBay event class exists",
+    "feature_ids": [],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "events"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "os_persistent",
+      "read": true,
+      "readback": "unverified",
+      "rollback": "previous_state",
+      "write": true
+    },
+    "command": "osd.enable",
+    "dependencies": [
+      {
+        "dependency": "local_daemon",
+        "usage": "required"
+      },
+      {
+        "dependency": "lenovo_utility_service",
+        "usage": "optional"
+      },
+      {
+        "dependency": "lenovo_fn_and_function_keys",
+        "usage": "optional"
+      }
+    ],
+    "detail": "OSD is daemon-only and no OSD backend is attached",
+    "feature_ids": [
+      "osd.enable"
+    ],
+    "hardware": "unknown",
+    "layer": "os_persistent",
+    "service_roles": [
+      "osd"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "os_persistent",
+      "read": true,
+      "readback": "unverified",
+      "rollback": "previous_state",
+      "write": true
+    },
+    "command": "osd.disable",
+    "dependencies": [
+      {
+        "dependency": "local_daemon",
+        "usage": "required"
+      },
+      {
+        "dependency": "lenovo_utility_service",
+        "usage": "optional"
+      },
+      {
+        "dependency": "lenovo_fn_and_function_keys",
+        "usage": "optional"
+      }
+    ],
+    "detail": "OSD is daemon-only and no OSD backend is attached",
+    "feature_ids": [
+      "osd.disable"
+    ],
+    "hardware": "unknown",
+    "layer": "os_persistent",
+    "service_roles": [
+      "osd"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": false,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "osd.test",
+    "dependencies": [
+      {
+        "dependency": "local_daemon",
+        "usage": "required"
+      },
+      {
+        "dependency": "lenovo_utility_service",
+        "usage": "optional"
+      },
+      {
+        "dependency": "lenovo_fn_and_function_keys",
+        "usage": "optional"
+      }
+    ],
+    "detail": "OSD is daemon-only and no OSD backend is attached",
+    "feature_ids": [
+      "osd.test"
+    ],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [
+      "osd"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "not_applicable",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "update.check",
+    "dependencies": [
+      {
+        "dependency": "win32_setup_api",
+        "usage": "required"
+      },
+      {
+        "dependency": "win32_win_trust",
+        "usage": "required"
+      },
+      {
+        "dependency": "local_filesystem",
+        "usage": "optional"
+      }
+    ],
+    "detail": "remote update checking has no authenticated catalog contract",
+    "feature_ids": [
+      "update.capability"
+    ],
+    "hardware": "unknown",
+    "layer": "not_applicable",
+    "service_roles": [
+      "update"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "not_applicable",
+      "read": true,
+      "readback": "required",
+      "rollback": "transactional",
+      "write": true
+    },
+    "command": "update.local.install",
+    "dependencies": [
+      {
+        "dependency": "win32_setup_api",
+        "usage": "required"
+      },
+      {
+        "dependency": "win32_win_trust",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "update.local_driver"
+    ],
+    "hardware": "unknown",
+    "layer": "not_applicable",
+    "service_roles": [
+      "update"
+    ],
+    "status": "unverified"
+  },
+  {
+    "axes": {
+      "layer": "not_applicable",
+      "read": true,
+      "readback": "required",
+      "rollback": "transactional",
+      "write": true
+    },
+    "command": "update.local.rollback",
+    "dependencies": [
+      {
+        "dependency": "win32_setup_api",
+        "usage": "required"
+      },
+      {
+        "dependency": "local_filesystem",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "update.local_driver.rollback"
+    ],
+    "hardware": "unknown",
+    "layer": "not_applicable",
+    "service_roles": [
+      "update"
+    ],
+    "status": "unverified"
+  },
+  {
+    "axes": {
+      "layer": "local_persistent",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "update.local.history",
+    "dependencies": [
+      {
+        "dependency": "local_filesystem",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "update.local_driver.policy"
+    ],
+    "hardware": "unknown",
+    "layer": "local_persistent",
+    "service_roles": [
+      "update"
+    ],
+    "status": "unverified"
+  },
+  {
+    "axes": {
+      "layer": "local_persistent",
+      "read": true,
+      "readback": "required",
+      "rollback": "previous_state",
+      "write": true
+    },
+    "command": "update.local.ignore",
+    "dependencies": [
+      {
+        "dependency": "local_filesystem",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "update.local_driver.policy"
+    ],
+    "hardware": "unknown",
+    "layer": "local_persistent",
+    "service_roles": [
+      "update"
+    ],
+    "status": "unverified"
+  },
+  {
+    "axes": {
+      "layer": "local_persistent",
+      "read": true,
+      "readback": "required",
+      "rollback": "previous_state",
+      "write": true
+    },
+    "command": "update.local.schedule",
+    "dependencies": [
+      {
+        "dependency": "local_filesystem",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "update.local_driver.policy"
+    ],
+    "hardware": "unknown",
+    "layer": "local_persistent",
+    "service_roles": [
+      "update"
+    ],
+    "status": "unverified"
+  },
+  {
+    "axes": {
+      "layer": "local_persistent",
+      "read": true,
+      "readback": "unverified",
+      "rollback": "transactional",
+      "write": true
+    },
+    "command": "update.download",
+    "dependencies": [
+      {
+        "dependency": "authenticated_update_catalog",
+        "usage": "required"
+      },
+      {
+        "dependency": "local_filesystem",
+        "usage": "required"
+      }
+    ],
+    "detail": "no authenticated remote update manifest is attached",
+    "feature_ids": [
+      "update.download.without-authenticated-manifest"
+    ],
+    "hardware": "unknown",
+    "layer": "local_persistent",
+    "service_roles": [
+      "update"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "not_applicable",
+      "read": true,
+      "readback": "required",
+      "rollback": "transactional",
+      "write": true
+    },
+    "command": "update.install",
+    "dependencies": [
+      {
+        "dependency": "authenticated_update_catalog",
+        "usage": "required"
+      },
+      {
+        "dependency": "win32_setup_api",
+        "usage": "required"
+      },
+      {
+        "dependency": "local_filesystem",
+        "usage": "required"
+      }
+    ],
+    "detail": "no authenticated remote update manifest is attached",
+    "feature_ids": [
+      "update.install.without-authenticated-manifest"
+    ],
+    "hardware": "unknown",
+    "layer": "not_applicable",
+    "service_roles": [
+      "update"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "local_persistent",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "update.history",
+    "dependencies": [
+      {
+        "dependency": "local_filesystem",
+        "usage": "required"
+      }
+    ],
+    "detail": "no remote update catalog is attached",
+    "feature_ids": [
+      "update.history.without-catalog"
+    ],
+    "hardware": "unknown",
+    "layer": "local_persistent",
+    "service_roles": [
+      "update"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "local_persistent",
+      "read": true,
+      "readback": "required",
+      "rollback": "previous_state",
+      "write": true
+    },
+    "command": "update.ignore",
+    "dependencies": [
+      {
+        "dependency": "local_filesystem",
+        "usage": "required"
+      }
+    ],
+    "detail": "no remote update catalog is attached",
+    "feature_ids": [
+      "update.ignore.without-catalog"
+    ],
+    "hardware": "unknown",
+    "layer": "local_persistent",
+    "service_roles": [
+      "update"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "not_applicable",
+      "read": true,
+      "readback": "required",
+      "rollback": "transactional",
+      "write": true
+    },
+    "command": "update.rollback",
+    "dependencies": [
+      {
+        "dependency": "win32_setup_api",
+        "usage": "required"
+      },
+      {
+        "dependency": "local_filesystem",
+        "usage": "required"
+      }
+    ],
+    "detail": "no remote update install ledger is attached",
+    "feature_ids": [
+      "update.rollback.without-install-ledger"
+    ],
+    "hardware": "unknown",
+    "layer": "not_applicable",
+    "service_roles": [
+      "update"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "local_persistent",
+      "read": true,
+      "readback": "required",
+      "rollback": "previous_state",
+      "write": true
+    },
+    "command": "update.schedule",
+    "dependencies": [
+      {
+        "dependency": "local_filesystem",
+        "usage": "required"
+      }
+    ],
+    "detail": "no remote update catalog is attached",
+    "feature_ids": [
+      "update.schedule.without-catalog"
+    ],
+    "hardware": "unknown",
+    "layer": "local_persistent",
+    "service_roles": [
+      "update"
+    ],
+    "status": "unsupported"
+  },
+  {
+    "axes": {
+      "layer": "not_applicable",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "scan.list",
+    "dependencies": [
+      {
+        "dependency": "public_win32_cim",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_diagnostic_tools",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "diagnostics.inventory"
+    ],
+    "hardware": "unknown",
+    "layer": "not_applicable",
+    "service_roles": [
+      "diagnostics"
+    ],
+    "status": "available"
+  },
+  {
+    "axes": {
+      "layer": "not_applicable",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "scan.run",
+    "dependencies": [
+      {
+        "dependency": "public_win32_cim",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_diagnostic_tools",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "diagnostics.inventory"
+    ],
+    "hardware": "unknown",
+    "layer": "not_applicable",
+    "service_roles": [
+      "diagnostics"
+    ],
+    "status": "available"
+  },
+  {
+    "axes": {
+      "layer": "local_persistent",
+      "read": true,
+      "readback": "unverified",
+      "rollback": "unavailable",
+      "write": true
+    },
+    "command": "snapshot.capture",
+    "dependencies": [
+      {
+        "dependency": "local_filesystem",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "battery.charge_mode",
+      "perf.mode",
+      "perf.fan.mode",
+      "tune.epp",
+      "tune.pl1",
+      "tune.pl2",
+      "tune.tau",
+      "kbd.backlight",
+      "touchpad",
+      "privacy.camera",
+      "power.scheme"
+    ],
+    "hardware": "unknown",
+    "layer": "local_persistent",
+    "service_roles": [
+      "battery",
+      "performance",
+      "fan",
+      "tuning",
+      "keyboard",
+      "touchpad",
+      "privacy",
+      "power"
+    ],
+    "status": "limited"
+  },
+  {
+    "axes": {
+      "layer": "composite",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "snapshot.diff",
+    "dependencies": [
+      {
+        "dependency": "local_filesystem",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "battery.charge_mode",
+      "perf.mode",
+      "perf.fan.mode",
+      "tune.epp",
+      "tune.pl1",
+      "tune.pl2",
+      "tune.tau",
+      "kbd.backlight",
+      "touchpad",
+      "privacy.camera",
+      "power.scheme"
+    ],
+    "hardware": "unknown",
+    "layer": "composite",
+    "service_roles": [
+      "battery",
+      "performance",
+      "fan",
+      "tuning",
+      "keyboard",
+      "touchpad",
+      "privacy",
+      "power"
+    ],
+    "status": "limited"
+  },
+  {
+    "axes": {
+      "layer": "composite",
+      "read": true,
+      "readback": "required",
+      "rollback": "transactional",
+      "write": true
+    },
+    "command": "snapshot.restore",
+    "dependencies": [
+      {
+        "dependency": "local_filesystem",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [
+      "battery.charge_mode",
+      "perf.mode",
+      "perf.fan.mode",
+      "tune.epp",
+      "tune.pl1",
+      "tune.pl2",
+      "tune.tau",
+      "kbd.backlight",
+      "touchpad",
+      "privacy.camera",
+      "power.scheme"
+    ],
+    "hardware": "unknown",
+    "layer": "composite",
+    "service_roles": [
+      "battery",
+      "performance",
+      "fan",
+      "tuning",
+      "keyboard",
+      "touchpad",
+      "privacy",
+      "power"
+    ],
+    "status": "limited"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "required",
+      "rollback": "unavailable",
+      "write": true
+    },
+    "command": "daemon.start",
+    "dependencies": [
+      {
+        "dependency": "local_daemon",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [],
+    "status": "external"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "unverified",
+      "rollback": "unavailable",
+      "write": true
+    },
+    "command": "daemon.stop",
+    "dependencies": [
+      {
+        "dependency": "local_daemon",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [],
+    "status": "external"
+  },
+  {
+    "axes": {
+      "layer": "runtime",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "daemon.status",
+    "dependencies": [
+      {
+        "dependency": "local_daemon",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [],
+    "hardware": "unknown",
+    "layer": "runtime",
+    "service_roles": [],
+    "status": "external"
+  },
+  {
+    "axes": {
+      "layer": "os_persistent",
+      "read": true,
+      "readback": "unverified",
+      "rollback": "unavailable",
+      "write": true
+    },
+    "command": "daemon.install",
+    "dependencies": [
+      {
+        "dependency": "local_daemon",
+        "usage": "required"
+      },
+      {
+        "dependency": "local_filesystem",
+        "usage": "required"
+      },
+      {
+        "dependency": "win32_task_scheduler",
+        "usage": "required"
+      },
+      {
+        "dependency": "linux_systemd",
+        "usage": "required"
+      }
+    ],
+    "detail": null,
+    "feature_ids": [],
+    "hardware": "unknown",
+    "layer": "os_persistent",
+    "service_roles": [],
+    "status": "external"
+  },
+  {
+    "axes": {
+      "layer": "not_applicable",
+      "read": true,
+      "readback": "not_applicable",
+      "rollback": "not_applicable",
+      "write": false
+    },
+    "command": "completions",
+    "dependencies": [],
+    "detail": null,
+    "feature_ids": [],
+    "hardware": "unknown",
+    "layer": "not_applicable",
+    "service_roles": [],
+    "status": "available"
+  }
+]

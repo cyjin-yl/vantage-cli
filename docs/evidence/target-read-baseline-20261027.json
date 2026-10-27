@@ -1,0 +1,426 @@
+{
+  "machine": "TB14P-EZRA",
+  "executable_sha256": "8888c6f771c51f86ef7216d856a66a3952eb0b64ab4de0100fe66fe58154bfa5",
+  "scope": "Read-only native CLI baseline; no mutations; identifier fields redacted.",
+  "records": [
+    {
+      "command": "info",
+      "arguments": "--json info",
+      "exit_code": 0,
+      "deadline": false,
+      "output": {
+        "features": {
+          "battery.adapter": {
+            "availability": "available"
+          },
+          "battery.charge_mode": {
+            "availability": "unavailable",
+            "detail": "GBMD conservation/express writes are accepted, but 21VG firmware exposes no independent charge-mode readback (docs/C-acceptance.md C2)"
+          },
+          "battery.info": {
+            "availability": "available"
+          },
+          "battery.status": {
+            "availability": "available"
+          },
+          "battery.thresholds": {
+            "availability": "unavailable",
+            "detail": "target firmware has no verified arbitrary-threshold write channel"
+          },
+          "channel.energy_driver": {
+            "availability": "available"
+          },
+          "channel.wmi.root": {
+            "availability": "available"
+          },
+          "diagnostics.inventory": {
+            "availability": "available"
+          },
+          "gpu.mode": {
+            "availability": "unavailable",
+            "detail": "no verified target GPU-mode mutator"
+          },
+          "kbd.backlight": {
+            "availability": "unavailable",
+            "detail": "ROOT\\WMI query: WMI HRESULT 0x8004100C"
+          },
+          "magicbay.inventory": {
+            "availability": "limited",
+            "detail": "SetupAPI inventory is provided by the separate MagicBay service"
+          },
+          "panel.refresh": {
+            "availability": "available",
+            "detail": "verified 60/120 Hz internal-panel transitions; requires the interactive desktop session (docs/C-acceptance.md C1)"
+          },
+          "perf.fan.inventory": {
+            "availability": "available"
+          },
+          "perf.fan.mode": {
+            "availability": "unavailable",
+            "detail": "no verified fan-mode write channel on 21VG firmware"
+          },
+          "perf.mode": {
+            "availability": "limited",
+            "detail": "ITS mode is readable from the documented Dispatcher registry; the write channel needs vendor service control codes that are not documented numerically"
+          },
+          "perf.temp": {
+            "availability": "available"
+          },
+          "power.scheme": {
+            "availability": "limited",
+            "detail": "Power API readiness is probed by the power service at command time"
+          },
+          "privacy.camera": {
+            "availability": "limited",
+            "detail": "persistent BIOS privacy service is required for writes"
+          },
+          "privacy.fingerprint": {
+            "availability": "limited",
+            "detail": "persistent BIOS privacy service is required for writes"
+          },
+          "privacy.microphone": {
+            "availability": "limited",
+            "detail": "persistent BIOS privacy service is required for writes"
+          },
+          "tune.background": {
+            "availability": "unavailable",
+            "detail": "no process-policy tuning executor"
+          },
+          "tune.epp": {
+            "availability": "available",
+            "detail": "PERFEPP percentage writes are verified with AC/DC readback; raw values without an exact percentage inverse are refused (docs/C-acceptance.md C5)"
+          },
+          "tune.pl1": {
+            "availability": "unavailable",
+            "detail": "Windows raw MSR/RAPL writes are unavailable"
+          },
+          "tune.pl2": {
+            "availability": "unavailable",
+            "detail": "Windows raw MSR/RAPL writes are unavailable"
+          },
+          "tune.tau": {
+            "availability": "unavailable",
+            "detail": "Windows raw MSR/RAPL writes are unavailable"
+          },
+          "tune.turbo": {
+            "availability": "available",
+            "detail": "PERFBOOSTMODE policy writes are verified with AC/DC readback; the effect stays an OS policy, not a frequency guarantee (docs/C-acceptance.md C6)"
+          },
+          "tune.windows_rapl": {
+            "availability": "unavailable",
+            "detail": "VBS/HVCI blocks ring-0 MSR and DPTF continuously owns RAPL"
+          },
+          "wmi.gamezone.methods": {
+            "availability": "unavailable",
+            "detail": "21VG firmware returns Invalid object for the GAMEZONE method family"
+          }
+        },
+        "hardware": {
+          "bios_version": "SWCN22WW",
+          "family": "ThinkBook 14 G8+ IPH",
+          "product_name": "21VG"
+        },
+        "platform": "windows"
+      },
+      "stderr": ""
+    },
+    {
+      "command": "battery.status",
+      "arguments": "--json battery status",
+      "exit_code": 0,
+      "deadline": false,
+      "output": {
+        "adapter": {
+          "ac_connected": true,
+          "authentication": "inbox",
+          "connector_type": null,
+          "has_detail": false,
+          "status": null,
+          "wattage_w": null
+        },
+        "charge_mode_error": {
+          "error": {
+            "feature": "battery.charge-mode.readback",
+            "kind": "unsupported",
+            "message": "feature is unsupported: battery.charge-mode.readback"
+          }
+        },
+        "telemetry": {
+          "charge_completion_time_min": null,
+          "charge_status": "no_activity",
+          "chemistry": "Lion",
+          "current_ma": 23446,
+          "cycle_count": 224,
+          "design_capacity_mwh": 99900,
+          "design_voltage_mv": null,
+          "firmware_version": null,
+          "first_used_date": null,
+          "full_charge_capacity_mwh": 94610,
+          "health": "green",
+          "life_percent": 94,
+          "manufacture_date": null,
+          "manufacturer": "Sunwoda",
+          "model_name": null,
+          "remaining_capacity_mwh": 94610,
+          "remaining_percent": 100,
+          "remaining_time_min": null,
+          "serial_number": "[redacted]",
+          "temperature_deci_kelvin": 3019,
+          "voltage_mv": 15600,
+          "wattage_w": null
+        }
+      },
+      "stderr": ""
+    },
+    {
+      "command": "battery.adapter",
+      "arguments": "--json battery adapter",
+      "exit_code": 0,
+      "deadline": false,
+      "output": {
+        "ac_connected": true,
+        "authentication": "inbox",
+        "connector_type": null,
+        "has_detail": false,
+        "status": null,
+        "wattage_w": null
+      },
+      "stderr": ""
+    },
+    {
+      "command": "power.scheme.list",
+      "arguments": "--json power scheme list",
+      "exit_code": 0,
+      "deadline": false,
+      "output": [
+        {
+          "active": true,
+          "id": "381b4222-f694-41f0-9685-ff5bb260df2e",
+          "name": "平衡"
+        }
+      ],
+      "stderr": ""
+    },
+    {
+      "command": "perf.mode.read",
+      "arguments": "--json perf mode",
+      "exit_code": 0,
+      "deadline": false,
+      "output": {
+        "active": "performance",
+        "automatic": true,
+        "capabilities": {
+          "raw": 1
+        },
+        "requested": "performance",
+        "version": "v3"
+      },
+      "stderr": ""
+    },
+    {
+      "command": "perf.fan.status",
+      "arguments": "--json perf fan status",
+      "exit_code": 0,
+      "deadline": false,
+      "output": {
+        "fans": [
+          {
+            "id": 1,
+            "max_rpm": 5100,
+            "min_rpm": 2100
+          }
+        ],
+        "mode": null,
+        "mode_error": {
+          "error": {
+            "feature": "perf.fan.mode",
+            "kind": "unsupported",
+            "message": "feature is unsupported: perf.fan.mode"
+          }
+        }
+      },
+      "stderr": ""
+    },
+    {
+      "command": "perf.temp",
+      "arguments": "--json perf temp",
+      "exit_code": 0,
+      "deadline": false,
+      "output": [
+        {
+          "metadata": {
+            "availability": "available",
+            "id": "acpi/ACPI\\ThermalZone\\TZ00_0",
+            "location": "unknown",
+            "name": "ACPI thermal zone (ACPI\\ThermalZone\\TZ00_0)",
+            "source": "acpi"
+          },
+          "value_c": 42.04999923706055
+        },
+        {
+          "metadata": {
+            "availability": "available",
+            "id": "battery/0",
+            "location": "battery",
+            "name": "Battery pack 0 (SMBus)",
+            "source": "battery_smbus"
+          },
+          "value_c": 28.739990234375
+        }
+      ],
+      "stderr": ""
+    },
+    {
+      "command": "tune.telemetry",
+      "arguments": "--json tune telemetry",
+      "exit_code": 0,
+      "deadline": false,
+      "output": {
+        "battery": [
+          {
+            "charge_completion_time_min": null,
+            "charge_status": "no_activity",
+            "chemistry": "Lion",
+            "current_ma": 23446,
+            "cycle_count": 224,
+            "design_capacity_mwh": 99900,
+            "design_voltage_mv": null,
+            "firmware_version": null,
+            "first_used_date": null,
+            "full_charge_capacity_mwh": 94610,
+            "health": "green",
+            "life_percent": 94,
+            "manufacture_date": null,
+            "manufacturer": "Sunwoda",
+            "model_name": null,
+            "remaining_capacity_mwh": 94610,
+            "remaining_percent": 100,
+            "remaining_time_min": null,
+            "serial_number": "[redacted]",
+            "temperature_deci_kelvin": 3019,
+            "voltage_mv": 15600,
+            "wattage_w": null
+          },
+          null
+        ],
+        "epp": [
+          127,
+          null
+        ],
+        "performance": [
+          {
+            "active": "performance",
+            "automatic": true,
+            "capabilities": {
+              "raw": 1
+            },
+            "requested": "performance",
+            "version": "v3"
+          },
+          null
+        ],
+        "pl1_uw": [
+          null,
+          {
+            "error": {
+              "feature": "tune.pl1",
+              "kind": "unsupported",
+              "message": "feature is unsupported: tune.pl1"
+            }
+          }
+        ],
+        "pl2_uw": [
+          null,
+          {
+            "error": {
+              "feature": "tune.pl2",
+              "kind": "unsupported",
+              "message": "feature is unsupported: tune.pl2"
+            }
+          }
+        ],
+        "tau_us": [
+          null,
+          {
+            "error": {
+              "feature": "tune.tau",
+              "kind": "unsupported",
+              "message": "feature is unsupported: tune.tau"
+            }
+          }
+        ]
+      },
+      "stderr": ""
+    },
+    {
+      "command": "privacy.status",
+      "arguments": "--json privacy status",
+      "exit_code": 0,
+      "deadline": false,
+      "output": {
+        "bios": [
+          {
+            "name": "IntegratedCamera",
+            "selections": [],
+            "value": "Enable"
+          },
+          {
+            "name": "Microphone",
+            "selections": [],
+            "value": "Enable"
+          },
+          {
+            "name": "FingerprintReader",
+            "selections": [],
+            "value": "Enable"
+          }
+        ],
+        "runtime_camera": "enabled",
+        "runtime_microphone": "enabled"
+      },
+      "stderr": ""
+    },
+    {
+      "command": "bios.password.status",
+      "arguments": "--json bios password status",
+      "exit_code": 0,
+      "deadline": false,
+      "output": {
+        "max_length": 128,
+        "min_length": 1,
+        "password_mode": 1,
+        "password_state": 0,
+        "supervisor_set": false,
+        "supported_encodings": 1,
+        "supported_keyboard": 1
+      },
+      "stderr": ""
+    },
+    {
+      "command": "magicbay.detect",
+      "arguments": "--json magicbay detect",
+      "exit_code": 0,
+      "deadline": false,
+      "output": {
+        "acpi_devices": [],
+        "devices": []
+      },
+      "stderr": ""
+    },
+    {
+      "command": "scan.list",
+      "arguments": "--json scan list",
+      "exit_code": 0,
+      "deadline": false,
+      "output": [
+        "battery",
+        "thermal",
+        "storage",
+        "memory",
+        "firmware",
+        "network"
+      ],
+      "stderr": ""
+    }
+  ]
+}
