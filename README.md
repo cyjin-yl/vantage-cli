@@ -58,10 +58,14 @@ On the documented 21VG Windows baseline, the following channels remain deliberat
 - arbitrary battery-threshold writes and charge-mode readback;
 - Windows MSR/RAPL power-limit writes, including PL1, PL2, and tau;
 - GameZone performance, fan, and temperature method families;
-- panel refresh-rate mutation and persistent privacy writes;
 - MagicBay inventory association is limited to the separate SetupAPI service path.
 
-These states are reported by `vantage info`; they are not silently replaced with guessed IOCTLs, registry writes, or synthetic success.
+The 21VG internal panel refresh path has an interactive-session native write and
+readback record in `docs/C-acceptance.md` C1. A BIOS privacy mirror readback is
+not proof of an immediate physical effect; reboot/effective state may remain
+unknown. The touchpad controller recovery and the limits of its new runtime
+path are recorded in C7. Unverified channels are not silently replaced with
+guessed IOCTLs, registry writes, or synthetic success.
 
 ## Configuration
 
