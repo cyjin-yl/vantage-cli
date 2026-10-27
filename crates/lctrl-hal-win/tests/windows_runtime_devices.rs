@@ -786,10 +786,8 @@ fn touchpad_failure_after_effect_restores_both_attempted_leaves() {
 
 #[test]
 fn channel_failure_after_effect_also_restores_the_attempted_touchpad_leaf() {
-    let mut api = touchpad_topology().with_failure(
-        2,
-        FakeError::Channel("device unavailable after effect"),
-    );
+    let mut api =
+        touchpad_topology().with_failure(2, FakeError::Channel("device unavailable after effect"));
     api.failed_write_takes_effect = true;
     let original = api.states.lock().clone();
     let error = WindowsRuntimeDevices::new(&api)
