@@ -13,7 +13,7 @@
 | Fn/Ctrl 互换 | BIOS `FoolProofFnCtrl` | `kbd fn-ctrl-swap {on|off}` |
 | F1-F12 主功能 | BIOS `HotkeyMode` + `F1-F12AsPrimaryFunction` | `kbd fnlock {on|off}` |
 | Win 键锁定 | WMI `LENOVO_GAMEZONE_DATA.SetWinKeyStatus` | `kbd winlock {on|off}` |
-| 触控板开关 | WMI `LENOVO_GAMEZONE_DATA.SetTPStatus` | `touchpad {on|off}` |
+| 触控板开关 | GAMEZONE WMI;21VG 使用 Windows PnP 输入叶节点 | `touchpad {on|off}` |
 | 面板刷新率 | WMI `LENOVO_INTERNAL_PANEL_REFRESH_RATE_DATA` + ChangeDisplaySettingsEx | `panel rate {60|120|auto}` |
 | 面板色彩/显示模式 | WMI `LENOVO_PANEL_METHOD` | `panel color MODE` |
 | 超分辨率(SR) | 注册表 + SmartEngine | `panel super-resolution {on|off}` |
@@ -68,6 +68,23 @@
 ```
 
 即时生效。部分机型触控板状态复用 `LENOVO_GAMEZONE_KEYLOCK_STATUS_EVENT` 推送(按位解析)[推断]。
+
+21VG 的 Windows 实现不依赖未实现的 GAMEZONE 方法,通过公开的
+`CM_Disable_DevNode` / `CM_Enable_DevNode` 控制输入叶节点:
+
+- 触控板必须由 HID digitizer/touchpad usage `HID_DEVICE_UP:000D_U:0005`
+  和集成 ACPI 父节点共同识别;设备名称、`PNP0C50` 或 ACPI 父节点单独存在都不足以授权写入。
+- 仅同时切换该触控板的 digitizer 叶节点及同父节点的 mouse usage
+  `HID_DEVICE_UP:0001_U:0002` 叶节点。**绝不禁用 ACPI 控制器**,
+  也不切换配置/vendor-defined 集合或其他鼠标。
+- dry-run 不写设备;已处于请求状态时不重启输入节点。提交逐节点回读,
+  失败时恢复所有可能已发生变化的尝试节点,包括返回错误但可能已经生效的那一次调用。
+- 禁用 ACPI 控制器会令 HID 子节点消失,使下一次 CLI 无法重新发现触控板。
+  若旧版本留下该状态,用已确认的原控制器完整 instance ID 执行
+  `pnputil /enable-device "<instance-id>"`,再检查控制器及各子节点状态;不要扫描或批量启用其他设备。
+
+2026-10-27 的恢复、用户实测和非中断式验证见 `C-acceptance.md` C7。
+新版叶节点禁用/恢复的真机完整验收尚未执行,不能把回归测试当成完整硬件验收。
 
 ### 1.5 键盘特性位图
 

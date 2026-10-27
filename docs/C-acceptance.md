@@ -100,3 +100,45 @@
    (3000 deci-Kelvin = 26.85 ℃)的值断言,使"实例↔温度"错配可被捕获。
 5. `active_instance` 在固件类返回无实例键的附加行时直接失败 → 改为跳过不可调用的行,取第一条
    可调用实例;全部不可调用时仍 fail-closed(Windows 侧 `bios_controller` 用例回归)。
+
+## C7 · 触控板失效恢复与控制器禁用缺陷修复
+
+**状态:触控板已恢复,用户确认可用;新版控制路径已通过回归与非中断式真机 smoke。
+新版禁用/恢复循环尚未做真机验收,不计为触控板功能域完整通过。**
+
+2026-10-27,先前的控制器级禁用测试关闭了
+`ACPI\GXTP5100\4&30ed0a95&0`。它的 HID 子节点随之消失,
+后续 `touchpad on` 的枚举找不到 Mouse 设备而报 Unsupported,未恢复原状态。
+用户随后报告触控板无法使用。故障由本轮测试留下,不是已证实的驱动或硬件损坏。
+
+恢复仅作用于上述已确认的原控制器:
+
+```powershell
+pnputil /enable-device 'ACPI\GXTP5100\4&30ed0a95&0'
+pnputil /enum-devices /instanceid 'ACPI\GXTP5100\4&30ed0a95&0' /relations
+```
+
+原生工具返回 `Device enabled successfully`,退出码 0;独立枚举由 `Disabled`
+变为 `Started`,四个集合 Col01(mouse)、Col02(touchpad)、Col03(configuration)、
+Col04(vendor-defined)全部重新出现且为 `Started`。用户明确确认触控板已经可以使用。
+未重启、卸载/重装驱动或改动其他输入设备;用户设置 `PrecisionTouchPad\Status\Enabled=1`。
+
+永久修复只选择有明确 HID usage 的 touchpad 与同控制器 mouse 输入叶节点,
+保留 ACPI 控制器、配置集合和厂商集合。失败恢复包含返回错误但可能已经生效的尝试节点;
+已启用时执行 `touchpad on` 为 no-op,不重启输入设备。
+
+| 验证 | 实际结果 |
+|---|---|
+| Windows `cargo test --offline -j 1 -p lctrl-hal-win --test windows_runtime_devices` | **28 passed**,覆盖新客户端重新发现/恢复、控制器与无关集合隔离、dry-run、已启用 no-op、写入报错后生效的回滚 |
+| Windows `cargo build --offline --release -j 1 -p vantage` | 退出码 **0** |
+| 新程序 `vantage --dry-run touchpad off --json` | previous=enabled,requested=disabled,mode=dry_run |
+| 新程序 `vantage --yes touchpad on --json` | previous=enabled,actual=enabled,mode=commit(no-op) |
+| smoke 前后独立 `Get-PnpDevice` / `DEVPKEY_Device_ProblemCode` | 控制器和四个 HID 集合均为 **OK / 0**,前后完全一致 |
+
+已构建程序:`C:\Users\ezra\vantage-replacement-target-r7\release\vantage.exe`。
+SHA-256:`8888c6f771c51f86ef7216d856a66a3952eb0b64ab4de0100fe66fe58154bfa5`。
+原始恢复/构建/smoke 输出保存在 `evidence/touchpad-recovery-20261027.json`。
+源文件往返传输均校验 SHA-256 和长度后才使用。
+
+**使用安全边界:**确认恢复后没有再次提交 `touchpad off`,没有对正在使用的触摸板做故障注入。
+新版真实禁用效果及恢复仍需另行安排不会打断用户工作的验收窗口。

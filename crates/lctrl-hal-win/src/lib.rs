@@ -73,6 +73,7 @@ pub use process::NativeProcessApi;
 pub use runtime_devices::{
     AudioEndpointFormFactor, PnpDeviceProblem, PnpDeviceStatus, RuntimeDevice, RuntimeDeviceApi,
     RuntimeDeviceClass, RuntimeDeviceKind, WindowsRuntimeDevices, select_runtime_device,
+    select_runtime_devices,
 };
 #[cfg(windows)]
 pub use runtime_devices::{NativeRuntimeDeviceApi, NativeWindowsRuntimeDevices};
