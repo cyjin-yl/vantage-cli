@@ -1,0 +1,11 @@
+[package]
+name = "lctrl-hal"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+lctrl-core = { path = "../lctrl-core" }
+serde.workspace = true
+

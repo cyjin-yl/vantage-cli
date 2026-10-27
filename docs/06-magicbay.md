@@ -16,12 +16,12 @@ MagicBay 是联想面向 ThinkBook / IdeaPad 系列的**磁吸扩展背壳**产�
 本规范描述实现者如何用 Rust 实现下列 CLI 子命令:
 
 ```
-lctrl magicbay detect
-lctrl magicbay lte status        # 查询当前 LTE 数据/信号/APN/SIM 状态
-lctrl magicbay lte connect [apn] # 建立数据会话
-lctrl magicbay lte disconnect     # 断开数据会话
-lctrl magicbay cam [status|set <prop=value>]   # MagicBay 摄像头(UVC)
-lctrl magicbay display [detect|status|set-mode <WxH@R>]  # 扩展屏检测与模式切换
+vantage magicbay detect
+vantage magicbay lte status        # 查询当前 LTE 数据/信号/APN/SIM 状态
+vantage magicbay lte connect [apn] # 建立数据会话
+vantage magicbay lte disconnect     # 断开数据会话
+vantage magicbay cam [status|set <prop=value>]   # MagicBay 摄像头(UVC)
+vantage magicbay display [detect|status|set-mode <WxH@R>]  # 扩展屏检测与模式切换
 ```
 
 ### 1.2 净室范围
@@ -159,7 +159,7 @@ MagiCenter 的 USB 事件路径(来源:`winapi_addon.node`,bundle 行 16141–16
 只需要实现以下可观察行为:
 
 ```
-lctrl magicbay detect
+vantage magicbay detect
   → 枚举当前系统中所有已识别的 MagicBay 配件,输出 JSON
 ```
 
@@ -238,7 +238,7 @@ Mobile Broadband Interface Model R1.4),典型 CID 布局如下:
 ### 4.3 LTE 子命令的语义
 
 ```
-lctrl magicbay lte status
+vantage magicbay lte status
   输出:
   {
     "modem": "/sys/class/net/wwan0" | "WWAN0",
@@ -252,7 +252,7 @@ lctrl magicbay lte status
     "sim": "inserted"|"absent"|"locked"
   }
 
-lctrl magicbay lte connect [--apn <name>] [--user <u>] [--passwd <p>]
+vantage magicbay lte connect [--apn <name>] [--user <u>] [--passwd <p>]
   行为:
     1. 若已连接 → 报错 E_ALREADY_CONNECTED
     2. 调用 MM/MBN API 建立数据会话(IPv4/IPv6 均可)
@@ -264,7 +264,7 @@ lctrl magicbay lte connect [--apn <name>] [--user <u>] [--passwd <p>]
     - E_APN_FAIL    : APN 拨号失败
     - E_RADIO_OFF   : 无线电被关闭(需先 radio on)
 
-lctrl magicbay lte disconnect
+vantage magicbay lte disconnect
   行为:调用 MBN/ModemManager Disconnect(),清理 PDP 上下文。
 ```
 
@@ -320,7 +320,7 @@ MagicBay 若含摄像头,**以标准 UVC 设备出现在系统视频设备列表
 ### 5.4 命令语义
 
 ```
-lctrl magicbay cam status
+vantage magicbay cam status
   → 列出所有已挂载的 UVC 视频设备,标注哪些是 MagicBay 配件路径下的。
   输出:
   [
@@ -333,7 +333,7 @@ lctrl magicbay cam status
     }
   ]
 
-lctrl magicbay cam set <prop>=<value>
+vantage magicbay cam set <prop>=<value>
   prop ∈ {
     input=<idx>,
     fmt=<codec>,
@@ -398,7 +398,7 @@ EDID 与 DPCD(显示能力数据)。实现者无需自行实现 EDID 协议,
 加上 DP/eDP 链路层带宽约束。实现者提供:
 
 ```
-lctrl magicbay display detect
+vantage magicbay display detect
   → 列出:
   [
     {
@@ -410,10 +410,10 @@ lctrl magicbay display detect
     }
   ]
 
-lctrl magicbay display status
+vantage magicbay display status
   → 当前活跃模式。
 
-lctrl magicbay display set-mode <WxH@R>
+vantage magicbay display set-mode <WxH@R>
   行为:
     1. 通过 DRM `DRM_MODE_SET_CRTC`/`drmModeSetMode()` 切换模式;
        或 Windows `ChangeDisplaySettingsEx()`.

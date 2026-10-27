@@ -1,0 +1,18 @@
+[Unit]
+Description=Gitea act_runner for the vantage-cli repository
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=-/usr/bin/docker rm -f vantage-runner
+# Bypass run.sh: it ignores positional daemon/config arguments. No env-file,
+# mirror hosts, broad read credential or custom CA is passed to this process.
+# The runner updates its own registration/labels. Only its private identity
+# directory is writable; project jobs never receive it or the Docker socket.
+ExecStart=/usr/bin/docker run -d --name vantage-runner --restart unless-stopped --network doesportal_default --cpus=1 --memory=512m --memory-swap=512m --pids-limit=128 --entrypoint /usr/local/bin/act_runner --workdir /data -v /var/run/docker.sock:/var/run/docker.sock -v /tank/docker/doescontainer/binds/vantage-runner/identity:/data/identity -v /tank/docker/doescontainer/binds/vantage-runner/config.yaml:/data/config.yaml:ro gitea/act_runner:0.2.13 daemon --config /data/config.yaml
+ExecStop=/usr/bin/docker stop --time 75 vantage-runner
+
+[Install]
+WantedBy=multi-user.target

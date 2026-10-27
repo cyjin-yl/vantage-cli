@@ -74,7 +74,7 @@ Linux 后端的**大多数节点默认 `root:root 0644` 或 `root:root 0444`**,
   默认可读,直接 `open(O_RDONLY)` 即可。
 - **可写节点**(风扇、充电阈值、摄像头开关等):默认 root。
   通过 udev 规则把 `ATTR{conservation_mode}` 等节点的 group 改为
-  `plugdev` / `lctrl` / `power`,并把 `uaccess` 权限开放给组内成员。
+  `plugdev` / `vantage` / `power`,并把 `uaccess` 权限开放给组内成员。
 - **需要 CAP_SYS_ADMIN 的操作**(加载 `acpi_call` 模块、`devmem` 写入):
   只在 daemon 模式下使用,CLI 单次调用走 `polkit` action 放行。
 
@@ -456,7 +456,7 @@ echo balance_performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/energy_
 
 `/sys/devices/system/cpu/intel_pstate/energy_perf_bias` 是**旧接口**
 (0..15,值越小越偏性能)。6.x 主线已推荐用 EPP。
-CLI 工具 `lctrl` 应先探测 EPP 可用性,只在老内核(< 5.8)回退到 `energy_perf_bias`。
+CLI 工具 `vantage` 应先探测 EPP 可用性,只在老内核(< 5.8)回退到 `energy_perf_bias`。
 
 ### 5.3 `intel_rapl` — CPU/GPU 功耗墙
 
@@ -529,7 +529,7 @@ Linux 上**没有官方 DPTF 移植**。
 
 **替代方案 C — 用户态调度器(Rust 侧)**:
 
-实现者可以在 `lctrl` daemon 中实现一个**轻量级调度器**,替代
+实现者可以在 `vantage` daemon 中实现一个**轻量级调度器**,替代
 `LenovoProcessManagement` 的进程级策略(见 `Lenovo 系统服务组件内部接口说明`):
 
 1. 轮询 `getpidforwindow(GetForegroundWindow)` 的 Linux 对等:
@@ -664,9 +664,9 @@ modetest -M i915 -s 0@1  # 假设主屏是 connector 0, crtc 1
 
 **实现建议**:
 1. 用 `libevdev` 订阅 `/dev/input/event*`,过滤 `ideapad` 设备。
-2. 键码映射到 `lctrl` 命令:
-   - `KEY_BRIGHTNESSUP` → `lctrl display brightness +1`
-   - `KEY_KBDILLUMUP` → `lctrl keyboard backlight +1`
+2. 键码映射到 `vantage` 命令:
+   - `KEY_BRIGHTNESSUP` → `vantage display brightness +1`
+   - `KEY_KBDILLUMUP` → `vantage keyboard backlight +1`
    - `KEY_F1..KEY_F12` → 自定义或透传给桌面环境。
 3. Fn 修饰键:Linux 下 Fn 键通常被 EC 消费,不会透传到 X/Wayland,
    除非 `Fn` 状态由 EC 直接决定键值(见 §4.5)。
@@ -770,7 +770,7 @@ NVIDIA/Intel GPU 的 eDP/DP 输出直驱(见 `MagiCenter 组件内部接口说�
 
 ### 8.2 推荐 udev 规则
 
-将以下规则写到 `/etc/udev/rules.d/90-lctrl.rules`:
+将以下规则写到 `/etc/udev/rules.d/90-vantage.rules`:
 
 ```udev
 # ---- ideapad 平台节点 ----
@@ -838,13 +838,13 @@ KERNEL=="ttyUSB[0-9]*", SUBSYSTEM=="tty", \
 ### 8.3 polkit action 配置
 
 CLI 需要 CAP_SYS_ADMIN 的动作(如加载 `acpi_call`、写 devmem),
-通过 polkit action 放行。写入 `/etc/polkit-1/actions/org.lctrl.admin.policy`:
+通过 polkit action 放行。写入 `/etc/polkit-1/actions/org.vantage.admin.policy`:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <policyconfig>
-  <vendor>Lctrl Project</vendor>
-  <action id="org.lctrl.acpi-call">
+  <vendor>Vantage Project</vendor>
+  <action id="org.vantage.acpi-call">
     <description>Execute ACPI method (via acpi_call)</description>
     <message>Authentication is required to query/write Lenovo EC registers</message>
     <defaults>
@@ -853,7 +853,7 @@ CLI 需要 CAP_SYS_ADMIN 的动作(如加载 `acpi_call`、写 devmem),
       <allow_active>auth_admin</allow_active>
     </defaults>
   </action>
-  <action id="org.lctrl.modprobe">
+  <action id="org.vantage.modprobe">
     <description>Load/unload kernel module</description>
     <message>Authentication is required to load kernel modules</message>
     <defaults>
@@ -868,13 +868,13 @@ CLI 需要 CAP_SYS_ADMIN 的动作(如加载 `acpi_call`、写 devmem),
 ### 8.4 用户组设置
 
 ```bash
-# 创建 lctrl 用户组(可选,也可以复用 plugdev)
-sudo groupadd lctrl
-sudo usermod -aG lctrl,plugdev,dialout $USER
+# 创建 vantage 用户组(可选,也可以复用 plugdev)
+sudo groupadd vantage
+sudo usermod -aG vantage,plugdev,dialout $USER
 
 # 加载内核模块(首次)
 sudo modprobe acpi_call ideapad_laptop intel_rapl_common intel_lpmd
-sudo tee /etc/modules-load.d/lctrl.conf <<< "acpi_call ideapad_laptop intel_rapl_common intel_lpmd"
+sudo tee /etc/modules-load.d/vantage.conf <<< "acpi_call ideapad_laptop intel_rapl_common intel_lpmd"
 ```
 
 ---
@@ -1002,7 +1002,7 @@ Windows 侧通过 `LENОВО_*_EVENT` 类做事件推送;Linux 侧无 WMI,
 ### 11.1 层次结构
 
 ```
-lctrl (CLI)
+vantage (CLI)
 ├── backend/
 │   ├── windows/          # WMI / IOCTL / 服务控制 后端
 │   └── linux/            # 本文档描述的 sysfs / acpi_call / DRM 后端

@@ -18,7 +18,7 @@
 | MachineFix 修复动作(服务重启/注册表/设备状态) | **保留** | 纯策略逻辑 |
 | Snapshot 15 模块 WMI 快照 | **保留** | 标准 WMI 查询 |
 | Snapshot Vpp 商业授权 / CDAT 遥测 | **排除** | — |
-| 设备信息枚举(SMBIOS/WMI/注册表) | **保留** | `lctrl info` 核心输入 |
+| 设备信息枚举(SMBIOS/WMI/注册表) | **保留** | `vantage info` 核心输入 |
 | WiFi 安全评估 | **保留** | WlanApi / Linux nmcli |
 | McAfee/SecurityCenter、SmartLock(Absolute)、Dolby 专有 API、Vantage 自更新 | **排除** | 商业/专有生态 |
 
@@ -111,9 +111,9 @@ FIRST_BOOT → BASELINE_CAPTURED →(WMI/注册表变化)→ COMPARE_WITH_BASELI
 ```
 
 15 个 WMI 快照模块(系统/设备/驱动/软件清单等),纯 WMI 查询 + 注册表 + 版本比对;
-CLI 等价:`lctrl snapshot {capture,diff,restore}`(restore 限定到本工具管理的设置域)。
+CLI 等价:`vantage snapshot {capture,diff,restore}`(restore 限定到本工具管理的设置域)。
 
-## 6. 设备信息枚举(VantageCoreAddin,`lctrl info` 的数据源清单)
+## 6. 设备信息枚举(VantageCoreAddin,`vantage info` 的数据源清单)
 
 | 信息 | 来源 |
 |---|---|

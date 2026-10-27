@@ -1,0 +1,10 @@
+[package]
+name = "lctrl-hal-linux"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+
+[dependencies]
+lctrl-core = { path = "../lctrl-core" }
+lctrl-hal = { path = "../lctrl-hal" }
