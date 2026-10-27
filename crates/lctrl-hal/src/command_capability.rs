@@ -1762,7 +1762,7 @@ pub struct DependencySwitch {
 
 impl DependencySwitch {
     #[must_use]
-    pub const fn required(&self) -> bool {
+    pub fn required(&self) -> bool {
         !self.required_by.is_empty()
     }
 
