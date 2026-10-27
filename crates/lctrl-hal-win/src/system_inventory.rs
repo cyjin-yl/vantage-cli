@@ -6,17 +6,19 @@
 //! (or an empty collection); missing/non-convertible properties remain `None`.
 
 use lctrl_core::{
-    BiosInventory, CpuInventory, DiskInventory, FirmwareInventory, GpuInventory,
-    InventorySnapshot, MemoryModuleInventory, MotherboardInventory, NetworkAdapterInventory,
-    OperatingSystemInventory, ProductInventory, Result,
+    BiosInventory, CpuInventory, DiskInventory, FirmwareInventory, GpuInventory, InventorySnapshot,
+    MemoryModuleInventory, MotherboardInventory, NetworkAdapterInventory, OperatingSystemInventory,
+    ProductInventory, Result,
 };
 
 use crate::{WmiObject, WmiTransport, WmiValue};
 
 const ROOT_CIMV2: &str = "ROOT\\CIMV2";
 
-const OPERATING_SYSTEM_QUERY: &str = "SELECT Caption, Version, BuildNumber, OSArchitecture FROM Win32_OperatingSystem";
-const PRODUCT_QUERY: &str = "SELECT Name, Vendor, Version, IdentifyingNumber, UUID FROM Win32_ComputerSystemProduct";
+const OPERATING_SYSTEM_QUERY: &str =
+    "SELECT Caption, Version, BuildNumber, OSArchitecture FROM Win32_OperatingSystem";
+const PRODUCT_QUERY: &str =
+    "SELECT Name, Vendor, Version, IdentifyingNumber, UUID FROM Win32_ComputerSystemProduct";
 const COMPUTER_SYSTEM_QUERY: &str =
     "SELECT Manufacturer, Model, SystemFamily FROM Win32_ComputerSystem";
 const MOTHERBOARD_QUERY: &str =
@@ -80,7 +82,9 @@ where
         };
 
         Ok(InventorySnapshot {
-            operating_system: operating_system_objects.first().map(operating_system_from_wmi),
+            operating_system: operating_system_objects
+                .first()
+                .map(operating_system_from_wmi),
             motherboard: motherboard_objects.first().map(motherboard_from_wmi),
             product,
             bios: bios_objects.first().map(bios_from_wmi),

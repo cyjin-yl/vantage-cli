@@ -185,10 +185,7 @@ pub fn assess_wifi_security(
     // authentication label. In particular, WPA/WPA2 with TKIP is never safe.
     match cipher_kind {
         CipherKind::Wep => {
-            return assessment(
-                WifiSecurityFinding::Weak,
-                WifiSecurityReason::WepEncryption,
-            );
+            return assessment(WifiSecurityFinding::Weak, WifiSecurityReason::WepEncryption);
         }
         CipherKind::Tkip => {
             return assessment(
@@ -214,10 +211,9 @@ pub fn assess_wifi_security(
     }
 
     match (authentication_kind, cipher_kind) {
-        (AuthenticationKind::Open, CipherKind::None) => assessment(
-            WifiSecurityFinding::Open,
-            WifiSecurityReason::OpenNetwork,
-        ),
+        (AuthenticationKind::Open, CipherKind::None) => {
+            assessment(WifiSecurityFinding::Open, WifiSecurityReason::OpenNetwork)
+        }
         (AuthenticationKind::Shared, _) => assessment(
             WifiSecurityFinding::Weak,
             WifiSecurityReason::SharedKeyAuthentication,
@@ -228,18 +224,15 @@ pub fn assess_wifi_security(
                 WifiSecurityReason::WpaEncryption,
             )
         }
-        (AuthenticationKind::Wpa2, CipherKind::Ccmp) => assessment(
-            WifiSecurityFinding::Safe,
-            WifiSecurityReason::Wpa2Ccmp,
-        ),
-        (AuthenticationKind::Wpa3, CipherKind::Ccmp) => assessment(
-            WifiSecurityFinding::Safe,
-            WifiSecurityReason::Wpa3Ccmp,
-        ),
-        (AuthenticationKind::Wpa3, CipherKind::Gcmp | CipherKind::Gcmp256) => assessment(
-            WifiSecurityFinding::Safe,
-            WifiSecurityReason::Wpa3Gcmp,
-        ),
+        (AuthenticationKind::Wpa2, CipherKind::Ccmp) => {
+            assessment(WifiSecurityFinding::Safe, WifiSecurityReason::Wpa2Ccmp)
+        }
+        (AuthenticationKind::Wpa3, CipherKind::Ccmp) => {
+            assessment(WifiSecurityFinding::Safe, WifiSecurityReason::Wpa3Ccmp)
+        }
+        (AuthenticationKind::Wpa3, CipherKind::Gcmp | CipherKind::Gcmp256) => {
+            assessment(WifiSecurityFinding::Safe, WifiSecurityReason::Wpa3Gcmp)
+        }
         (AuthenticationKind::Wpa3Enterprise192, CipherKind::Gcmp256) => assessment(
             WifiSecurityFinding::Safe,
             WifiSecurityReason::Wpa3Enterprise192Gcmp256,
@@ -353,9 +346,7 @@ fn normalized_eq_any(value: &str, candidates: &[&str]) -> bool {
 fn normalized_eq(value: &str, candidate: &str) -> bool {
     value
         .chars()
-        .filter(|character| {
-            !character.is_whitespace() && *character != '-' && *character != '_'
-        })
+        .filter(|character| !character.is_whitespace() && *character != '-' && *character != '_')
         .map(|character| character.to_ascii_lowercase())
         .eq(candidate.chars())
 }

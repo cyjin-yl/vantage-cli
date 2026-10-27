@@ -1,8 +1,6 @@
 use std::{collections::BTreeMap, time::Duration};
 
-use lctrl_core::{
-    ApplyMode, BacklightState, ChangeReport, LctrlError, LightingEffect, Result,
-};
+use lctrl_core::{ApplyMode, BacklightState, ChangeReport, LctrlError, LightingEffect, Result};
 use lctrl_hal::{KeyboardControl, poll_readback};
 
 use crate::wmi_contract::ROOT_WMI;

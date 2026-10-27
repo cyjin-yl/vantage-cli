@@ -965,7 +965,9 @@ pub use capability::{
     ObservedCommandCapability, ObservedStatus, command_selector, evaluate_commands,
     evaluate_commands_with_hardware,
 };
-pub use lctrl_hal::{command_capabilities, command_capability, command_capability_for, command_registry};
+pub use lctrl_hal::{
+    command_capabilities, command_capability, command_capability_for, command_registry,
+};
 
 pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> CommandResult {
     let local_dry_run = matches!(
@@ -1628,7 +1630,10 @@ fn execute_fan_status(fan: Option<&dyn FanControl>) -> CommandResult {
     let fans = fan.fans().unwrap_or_default();
     structured_output(
         &serde_json::json!({ "mode": mode, "mode_error": mode_error, "fans": fans }),
-        format!("{} fan device record(s); mode readback is unavailable\n", fans.len()),
+        format!(
+            "{} fan device record(s); mode readback is unavailable\n",
+            fans.len()
+        ),
     )
 }
 
@@ -2348,11 +2353,7 @@ fn restore_tune_setting(
             let service = services.keyboard.ok_or_else(|| LctrlError::Unsupported {
                 feature: "kbd.backlight.restore".into(),
             })?;
-            serialize_change(&service.set_backlight(
-                state.level,
-                state.effect,
-                apply,
-            )?)
+            serialize_change(&service.set_backlight(state.level, state.effect, apply)?)
         }
         TuneRollback::Fan(mode) => {
             let service = services.fan.ok_or_else(|| LctrlError::Unsupported {

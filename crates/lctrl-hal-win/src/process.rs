@@ -18,11 +18,7 @@ pub trait ProcessApi: Send + Sync {
         identity: &lctrl_core::ProcessIdentity,
         priority: ProcessPriorityClass,
     ) -> Result<()>;
-    fn set_affinity_mask(
-        &self,
-        identity: &lctrl_core::ProcessIdentity,
-        mask: usize,
-    ) -> Result<()>;
+    fn set_affinity_mask(&self, identity: &lctrl_core::ProcessIdentity, mask: usize) -> Result<()>;
     fn set_working_set(
         &self,
         identity: &lctrl_core::ProcessIdentity,
@@ -183,10 +179,7 @@ where
         Ok(snapshot)
     }
 
-    fn requested_state(
-        policy: ProcessPolicy,
-        current: &ProcessSnapshot,
-    ) -> Result<ProcessState> {
+    fn requested_state(policy: ProcessPolicy, current: &ProcessSnapshot) -> Result<ProcessState> {
         let mut requested = current.state;
         if let Some(priority) = policy.priority_class {
             requested.priority_class = priority;
@@ -265,9 +258,7 @@ where
         state: &ProcessState,
     ) -> Result<()> {
         match field {
-            ProcessField::Priority => self
-                .api
-                .set_priority_class(identity, state.priority_class),
+            ProcessField::Priority => self.api.set_priority_class(identity, state.priority_class),
             ProcessField::Affinity => self.api.set_affinity_mask(identity, state.affinity_mask),
             ProcessField::WorkingSet => self.api.set_working_set(identity, state.working_set),
         }
@@ -392,8 +383,7 @@ fn validate_policy(operation: ProcessOperation, policy: &ProcessPolicy) -> Resul
         ProcessAffinityPolicy::Mask(_) => Ok(()),
         ProcessAffinityPolicy::PerformanceCores | ProcessAffinityPolicy::EfficiencyCores => {
             Err(LctrlError::Unsupported {
-                feature: "P/E-core affinity labels require a topology-derived explicit mask"
-                    .into(),
+                feature: "P/E-core affinity labels require a topology-derived explicit mask".into(),
             })
         }
     }
@@ -479,9 +469,7 @@ mod native {
         ProcessSnapshot, ProcessState, ProcessWorkingSet, Result, validate_process_top_limit,
     };
     use windows_sys::Win32::{
-        Foundation::{
-            CloseHandle, FILETIME, GetLastError, HANDLE, INVALID_HANDLE_VALUE,
-        },
+        Foundation::{CloseHandle, FILETIME, GetLastError, HANDLE, INVALID_HANDLE_VALUE},
         System::{
             Diagnostics::ToolHelp::{
                 CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW,
@@ -495,11 +483,10 @@ mod native {
             ProcessStatus::{K32GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS},
             Threading::{
                 ABOVE_NORMAL_PRIORITY_CLASS, BELOW_NORMAL_PRIORITY_CLASS, GetPriorityClass,
-                GetProcessAffinityMask, GetProcessTimes, HIGH_PRIORITY_CLASS,
-                IDLE_PRIORITY_CLASS, NORMAL_PRIORITY_CLASS, OpenProcess,
-                PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SET_INFORMATION, PROCESS_SET_QUOTA,
-                QueryFullProcessImageNameW, REALTIME_PRIORITY_CLASS, SetPriorityClass,
-                SetProcessAffinityMask,
+                GetProcessAffinityMask, GetProcessTimes, HIGH_PRIORITY_CLASS, IDLE_PRIORITY_CLASS,
+                NORMAL_PRIORITY_CLASS, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+                PROCESS_SET_INFORMATION, PROCESS_SET_QUOTA, QueryFullProcessImageNameW,
+                REALTIME_PRIORITY_CLASS, SetPriorityClass, SetProcessAffinityMask,
             },
         },
     };
@@ -541,9 +528,7 @@ mod native {
 
         fn sampled_inventory(&self, limit: usize) -> Result<ProcessInventory> {
             validate_process_top_limit(limit)?;
-            if self.sample_interval.is_zero()
-                || self.sample_interval > Duration::from_secs(5)
-            {
+            if self.sample_interval.is_zero() || self.sample_interval > Duration::from_secs(5) {
                 return Err(LctrlError::InvalidArgument {
                     detail: "process CPU sample interval must be nonzero and at most 5s".into(),
                 });
@@ -594,10 +579,8 @@ mod native {
         }
 
         fn snapshot(&self, identity: &ProcessIdentity) -> Result<ProcessSnapshot> {
-            let process = ProcessHandle::open_expected(
-                identity,
-                PROCESS_QUERY_LIMITED_INFORMATION,
-            )?;
+            let process =
+                ProcessHandle::open_expected(identity, PROCESS_QUERY_LIMITED_INFORMATION)?;
             let image_path = query_process_image_path(process.raw())?;
             let image_name = image_name_from_path(&image_path)?.to_owned();
             let (state, system_affinity_mask) = query_process_state(process.raw())?;
@@ -639,11 +622,7 @@ mod native {
             let mut current_process_mask = 0usize;
             let mut system_mask = 0usize;
             if unsafe {
-                GetProcessAffinityMask(
-                    process.raw(),
-                    &mut current_process_mask,
-                    &mut system_mask,
-                )
+                GetProcessAffinityMask(process.raw(), &mut current_process_mask, &mut system_mask)
             } == 0
             {
                 return Err(last_error("GetProcessAffinityMask before set"));
@@ -678,10 +657,7 @@ mod native {
                 | QUOTA_LIMITS_HARDWS_MAX_DISABLE;
             if working_set.flags & !native_flags != 0 {
                 return Err(LctrlError::Unsupported {
-                    feature: format!(
-                        "native process working-set flags 0x{:x}",
-                        working_set.flags
-                    ),
+                    feature: format!("native process working-set flags 0x{:x}", working_set.flags),
                 });
             }
             let process = ProcessHandle::open_expected(
@@ -879,9 +855,7 @@ mod native {
         let mut exit = FILETIME::default();
         let mut kernel = FILETIME::default();
         let mut user = FILETIME::default();
-        if unsafe {
-            GetProcessTimes(handle, &mut creation, &mut exit, &mut kernel, &mut user)
-        } == 0
+        if unsafe { GetProcessTimes(handle, &mut creation, &mut exit, &mut kernel, &mut user) } == 0
         {
             return Err(last_error("GetProcessTimes"));
         }
@@ -957,9 +931,8 @@ mod native {
 
         let mut affinity_mask = 0usize;
         let mut system_affinity_mask = 0usize;
-        if unsafe {
-            GetProcessAffinityMask(handle, &mut affinity_mask, &mut system_affinity_mask)
-        } == 0
+        if unsafe { GetProcessAffinityMask(handle, &mut affinity_mask, &mut system_affinity_mask) }
+            == 0
         {
             return Err(last_error("GetProcessAffinityMask"));
         }
@@ -973,12 +946,7 @@ mod native {
         let mut maximum_bytes = 0usize;
         let mut flags = 0u32;
         if unsafe {
-            GetProcessWorkingSetSizeEx(
-                handle,
-                &mut minimum_bytes,
-                &mut maximum_bytes,
-                &mut flags,
-            )
+            GetProcessWorkingSetSizeEx(handle, &mut minimum_bytes, &mut maximum_bytes, &mut flags)
         } == 0
         {
             return Err(last_error("GetProcessWorkingSetSizeEx"));

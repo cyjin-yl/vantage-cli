@@ -54,8 +54,14 @@ fn event_history_retains_only_the_newest_64_events() {
     }
     let status = status(&socket);
     assert_eq!(status.last_events.len(), MAX_EVENTS);
-    assert_eq!(status.last_events.first().unwrap().payload["sequence"], json!(1));
-    assert_eq!(status.last_events.last().unwrap().payload["sequence"], json!(64));
+    assert_eq!(
+        status.last_events.first().unwrap().payload["sequence"],
+        json!(1)
+    );
+    assert_eq!(
+        status.last_events.last().unwrap().payload["sequence"],
+        json!(64)
+    );
 
     assert!(request_at(&socket, &DaemonRequest::Stop).unwrap().ok);
     server.join().unwrap().unwrap();
@@ -104,7 +110,9 @@ fn a_slow_subscriber_is_dropped_without_blocking_event_ingestion() {
         // A subsequent broadcast also removes a writer that disconnected after
         // a write timeout, not just a sender whose queue was already full.
         events
-            .send(DaemonEvent::snapshot_changed(json!({"sequence": "liveness"})))
+            .send(DaemonEvent::snapshot_changed(
+                json!({"sequence": "liveness"}),
+            ))
             .unwrap();
         let current = status(&socket);
         assert_eq!(current.last_events.len(), MAX_EVENTS);

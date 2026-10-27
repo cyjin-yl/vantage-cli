@@ -186,7 +186,10 @@ fn dry_run_reads_but_performs_no_mutation() {
 
     assert_eq!(report.previous(), &previous.state);
     assert_eq!(report.actual(), None);
-    assert_eq!(report.requested().priority_class, ProcessPriorityClass::BelowNormal);
+    assert_eq!(
+        report.requested().priority_class,
+        ProcessPriorityClass::BelowNormal
+    );
     assert_eq!(controller.api().current.lock().state, previous.state);
     assert!(controller.api().writes.lock().is_empty());
     assert_eq!(*controller.api().snapshot_calls.lock(), 1);
@@ -205,8 +208,14 @@ fn commit_uses_bounded_independent_readback() {
         .unwrap();
 
     assert_eq!(report.actual(), Some(report.requested()));
-    assert_eq!(report.requested().priority_class, ProcessPriorityClass::AboveNormal);
-    assert_eq!(report.requested().affinity_mask, previous.state.affinity_mask);
+    assert_eq!(
+        report.requested().priority_class,
+        ProcessPriorityClass::AboveNormal
+    );
+    assert_eq!(
+        report.requested().affinity_mask,
+        previous.state.affinity_mask
+    );
     assert_eq!(report.requested().working_set, previous.state.working_set);
     assert_eq!(*controller.api().snapshot_calls.lock(), 3);
     assert_eq!(&*controller.api().writes.lock(), &["priority"]);
@@ -294,7 +303,10 @@ fn top_listing_is_cpu_sorted_and_bounded() {
     assert_eq!(inventory.processes[1].identity.pid, 4);
     assert_eq!(inventory.skipped_processes, 3);
     assert_eq!(inventory.processes[0].cpu_utilization_ppm(), Some(400_000));
-    assert!(matches!(controller.top_processes(0), Err(LctrlError::InvalidArgument { .. })));
+    assert!(matches!(
+        controller.top_processes(0),
+        Err(LctrlError::InvalidArgument { .. })
+    ));
     assert!(matches!(
         controller.top_processes(MAX_PROCESS_TOP_LIMIT + 1),
         Err(LctrlError::InvalidArgument { .. })

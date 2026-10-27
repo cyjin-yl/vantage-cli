@@ -153,7 +153,10 @@ impl DiagnosticExecutor {
         }
         if let Some(reason) = options.cancellation.reason() {
             let mut status = lock(&self.status);
-            if !matches!(status.state, DiagnosticRunState::Running | DiagnosticRunState::Preparing) {
+            if !matches!(
+                status.state,
+                DiagnosticRunState::Running | DiagnosticRunState::Preparing
+            ) {
                 status.state = DiagnosticRunState::Cancelled;
                 status.total_items = items.len();
                 status.completed_items = 0;
@@ -164,7 +167,10 @@ impl DiagnosticExecutor {
         }
         if options.per_item_deadline.is_zero() {
             let mut status = lock(&self.status);
-            if !matches!(status.state, DiagnosticRunState::Running | DiagnosticRunState::Preparing) {
+            if !matches!(
+                status.state,
+                DiagnosticRunState::Running | DiagnosticRunState::Preparing
+            ) {
                 status.state = DiagnosticRunState::ResourceError;
                 status.total_items = items.len();
                 status.completed_items = 0;
@@ -173,10 +179,15 @@ impl DiagnosticExecutor {
             }
             return Ok(deadline_results(items, 0, options.per_item_deadline));
         }
-        if Instant::now().checked_add(options.per_item_deadline).is_none() {
+        if Instant::now()
+            .checked_add(options.per_item_deadline)
+            .is_none()
+        {
             return Ok(resource_results(
                 items,
-                DiagnosticReason::InvalidMeasurement { name: "per_item_deadline".into() },
+                DiagnosticReason::InvalidMeasurement {
+                    name: "per_item_deadline".into(),
+                },
                 "per-item deadline cannot be represented by the monotonic clock".into(),
             ));
         }
@@ -228,7 +239,12 @@ impl DiagnosticExecutor {
             }
             Err(TrySendError::Disconnected(_)) => {
                 let reason = DiagnosticReason::ExecutorUnavailable;
-                self.finish_status(run_id, DiagnosticRunState::ResourceError, 0, Some(reason.clone()));
+                self.finish_status(
+                    run_id,
+                    DiagnosticRunState::ResourceError,
+                    0,
+                    Some(reason.clone()),
+                );
                 return Ok(resource_results(
                     items,
                     reason,
@@ -249,12 +265,7 @@ impl DiagnosticExecutor {
                         results.len(),
                         Some(DiagnosticReason::Cancelled { reason }),
                     );
-                    return Ok(cancelled_results_with_prefix(
-                        items,
-                        index,
-                        reason,
-                        results,
-                    ));
+                    return Ok(cancelled_results_with_prefix(items, index, reason, results));
                 }
 
                 let wait = deadline
@@ -330,10 +341,7 @@ impl DiagnosticExecutor {
                                 Some(DiagnosticReason::Cancelled { reason }),
                             );
                             return Ok(cancelled_results_with_prefix(
-                                items,
-                                index,
-                                reason,
-                                results,
+                                items, index, reason, results,
                             ));
                         }
                         results.push(result);
@@ -431,7 +439,9 @@ fn diagnostic_worker(
             if let Some(reason) = job.options.cancellation.reason() {
                 let _ = job
                     .response
-                    .send(DiagnosticWorkerMessage::Item(cancelled_result(kind, reason)));
+                    .send(DiagnosticWorkerMessage::Item(cancelled_result(
+                        kind, reason,
+                    )));
                 abandoned_job = true;
                 break;
             }
@@ -460,11 +470,8 @@ fn diagnostic_worker(
     }
 }
 
-fn update_worker_status<F>(
-    status: &Arc<Mutex<DiagnosticStatusSnapshot>>,
-    run_id: u64,
-    update: F,
-) where
+fn update_worker_status<F>(status: &Arc<Mutex<DiagnosticStatusSnapshot>>, run_id: u64, update: F)
+where
     F: FnOnce(&mut DiagnosticStatusSnapshot),
 {
     let mut snapshot = lock(status);
@@ -474,7 +481,9 @@ fn update_worker_status<F>(
 }
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
-    mutex.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    mutex
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 fn duration_ms(duration: Duration) -> u64 {
@@ -542,7 +551,10 @@ fn evaluate_diagnostic(transport: &dyn WmiTransport, kind: DiagnosticKind) -> Di
         Ok(objects) if objects.is_empty() => DiagnosticResult::new(
             kind,
             DiagnosticOutcome::Unavailable,
-            format!("no {} records were returned; inventory presence is not health", query.label),
+            format!(
+                "no {} records were returned; inventory presence is not health",
+                query.label
+            ),
         )
         .with_source(query.source())
         .with_reason(DiagnosticReason::NoRecords),
@@ -610,7 +622,12 @@ impl ItemEvaluation {
         self.measurements.push(measurement);
     }
 
-    fn finish(self, kind: DiagnosticKind, query: DiagnosticQuery, detail: String) -> DiagnosticResult {
+    fn finish(
+        self,
+        kind: DiagnosticKind,
+        query: DiagnosticQuery,
+        detail: String,
+    ) -> DiagnosticResult {
         let mut result = DiagnosticResult::new(
             kind,
             self.outcome.unwrap_or(DiagnosticOutcome::Unavailable),
@@ -735,11 +752,23 @@ fn status_outcome(status: &str) -> DiagnosticOutcome {
     let status = status.trim();
     if status.eq_ignore_ascii_case("OK") {
         DiagnosticOutcome::Passed
-    } else if ["Error", "Non-Recoverable", "Critical", "Predictive Failure", "Pred Fail", "Install Error", "Supporting Entity in Error"]
-        .iter().any(|value| status.eq_ignore_ascii_case(value)) {
+    } else if [
+        "Error",
+        "Non-Recoverable",
+        "Critical",
+        "Predictive Failure",
+        "Pred Fail",
+        "Install Error",
+        "Supporting Entity in Error",
+    ]
+    .iter()
+    .any(|value| status.eq_ignore_ascii_case(value))
+    {
         DiagnosticOutcome::Failed
     } else if ["Lost Communication", "No Contact"]
-        .iter().any(|value| status.eq_ignore_ascii_case(value)) {
+        .iter()
+        .any(|value| status.eq_ignore_ascii_case(value))
+    {
         DiagnosticOutcome::ResourceError
     } else if status.eq_ignore_ascii_case("Not Available") {
         DiagnosticOutcome::Unavailable
@@ -927,13 +956,15 @@ fn evaluate_thermal(objects: &[WmiObject], query: DiagnosticQuery) -> Diagnostic
             ReadValue::Value(raw) => {
                 threshold_seen = true;
                 let value = decikelvin_to_celsius(raw);
-                if evaluation.threshold.is_none() || current_c.is_some_and(|current| current >= value) {
+                if evaluation.threshold.is_none()
+                    || current_c.is_some_and(|current| current >= value)
+                {
                     evaluation.threshold = Some(
-                    DiagnosticThreshold::at_or_above(
-                        measurement_name("CriticalTripPoint", index, count),
-                        value,
-                    )
-                    .with_unit("degC"),
+                        DiagnosticThreshold::at_or_above(
+                            measurement_name("CriticalTripPoint", index, count),
+                            value,
+                        )
+                        .with_unit("degC"),
                     );
                 }
                 Some(value)
@@ -1001,7 +1032,10 @@ fn evaluate_storage(objects: &[WmiObject], query: DiagnosticQuery) -> Diagnostic
                     .with_unit("bytes"),
             );
         }
-        if matches!(merge_status(&mut evaluation, object, index, count), ReadValue::Value(())) {
+        if matches!(
+            merge_status(&mut evaluation, object, index, count),
+            ReadValue::Value(())
+        ) {
             status_seen = true;
         }
     }
@@ -1044,7 +1078,10 @@ fn evaluate_memory(objects: &[WmiObject], query: DiagnosticQuery) -> DiagnosticR
                     .with_unit("bytes"),
             );
         }
-        if matches!(merge_status(&mut evaluation, object, index, count), ReadValue::Value(())) {
+        if matches!(
+            merge_status(&mut evaluation, object, index, count),
+            ReadValue::Value(())
+        ) {
             status_seen = true;
         }
     }
@@ -1089,7 +1126,9 @@ fn evaluate_firmware(objects: &[WmiObject], query: DiagnosticQuery) -> Diagnosti
             ReadValue::Value(()) => status_seen = true,
             ReadValue::Missing => evaluation.merge(
                 DiagnosticOutcome::Warning,
-                Some(DiagnosticReason::MissingMeasurement { name: "Status".into() }),
+                Some(DiagnosticReason::MissingMeasurement {
+                    name: "Status".into(),
+                }),
             ),
             ReadValue::Invalid => {}
         }
@@ -1177,11 +1216,15 @@ fn evaluate_network(objects: &[WmiObject], query: DiagnosticQuery) -> Diagnostic
                     }
                 } else {
                     disabled_seen = true;
-                    if matches!(status_value, Some(DiagnosticOutcome::Failed | DiagnosticOutcome::ResourceError)) {
+                    if matches!(
+                        status_value,
+                        Some(DiagnosticOutcome::Failed | DiagnosticOutcome::ResourceError)
+                    ) {
                         // A reported failure is more important than the
                         // disabled/skipped classification.
                     } else {
-                        evaluation.merge(DiagnosticOutcome::Skipped, Some(DiagnosticReason::Disabled));
+                        evaluation
+                            .merge(DiagnosticOutcome::Skipped, Some(DiagnosticReason::Disabled));
                     }
                 }
             }
@@ -1216,7 +1259,10 @@ fn evaluate_network(objects: &[WmiObject], query: DiagnosticQuery) -> Diagnostic
     )
 }
 
-fn cancelled_result(kind: DiagnosticKind, reason: DiagnosticCancellationReason) -> DiagnosticResult {
+fn cancelled_result(
+    kind: DiagnosticKind,
+    reason: DiagnosticCancellationReason,
+) -> DiagnosticResult {
     DiagnosticResult::new(
         kind,
         DiagnosticOutcome::Cancelled,
@@ -1262,7 +1308,11 @@ fn deadline_result(kind: DiagnosticKind, deadline: Duration) -> DiagnosticResult
     })
 }
 
-fn deadline_results(items: &[DiagnosticKind], start: usize, deadline: Duration) -> Vec<DiagnosticResult> {
+fn deadline_results(
+    items: &[DiagnosticKind],
+    start: usize,
+    deadline: Duration,
+) -> Vec<DiagnosticResult> {
     items[start..]
         .iter()
         .copied()

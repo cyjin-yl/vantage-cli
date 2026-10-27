@@ -71,7 +71,9 @@ impl<A: LocalDriverUpdateApi> LocalUpdateControl for WindowsLocalUpdateControlle
         }
         device.validate()?;
         if is_firmware_class(&device.class_guid) {
-            return Err(invalid("firmware devices are excluded from local driver updates"));
+            return Err(invalid(
+                "firmware devices are excluded from local driver updates",
+            ));
         }
         let package = self
             .api
@@ -80,7 +82,9 @@ impl<A: LocalDriverUpdateApi> LocalUpdateControl for WindowsLocalUpdateControlle
         let signature = self.api.verify_package_signature(&package)?;
         signature.validate()?;
         if signature != package.signature {
-            return Err(invalid("verified signer differs from the inspected driver package"));
+            return Err(invalid(
+                "verified signer differs from the inspected driver package",
+            ));
         }
         let previous = self.api.installed_driver(&device.device_instance_id)?;
         if mode == ApplyMode::DryRun {
@@ -143,7 +147,9 @@ impl<A: LocalDriverUpdateApi> LocalUpdateControl for WindowsLocalUpdateControlle
                 .matching_device_id
                 .eq_ignore_ascii_case(&request.restore().matching_device_id)
         {
-            return Err(invalid("rollback identity does not bind to the present non-firmware device"));
+            return Err(invalid(
+                "rollback identity does not bind to the present non-firmware device",
+            ));
         }
         let previous = require_readback(
             request.expected_current(),
@@ -184,7 +190,9 @@ fn validate_package(
     hardware_id: &str,
 ) -> Result<()> {
     if package.inf_path != admitted_inf {
-        return Err(invalid("SetupAPI inspection substituted a different INF path"));
+        return Err(invalid(
+            "SetupAPI inspection substituted a different INF path",
+        ));
     }
     validate_local_path(&package.inf_path, "inf")?;
     validate_local_path(&package.catalog_path, "cat")?;
@@ -200,7 +208,9 @@ fn validate_package(
             .matching_device_id
             .eq_ignore_ascii_case(hardware_id)
     {
-        return Err(invalid("driver package class or hardware ID does not match the present device"));
+        return Err(invalid(
+            "driver package class or hardware ID does not match the present device",
+        ));
     }
     if package.dependencies.len() > MAX_LOCAL_UPDATE_PACKAGE_FILES {
         return Err(invalid("driver package dependency count exceeds its bound"));
@@ -237,7 +247,9 @@ fn require_readback(
             ),
             actual: format!(
                 "{} {} ({})",
-                actual.identity.provider, actual.identity.driver_version, actual.identity.inf_section
+                actual.identity.provider,
+                actual.identity.driver_version,
+                actual.identity.inf_section
             ),
         });
     }
@@ -378,7 +390,9 @@ mod native {
             let (catalog_path, signature) = inf_signature(&inf)?;
             let (set, mut data) = open_device(&device.device_instance_id)?;
             if !guid_eq(&class_guid, &data.ClassGuid) {
-                return Err(invalid("INF device class differs from the selected present device"));
+                return Err(invalid(
+                    "INF device class differs from the selected present device",
+                ));
             }
             let mut parameters = install_parameters(set.0, &data)?;
             parameters.Flags |= DI_ENUMSINGLEINF | DI_QUIETINSTALL;
@@ -390,7 +404,9 @@ mod native {
             set_fixed_wide(&mut parameters.DriverPath, &inf_wide)?;
             set_install_parameters(set.0, &data, &parameters)?;
             if unsafe { SetupDiBuildDriverInfoList(set.0, &mut data, SPDIT_COMPATDRIVER) } == 0 {
-                return Err(last_error("SetupDiBuildDriverInfoList local compatible driver"));
+                return Err(last_error(
+                    "SetupDiBuildDriverInfoList local compatible driver",
+                ));
             }
             let mut selected: Option<(SP_DRVINFO_DATA_V2_W, DriverIdentity)> = None;
             for index in 0..=MAX_LOCAL_UPDATE_PACKAGE_FILES {
@@ -413,7 +429,9 @@ mod native {
                     return Err(crate::map_win_error(error, "SetupDiEnumDriverInfoW"));
                 }
                 if index == MAX_LOCAL_UPDATE_PACKAGE_FILES {
-                    return Err(invalid("compatible driver-node enumeration exceeds its bound"));
+                    return Err(invalid(
+                        "compatible driver-node enumeration exceeds its bound",
+                    ));
                 }
                 let detail = driver_detail(set.0, &data, &node)?;
                 if !detail.hardware_id.eq_ignore_ascii_case(hardware_id)
@@ -433,7 +451,9 @@ mod native {
                 identity.validate()?;
                 if let Some((_, previous)) = &selected {
                     if !previous.same_driver(&identity) {
-                        return Err(invalid("local INF has multiple distinct matching driver identities"));
+                        return Err(invalid(
+                            "local INF has multiple distinct matching driver identities",
+                        ));
                     }
                 } else {
                     selected = Some((node, identity));
@@ -531,9 +551,14 @@ mod native {
             {
                 let error = unsafe { GetLastError() };
                 if error == ERROR_NO_MORE_ITEMS {
-                    return Err(invalid("Windows rejected the package as not a better driver match; forcing is not supported"));
+                    return Err(invalid(
+                        "Windows rejected the package as not a better driver match; forcing is not supported",
+                    ));
                 }
-                return Err(crate::map_win_error(error, "UpdateDriverForPlugAndPlayDevicesW"));
+                return Err(crate::map_win_error(
+                    error,
+                    "UpdateDriverForPlugAndPlayDevicesW",
+                ));
             }
             Ok(reboot != 0)
         }
@@ -554,7 +579,8 @@ mod native {
                 let error = unsafe { GetLastError() };
                 if error == ERROR_NO_MORE_ITEMS {
                     return Err(LctrlError::Unsupported {
-                        feature: "update.local_driver.rollback.no_previous_driver_store_point".into(),
+                        feature: "update.local_driver.rollback.no_previous_driver_store_point"
+                            .into(),
                     });
                 }
                 return Err(crate::map_win_error(error, "DiRollbackDriver"));
@@ -595,7 +621,9 @@ mod native {
             || instance.encode_utf16().count() > MAX_DEVICE_ID_LEN as usize
             || instance.chars().any(char::is_control)
         {
-            return Err(invalid("PnP device instance ID is empty, too long, or contains control text"));
+            return Err(invalid(
+                "PnP device instance ID is empty, too long, or contains control text",
+            ));
         }
         let handle = unsafe { SetupDiCreateDeviceInfoList(ptr::null(), ptr::null_mut()) };
         if handle == -1 {
@@ -647,7 +675,13 @@ mod native {
         let mut required = 0;
         let status = unsafe {
             SetupDiGetDeviceRegistryPropertyW(
-                set, data, property, &mut kind, ptr::null_mut(), 0, &mut required,
+                set,
+                data,
+                property,
+                &mut kind,
+                ptr::null_mut(),
+                0,
+                &mut required,
             )
         };
         if status == 0 {
@@ -656,11 +690,16 @@ mod native {
                 return Ok(None);
             }
             if error != ERROR_INSUFFICIENT_BUFFER {
-                return Err(crate::map_win_error(error, "SetupDiGetDeviceRegistryPropertyW size"));
+                return Err(crate::map_win_error(
+                    error,
+                    "SetupDiGetDeviceRegistryPropertyW size",
+                ));
             }
         }
         if required == 0 || required > MAX_NATIVE_BUFFER_BYTES || required % 2 != 0 {
-            return Err(invalid("PnP registry property has an invalid bounded UTF-16 length"));
+            return Err(invalid(
+                "PnP registry property has an invalid bounded UTF-16 length",
+            ));
         }
         let mut buffer = vec![0u16; required as usize / 2];
         if unsafe {
@@ -693,7 +732,9 @@ mod native {
             if value.is_empty() {
                 break;
             }
-            values.push(String::from_utf16(value).map_err(|_| invalid("PnP ID is not valid UTF-16"))?);
+            values.push(
+                String::from_utf16(value).map_err(|_| invalid("PnP ID is not valid UTF-16"))?,
+            );
             if values.len() > 64 {
                 return Err(invalid("PnP hardware-ID count exceeds its bound"));
             }
@@ -737,23 +778,34 @@ mod native {
         if required < size_of::<SP_DRVINFO_DETAIL_DATA_W>() as u32
             || required > MAX_NATIVE_BUFFER_BYTES
         {
-            return Err(invalid("SetupAPI driver detail has an invalid bounded length"));
+            return Err(invalid(
+                "SetupAPI driver detail has an invalid bounded length",
+            ));
         }
         // u64 storage supplies alignment for both native and x86 packed SDK
         // layouts; variable HardwareID data remains inside the returned size.
         let mut storage = vec![0u64; (required as usize + 7) / 8];
         let detail = storage.as_mut_ptr().cast::<SP_DRVINFO_DETAIL_DATA_W>();
-        unsafe { ptr::addr_of_mut!((*detail).cbSize).write_unaligned(size_of::<SP_DRVINFO_DETAIL_DATA_W>() as u32) };
-        if unsafe { SetupDiGetDriverInfoDetailW(set, data, node, detail, required, &mut required) } == 0 {
+        unsafe {
+            ptr::addr_of_mut!((*detail).cbSize)
+                .write_unaligned(size_of::<SP_DRVINFO_DETAIL_DATA_W>() as u32)
+        };
+        if unsafe { SetupDiGetDriverInfoDetailW(set, data, node, detail, required, &mut required) }
+            == 0
+        {
             return Err(last_error("SetupDiGetDriverInfoDetailW"));
         }
         let offset = offset_of!(SP_DRVINFO_DETAIL_DATA_W, HardwareID);
         if required as usize <= offset || required as usize > storage.len() * 8 {
-            return Err(invalid("SetupAPI driver hardware-ID detail is out of bounds"));
+            return Err(invalid(
+                "SetupAPI driver hardware-ID detail is out of bounds",
+            ));
         }
         let compat_offset = unsafe { ptr::addr_of!((*detail).CompatIDsOffset).read_unaligned() };
         if compat_offset <= 1 {
-            return Err(invalid("driver node has no exact hardware ID; compatible-ID-only updates are refused"));
+            return Err(invalid(
+                "driver node has no exact hardware ID; compatible-ID-only updates are refused",
+            ));
         }
         let hardware = unsafe {
             std::slice::from_raw_parts(
@@ -784,7 +836,9 @@ mod native {
         let catalog = if catalog.is_absolute() {
             catalog
         } else {
-            inf.parent().ok_or_else(|| invalid("INF has no parent directory"))?.join(catalog)
+            inf.parent()
+                .ok_or_else(|| invalid("INF has no parent directory"))?
+                .join(catalog)
         };
         let signature = DriverSignature {
             signer: fixed_text(&info.DigitalSigner)?,
@@ -856,7 +910,9 @@ mod native {
         let scan = unsafe { &mut *context.cast_mut().cast::<QueueScan>() };
         let result = catch_unwind(AssertUnwindSafe(|| -> Result<()> {
             if notification != SPFILENOTIFY_QUEUESCAN_SIGNERINFO {
-                return Err(invalid("SetupAPI dependency scan did not return signer metadata"));
+                return Err(invalid(
+                    "SetupAPI dependency scan did not return signer metadata",
+                ));
             }
             let paths = unsafe { (param1 as *const FILEPATHS_SIGNERINFO_W).read_unaligned() };
             if paths.Win32Error != 0 {
@@ -960,11 +1016,13 @@ mod native {
         fn open(path: &str) -> Result<Self> {
             let path = wide(OsStr::new(path))?;
             let mut key = ptr::null_mut();
-            let status = unsafe {
-                RegOpenKeyExW(HKEY_LOCAL_MACHINE, path.as_ptr(), 0, KEY_READ, &mut key)
-            };
+            let status =
+                unsafe { RegOpenKeyExW(HKEY_LOCAL_MACHINE, path.as_ptr(), 0, KEY_READ, &mut key) };
             if status != 0 {
-                return Err(crate::map_win_error(status, "RegOpenKeyExW installed driver"));
+                return Err(crate::map_win_error(
+                    status,
+                    "RegOpenKeyExW installed driver",
+                ));
             }
             Ok(Self(key))
         }
@@ -974,23 +1032,47 @@ mod native {
             let mut kind = 0;
             let mut length = 0;
             let status = unsafe {
-                RegQueryValueExW(self.0, name.as_ptr(), ptr::null(), &mut kind, ptr::null_mut(), &mut length)
+                RegQueryValueExW(
+                    self.0,
+                    name.as_ptr(),
+                    ptr::null(),
+                    &mut kind,
+                    ptr::null_mut(),
+                    &mut length,
+                )
             };
             if status != 0 {
-                return Err(crate::map_win_error(status, "RegQueryValueExW driver identity size"));
+                return Err(crate::map_win_error(
+                    status,
+                    "RegQueryValueExW driver identity size",
+                ));
             }
             if kind != REG_SZ || length < 2 || length % 2 != 0 || length > MAX_NATIVE_BUFFER_BYTES {
-                return Err(invalid("installed driver identity is not a bounded REG_SZ value"));
+                return Err(invalid(
+                    "installed driver identity is not a bounded REG_SZ value",
+                ));
             }
             let mut buffer = vec![0u16; length as usize / 2];
             let status = unsafe {
-                RegQueryValueExW(self.0, name.as_ptr(), ptr::null(), &mut kind, buffer.as_mut_ptr().cast(), &mut length)
+                RegQueryValueExW(
+                    self.0,
+                    name.as_ptr(),
+                    ptr::null(),
+                    &mut kind,
+                    buffer.as_mut_ptr().cast(),
+                    &mut length,
+                )
             };
             if status != 0 {
-                return Err(crate::map_win_error(status, "RegQueryValueExW driver identity"));
+                return Err(crate::map_win_error(
+                    status,
+                    "RegQueryValueExW driver identity",
+                ));
             }
             if kind != REG_SZ || length as usize > buffer.len() * 2 || length % 2 != 0 {
-                return Err(invalid("installed driver registry identity changed type or length"));
+                return Err(invalid(
+                    "installed driver registry identity changed type or length",
+                ));
             }
             buffer.truncate(length as usize / 2);
             fixed_text(&buffer)
@@ -1005,7 +1087,9 @@ mod native {
 
     fn canonical_file(path: &Path, extension: Option<&str>) -> Result<PathBuf> {
         let actual_extension = path.extension().and_then(|value| value.to_str());
-        let extension = extension.or(actual_extension).ok_or_else(|| invalid("driver file has no extension"))?;
+        let extension = extension
+            .or(actual_extension)
+            .ok_or_else(|| invalid("driver file has no extension"))?;
         validate_local_path(path, extension)?;
         let canonical = fs::canonicalize(path)?;
         validate_local_path(&canonical, extension)?;
@@ -1018,7 +1102,9 @@ mod native {
     fn wide(text: &OsStr) -> Result<Vec<u16>> {
         let mut value: Vec<u16> = text.encode_wide().collect();
         if value.contains(&0) || value.len() >= MAX_NATIVE_TEXT {
-            return Err(invalid("Windows update argument contains NUL or exceeds its bound"));
+            return Err(invalid(
+                "Windows update argument contains NUL or exceeds its bound",
+            ));
         }
         value.push(0);
         Ok(value)
@@ -1026,7 +1112,9 @@ mod native {
 
     fn set_fixed_wide<const N: usize>(target: &mut [u16; N], value: &[u16]) -> Result<()> {
         if value.len() > N {
-            return Err(invalid("local INF path exceeds the SetupAPI DriverPath limit"));
+            return Err(invalid(
+                "local INF path exceeds the SetupAPI DriverPath limit",
+            ));
         }
         target.fill(0);
         target[..value.len()].copy_from_slice(value);
@@ -1034,8 +1122,12 @@ mod native {
     }
 
     fn fixed_text(value: &[u16]) -> Result<String> {
-        let end = value.iter().position(|unit| *unit == 0).ok_or_else(|| invalid("Windows update text is not NUL terminated"))?;
-        String::from_utf16(&value[..end]).map_err(|_| invalid("Windows update text is not valid UTF-16"))
+        let end = value
+            .iter()
+            .position(|unit| *unit == 0)
+            .ok_or_else(|| invalid("Windows update text is not NUL terminated"))?;
+        String::from_utf16(&value[..end])
+            .map_err(|_| invalid("Windows update text is not valid UTF-16"))
     }
 
     unsafe fn pointer_text(value: *const u16) -> Result<String> {
@@ -1056,20 +1148,34 @@ mod native {
         if unsafe { FileTimeToSystemTime(&date, &mut calendar) } == 0 {
             return Err(last_error("FileTimeToSystemTime driver date"));
         }
-        Ok(format!("{}-{}-{}", calendar.wMonth, calendar.wDay, calendar.wYear))
+        Ok(format!(
+            "{}-{}-{}",
+            calendar.wMonth, calendar.wDay, calendar.wYear
+        ))
     }
 
     fn format_guid(guid: &GUID) -> String {
         format!(
             "{{{:08x}-{:04x}-{:04x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}}}",
-            guid.data1, guid.data2, guid.data3, guid.data4[0], guid.data4[1],
-            guid.data4[2], guid.data4[3], guid.data4[4], guid.data4[5], guid.data4[6], guid.data4[7]
+            guid.data1,
+            guid.data2,
+            guid.data3,
+            guid.data4[0],
+            guid.data4[1],
+            guid.data4[2],
+            guid.data4[3],
+            guid.data4[4],
+            guid.data4[5],
+            guid.data4[6],
+            guid.data4[7]
         )
     }
 
     fn guid_eq(left: &GUID, right: &GUID) -> bool {
-        left.data1 == right.data1 && left.data2 == right.data2
-            && left.data3 == right.data3 && left.data4 == right.data4
+        left.data1 == right.data1
+            && left.data2 == right.data2
+            && left.data3 == right.data3
+            && left.data4 == right.data4
     }
 
     fn last_error(context: &str) -> LctrlError {

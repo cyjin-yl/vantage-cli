@@ -76,7 +76,12 @@ pub fn active_instance(transport: &dyn WmiTransport, class: &str) -> Result<WmiI
             continue;
         }
         match instance_path(class, &object) {
-            Ok(path) => return Ok(WmiInstance { class: class.into(), path }),
+            Ok(path) => {
+                return Ok(WmiInstance {
+                    class: class.into(),
+                    path,
+                });
+            }
             Err(error) => {
                 missing_key.get_or_insert(error);
             }
@@ -87,16 +92,20 @@ pub fn active_instance(transport: &dyn WmiTransport, class: &str) -> Result<WmiI
             channel: format!("{ROOT_WMI} class {class} returned an inactive instance"),
         });
     }
-    Err(missing_key.unwrap_or_else(|| LctrlError::ChannelUnavailable {
-        channel: format!("{ROOT_WMI} class {class} returned an inactive instance"),
-    }))
+    Err(
+        missing_key.unwrap_or_else(|| LctrlError::ChannelUnavailable {
+            channel: format!("{ROOT_WMI} class {class} returned an inactive instance"),
+        }),
+    )
 }
 
 fn instance_path(class: &str, object: &WmiObject) -> Result<String> {
     let path = match object.get("__Path") {
         Some(WmiValue::String(path)) if !path.is_empty() => path.clone(),
         _ => match object.get("InstanceName") {
-            Some(WmiValue::String(instance)) if !instance.is_empty() && !instance.contains('\0') => {
+            Some(WmiValue::String(instance))
+                if !instance.is_empty() && !instance.contains('\0') =>
+            {
                 // These firmware-backed classes do not expose a usable __Path
                 // system property. Their InstanceName is the instance key used
                 // by the official ManagementObject invocation form.
@@ -115,10 +124,7 @@ fn instance_path(class: &str, object: &WmiObject) -> Result<String> {
 }
 
 fn quote_wql(value: &str) -> String {
-    format!(
-        "\"{}\"",
-        value.replace('\\', "\\\\").replace('"', "\\\"")
-    )
+    format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
 fn validate_class_identifier(class: &str) -> Result<()> {

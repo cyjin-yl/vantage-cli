@@ -131,8 +131,7 @@ where
             PanelRefreshRequest::Fixed(hz) => {
                 if hz <= 1 {
                     return Err(LctrlError::InvalidArgument {
-                        detail: "panel refresh rate must be a fixed value greater than 1 Hz"
-                            .into(),
+                        detail: "panel refresh rate must be a fixed value greater than 1 Hz".into(),
                     });
                 }
                 if !capability.supports_hz(hz) {
@@ -286,9 +285,7 @@ fn required_u16(object: &WmiObject, name: &str) -> Result<u16> {
 mod native {
     use std::{io, ptr};
 
-    use lctrl_core::{
-        LctrlError, PanelAdapterId, PanelMode, PanelRotation, PanelTarget, Result,
-    };
+    use lctrl_core::{LctrlError, PanelAdapterId, PanelMode, PanelRotation, PanelTarget, Result};
     use windows_sys::Win32::{
         Devices::Display::{
             DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME, DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME,
@@ -301,13 +298,12 @@ mod native {
         },
         Foundation::{ERROR_ACCESS_DENIED, ERROR_INSUFFICIENT_BUFFER, LUID},
         Graphics::Gdi::{
-            CDS_TEST, CDS_UPDATEREGISTRY, DEVMODEW, DM_BITSPERPEL, DM_DISPLAYFREQUENCY,
-            DM_DISPLAYORIENTATION, DM_PELSHEIGHT, DM_PELSWIDTH, DM_POSITION,
-            DISPLAYCONFIG_PATH_ACTIVE, DISP_CHANGE_BADDUALVIEW, DISP_CHANGE_BADFLAGS,
-            DISP_CHANGE_BADMODE, DISP_CHANGE_BADPARAM, DISP_CHANGE_FAILED,
-            DISP_CHANGE_NOTUPDATED, DISP_CHANGE_RESTART, DISP_CHANGE_SUCCESSFUL,
-            EDS_ROTATEDMODE, ENUM_CURRENT_SETTINGS, EnumDisplaySettingsExW,
-            ChangeDisplaySettingsExW,
+            CDS_TEST, CDS_UPDATEREGISTRY, ChangeDisplaySettingsExW, DEVMODEW,
+            DISP_CHANGE_BADDUALVIEW, DISP_CHANGE_BADFLAGS, DISP_CHANGE_BADMODE,
+            DISP_CHANGE_BADPARAM, DISP_CHANGE_FAILED, DISP_CHANGE_NOTUPDATED, DISP_CHANGE_RESTART,
+            DISP_CHANGE_SUCCESSFUL, DISPLAYCONFIG_PATH_ACTIVE, DM_BITSPERPEL, DM_DISPLAYFREQUENCY,
+            DM_DISPLAYORIENTATION, DM_PELSHEIGHT, DM_PELSWIDTH, DM_POSITION, EDS_ROTATEDMODE,
+            ENUM_CURRENT_SETTINGS, EnumDisplaySettingsExW,
         },
     };
 
@@ -363,7 +359,12 @@ mod native {
         }
 
         const fn shape(self) -> (u32, u32, u32, u32) {
-            (self.width, self.height, self.bits_per_pixel, self.refresh_hz)
+            (
+                self.width,
+                self.height,
+                self.bits_per_pixel,
+                self.refresh_hz,
+            )
         }
     }
 
@@ -465,11 +466,11 @@ mod native {
                         modes.push(mode);
                     }
                 }
-                index = index.checked_add(1).ok_or_else(|| {
-                    LctrlError::ChannelUnavailable {
+                index = index
+                    .checked_add(1)
+                    .ok_or_else(|| LctrlError::ChannelUnavailable {
                         channel: "display mode index overflow".into(),
-                    }
-                })?;
+                    })?;
             }
             if modes.is_empty() {
                 return Err(LctrlError::Unsupported {
@@ -503,13 +504,7 @@ mod native {
             // refresh-only transition. Private/printer fields are never set.
             raw.dmFields = REQUIRED_MODE_FIELDS;
             let status = unsafe {
-                ChangeDisplaySettingsExW(
-                    device.as_ptr(),
-                    &raw,
-                    ptr::null_mut(),
-                    flags,
-                    ptr::null(),
-                )
+                ChangeDisplaySettingsExW(device.as_ptr(), &raw, ptr::null_mut(), flags, ptr::null())
             };
             display_change_result(status)
         }
@@ -520,11 +515,7 @@ mod native {
             let mut path_count = 0u32;
             let mut mode_count = 0u32;
             let status = unsafe {
-                GetDisplayConfigBufferSizes(
-                    QDC_ONLY_ACTIVE_PATHS,
-                    &mut path_count,
-                    &mut mode_count,
-                )
+                GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, &mut path_count, &mut mode_count)
             };
             if status != 0 {
                 return Err(display_config_error(status, "GetDisplayConfigBufferSizes"));
@@ -580,10 +571,7 @@ mod native {
                 })?;
         }
         Err(LctrlError::Unsupported {
-            feature: format!(
-                "panel.refresh.{}Hz.exact_native_mode",
-                mode.refresh_hz
-            ),
+            feature: format!("panel.refresh.{}Hz.exact_native_mode", mode.refresh_hz),
         })
     }
 
@@ -658,7 +646,10 @@ mod native {
     }
 
     fn utf16_string(raw: &[u16]) -> Result<String> {
-        let length = raw.iter().position(|value| *value == 0).unwrap_or(raw.len());
+        let length = raw
+            .iter()
+            .position(|value| *value == 0)
+            .unwrap_or(raw.len());
         String::from_utf16(&raw[..length]).map_err(|error| LctrlError::ChannelUnavailable {
             channel: format!("display API returned invalid UTF-16: {error}"),
         })

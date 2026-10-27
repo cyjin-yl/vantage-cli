@@ -321,11 +321,7 @@ fn capture_converts_public_cim_classes_and_preserves_identifiers() {
 
     let queries = service.wmi().queries.lock();
     assert_eq!(queries.len(), CLASSES.len());
-    assert!(
-        queries
-            .iter()
-            .all(|query| query.namespace == "ROOT\\CIMV2")
-    );
+    assert!(queries.iter().all(|query| query.namespace == "ROOT\\CIMV2"));
     assert!(queries.iter().all(|query| !query.wql.contains("SELECT *")));
     assert!(
         queries
@@ -353,11 +349,7 @@ fn capture_converts_public_cim_classes_and_preserves_identifiers() {
 
 #[test]
 fn missing_optional_properties_stay_explicitly_unknown() {
-    let wmi = FakeWmi::new(
-        CLASSES
-            .into_iter()
-            .map(|class| (class, vec![object(&[])])),
-    );
+    let wmi = FakeWmi::new(CLASSES.into_iter().map(|class| (class, vec![object(&[])])));
     let snapshot = WindowsInventory::new(wmi).capture().unwrap();
 
     assert_eq!(
@@ -394,9 +386,7 @@ fn missing_optional_properties_stay_explicitly_unknown() {
 
 #[test]
 fn empty_cim_classes_do_not_fabricate_inventory_records() {
-    let snapshot = WindowsInventory::new(FakeWmi::default())
-        .capture()
-        .unwrap();
+    let snapshot = WindowsInventory::new(FakeWmi::default()).capture().unwrap();
 
     assert_eq!(snapshot, InventorySnapshot::default());
 }
@@ -525,11 +515,7 @@ fn assert_only_change<T>(module: &InventoryModuleDiff<T>, field: InventoryField)
 fn diff_reports_actual_typed_field_changes_in_every_module() {
     let baseline = sample_snapshot();
     let mut current = baseline.clone();
-    current
-        .operating_system
-        .as_mut()
-        .unwrap()
-        .build_number = Some("26200".into());
+    current.operating_system.as_mut().unwrap().build_number = Some("26200".into());
     current.motherboard.as_mut().unwrap().version = Some("2.0".into());
     current.product.as_mut().unwrap().model = Some("New Model".into());
     current.bios.as_mut().unwrap().smbios_bios_version = Some("BIOS-2".into());
@@ -551,10 +537,7 @@ fn diff_reports_actual_typed_field_changes_in_every_module() {
     assert_only_change(&diff.product, InventoryField::ProductModel);
     assert_only_change(&diff.bios, InventoryField::BiosSmbiosBiosVersion);
     assert_only_change(&diff.cpus, InventoryField::CpuNumberOfCores);
-    assert_only_change(
-        &diff.memory_modules,
-        InventoryField::MemoryManufacturer,
-    );
+    assert_only_change(&diff.memory_modules, InventoryField::MemoryManufacturer);
     assert_only_change(&diff.gpus, InventoryField::GpuDriverVersion);
     assert_only_change(&diff.disks, InventoryField::DiskStatus);
     assert_only_change(

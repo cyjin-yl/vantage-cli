@@ -63,9 +63,7 @@ fn event_value(value: WmiValue) -> EventValue {
         WmiValue::F32(value) => EventValue::F32(value),
         WmiValue::F64(value) => EventValue::F64(value),
         WmiValue::Bool(value) => EventValue::Bool(value),
-        WmiValue::Array(values) => {
-            EventValue::Array(values.into_iter().map(event_value).collect())
-        }
+        WmiValue::Array(values) => EventValue::Array(values.into_iter().map(event_value).collect()),
     }
 }
 
@@ -125,9 +123,9 @@ mod native {
                     }
                 };
                 let subscribed_class = String::from(source_class);
-                let stream: RawResultStream<'a> = Box::pin(stream.map(move |result| {
-                    notification_to_raw(result, &subscribed_class)
-                }));
+                let stream: RawResultStream<'a> = Box::pin(
+                    stream.map(move |result| notification_to_raw(result, &subscribed_class)),
+                );
                 Ok(Some(stream))
             })
         }
@@ -361,10 +359,8 @@ mod native {
 
         #[test]
         fn terminated_stream_does_not_fabricate_an_event() {
-            let stream: RawResultStream<'static> =
-                Box::pin(stream::empty::<Result<RawEvent>>());
-            let mut reader =
-                NativeWmiEventReader::new(vec![stream], EventCancellation::new());
+            let stream: RawResultStream<'static> = Box::pin(stream::empty::<Result<RawEvent>>());
+            let mut reader = NativeWmiEventReader::new(vec![stream], EventCancellation::new());
             assert!(reader.read().unwrap().is_none());
         }
 
@@ -372,8 +368,7 @@ mod native {
         fn cancellation_interrupts_a_pending_read() {
             let cancellation = EventCancellation::new();
             let cancel_from_thread = cancellation.clone();
-            let stream: RawResultStream<'static> =
-                Box::pin(stream::pending::<Result<RawEvent>>());
+            let stream: RawResultStream<'static> = Box::pin(stream::pending::<Result<RawEvent>>());
             let mut reader = NativeWmiEventReader::new(vec![stream], cancellation);
             let canceller = thread::spawn(move || {
                 thread::sleep(Duration::from_millis(10));
@@ -398,20 +393,21 @@ mod tests {
     use super::raw_event_from_object;
     use crate::{WmiObject, WmiValue};
 
-    fn assert_class_schema(
-        source_class: &str,
-        property: &str,
-        value: WmiValue,
-        expected: Value,
-    ) {
+    fn assert_class_schema(source_class: &str, property: &str, value: WmiValue, expected: Value) {
         let object = WmiObject::from([
             (
                 "SECURITY_DESCRIPTOR".into(),
                 WmiValue::Array(vec![WmiValue::U8(1), WmiValue::U8(2)]),
             ),
-            ("TIME_CREATED".into(), WmiValue::U64(133_900_000_000_000_000)),
+            (
+                "TIME_CREATED".into(),
+                WmiValue::U64(133_900_000_000_000_000),
+            ),
             ("Active".into(), WmiValue::Bool(true)),
-            ("InstanceName".into(), WmiValue::String("ACPI\\VPC2004\\0".into())),
+            (
+                "InstanceName".into(),
+                WmiValue::String("ACPI\\VPC2004\\0".into()),
+            ),
             (property.into(), value.clone()),
         ]);
         let event = raw_event_from_object(1_234, source_class, object).unwrap();
@@ -422,7 +418,10 @@ mod tests {
         assert_eq!(serialized["timestamp_unix_ms"], json!(1_234));
         assert_eq!(serialized["source_class"], json!(source_class));
         assert_eq!(serialized["instance"][property], expected);
-        assert_eq!(serialized["instance"]["TIME_CREATED"], json!(133_900_000_000_000_000_u64));
+        assert_eq!(
+            serialized["instance"]["TIME_CREATED"],
+            json!(133_900_000_000_000_000_u64)
+        );
         assert_eq!(serialized["instance"]["SECURITY_DESCRIPTOR"], json!([1, 2]));
         assert!(serialized["instance"].get("action").is_none());
         assert!(serialized["instance"].get("key_action").is_none());
@@ -442,12 +441,7 @@ mod tests {
             WmiValue::U32(3),
             json!(3),
         );
-        assert_class_schema(
-            "LENOVO_LIGHTING_EVENT",
-            "Key_ID",
-            WmiValue::U8(1),
-            json!(1),
-        );
+        assert_class_schema("LENOVO_LIGHTING_EVENT", "Key_ID", WmiValue::U8(1), json!(1));
         assert_class_schema(
             "LENOVO_REPORT_REFRESH_RATE_EVENT",
             "MaxRefreshRate",
@@ -462,14 +456,15 @@ mod tests {
             ("MaxRefreshRate".into(), WmiValue::U16(120)),
             ("MinRefreshRate".into(), WmiValue::U16(60)),
         ]);
-        let event = raw_event_from_object(
-            99,
-            "LENOVO_REPORT_REFRESH_RATE_EVENT",
-            object,
-        )
-        .unwrap();
-        assert_eq!(event.instance.get("MinRefreshRate"), Some(&EventValue::U16(60)));
-        assert_eq!(event.instance.get("MaxRefreshRate"), Some(&EventValue::U16(120)));
+        let event = raw_event_from_object(99, "LENOVO_REPORT_REFRESH_RATE_EVENT", object).unwrap();
+        assert_eq!(
+            event.instance.get("MinRefreshRate"),
+            Some(&EventValue::U16(60))
+        );
+        assert_eq!(
+            event.instance.get("MaxRefreshRate"),
+            Some(&EventValue::U16(120))
+        );
         assert_eq!(event.instance.len(), 2);
     }
 }

@@ -1685,26 +1685,48 @@ impl DiagnosticsControl for LinuxHal {
         ])
     }
 
-    fn run_diagnostics(&self, items: &[DiagnosticKind], options: lctrl_core::DiagnosticRunOptions) -> Result<Vec<DiagnosticResult>> {
+    fn run_diagnostics(
+        &self,
+        items: &[DiagnosticKind],
+        options: lctrl_core::DiagnosticRunOptions,
+    ) -> Result<Vec<DiagnosticResult>> {
         items
             .iter()
             .copied()
             .map(|kind| {
                 if let Some(reason) = options.cancellation.reason() {
-                    return Ok(DiagnosticResult::new(kind, DiagnosticOutcome::Cancelled, "diagnostic cancelled")
-                        .with_reason(lctrl_core::DiagnosticReason::Cancelled { reason }));
+                    return Ok(DiagnosticResult::new(
+                        kind,
+                        DiagnosticOutcome::Cancelled,
+                        "diagnostic cancelled",
+                    )
+                    .with_reason(lctrl_core::DiagnosticReason::Cancelled { reason }));
                 }
                 let started = std::time::Instant::now();
                 let result = run_diagnostic(self, kind)?;
                 if let Some(reason) = options.cancellation.reason() {
-                    return Ok(DiagnosticResult::new(kind, DiagnosticOutcome::Cancelled, "diagnostic cancelled")
-                        .with_reason(lctrl_core::DiagnosticReason::Cancelled { reason }));
+                    return Ok(DiagnosticResult::new(
+                        kind,
+                        DiagnosticOutcome::Cancelled,
+                        "diagnostic cancelled",
+                    )
+                    .with_reason(lctrl_core::DiagnosticReason::Cancelled { reason }));
                 }
                 if started.elapsed() >= options.per_item_deadline {
-                    return Ok(DiagnosticResult::new(kind, DiagnosticOutcome::ResourceError, "diagnostic per-item deadline exceeded")
-                        .with_reason(lctrl_core::DiagnosticReason::DeadlineExceeded {
-                            deadline_ms: options.per_item_deadline.as_millis().min(u128::from(u64::MAX)) as u64,
-                        }));
+                    return Ok(DiagnosticResult::new(
+                        kind,
+                        DiagnosticOutcome::ResourceError,
+                        "diagnostic per-item deadline exceeded",
+                    )
+                    .with_reason(
+                        lctrl_core::DiagnosticReason::DeadlineExceeded {
+                            deadline_ms: options
+                                .per_item_deadline
+                                .as_millis()
+                                .min(u128::from(u64::MAX))
+                                as u64,
+                        },
+                    ));
                 }
                 Ok(result)
             })
@@ -1723,7 +1745,11 @@ fn run_diagnostic(hal: &LinuxHal, kind: DiagnosticKind) -> Result<DiagnosticResu
                     telemetry.design_capacity_mwh, telemetry.remaining_capacity_mwh
                 ),
             )),
-            Err(error) => Ok(DiagnosticResult::new(kind, DiagnosticOutcome::Unavailable, error.to_string())),
+            Err(error) => Ok(DiagnosticResult::new(
+                kind,
+                DiagnosticOutcome::Unavailable,
+                error.to_string(),
+            )),
         },
         DiagnosticKind::Thermal => match hal.temperature_sensors() {
             Ok(sensors) => {
@@ -1745,7 +1771,11 @@ fn run_diagnostic(hal: &LinuxHal, kind: DiagnosticKind) -> Result<DiagnosticResu
                     ),
                 ))
             }
-            Err(error) => Ok(DiagnosticResult::new(kind, DiagnosticOutcome::Unavailable, error.to_string())),
+            Err(error) => Ok(DiagnosticResult::new(
+                kind,
+                DiagnosticOutcome::Unavailable,
+                error.to_string(),
+            )),
         },
         DiagnosticKind::Storage => {
             let count = inventory_count(hal, "sys/block")?;
@@ -1760,7 +1790,11 @@ fn run_diagnostic(hal: &LinuxHal, kind: DiagnosticKind) -> Result<DiagnosticResu
             let meminfo = match hal.read_required("proc/meminfo") {
                 Ok(meminfo) => meminfo,
                 Err(error) => {
-                    return Ok(DiagnosticResult::new(kind, DiagnosticOutcome::Unavailable, error.to_string()));
+                    return Ok(DiagnosticResult::new(
+                        kind,
+                        DiagnosticOutcome::Unavailable,
+                        error.to_string(),
+                    ));
                 }
             };
             let total = meminfo.lines().find_map(|line| {

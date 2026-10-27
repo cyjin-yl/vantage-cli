@@ -5,9 +5,7 @@ use lctrl_core::{
     PowerSourceValues, PowerValueRange, ProcessorBoostMode, Result,
 };
 use lctrl_hal::{PowerLimitKind, ProcessorPowerControl, TuningControl};
-use lctrl_hal_win::{
-    PowerApi, WindowsPowerP0, epp_percent_from_raw, epp_raw_from_percent,
-};
+use lctrl_hal_win::{PowerApi, WindowsPowerP0, epp_percent_from_raw, epp_raw_from_percent};
 
 const EPP_SETTING: &str = "36687f9e-e3a5-4dbf-b1dc-15eb381c6863";
 const BOOST_SETTING: &str = "be337238-0d82-4146-a960-4f3749d470c7";
@@ -122,12 +120,7 @@ impl PowerApi for FakePowerApi {
         }
     }
 
-    fn write_value(
-        &self,
-        key: &PowerSettingKey,
-        source: PowerSource,
-        value: u32,
-    ) -> Result<()> {
+    fn write_value(&self, key: &PowerSettingKey, source: PowerSource, value: u32) -> Result<()> {
         self.calls.lock().push(Call::Write(source, value));
         {
             let mut values = self.values.lock();
@@ -165,10 +158,8 @@ impl PowerApi for FakePowerApi {
     }
 
     fn apply_active_scheme(&self) -> Result<()> {
-        let source = (*self.last_write.lock()).ok_or_else(|| {
-            LctrlError::ChannelUnavailable {
-                channel: "test apply had no preceding write".into(),
-            }
+        let source = (*self.last_write.lock()).ok_or_else(|| LctrlError::ChannelUnavailable {
+            channel: "test apply had no preceding write".into(),
         })?;
         self.calls.lock().push(Call::Apply(source));
         let should_fail = {
@@ -234,12 +225,13 @@ fn epp_dry_run_captures_ac_and_dc_without_writing() {
     assert_eq!(*report.requested(), requested);
     assert_eq!(report.actual(), None);
     assert_eq!(p0.api().values.lock().epp, [50, 75]);
-    assert!(!p0
-        .api()
-        .calls
-        .lock()
-        .iter()
-        .any(|call| matches!(call, Call::Write(_, _) | Call::Apply(_))));
+    assert!(
+        !p0.api()
+            .calls
+            .lock()
+            .iter()
+            .any(|call| matches!(call, Call::Write(_, _) | Call::Apply(_)))
+    );
 }
 
 #[test]
@@ -256,7 +248,10 @@ fn raw_epp_commit_writes_exact_percentages_and_preserves_previous_values() {
     assert_eq!(p0.api().values.lock().epp, [0, 100]);
     assert_eq!(
         p0.api().writes(),
-        [Call::Write(PowerSource::Ac, 0), Call::Write(PowerSource::Dc, 100)]
+        [
+            Call::Write(PowerSource::Ac, 0),
+            Call::Write(PowerSource::Dc, 100)
+        ]
     );
 }
 
@@ -340,7 +335,10 @@ fn readback_mismatch_is_bounded_and_rolls_back_before_dc() {
     assert_eq!(p0.api().values.lock().epp, [50, 75]);
     assert_eq!(
         p0.api().writes(),
-        [Call::Write(PowerSource::Ac, 0), Call::Write(PowerSource::Ac, 50)]
+        [
+            Call::Write(PowerSource::Ac, 0),
+            Call::Write(PowerSource::Ac, 50)
+        ]
     );
     // One previous-value read, ten bounded mismatching readbacks, and one
     // successful rollback readback.
@@ -353,12 +351,13 @@ fn readback_mismatch_is_bounded_and_rolls_back_before_dc() {
             .count(),
         12
     );
-    assert!(!p0
-        .api()
-        .calls
-        .lock()
-        .iter()
-        .any(|call| *call == Call::Read(PowerSource::Dc)));
+    assert!(
+        !p0.api()
+            .calls
+            .lock()
+            .iter()
+            .any(|call| *call == Call::Read(PowerSource::Dc))
+    );
 }
 
 #[test]
@@ -407,7 +406,10 @@ fn turbo_on_selects_enabled_and_reports_previous_boost_policies() {
 #[test]
 fn legacy_tuning_is_source_safe_and_does_not_fake_power_limits() {
     let p0 = WindowsPowerP0::new(FakePowerApi::new([50, 75], [1, 1]));
-    assert!(matches!(p0.epp(), Err(LctrlError::ChannelUnavailable { .. })));
+    assert!(matches!(
+        p0.epp(),
+        Err(LctrlError::ChannelUnavailable { .. })
+    ));
     assert!(matches!(
         p0.set_epp(0, ApplyMode::Commit),
         Err(LctrlError::ChannelUnavailable { .. })

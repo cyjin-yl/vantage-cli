@@ -303,13 +303,41 @@ where
                 Availability::Unavailable,
                 "no verified fan-mode write channel on 21VG firmware",
             ),
-            ("tune.pl1", Availability::Unavailable, "Windows raw MSR/RAPL writes are unavailable"),
-            ("tune.pl2", Availability::Unavailable, "Windows raw MSR/RAPL writes are unavailable"),
-            ("tune.tau", Availability::Unavailable, "Windows raw MSR/RAPL writes are unavailable"),
-            ("tune.epp", Availability::Limited, "PERFEPP policy is probed at command time"),
-            ("tune.turbo", Availability::Limited, "PERFBOOSTMODE policy is probed at command time"),
-            ("gpu.mode", Availability::Unavailable, "no verified target GPU-mode mutator"),
-            ("tune.background", Availability::Unavailable, "no process-policy tuning executor"),
+            (
+                "tune.pl1",
+                Availability::Unavailable,
+                "Windows raw MSR/RAPL writes are unavailable",
+            ),
+            (
+                "tune.pl2",
+                Availability::Unavailable,
+                "Windows raw MSR/RAPL writes are unavailable",
+            ),
+            (
+                "tune.tau",
+                Availability::Unavailable,
+                "Windows raw MSR/RAPL writes are unavailable",
+            ),
+            (
+                "tune.epp",
+                Availability::Limited,
+                "PERFEPP policy is probed at command time",
+            ),
+            (
+                "tune.turbo",
+                Availability::Limited,
+                "PERFBOOSTMODE policy is probed at command time",
+            ),
+            (
+                "gpu.mode",
+                Availability::Unavailable,
+                "no verified target GPU-mode mutator",
+            ),
+            (
+                "tune.background",
+                Availability::Unavailable,
+                "no process-policy tuning executor",
+            ),
         ] {
             capabilities.record(feature, availability, Some(detail.into()))?;
         }

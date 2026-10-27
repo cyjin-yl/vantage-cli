@@ -54,9 +54,9 @@ impl NetshCommandRunner {
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::null());
-        let mut child = command.spawn().map_err(|error| {
-            contextual_io(error, format_args!("failed to start {operation}"))
-        })?;
+        let mut child = command
+            .spawn()
+            .map_err(|error| contextual_io(error, format_args!("failed to start {operation}")))?;
         let stdout = match child.stdout.take() {
             Some(stdout) => stdout,
             None => {
@@ -194,10 +194,7 @@ impl<R: WlanNetshRunner> WindowsWifiSecurity<R> {
                 .show_profile(&entry.name, entry.interface_name.as_deref())?;
             let (authentication, cipher) = parse_profile_security(&detail)?;
             saved_profiles.push(WifiSavedProfile {
-                assessment: assess_wifi_security(
-                    authentication.as_deref(),
-                    cipher.as_deref(),
-                ),
+                assessment: assess_wifi_security(authentication.as_deref(), cipher.as_deref()),
                 name: entry.name,
                 interface_name: entry.interface_name,
                 profile_type: entry.profile_type,
@@ -356,10 +353,7 @@ fn terminate_and_reap(child: &mut Child) {
 }
 
 fn contextual_io(error: io::Error, context: std::fmt::Arguments<'_>) -> LctrlError {
-    LctrlError::Io(io::Error::new(
-        error.kind(),
-        format!("{context}: {error}"),
-    ))
+    LctrlError::Io(io::Error::new(error.kind(), format!("{context}: {error}")))
 }
 
 fn decode_output(bytes: Vec<u8>, operation: &'static str) -> Result<String> {
@@ -528,10 +522,8 @@ impl InterfaceBuilder {
             .map(classify_connection_state)
             .unwrap_or(WifiConnectionState::Unknown);
         let live_network = (connection_state == WifiConnectionState::Connected).then(|| {
-            let assessment = assess_wifi_security(
-                self.authentication.as_deref(),
-                self.cipher.as_deref(),
-            );
+            let assessment =
+                assess_wifi_security(self.authentication.as_deref(), self.cipher.as_deref());
             WifiLiveNetwork {
                 ssid: self.ssid,
                 bssid: self.bssid,
@@ -701,9 +693,10 @@ fn parse_signal(value: &str) -> Result<u8> {
 }
 
 fn parse_channel(value: &str) -> Result<u32> {
-    value.trim().parse::<u32>().map_err(|_| {
-        unrecognized_output("netsh wlan show interfaces (invalid channel number)")
-    })
+    value
+        .trim()
+        .parse::<u32>()
+        .map_err(|_| unrecognized_output("netsh wlan show interfaces (invalid channel number)"))
 }
 
 fn split_field(line: &str) -> Option<(&str, &str)> {
@@ -780,9 +773,7 @@ fn normalized_eq_any(value: &str, candidates: &[&str]) -> bool {
 fn normalized_eq(value: &str, candidate: &str) -> bool {
     value
         .chars()
-        .filter(|character| {
-            !character.is_whitespace() && *character != '-' && *character != '_'
-        })
+        .filter(|character| !character.is_whitespace() && *character != '-' && *character != '_')
         .map(|character| character.to_ascii_lowercase())
         .eq(candidate.chars())
 }

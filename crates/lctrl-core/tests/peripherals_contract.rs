@@ -66,13 +66,7 @@ fn refresh_capability_uses_discovered_range() {
 
 #[test]
 fn native_panel_mode_preserves_every_non_refresh_field() {
-    let target = PanelTarget::new(
-        r"\\.\DISPLAY1",
-        PanelAdapterId::new(7, 9),
-        3,
-        5,
-        true,
-    );
+    let target = PanelTarget::new(r"\\.\DISPLAY1", PanelAdapterId::new(7, 9), 3, 5, true);
     let mut current = PanelMode::new(target, 3200, 2000, 32, 60);
     current.position_x = -40;
     current.position_y = 20;
@@ -116,7 +110,10 @@ fn native_panel_mode_preserves_every_non_refresh_field() {
 
 #[test]
 fn panel_auto_has_explicit_default_mode_semantics() {
-    assert_eq!(PanelRefreshRequest::Auto.to_string(), "auto (firmware default)");
+    assert_eq!(
+        PanelRefreshRequest::Auto.to_string(),
+        "auto (firmware default)"
+    );
     assert_eq!(PanelRefreshRequest::Fixed(60).to_string(), "60 Hz");
     for (raw, rotation) in [
         (0, PanelRotation::Default),

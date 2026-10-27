@@ -2,9 +2,7 @@ use std::collections::{BTreeMap, VecDeque};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use lctrl_core::{
-    BiosApplyEffect, BiosChange, BiosItem, BiosPasswordStatus, LctrlError,
-};
+use lctrl_core::{BiosApplyEffect, BiosChange, BiosItem, BiosPasswordStatus, LctrlError};
 use lctrl_hal::{BiosControl, apply_bios_transaction, plan_bios_apply};
 
 struct FakeBios {
@@ -30,7 +28,10 @@ impl FakeBios {
                 key.clone(),
                 (
                     (*name).to_string(),
-                    selections.iter().map(|value| (*value).to_string()).collect(),
+                    selections
+                        .iter()
+                        .map(|value| (*value).to_string())
+                        .collect(),
                 ),
             );
             committed.insert(key, (*value).to_string());
@@ -208,10 +209,7 @@ fn change(name: &str, value: &str) -> BiosChange {
 }
 
 fn requested_batch() -> Vec<BiosChange> {
-    vec![
-        change("Camera", "Disable"),
-        change("Microphone", "Disable"),
-    ]
+    vec![change("Camera", "Disable"), change("Microphone", "Disable")]
 }
 
 #[test]
@@ -237,7 +235,10 @@ fn every_exact_selection_is_validated_before_the_first_stage() {
 
     let error = apply_bios_transaction(
         &bios,
-        &[change("Camera", "Disable"), change("Microphone", "disabled")],
+        &[
+            change("Camera", "Disable"),
+            change("Microphone", "disabled"),
+        ],
     )
     .unwrap_err();
 
@@ -248,7 +249,12 @@ fn every_exact_selection_is_validated_before_the_first_stage() {
     ));
     assert_eq!(bios.saves(), 0);
     assert_eq!(bios.discards(), 0);
-    assert!(!bios.operations().iter().any(|call| call.starts_with("stage:")));
+    assert!(
+        !bios
+            .operations()
+            .iter()
+            .any(|call| call.starts_with("stage:"))
+    );
     assert_eq!(bios.current("Camera"), "Enable");
     assert_eq!(bios.current("Microphone"), "Enable");
 }
@@ -265,7 +271,12 @@ fn planning_captures_previous_values_without_staging() {
     assert_eq!(plan.changes[1].previous, change("Microphone", "Enable"));
     assert_eq!(plan.changes[1].requested, change("Microphone", "Disable"));
     assert_eq!(bios.saves(), 0);
-    assert!(!bios.operations().iter().any(|call| call.starts_with("stage:")));
+    assert!(
+        !bios
+            .operations()
+            .iter()
+            .any(|call| call.starts_with("stage:"))
+    );
 }
 
 #[test]
@@ -280,7 +291,10 @@ fn partial_stage_failure_discards_without_saving() {
     ));
     assert_eq!(bios.saves(), 0);
     assert_eq!(bios.discards(), 1);
-    assert_eq!(bios.operations().last().map(String::as_str), Some("discard"));
+    assert_eq!(
+        bios.operations().last().map(String::as_str),
+        Some("discard")
+    );
     assert_eq!(bios.current("Camera"), "Enable");
     assert_eq!(bios.current("Microphone"), "Enable");
 }

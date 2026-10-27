@@ -66,7 +66,9 @@ impl DriverVersion {
                 || component.is_empty()
                 || !component.bytes().all(|byte| byte.is_ascii_digit())
             {
-                return Err(invalid("driver version must contain four unsigned 16-bit parts"));
+                return Err(invalid(
+                    "driver version must contain four unsigned 16-bit parts",
+                ));
             }
             parts[count] = component.parse::<u16>().map_err(|_| {
                 invalid("driver version component exceeds the unsigned 16-bit range")
@@ -74,7 +76,9 @@ impl DriverVersion {
             count += 1;
         }
         if count != parts.len() {
-            return Err(invalid("driver version must contain four unsigned 16-bit parts"));
+            return Err(invalid(
+                "driver version must contain four unsigned 16-bit parts",
+            ));
         }
         Ok(Self(parts))
     }
@@ -161,7 +165,9 @@ impl PresentPnpDevice {
     pub fn validate(&self) -> Result<()> {
         validate_device_instance_id(&self.device_instance_id)?;
         if self.hardware_ids.is_empty() || self.hardware_ids.len() > 64 {
-            return Err(invalid("present PnP device has an invalid hardware-ID count"));
+            return Err(invalid(
+                "present PnP device has an invalid hardware-ID count",
+            ));
         }
         for hardware_id in &self.hardware_ids {
             validate_hardware_id(hardware_id)?;
@@ -392,7 +398,10 @@ pub enum UpdateWeekday {
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum UpdateSchedule {
     Off,
-    Daily { hour: u8, minute: u8 },
+    Daily {
+        hour: u8,
+        minute: u8,
+    },
     Weekly {
         weekday: UpdateWeekday,
         hour: u8,
@@ -468,7 +477,9 @@ impl LocalUpdatePolicy {
         let mut ids = BTreeSet::new();
         for entry in &self.history {
             if entry.id == 0 || !ids.insert(entry.id) {
-                return Err(invalid("local update history IDs must be nonzero and unique"));
+                return Err(invalid(
+                    "local update history IDs must be nonzero and unique",
+                ));
             }
             require_text(&entry.recorded_at, 128, "history timestamp")?;
             validate_device_instance_id(&entry.device_instance_id)?;
@@ -532,7 +543,9 @@ impl LocalUpdatePolicyStore {
             Err(error) => return Err(error.into()),
         };
         if metadata.file_type().is_symlink() || !metadata.is_file() {
-            return Err(invalid("local update policy path is not a regular non-symlink file"));
+            return Err(invalid(
+                "local update policy path is not a regular non-symlink file",
+            ));
         }
         if metadata.len() > MAX_LOCAL_UPDATE_POLICY_BYTES {
             return Err(invalid("local update policy exceeds its size bound"));
@@ -589,7 +602,9 @@ impl LocalUpdatePolicyStore {
         recorded_at: impl Into<String>,
     ) -> Result<UpdateHistoryEntry> {
         if report.mode != ApplyMode::Commit {
-            return Err(invalid("dry-run update reports cannot be recorded as installed"));
+            return Err(invalid(
+                "dry-run update reports cannot be recorded as installed",
+            ));
         }
         let actual = report
             .actual
@@ -666,7 +681,9 @@ impl LocalUpdatePolicyStore {
         let mut policy = self.load()?;
         let previous = policy.ignored.len();
         policy.ignored.retain(|candidate| {
-            !candidate.hardware_id.eq_ignore_ascii_case(&rule.hardware_id)
+            !candidate
+                .hardware_id
+                .eq_ignore_ascii_case(&rule.hardware_id)
                 || candidate.provider != rule.provider
                 || candidate.driver_version != rule.driver_version
         });
@@ -684,7 +701,10 @@ impl LocalUpdatePolicyStore {
         self.save(&policy)
     }
 
-    pub fn latest_for_device(&self, device_instance_id: &str) -> Result<Option<UpdateHistoryEntry>> {
+    pub fn latest_for_device(
+        &self,
+        device_instance_id: &str,
+    ) -> Result<Option<UpdateHistoryEntry>> {
         validate_device_instance_id(device_instance_id)?;
         Ok(self
             .load()?
@@ -700,11 +720,7 @@ impl LocalUpdatePolicyStore {
 }
 
 pub fn validate_hardware_id(hardware_id: &str) -> Result<()> {
-    require_text(
-        hardware_id,
-        MAX_WINDOWS_DEVICE_ID_UTF16,
-        "PnP hardware ID",
-    )
+    require_text(hardware_id, MAX_WINDOWS_DEVICE_ID_UTF16, "PnP hardware ID")
 }
 
 pub fn validate_device_instance_id(device_instance_id: &str) -> Result<()> {
@@ -727,10 +743,16 @@ pub fn validate_local_path(path: &Path, expected_extension: &str) -> Result<()> 
         match component {
             Component::Prefix(prefix) => match prefix.kind() {
                 Prefix::Disk(_) | Prefix::VerbatimDisk(_) => windows_disk_prefix = true,
-                _ => return Err(invalid("remote and device-namespace paths are not admitted")),
+                _ => {
+                    return Err(invalid(
+                        "remote and device-namespace paths are not admitted",
+                    ));
+                }
             },
             Component::CurDir | Component::ParentDir => {
-                return Err(invalid("local update paths must not contain traversal components"));
+                return Err(invalid(
+                    "local update paths must not contain traversal components",
+                ));
             }
             Component::RootDir | Component::Normal(_) => {}
         }
@@ -767,7 +789,9 @@ fn require_text(value: &str, maximum_utf16: usize, label: &str) -> Result<()> {
         || value.encode_utf16().count() > maximum_utf16
         || value.chars().any(char::is_control)
     {
-        return Err(invalid(format!("{label} is empty, too long, or contains control text")));
+        return Err(invalid(format!(
+            "{label} is empty, too long, or contains control text"
+        )));
     }
     Ok(())
 }
