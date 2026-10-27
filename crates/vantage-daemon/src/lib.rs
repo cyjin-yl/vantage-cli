@@ -8,6 +8,8 @@ use serde_json::Value;
 
 pub const PROTOCOL_VERSION: u32 = 1;
 pub const MAX_EVENTS: usize = 64;
+pub const VENDOR_EVENT_KIND: &str = "vendor_event";
+pub const SNAPSHOT_CHANGED_KIND: &str = "snapshot_changed";
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
@@ -68,6 +70,36 @@ impl DaemonEvent {
             payload,
         }
     }
+
+    #[must_use]
+    pub fn snapshot_changed(payload: Value) -> Self {
+        Self::now(SNAPSHOT_CHANGED_KIND, payload)
+    }
+
+    #[cfg(windows)]
+    pub fn vendor_wmi(event: lctrl_hal::RawEvent) -> lctrl_core::Result<Self> {
+        #[derive(Serialize)]
+        struct VendorWmiPayload {
+            source_class: String,
+            instance: std::collections::BTreeMap<String, lctrl_hal::EventValue>,
+        }
+
+        let lctrl_hal::RawEvent {
+            timestamp_unix_ms,
+            source_class,
+            instance,
+        } = event;
+        let payload = serde_json::to_value(VendorWmiPayload {
+            source_class,
+            instance,
+        })
+        .map_err(|error| LctrlError::Io(std::io::Error::other(error)))?;
+        Ok(Self {
+            ts_unix_ms: timestamp_unix_ms,
+            kind: VENDOR_EVENT_KIND.into(),
+            payload,
+        })
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -115,4 +147,47 @@ pub fn request(_request: &DaemonRequest) -> lctrl_core::Result<DaemonResponse> {
     Err(LctrlError::Unsupported {
         feature: "daemon.ipc".into(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::{DaemonEvent, SNAPSHOT_CHANGED_KIND, VENDOR_EVENT_KIND};
+
+    #[test]
+    fn polling_snapshots_are_not_vendor_events() {
+        let event = DaemonEvent::snapshot_changed(json!({"adapter": {"online": true}}));
+        assert_eq!(event.kind, SNAPSHOT_CHANGED_KIND);
+        assert_ne!(event.kind, VENDOR_EVENT_KIND);
+        assert_eq!(event.payload["adapter"]["online"], json!(true));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn vendor_events_expose_only_timestamp_class_and_actual_instance() {
+        use std::collections::BTreeMap;
+
+        use lctrl_hal::{EventValue, RawEvent};
+
+        let raw = RawEvent::new(
+            42,
+            "LENOVO_LIGHTING_EVENT",
+            BTreeMap::from([
+                ("Key_ID".into(), EventValue::U8(7)),
+                ("TIME_CREATED".into(), EventValue::U64(99)),
+            ]),
+        )
+        .unwrap();
+        let event = DaemonEvent::vendor_wmi(raw).unwrap();
+        assert_eq!(event.ts_unix_ms, 42);
+        assert_eq!(event.kind, VENDOR_EVENT_KIND);
+        assert_eq!(
+            event.payload,
+            json!({
+                "source_class": "LENOVO_LIGHTING_EVENT",
+                "instance": {"Key_ID": 7, "TIME_CREATED": 99}
+            })
+        );
+    }
 }

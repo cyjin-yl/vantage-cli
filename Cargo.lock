@@ -3067,6 +3067,7 @@ name = "lctrl-hal"
 version = "0.1.0"
 dependencies = [
  "lctrl-core",
+ "serde",
 ]
 
 [[package]]
@@ -3081,6 +3082,7 @@ dependencies = [
 name = "lctrl-hal-win"
 version = "0.1.0"
 dependencies = [
+ "futures",
  "lctrl-core",
  "lctrl-hal",
  "parking_lot",

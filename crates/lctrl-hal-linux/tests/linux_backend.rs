@@ -1,3 +1,7 @@
+// The Linux backend reads sysfs/procfs paths and builds Unix-path fixtures; the
+// suite is meaningless on a Windows host even though the crate compiles there.
+#![cfg(unix)]
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -778,7 +782,7 @@ fn standard_diagnostics_report_inventory_only_without_fake_deep_pass() {
 
     let results = tree
         .hal()
-        .run_diagnostics(&[DiagnosticKind::Memory, DiagnosticKind::Battery])
+        .run_diagnostics(&[DiagnosticKind::Memory, DiagnosticKind::Battery], lctrl_core::DiagnosticRunOptions::default())
         .unwrap();
 
     assert_eq!(results[0].outcome, DiagnosticOutcome::Warning);

@@ -16,12 +16,18 @@ pub trait PowerApi: Send + Sync {
         source: lctrl_core::PowerSource,
     ) -> Result<u32>;
     fn range(&self, key: &lctrl_core::PowerSettingKey) -> Result<PowerValueRange>;
+    /// Write one stored AC/DC index without reapplying the active scheme.
     fn write_value(
         &self,
         key: &lctrl_core::PowerSettingKey,
         source: lctrl_core::PowerSource,
         value: u32,
     ) -> Result<()>;
+    /// Reapply the active scheme so prior writes take effect.
+    ///
+    /// This is deliberately a separate phase: if it fails, the transaction
+    /// knows a value write may already have happened and must roll it back.
+    fn apply_active_scheme(&self) -> Result<()>;
 }
 
 #[derive(Debug)]
@@ -64,7 +70,7 @@ where
         match mutation {
             PowerMutation::Activate(target) => self.activate(target, apply),
             PowerMutation::SetValue { key, source, value } => {
-                self.set_value(key, source, value, apply)
+                self.set_value(key, source, value, apply, None)
             }
         }
     }
@@ -106,15 +112,19 @@ where
         }
     }
 
-    fn set_value(
+    pub(crate) fn set_value(
         &self,
         key: lctrl_core::PowerSettingKey,
         source: lctrl_core::PowerSource,
         value: PowerSettingValue,
         apply: ApplyMode,
+        range: Option<PowerValueRange>,
     ) -> Result<ChangeReport<PowerMutation>> {
         let previous_raw = self.api.read_value(&key, source)?;
-        let range = self.api.range(&key)?;
+        let range = match range {
+            Some(range) => range,
+            None => self.api.range(&key)?,
+        };
         let previous = PowerMutation::SetValue {
             key: key.clone(),
             source,
@@ -134,8 +144,25 @@ where
             return if Self::preserve_prewrite_error(&error) {
                 Err(error)
             } else {
-                Err(self.rollback_value(key, *source, previous_raw, &previous, error))
+                Err(self.rollback_value(
+                    key,
+                    *source,
+                    previous_raw,
+                    &previous,
+                    &range,
+                    error,
+                ))
             };
+        }
+        if let Err(error) = self.api.apply_active_scheme() {
+            return Err(self.rollback_value(
+                key,
+                *source,
+                previous_raw,
+                &previous,
+                &range,
+                error,
+            ));
         }
         match poll_readback(&requested, 10, Duration::from_millis(50), || {
             let actual_raw = self.api.read_value(key, *source)?;
@@ -146,7 +173,14 @@ where
             })
         }) {
             Ok(actual) => Ok(ChangeReport::committed(previous, requested, actual)),
-            Err(error) => Err(self.rollback_value(key, *source, previous_raw, &previous, error)),
+            Err(error) => Err(self.rollback_value(
+                key,
+                *source,
+                previous_raw,
+                &previous,
+                &range,
+                error,
+            )),
         }
     }
 
@@ -179,18 +213,20 @@ where
         source: lctrl_core::PowerSource,
         previous_raw: u32,
         previous: &PowerMutation,
+        range: &PowerValueRange,
         error: LctrlError,
     ) -> LctrlError {
         match self
             .api
             .write_value(key, source, previous_raw)
+            .and_then(|()| self.api.apply_active_scheme())
             .and_then(|()| {
                 poll_readback(previous, 10, Duration::from_millis(50), || {
                     let actual_raw = self.api.read_value(key, source)?;
                     Ok(PowerMutation::SetValue {
                         key: key.clone(),
                         source,
-                        value: PowerSettingValue::new(actual_raw, &self.api.range(key)?)?,
+                        value: PowerSettingValue::new(actual_raw, range)?,
                     })
                 })
             }) {

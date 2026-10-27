@@ -61,6 +61,13 @@ fn missing_wmi_class_marks_feature_unsupported() {
 }
 
 #[test]
+fn wmi_not_supported_marks_feature_unsupported() {
+    let error = map_wmi_hresult(0x8004_1001_u32 as i32, "kbd.backlight.method");
+
+    assert_error_kind(&error, 3, "unsupported");
+}
+
+#[test]
 fn wmi_access_denied_requires_administrator() {
     let error = map_wmi_hresult(0x8004_1003_u32 as i32, "bios.set");
 

@@ -12,6 +12,7 @@ struct FakePowerApi {
     active: Mutex<PowerSchemeId>,
     value: Mutex<u32>,
     calls: Mutex<Vec<&'static str>>,
+    fail_next_apply: Mutex<bool>,
 }
 
 impl FakePowerApi {
@@ -27,6 +28,7 @@ impl FakePowerApi {
             active: Mutex::new(balanced.id),
             value: Mutex::new(50),
             calls: Mutex::new(Vec::new()),
+            fail_next_apply: Mutex::new(false),
         }
     }
 }
@@ -76,6 +78,16 @@ impl PowerApi for FakePowerApi {
         *self.value.lock() = value;
         Ok(())
     }
+
+    fn apply_active_scheme(&self) -> lctrl_core::Result<()> {
+        self.calls.lock().push("apply_active");
+        if std::mem::take(&mut *self.fail_next_apply.lock()) {
+            return Err(LctrlError::PermissionDenied {
+                need: "administrator".into(),
+            });
+        }
+        Ok(())
+    }
 }
 
 fn mutation(value: u32) -> PowerMutation {
@@ -116,7 +128,13 @@ fn set_value_reads_validates_writes_and_reads_back() {
     assert_eq!(report.actual(), Some(&mutation(70)));
     assert_eq!(
         &*p0.api().calls.lock(),
-        &["read_value", "range", "write_value", "read_value"]
+        &[
+            "read_value",
+            "range",
+            "write_value",
+            "apply_active",
+            "read_value"
+        ]
     );
 }
 
@@ -149,4 +167,29 @@ fn activate_rejects_unknown_scheme_before_write() {
         Err(LctrlError::InvalidArgument { .. })
     ));
     assert_eq!(&*p0.api().calls.lock(), &["active", "schemes"]);
+}
+
+#[test]
+fn active_plan_failure_after_write_restores_the_previous_value() {
+    let api = FakePowerApi::new();
+    *api.fail_next_apply.lock() = true;
+    let p0 = WindowsPowerP0::new(api);
+
+    assert!(matches!(
+        p0.apply_power_mutation(mutation(70), ApplyMode::Commit),
+        Err(LctrlError::PermissionDenied { .. })
+    ));
+    assert_eq!(*p0.api().value.lock(), 50);
+    assert_eq!(
+        &*p0.api().calls.lock(),
+        &[
+            "read_value",
+            "range",
+            "write_value",
+            "apply_active",
+            "write_value",
+            "apply_active",
+            "read_value"
+        ]
+    );
 }

@@ -177,7 +177,11 @@ where
         capabilities.record(
             "battery.charge_mode",
             Availability::Unavailable,
-            Some("target has no independently verified charge-mode readback channel".into()),
+            Some(
+                "GBMD conservation/express writes are accepted, but 21VG firmware exposes no \
+                 independent charge-mode readback (docs/C-acceptance.md C2)"
+                    .into(),
+            ),
         )?;
         capabilities.record(
             "diagnostics.inventory",
@@ -208,43 +212,106 @@ where
                 Some("persistent BIOS privacy service is required for writes".into()),
             )?;
         }
+        match self.wmi.query(
+            ROOT_WMI,
+            "SELECT Mode FROM LENOVO_INTERNAL_PANEL_REFRESH_RATE_DATA WHERE Active = TRUE",
+        ) {
+            Ok(objects) if !objects.is_empty() => {
+                capabilities.record(
+                    "panel.refresh",
+                    Availability::Available,
+                    Some(
+                        "verified 60/120 Hz internal-panel transitions; requires the interactive \
+                         desktop session (docs/C-acceptance.md C1)"
+                            .into(),
+                    ),
+                )?;
+            }
+            Ok(_) => {
+                capabilities.record(
+                    "panel.refresh",
+                    Availability::Unavailable,
+                    Some("firmware exposed no active internal-panel refresh record".into()),
+                )?;
+            }
+            Err(error) => {
+                capabilities.record(
+                    "panel.refresh",
+                    Availability::Unavailable,
+                    Some(error.to_string()),
+                )?;
+            }
+        }
+        let thermal_zone_available = matches!(
+            self.wmi
+                .query(ROOT_WMI, "SELECT CurrentTemperature FROM MSAcpi_ThermalZoneTemperature"),
+            Ok(objects) if !objects.is_empty()
+        );
         capabilities.record(
-            "panel.refresh",
-            if wmi_available {
-                Availability::Limited
+            "perf.temp",
+            if thermal_zone_available || battery_telemetry_available {
+                Availability::Available
             } else {
                 Availability::Unavailable
             },
-            Some("panel rate metadata is readable; verified mode writer is unavailable".into()),
+            match (thermal_zone_available, battery_telemetry_available) {
+                (true, true) => None,
+                (true, false) => {
+                    Some("ACPI thermal zones only; the battery channel is unavailable".into())
+                }
+                (false, true) => {
+                    Some("battery temperature only; no ACPI thermal zone is present".into())
+                }
+                (false, false) => {
+                    Some("no ACPI thermal zone and no battery temperature channel".into())
+                }
+            },
         )?;
+        let fan_inventory_available = matches!(
+            self.wmi.query(
+                ROOT_WMI,
+                "SELECT NumOfFans, FanId, FanMinSpeed, FanMaxSpeed FROM LENOVO_FAN_TEST_DATA",
+            ),
+            Ok(objects) if !objects.is_empty()
+        );
         capabilities.record(
-            "perf.temp",
-            Availability::Unavailable,
-            Some("GAMEZONE temperature methods are not implemented by target firmware".into()),
+            "perf.fan.inventory",
+            if fan_inventory_available {
+                Availability::Available
+            } else {
+                Availability::Unavailable
+            },
+            if fan_inventory_available {
+                None
+            } else {
+                Some("firmware exposed no fan inventory record".into())
+            },
         )?;
         capabilities.record(
             "power.scheme",
             Availability::Limited,
             Some("Power API readiness is probed by the power service at command time".into()),
         )?;
-        for (feature, detail) in [
+        for (feature, availability, detail) in [
             (
                 "perf.mode",
+                Availability::Unavailable,
                 "target performance-mode write path is unavailable",
             ),
             (
                 "perf.fan.mode",
-                "target GAMEZONE fan methods are unavailable",
+                Availability::Unavailable,
+                "no verified fan-mode write channel on 21VG firmware",
             ),
-            ("tune.pl1", "Windows raw MSR/RAPL writes are unavailable"),
-            ("tune.pl2", "Windows raw MSR/RAPL writes are unavailable"),
-            ("tune.tau", "Windows raw MSR/RAPL writes are unavailable"),
-            ("tune.epp", "no verified Windows EPP mutator"),
-            ("tune.turbo", "no verified Windows turbo mutator"),
-            ("gpu.mode", "no verified target GPU-mode mutator"),
-            ("tune.background", "no process-policy tuning executor"),
+            ("tune.pl1", Availability::Unavailable, "Windows raw MSR/RAPL writes are unavailable"),
+            ("tune.pl2", Availability::Unavailable, "Windows raw MSR/RAPL writes are unavailable"),
+            ("tune.tau", Availability::Unavailable, "Windows raw MSR/RAPL writes are unavailable"),
+            ("tune.epp", Availability::Limited, "PERFEPP policy is probed at command time"),
+            ("tune.turbo", Availability::Limited, "PERFBOOSTMODE policy is probed at command time"),
+            ("gpu.mode", Availability::Unavailable, "no verified target GPU-mode mutator"),
+            ("tune.background", Availability::Unavailable, "no process-policy tuning executor"),
         ] {
-            capabilities.record(feature, Availability::Unavailable, Some(detail.into()))?;
+            capabilities.record(feature, availability, Some(detail.into()))?;
         }
         Ok(capabilities)
     }

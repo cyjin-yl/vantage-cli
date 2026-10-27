@@ -691,3 +691,163 @@ fn managed_snapshot_capture_diff_and_restore_use_persistent_baseline() {
 
     std::fs::remove_file(path).unwrap();
 }
+
+struct FakeSchemes {
+    mutations: Mutex<Vec<lctrl_core::PowerMutation>>,
+}
+
+impl PowerControl for FakeSchemes {
+    fn power_schemes(&self) -> lctrl_core::Result<Vec<lctrl_core::PowerScheme>> {
+        Ok(vec![lctrl_core::PowerScheme {
+            id: lctrl_core::PowerSchemeId::new("scheme-guid")?,
+            name: "Balanced".into(),
+            active: false,
+        }])
+    }
+
+    fn active_power_scheme(&self) -> lctrl_core::Result<lctrl_core::PowerScheme> {
+        unreachable!()
+    }
+
+    fn power_value_range(
+        &self,
+        _key: &lctrl_core::PowerSettingKey,
+    ) -> lctrl_core::Result<lctrl_core::PowerValueRange> {
+        unreachable!()
+    }
+
+    fn apply_power_mutation(
+        &self,
+        mutation: lctrl_core::PowerMutation,
+        _apply: ApplyMode,
+    ) -> lctrl_core::Result<ChangeReport<lctrl_core::PowerMutation>> {
+        self.mutations.lock().push(mutation.clone());
+        Ok(ChangeReport::dry_run(mutation.clone(), mutation))
+    }
+}
+
+#[test]
+fn power_scheme_get_and_apply_resolve_the_same_friendly_name() {
+    let hal = FakeHal::new("unused");
+    let power = FakeSchemes {
+        mutations: Mutex::new(Vec::new()),
+    };
+    let cli = Cli::try_parse_from(["vantage", "--dry-run", "power", "scheme", "apply", "balanced"])
+        .unwrap();
+
+    let output = execute_with_services(cli, CommandServices::new(&hal).with_power(&power)).unwrap();
+
+    assert_eq!(
+        &*power.mutations.lock(),
+        &[lctrl_core::PowerMutation::Activate(
+            lctrl_core::PowerSchemeId::new("scheme-guid").unwrap()
+        )]
+    );
+    assert_eq!(output.json["mode"], "dry_run");
+}
+
+#[test]
+fn unknown_power_scheme_name_is_rejected_without_activation() {
+    let hal = FakeHal::new("unused");
+    let power = FakeSchemes {
+        mutations: Mutex::new(Vec::new()),
+    };
+    let cli = Cli::try_parse_from(["vantage", "--dry-run", "power", "scheme", "apply", "missing"])
+        .unwrap();
+
+    let result = execute_with_services(cli, CommandServices::new(&hal).with_power(&power));
+
+    assert!(matches!(result, Err(LctrlError::InvalidArgument { .. })));
+    assert!(power.mutations.lock().is_empty());
+}
+
+struct FakeTune {
+    epp_calls: Mutex<Vec<(u8, ApplyMode)>>,
+}
+
+impl lctrl_hal::TuningControl for FakeTune {
+    fn epp(&self) -> lctrl_core::Result<u8> {
+        Ok(128)
+    }
+
+    fn set_epp(
+        &self,
+        value: u8,
+        apply: ApplyMode,
+    ) -> lctrl_core::Result<ChangeReport<u8>> {
+        self.epp_calls.lock().push((value, apply));
+        Ok(ChangeReport::dry_run(128, value))
+    }
+
+    fn power_limit(&self, _kind: lctrl_hal::PowerLimitKind) -> lctrl_core::Result<u64> {
+        Err(LctrlError::Unsupported {
+            feature: "test.power_limit".into(),
+        })
+    }
+
+    fn set_power_limit(
+        &self,
+        _kind: lctrl_hal::PowerLimitKind,
+        _value: u64,
+        _apply: ApplyMode,
+    ) -> lctrl_core::Result<ChangeReport<u64>> {
+        unreachable!()
+    }
+}
+
+#[test]
+fn tune_restore_dry_run_neither_writes_nor_consumes_the_recovery_snapshot() {
+    let _lock = SNAPSHOT_ENV_LOCK.lock().unwrap();
+    let path = std::env::temp_dir().join(format!("vantage-tune-restore-test-{}.json", std::process::id()));
+    let state = serde_json::json!({
+        "version": 1,
+        "platform": "linux",
+        "hardware": {
+            "product_name": "21VG",
+            "family": "21VG",
+            "bios_version": "1.07"
+        },
+        "active_profile": "balanced",
+        "status": "active",
+        "saved_before_apply": [{"target": "epp", "value": 64}]
+    });
+    std::fs::write(&path, serde_json::to_vec(&state).unwrap()).unwrap();
+    unsafe { std::env::set_var("VANTAGE_STATE_PATH", &path) };
+    let hal = FakeHal::new("21VG");
+    let tuning = FakeTune {
+        epp_calls: Mutex::new(Vec::new()),
+    };
+
+    let dry_run = Cli::try_parse_from(["vantage", "--dry-run", "tune", "restore"]).unwrap();
+    let preview = execute_with_services(
+        dry_run,
+        CommandServices::new(&hal).with_tuning(&tuning),
+    )
+    .unwrap();
+
+    assert_eq!(preview.json["changes"][0]["mode"], "dry_run");
+    assert_eq!(&*tuning.epp_calls.lock(), &[(64, ApplyMode::DryRun)]);
+    assert!(path.is_file());
+
+    let mut invalid = state.clone();
+    invalid["saved_before_apply"] = serde_json::json!([
+        {"target": "power_limit", "kind": "invalid", "value_uw": 1},
+        {"target": "epp", "value": 64}
+    ]);
+    std::fs::write(&path, serde_json::to_vec(&invalid).unwrap()).unwrap();
+    let dry_run = Cli::try_parse_from(["vantage", "--dry-run", "tune", "restore"]).unwrap();
+    assert!(execute_with_services(
+        dry_run,
+        CommandServices::new(&hal).with_tuning(&tuning)
+    ).is_err());
+    assert!(tuning.epp_calls.lock().iter().all(|(_, mode)| *mode == ApplyMode::DryRun));
+    assert!(path.is_file());
+    std::fs::write(&path, serde_json::to_vec(&state).unwrap()).unwrap();
+
+    let commit = Cli::try_parse_from(["vantage", "tune", "restore"]).unwrap();
+    execute_with_services(commit, CommandServices::new(&hal).with_tuning(&tuning)).unwrap();
+
+    assert_eq!(tuning.epp_calls.lock().last(), Some(&(64, ApplyMode::Commit)));
+    assert!(!path.exists());
+    unsafe { std::env::remove_var("VANTAGE_STATE_PATH") };
+}

@@ -1,17 +1,15 @@
 use std::{collections::BTreeMap, time::Duration};
 
 use lctrl_core::{
-    ApplyMode, BacklightState, ChangeReport, LctrlError, LightingEffect, PanelRefreshCapability,
-    RefreshMode, Result,
+    ApplyMode, BacklightState, ChangeReport, LctrlError, LightingEffect, Result,
 };
-use lctrl_hal::{KeyboardControl, PanelControl, poll_readback};
+use lctrl_hal::{KeyboardControl, poll_readback};
 
 use crate::wmi_contract::ROOT_WMI;
 use crate::{WmiMethodResult, WmiObject, WmiTransport, WmiValue, active_instance};
 
 const LIGHTING_DATA: &str = "LENOVO_LIGHTING_DATA";
 const LIGHTING_METHOD: &str = "LENOVO_LIGHTING_METHOD";
-const PANEL_REFRESH_DATA: &str = "LENOVO_INTERNAL_PANEL_REFRESH_RATE_DATA";
 const KEYBOARD_LIGHTING_ID: u8 = 0;
 
 #[derive(Debug)]
@@ -152,60 +150,11 @@ where
     }
 }
 
-impl<W> PanelControl for WindowsPeripheralController<W>
-where
-    W: WmiTransport,
-{
-    fn refresh_capability(&self) -> Result<PanelRefreshCapability> {
-        let object = self.panel_refresh_object()?;
-        Ok(PanelRefreshCapability::new(
-            required_u16(&object, "MinimumRefreshRate")?,
-            required_u16(&object, "MaximumRefreshRate")?,
-            required_u16(&object, "DefaultRefreshRate")?,
-        ))
-    }
-
-    fn refresh_mode(&self) -> Result<RefreshMode> {
-        let object = self.panel_refresh_object()?;
-        Ok(RefreshMode::from_raw(required_u16(&object, "Mode")?))
-    }
-}
-
-impl<W> WindowsPeripheralController<W>
-where
-    W: WmiTransport,
-{
-    fn panel_refresh_object(&self) -> Result<WmiObject> {
-        let query = format!(
-            "SELECT MinimumRefreshRate, MaximumRefreshRate, DefaultRefreshRate, Mode FROM {PANEL_REFRESH_DATA} WHERE Active = TRUE"
-        );
-        self.transport
-            .query(ROOT_WMI, &query)?
-            .into_iter()
-            .next()
-            .ok_or_else(|| LctrlError::Unsupported {
-                feature: "panel.refresh".into(),
-            })
-    }
-}
-
 fn required_u8(object: &WmiObject, name: &str) -> Result<u8> {
     match object.get(name) {
         Some(WmiValue::U8(value)) => Ok(*value),
         Some(other) => Err(LctrlError::ChannelUnavailable {
             channel: format!("WMI {name} is not u8: {other:?}"),
-        }),
-        None => Err(LctrlError::ChannelUnavailable {
-            channel: format!("WMI omitted {name}"),
-        }),
-    }
-}
-
-fn required_u16(object: &WmiObject, name: &str) -> Result<u16> {
-    match object.get(name) {
-        Some(WmiValue::U16(value)) => Ok(*value),
-        Some(other) => Err(LctrlError::ChannelUnavailable {
-            channel: format!("WMI {name} is not u16: {other:?}"),
         }),
         None => Err(LctrlError::ChannelUnavailable {
             channel: format!("WMI omitted {name}"),

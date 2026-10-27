@@ -1,10 +1,10 @@
 use std::collections::BTreeMap;
 
 use lctrl_core::{
-    BiosChange, BiosItem, BiosPasswordStatus, LctrlError, Result, is_success,
-    parse_current_setting, parse_selections, save_parameter,
+    BiosAssistantCapabilities, BiosAssistantValue, BiosChange, BiosItem, BiosPasswordStatus,
+    LctrlError, Result, is_success, parse_current_setting, parse_selections, save_parameter,
 };
-use lctrl_hal::BiosControl;
+use lctrl_hal::{BiosAssistantControl, BiosControl};
 
 use crate::wmi_contract::ROOT_WMI;
 use crate::{WmiMethodResult, WmiObject, WmiTransport, WmiValue};
@@ -15,6 +15,7 @@ const BIOS_SAVE_CLASS: &str = "Lenovo_SaveBiosSettings";
 const BIOS_DISCARD_CLASS: &str = "Lenovo_DiscardBiosSettings";
 const BIOS_SELECTIONS_CLASS: &str = "Lenovo_GetBiosSelections";
 const BIOS_PASSWORD_CLASS: &str = "Lenovo_BiosPasswordSettings";
+const BIOS_ASSISTANT_CLASS: &str = "LENOVO_BIOS_ASSISTANT";
 
 #[derive(Debug)]
 pub struct WindowsBiosController<W> {
@@ -107,17 +108,44 @@ where
     }
 
     fn password_status(&self) -> Result<BiosPasswordStatus> {
-        let query =
-            format!("SELECT MinLength, MaxLength, PasswordState FROM {BIOS_PASSWORD_CLASS}");
+        let query = format!(
+            "SELECT MinLength, MaxLength, PasswordMode, PasswordState, SupportedEncodings, SupportedKeyboard FROM {BIOS_PASSWORD_CLASS}"
+        );
         let objects = self.transport.query(ROOT_WMI, &query)?;
         let object = objects.first().ok_or_else(|| LctrlError::Unsupported {
             feature: "bios.password.status".into(),
         })?;
-        Ok(BiosPasswordStatus::from_raw(
+        Ok(BiosPasswordStatus::from_raw_metadata(
             required_u32(object, "MinLength")?,
             required_u32(object, "MaxLength")?,
+            required_u32(object, "PasswordMode")?,
             required_u32(object, "PasswordState")?,
+            required_u32(object, "SupportedEncodings")?,
+            required_u32(object, "SupportedKeyboard")?,
         ))
+    }
+}
+
+impl<W> BiosAssistantControl for WindowsBiosController<W>
+where
+    W: WmiTransport,
+{
+    fn assistant_capabilities(&self) -> Result<BiosAssistantCapabilities> {
+        let raw = self.invoke_assistant(
+            "GetCapabilityValue",
+            WmiObject::new(),
+            "bios.assistant.capabilities",
+        )?;
+        Ok(BiosAssistantCapabilities::from_raw(raw))
+    }
+
+    fn assistant_value(&self, index_data: u32) -> Result<BiosAssistantValue> {
+        let raw = self.invoke_assistant(
+            "GetValue",
+            BTreeMap::from([("IndexData".into(), WmiValue::U32(index_data))]),
+            "bios.assistant.value",
+        )?;
+        Ok(BiosAssistantValue::from_raw(index_data, raw))
     }
 }
 
@@ -142,19 +170,23 @@ where
         self.transport
             .invoke_instance(ROOT_WMI, class, &path, method, &input)
     }
+
+    fn invoke_assistant(&self, method: &str, input: WmiObject, feature: &str) -> Result<u32> {
+        let output = self.invoke(BIOS_ASSISTANT_CLASS, method, input)?;
+        let result = WmiMethodResult::parse(output)?;
+        result.require_accepted(feature)?;
+        let raw = result.data_u32()?;
+        if raw & 0x8000_0000 == 0 {
+            return Err(LctrlError::FirmwareRejected {
+                detail: format!("{feature} command status was not accepted: Data={raw:#010x}"),
+            });
+        }
+        Ok(raw)
+    }
 }
 
 fn first_method_path(transport: &dyn WmiTransport, class: &str) -> Result<String> {
-    let objects = transport.query(ROOT_WMI, &format!("SELECT __Path FROM {class}"))?;
-    objects
-        .iter()
-        .find_map(|object| match object.get("__Path") {
-            Some(WmiValue::String(path)) if !path.is_empty() => Some(path.clone()),
-            _ => None,
-        })
-        .ok_or_else(|| LctrlError::Unsupported {
-            feature: format!("wmi.class.{class}"),
-        })
+    Ok(crate::active_instance(transport, class)?.path().to_owned())
 }
 
 fn require_business_success(output: WmiObject, feature: &str) -> Result<()> {

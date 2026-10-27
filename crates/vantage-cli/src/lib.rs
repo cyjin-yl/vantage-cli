@@ -22,10 +22,12 @@ use lctrl_core::{
 use lctrl_hal::{
     BatteryControl, BiosControl, ControlConflictDetection, DiagnosticsControl, FanControl, Hal,
     KeyboardControl, MagicBayControl, PanelControl, PerformanceControl, PowerControl,
-    PowerLimitKind, PrivacyControl, TemperatureControl, TouchpadControl, TuningControl,
-    UpdateControl,
+    PowerLimitKind, PrivacyControl, ProcessorPowerControl, TemperatureControl, TouchpadControl,
+    TuningControl, UpdateControl,
 };
 use serde::{Deserialize, Serialize};
+
+mod capability;
 use serde_json::Value;
 
 /// Result returned by [`execute`].
@@ -51,6 +53,7 @@ pub struct CommandServices<'a> {
     panel: Option<&'a dyn PanelControl>,
     temperature: Option<&'a dyn TemperatureControl>,
     tuning: Option<&'a dyn TuningControl>,
+    processor_power: Option<&'a dyn ProcessorPowerControl>,
     update: Option<&'a dyn UpdateControl>,
 }
 
@@ -72,6 +75,7 @@ impl<'a> CommandServices<'a> {
             panel: None,
             temperature: None,
             tuning: None,
+            processor_power: None,
             update: None,
         }
     }
@@ -156,6 +160,12 @@ impl<'a> CommandServices<'a> {
     #[must_use]
     pub fn with_tuning(mut self, tuning: &'a dyn TuningControl) -> Self {
         self.tuning = Some(tuning);
+        self
+    }
+
+    #[must_use]
+    pub fn with_processor_power(mut self, power: &'a dyn ProcessorPowerControl) -> Self {
+        self.processor_power = Some(power);
         self
     }
     #[must_use]
@@ -252,6 +262,8 @@ pub enum Command {
     Info,
     /// Probe read-only platform channels and report actionable readiness failures.
     Doctor,
+    /// Report each command's observed status on this machine as a matrix.
+    Capability,
     Battery {
         #[command(subcommand)]
         command: Option<BatteryCommand>,
@@ -949,6 +961,12 @@ pub fn execute(cli: Cli, hal: &dyn Hal) -> CommandResult {
 }
 
 /// Execute a parsed CLI command without terminating the process.
+pub use capability::{
+    ObservedCommandCapability, ObservedStatus, command_selector, evaluate_commands,
+    evaluate_commands_with_hardware,
+};
+pub use lctrl_hal::{command_capabilities, command_capability, command_capability_for, command_registry};
+
 pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> CommandResult {
     let local_dry_run = matches!(
         &cli.command,
@@ -971,6 +989,7 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
     match cli.command {
         Command::Info => execute_info(services.hal),
         Command::Doctor => execute_doctor(&services),
+        Command::Capability => execute_capability(services.hal),
         Command::Battery {
             command: Some(BatteryCommand::Status),
         } => execute_battery_status(services.battery),
@@ -1061,11 +1080,14 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
             command: Some(TuneCommand::Epp { value }),
         } => execute_tune_epp(services.tuning, &value, apply),
         Command::Tune {
+            command: Some(TuneCommand::Turbo { state }),
+        } => execute_tune_turbo(services.processor_power, state, apply),
+        Command::Tune {
             command: Some(TuneCommand::Telemetry { .. }),
         } => execute_tune_telemetry(&services),
         Command::Tune {
             command: Some(TuneCommand::Restore),
-        } => execute_tune_restore(&services),
+        } => execute_tune_restore(&services, apply),
         Command::Tune {
             command:
                 Some(TuneCommand::Profile {
@@ -1535,6 +1557,28 @@ fn execute_tune_epp(
     structured_output(&report, format!("EPP requested={value}\n"))
 }
 
+fn execute_tune_turbo(
+    power: Option<&dyn ProcessorPowerControl>,
+    state: Toggle,
+    apply: ApplyMode,
+) -> CommandResult {
+    let power = power.ok_or_else(|| LctrlError::Unsupported {
+        feature: "tune.turbo".into(),
+    })?;
+    let enabled = match state {
+        Toggle::On => true,
+        Toggle::Off => false,
+    };
+    let report = power.set_turbo(enabled, apply)?;
+    structured_output(
+        &report,
+        format!(
+            "processor boost policy {} requested; this is an OS policy, not a hardware-frequency guarantee\n",
+            if enabled { "enabled" } else { "disabled" }
+        ),
+    )
+}
+
 fn execute_tune_telemetry(services: &CommandServices<'_>) -> CommandResult {
     let mut telemetry = BTreeMap::new();
     if let Some(tuning) = services.tuning {
@@ -1580,11 +1624,11 @@ fn execute_fan_status(fan: Option<&dyn FanControl>) -> CommandResult {
     let fan = fan.ok_or_else(|| LctrlError::Unsupported {
         feature: "perf.fan".into(),
     })?;
-    let mode = fan.fan_mode()?;
+    let (mode, mode_error) = capture_optional(fan.fan_mode());
     let fans = fan.fans().unwrap_or_default();
     structured_output(
-        &serde_json::json!({ "mode": mode, "fans": fans }),
-        format!("fan mode: {mode}\n"),
+        &serde_json::json!({ "mode": mode, "mode_error": mode_error, "fans": fans }),
+        format!("{} fan device record(s); mode readback is unavailable\n", fans.len()),
     )
 }
 
@@ -1624,10 +1668,7 @@ fn execute_fan(
         feature: "perf.fan".into(),
     })?;
     match command {
-        FanCommand::Status => {
-            let mode = fan.fan_mode()?;
-            structured_output(&mode, format!("fan mode: {mode:?}\n"))
-        }
+        FanCommand::Status => execute_fan_status(Some(fan)),
         FanCommand::Auto | FanCommand::Smart => {
             let report = fan.set_fan_mode(FanMode::Standard, apply)?;
             structured_output(&report, "fan mode: balanced/automatic\n".into())
@@ -1656,31 +1697,13 @@ fn execute_panel(
     })?;
     match command {
         PanelCommand::Rate { rate } => {
-            let capability = panel.refresh_capability()?;
             let requested = match rate {
-                PanelRate::Fps60 => Some(60),
-                PanelRate::Fps120 => Some(120),
-                PanelRate::Auto => None,
+                PanelRate::Fps60 => lctrl_core::PanelRefreshRequest::Fixed(60),
+                PanelRate::Fps120 => lctrl_core::PanelRefreshRequest::Fixed(120),
+                PanelRate::Auto => lctrl_core::PanelRefreshRequest::Auto,
             };
-            if let Some(hz) = requested {
-                if !capability.supports_hz(hz) {
-                    return Err(LctrlError::InvalidArgument {
-                        detail: format!("panel refresh rate {hz} Hz is outside supported range"),
-                    });
-                }
-            }
-            if apply == ApplyMode::DryRun {
-                return structured_output(
-                    &serde_json::json!({
-                        "requested": format!("{rate:?}"),
-                        "capability": capability,
-                    }),
-                    "panel refresh dry run validated; no mode writer is attached\n".into(),
-                );
-            }
-            Err(LctrlError::Unsupported {
-                feature: "panel.rate.write".into(),
-            })
+            let report = panel.set_refresh_rate(requested, apply)?;
+            structured_output(&report, "panel refresh transition requested\n".into())
         }
         PanelCommand::Color { .. } => Err(LctrlError::Unsupported {
             feature: "panel.color.write".into(),
@@ -1731,7 +1754,16 @@ fn execute_power_scheme(
             structured_output(&scheme, format!("power scheme: {}\n", scheme.name))
         }
         SchemeCommand::Apply { name } => {
-            let mutation = PowerMutation::Activate(PowerSchemeId::new(name)?);
+            let scheme = power
+                .power_schemes()?
+                .into_iter()
+                .find(|scheme| {
+                    scheme.id.as_str() == name || scheme.name.eq_ignore_ascii_case(&name)
+                })
+                .ok_or_else(|| LctrlError::InvalidArgument {
+                    detail: format!("power scheme {name:?} is not enumerated"),
+                })?;
+            let mutation = PowerMutation::Activate(scheme.id);
             let report = power.apply_power_mutation(mutation, apply)?;
             structured_output(&report, "power scheme activation requested\n".into())
         }
@@ -2303,13 +2335,14 @@ fn snapshot_tune_rollback(
 fn restore_tune_setting(
     services: &CommandServices<'_>,
     rollback: TuneRollback,
+    apply: ApplyMode,
 ) -> lctrl_core::Result<Value> {
     match rollback {
         TuneRollback::Battery(mode) => {
             let service = services.battery.ok_or_else(|| LctrlError::Unsupported {
                 feature: "battery.charge_mode.restore".into(),
             })?;
-            serialize_change(&service.set_charge_mode(mode, ApplyMode::Commit)?)
+            serialize_change(&service.set_charge_mode(mode, apply)?)
         }
         TuneRollback::Backlight(state) => {
             let service = services.keyboard.ok_or_else(|| LctrlError::Unsupported {
@@ -2318,14 +2351,14 @@ fn restore_tune_setting(
             serialize_change(&service.set_backlight(
                 state.level,
                 state.effect,
-                ApplyMode::Commit,
+                apply,
             )?)
         }
         TuneRollback::Fan(mode) => {
             let service = services.fan.ok_or_else(|| LctrlError::Unsupported {
                 feature: "perf.fan.mode.restore".into(),
             })?;
-            serialize_change(&service.set_fan_mode(mode, ApplyMode::Commit)?)
+            serialize_change(&service.set_fan_mode(mode, apply)?)
         }
         TuneRollback::Performance(mode) => {
             let service = services
@@ -2333,24 +2366,24 @@ fn restore_tune_setting(
                 .ok_or_else(|| LctrlError::Unsupported {
                     feature: "perf.mode.restore".into(),
                 })?;
-            serialize_change(&service.set_performance_mode(mode, ApplyMode::Commit)?)
+            serialize_change(&service.set_performance_mode(mode, apply)?)
         }
         TuneRollback::Epp(value) => {
             let service = services.tuning.ok_or_else(|| LctrlError::Unsupported {
                 feature: "tune.epp.restore".into(),
             })?;
-            serialize_change(&service.set_epp(value, ApplyMode::Commit)?)
+            serialize_change(&service.set_epp(value, apply)?)
         }
         TuneRollback::PowerLimit(kind, value) => {
             let service = services.tuning.ok_or_else(|| LctrlError::Unsupported {
                 feature: format!("tune.{}.restore", power_limit_kind_name(kind)),
             })?;
-            serialize_change(&service.set_power_limit(kind, value, ApplyMode::Commit)?)
+            serialize_change(&service.set_power_limit(kind, value, apply)?)
         }
     }
 }
 
-fn execute_tune_restore(services: &CommandServices<'_>) -> CommandResult {
+fn execute_tune_restore(services: &CommandServices<'_>, apply: ApplyMode) -> CommandResult {
     let (path, state) = read_tune_state()?;
     let current_hardware = serialize_change(&services.hal.hardware_info()?)?;
     if state.platform != platform_label(services.hal.platform())
@@ -2373,21 +2406,29 @@ fn execute_tune_restore(services: &CommandServices<'_>) -> CommandResult {
             Ok(inverse) => inverse,
             Err(error) => return Err(rollback_tune_changes(services, applied_rollbacks, error)),
         };
-        match restore_tune_setting(services, desired) {
+        match restore_tune_setting(services, desired, apply) {
             Ok(change) => {
                 changes.push(change);
-                applied_rollbacks.push(inverse);
+                if apply == ApplyMode::Commit {
+                    applied_rollbacks.push(inverse);
+                }
             }
             Err(error) => return Err(rollback_tune_changes(services, applied_rollbacks, error)),
         }
     }
-    fs::remove_file(path).map_err(LctrlError::Io)?;
+    if apply == ApplyMode::Commit {
+        fs::remove_file(path).map_err(LctrlError::Io)?;
+    }
     structured_output(
         &TuneRestorePayload {
             restored_profile: state.active_profile,
             changes,
         },
-        "tuning snapshot restored and read back\n".into(),
+        if apply == ApplyMode::DryRun {
+            "tuning restore dry run validated; no settings or recovery state changed\n".into()
+        } else {
+            "tuning snapshot restored and read back\n".into()
+        },
     )
 }
 
@@ -3268,7 +3309,8 @@ fn execute_scan(
                     .map(|item| parse_diagnostic_kind(item))
                     .collect::<lctrl_core::Result<Vec<_>>>()?
             };
-            let results = diagnostics.run_diagnostics(&items)?;
+            let options = lctrl_core::DiagnosticRunOptions::default();
+            let results = diagnostics.run_diagnostics(&items, options)?;
             structured_output(
                 &results,
                 format!("{} diagnostic result(s)\n", results.len()),
@@ -3967,6 +4009,42 @@ fn availability_label(availability: Availability) -> &'static str {
     }
 }
 
+fn execute_capability(hal: &dyn Hal) -> CommandResult {
+    let rows = capability::evaluate_commands(hal)?;
+    let human = format_capabilities(&rows);
+    structured_output(&rows, human)
+}
+
+fn format_capabilities(rows: &[capability::ObservedCommandCapability]) -> String {
+    let mut counts = std::collections::BTreeMap::new();
+    let mut output = String::new();
+    for row in rows {
+        output.push_str(row.command.as_str());
+        output.push('\t');
+        output.push_str(&json_label(&row.layer));
+        output.push('\t');
+        let status = json_label(&row.status);
+        output.push_str(&status);
+        if let Some(detail) = &row.detail {
+            output.push('\t');
+            output.push_str(detail);
+        }
+        output.push('\n');
+        *counts.entry(status).or_insert(0usize) += 1;
+    }
+    for (status, count) in counts {
+        output.push_str(&format!("{status}: {count}\n"));
+    }
+    output
+}
+
+fn json_label<T: Serialize>(value: &T) -> String {
+    serde_json::to_value(value)
+        .ok()
+        .and_then(|value| value.as_str().map(str::to_owned))
+        .unwrap_or_else(|| "unknown".into())
+}
+
 fn unsupported(command: Command) -> LctrlError {
     let feature = command_feature(&command);
     LctrlError::Unsupported {
@@ -4042,6 +4120,7 @@ fn command_feature(command: &Command) -> String {
     match command {
         Command::Info => "info".into(),
         Command::Doctor => "doctor".into(),
+        Command::Capability => "capability".into(),
         Command::Battery { command } => {
             prefixed("battery", command.as_ref().map(BatteryCommand::feature))
         }

@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, work/vantage-implementation]
+    branches: [main, work/vantage-implementation, work/vantage-replacement]
   pull_request:
 
 permissions:
