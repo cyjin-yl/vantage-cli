@@ -883,6 +883,29 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
+        CommandId::TOUCHPAD_STATUS,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Unprobed("touchpad.status"),
+        ServiceBinding::One(ServiceRole::Touchpad),
+        &[
+            lctrl_core::required(Dependency::Win32DeviceManagement),
+            lctrl_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::TOUCHPAD_RECOVER,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::Unprobed("touchpad.recover"),
+        ServiceBinding::One(ServiceRole::Touchpad),
+        &[lctrl_core::required(Dependency::Win32DeviceManagement)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
         CommandId::PANEL_RATE,
         CommandAxes::mutation(
             StateLayer::Runtime,

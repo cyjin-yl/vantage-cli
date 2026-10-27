@@ -119,6 +119,23 @@ pub enum DeviceState {
     Disabled,
 }
 
+/// One independently observed input leaf in an explicit touchpad recovery.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct TouchpadRecoveryLeaf {
+    pub role: &'static str,
+    pub previous: DeviceState,
+    pub requested: DeviceState,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub actual: Option<DeviceState>,
+}
+
+/// Recovery enables input leaves only; the ACPI controller is never targeted.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct TouchpadRecoveryReport {
+    pub mode: crate::ApplyMode,
+    pub leaves: Vec<TouchpadRecoveryLeaf>,
+}
+
 impl DeviceState {
     #[must_use]
     pub const fn from_raw(raw: u32, inverted: bool) -> Self {

@@ -64,6 +64,8 @@ impl CommandId {
     pub const KBD_FN_CTRL_SWAP: Self = Self("kbd.fn-ctrl-swap");
     pub const KBD_WINLOCK: Self = Self("kbd.winlock");
     pub const TOUCHPAD: Self = Self("touchpad");
+    pub const TOUCHPAD_STATUS: Self = Self("touchpad.status");
+    pub const TOUCHPAD_RECOVER: Self = Self("touchpad.recover");
 
     pub const PANEL_RATE: Self = Self("panel.rate");
     pub const PANEL_COLOR: Self = Self("panel.color");
@@ -186,6 +188,8 @@ impl CommandId {
         Self::KBD_FN_CTRL_SWAP,
         Self::KBD_WINLOCK,
         Self::TOUCHPAD,
+        Self::TOUCHPAD_STATUS,
+        Self::TOUCHPAD_RECOVER,
         Self::PANEL_RATE,
         Self::PANEL_COLOR,
         Self::PANEL_SUPER_RESOLUTION,

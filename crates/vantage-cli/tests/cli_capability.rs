@@ -221,6 +221,24 @@ fn runtime_and_persistent_layers_use_separate_services_and_statuses() {
 }
 
 #[test]
+fn touchpad_status_and_recovery_have_distinct_safety_axes() {
+    let status = command_capability_for(lctrl_core::CommandSelector::new(
+        lctrl_core::CommandId::TOUCHPAD_STATUS,
+        StateLayer::Runtime,
+    ))
+    .unwrap();
+    let recover = command_capability_for(lctrl_core::CommandSelector::new(
+        lctrl_core::CommandId::TOUCHPAD_RECOVER,
+        StateLayer::Runtime,
+    ))
+    .unwrap();
+    assert!(status.axes.read && !status.axes.write);
+    assert!(recover.axes.write);
+    assert_eq!(recover.axes.readback, lctrl_core::Readback::Required);
+    assert_eq!(recover.axes.rollback, lctrl_core::Rollback::Unavailable);
+}
+
+#[test]
 fn unavailable_staging_is_reported_for_bios_writes_not_reads() {
     let hal = FakeHal::new();
     let mut capabilities = hal.capabilities().unwrap();

@@ -48,7 +48,10 @@ pub use inventory::{
     MemoryModuleInventory, MotherboardInventory, NetworkAdapterInventory, OperatingSystemInventory,
     ProductInventory,
 };
-pub use keyboard::{BacklightState, DeviceState, LightingEffect, LockState};
+pub use keyboard::{
+    BacklightState, DeviceState, LightingEffect, LockState, TouchpadRecoveryLeaf,
+    TouchpadRecoveryReport,
+};
 pub use magicbay::{
     KNOWN_MAGICBAY_DEVICES, KnownMagicBayDevice, MAGICBAY_VENDOR_ID, MagicBayDevice,
     MagicBayInventory, MagicBayKind, identify_magicbay,
