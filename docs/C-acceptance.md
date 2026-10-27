@@ -112,9 +112,9 @@ BIOS 密码元数据、MagicBay 检测和 scan 清单共 **12 次实际运行,�
 **限制**:显示切换要求交互式桌面会话;停止 Sunshine/GameViewer 不改变活动路径数(其虚拟适配器
 不占用活动路径),因此验收期间未改动它们的运行状态,仅在需要时以 `--yes` 接受并发控制风险。
 
-## C2 · 电池充电模式(养护/快充):写入被接受,回读通道不存在
+## C2 · 电池充电模式:已测写入被接受,已测回读未见变化
 
-**状态:写入可用性已验证;独立回读为"缺少接口契约"(不是实现遗漏)。**
+**状态:表中写请求被接口接受；硬件实际效果与独立回读尚未验收。**
 
 证据(2026-10-27,`\\.\EnergyDrv` 文档化命令字差分测量):
 
@@ -129,14 +129,17 @@ BIOS 密码元数据、MagicBay 检测和 scan 清单共 **12 次实际运行,�
 | 写入 | GBMD 子命令 `0x0f`(养护关,gen2) | `ret=0 status=0`(被接受) |
 | 回读 | 上述全部只读通道 | **逐字节无变化** |
 
-结论:21VG 固件接受养护/快充写入,但**不存在**可在秒级读回的可观测状态通道;官方 UI 的回显来自
-自身注册表缓存而非固件读取(docs/02 §3.3)。因此 `ChargeModeReader` 保持 `Unverified` 并拒绝
+结论:表中养护写入被接受，但所列只读通道在该次测量中未显示状态变化；这不能证明其他
+独立回读通道不存在。官方 UI 有本地缓存，不能仅凭 UI 回显认定固件状态。因此
+`ChargeModeReader` 保持 `Unverified` 并拒绝
 把"IOCTL 成功"当作语义生效;`battery charge-mode` 在 `capability` 矩阵中如实报告 `unsupported`。
+历史 native-admission/target-read 原始回执保留了旧程序关于“没有任何独立读通道”的过度表述；
+该原始输出不修改，以上限于已测通道的结论才是当前判断。
 真正的效果级验证需要把电池放电到 55% 以下再插电观察停充,属于需要现场物理操作的长周期实验,
 当前远程会话无法完成,记录为待现场确认项。
 
-> 写入的子命令全部来自 docs/01 §3.2 的已验证表(gen2 养护 `0x0d/0x0f`、快充 `0x07/0x08`),
-> 未使用 `0x03/0x05`(运输模式)与任何未记录命令字。测量脚本只读调用文档化通道,不扫描控制码。
+> 表中养护写命令 `0x0d/0x0f` 来自 docs/01 §3.2 的已验证表；本表未展示快充写入回执。
+> 未使用 `0x03/0x05`(运输模式)与任何未记录命令字。回读测量仅使用文档化通道,不扫描控制码。
 
 ## C3 · Windows 全量测试与能力矩阵
 
@@ -318,3 +321,50 @@ dry-run 的实际运行,不能证明写入、事件、OSD 或自动化完成。
 
 该验证没有再次提交 `touchpad off`,没有 BIOS/固件写入或停用任何厂商组件。
 触控板叶节点完整禁用/恢复循环、其余 38 域的实际硬件效果和最小依赖切换依然按各自工单追踪。
+
+## C10 · BIOS 暂存所有权安全门禁（非写入验收）
+
+PR #42 的 head `a0e3598f8fb7f3188343f817f7aa6b530bffa3f2` 已合入 main
+`5998f606edf97809ffd14ea365941b2cf346ce50`。暂存区所有权契约未验证时，Windows
+stage/save/discard 被拒绝，能力矩阵报告不可用；只读查询仍可用。精确 head 的 Gitea
+run 546 全绿，合并树/父提交与 11 个修改文件的服务端字节已核对。
+
+目标机对 167 个精确源文件完成逐字节 SHA-256/长度及成员核对后，MSVC 增量 build
+确认退出 0，二进制 SHA-256 为 `b6b74b2d2496d4a39453caa8b9f5ccab8ff66efe916d40c16e29e8c54b042bca`。
+首次 build 日志显示完成，但包装器退出码为 null，故保留该事实并以另一次增量确认捕获真实
+退出码。实际 `info`/`capability` 均退出 0，相关 BIOS 写能力显示 unavailable；
+`--dry-run bios discard` 退出 0，独立 BIOS 镜像前后各 53 项且完整集合一致。
+未执行 BIOS 写入或 discard；镜像一致不等于硬件物理状态验收。完整投影见
+`evidence/pr42-exact-native-20261028.json`，PR 评论 305 保存原生验证边界。
+合并后的 main push run 547 因 daemon 异步事件测试竞态失败，该失败未被重写；
+测试同步修复在 PR #43 的精确 head run 549 通过后合入 main
+`3849d93feb88a07dd4e425dc6e5914f57447b438`，其 main push run 550 全绿；
+该修复未改变 daemon 生产行为。
+
+## C11 · USB 供电的只读固件默认值
+
+PR #42 精确 Windows 二进制在目标机只读执行 `bios get AlwaysOnUSB` 和
+`bios get ChargeInBatteryMode`，均退出 0，两个保存设置镜像均为 `Enable`。
+未暂存、保存、丢弃或修改 BIOS；运行时覆盖、关机供电和实际 USB 端口电气效果均未由
+该观察证明。机器证据见 `evidence/target-usb-bios-defaults-20261028.json`。
+
+## C12 · 系统清单公开来源预检（非 CLI 验收）
+
+目标机以 PowerShell 对 16 个属性限定的公开 CIM 查询执行只读预检，全部成功；
+其中驱动、固件驱动、软件查询分别返回 276、10、185 条。SMBIOS UUID 格式与非全零、
+非全 FF 检查通过，但原值未保留。该结果不证明未合入的 Rust 15 模块清单实现或超时
+行为；来源、耗时、隐私边界见 `evidence/target-inventory-sources-20261028.json`。
+
+## C13 · 触摸板状态与恢复 dry-run（非实写验收）
+
+PR #44 head `69bd462dc938600f12681cc25d46a148a4bd9e49` 已合入 main
+`aaa6825fcfdb7aca14eb21dc4ecd96caea5cf546`；精确 head CI run 551 全绿，合并树、
+双亲和 12 个修改文件的服务端字节已核对，main push run 553 全绿。目标机验证 167 个源文件后 Windows release
+构建退出 0，binary SHA-256 `3074c7de8e058d70fcbbd8a4cbf95f0841a4b37dc3ba5a22b49bdee7ce383c80`；
+Windows fake PnP 测试 33 passed，未操作真实设备。
+
+目标机 `touchpad status` 返回 enabled，`--dry-run touchpad recover` 返回 digitizer
+和 mouse 前值均 enabled、请求均 enabled，均未提供 actual。独立查询的控制器和 4 个
+HID 节点前后状态/问题码完全一致；未提交 touchpad off/on/recover。真实混合状态恢复
+和有独立备用输入条件下的完整 off/on 循环仍待验收。见
+`evidence/pr44-touchpad-dryrun-20261028.json` 和 PR 评论 324。
