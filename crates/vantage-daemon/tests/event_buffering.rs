@@ -52,7 +52,22 @@ fn event_history_retains_only_the_newest_64_events() {
             .send(DaemonEvent::snapshot_changed(json!({"sequence": sequence})))
             .unwrap();
     }
-    let status = status(&socket);
+    let deadline = Instant::now() + Duration::from_secs(3);
+    let status = loop {
+        let current = status(&socket);
+        if current
+            .last_events
+            .last()
+            .is_some_and(|event| event.payload["sequence"] == json!(64))
+        {
+            break current;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "daemon did not ingest the final event"
+        );
+        thread::sleep(Duration::from_millis(10));
+    };
     assert_eq!(status.last_events.len(), MAX_EVENTS);
     assert_eq!(
         status.last_events.first().unwrap().payload["sequence"],
@@ -115,8 +130,12 @@ fn a_slow_subscriber_is_dropped_without_blocking_event_ingestion() {
             ))
             .unwrap();
         let current = status(&socket);
-        assert_eq!(current.last_events.len(), MAX_EVENTS);
-        if current.subscribers == 0 {
+        let caught_up = current
+            .last_events
+            .iter()
+            .any(|event| event.payload["sequence"] == "liveness");
+        if caught_up && current.subscribers == 0 {
+            assert_eq!(current.last_events.len(), MAX_EVENTS);
             break;
         }
         assert!(Instant::now() < deadline, "slow subscriber was not dropped");

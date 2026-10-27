@@ -145,6 +145,9 @@ vantage/                 # 单一 workspace
 - 协议:单行 JSON 请求/响应 + 事件流(server-push);schema 与 `--json` 输出同构。
 - 通道:Windows `\\.\pipe\vantage.sock`;Linux `$XDG_RUNTIME_DIR/vantage.sock`(fallback `/run/vantage.sock`)。
 - 鉴权:Windows pipe ACL = 本机 Administrators + 当前用户;Linux = 同 uid + SO_PEERCRED 校验。
+- 事件输入和 IPC 状态请求异步处理；成功发送事件不保证紧接着的 status 已消费该事件。
+  消费者须等待可识别的目标事件再判断历史；历史保留最新 64 条，订阅者队列满时移除
+  慢订阅者而不阻塞事件摄取。
 
 ## 5. 能力探测(`vantage info`)
 
