@@ -236,6 +236,33 @@ impl ControlConflictDetection for FakeConflicts {
 }
 
 #[test]
+fn touchpad_status_is_read_only_even_with_a_vendor_controller_running() {
+    struct StatusOnly;
+    impl lctrl_hal::TouchpadControl for StatusOnly {
+        fn touchpad_state(&self) -> lctrl_core::Result<lctrl_core::DeviceState> {
+            Ok(lctrl_core::DeviceState::Enabled)
+        }
+        fn set_touchpad(
+            &self,
+            _: lctrl_core::DeviceState,
+            _: ApplyMode,
+        ) -> lctrl_core::Result<lctrl_core::ChangeReport<lctrl_core::DeviceState>> {
+            panic!("status must not mutate the touchpad")
+        }
+    }
+    let hal = FakeHal::new("unused");
+    let cli = Cli::try_parse_from(["vantage", "--json", "touchpad", "status"]).unwrap();
+    let output = execute_with_services(
+        cli,
+        CommandServices::new(&hal)
+            .with_touchpad(&StatusOnly)
+            .with_conflict_detection(&FakeConflicts),
+    )
+    .unwrap();
+    assert_eq!(output.json["actual"], "enabled");
+}
+
+#[test]
 fn conflicting_vendor_controller_blocks_write_without_explicit_override() {
     let cli = Cli::try_parse_from(["vantage", "battery", "charge-mode", "rapid"]).unwrap();
     let hal = FakeHal::new("unused");

@@ -13,6 +13,7 @@ use lctrl_hal::{PrivacyControl, TouchpadControl, poll_readback};
 
 const READBACK_ATTEMPTS: usize = 10;
 const READBACK_DELAY: Duration = Duration::from_millis(50);
+const MAX_TOUCHPAD_INPUT_LEAVES: usize = 16;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RuntimeDeviceClass {
@@ -244,6 +245,11 @@ pub fn select_touchpad_group(
                 .iter()
                 .any(|known| known.instance_id.eq_ignore_ascii_case(&device.instance_id))
         {
+            if group.len() == MAX_TOUCHPAD_INPUT_LEAVES {
+                return Err(LctrlError::ChannelUnavailable {
+                    channel: "touchpad input group exceeds the safe leaf limit".into(),
+                });
+            }
             group.push(device.clone());
         }
     }
@@ -678,6 +684,69 @@ where
         apply: ApplyMode,
     ) -> Result<ChangeReport<DeviceState>> {
         self.set(RuntimeDeviceKind::Touchpad, state, apply)
+    }
+
+    fn recover_touchpad(&self, apply: ApplyMode) -> Result<lctrl_core::TouchpadRecoveryReport> {
+        let group = self.touchpad_group()?;
+        if group.len() < 2 {
+            return Err(LctrlError::ChannelUnavailable {
+                channel: "touchpad recovery cannot verify a mouse input collection".into(),
+            });
+        }
+        let states = self.group_states(RuntimeDeviceKind::Touchpad, &group)?;
+        let mut leaves: Vec<_> = states
+            .iter()
+            .enumerate()
+            .map(|(index, &previous)| lctrl_core::TouchpadRecoveryLeaf {
+                role: if index == 0 { "digitizer" } else { "mouse" },
+                previous,
+                requested: DeviceState::Enabled,
+                actual: None,
+            })
+            .collect();
+        if apply == ApplyMode::DryRun {
+            return Ok(lctrl_core::TouchpadRecoveryReport {
+                mode: apply,
+                leaves,
+            });
+        }
+        let mut failures = Vec::new();
+        for (index, (device, previous)) in group.iter().zip(&states).enumerate() {
+            let result = if *previous == DeviceState::Disabled {
+                self.api
+                    .set_state(&device.instance_id, DeviceState::Enabled)
+            } else {
+                Ok(())
+            };
+            if let Err(error) = result {
+                failures.push(format!("leaf {index} enable failed: {error}"));
+            }
+        }
+        for (index, device) in group.iter().enumerate() {
+            match poll_readback(
+                &DeviceState::Enabled,
+                READBACK_ATTEMPTS,
+                READBACK_DELAY,
+                || self.selected_state(RuntimeDeviceKind::Touchpad, device),
+            ) {
+                Ok(actual) => leaves[index].actual = Some(actual),
+                Err(error) => {
+                    failures.push(format!("leaf {index} independent readback failed: {error}"))
+                }
+            }
+        }
+        if !failures.is_empty() {
+            return Err(LctrlError::FirmwareRejected {
+                detail: format!(
+                    "touchpad recovery incomplete: {}; retry recovery after resolving errors",
+                    failures.join("; ")
+                ),
+            });
+        }
+        Ok(lctrl_core::TouchpadRecoveryReport {
+            mode: apply,
+            leaves,
+        })
     }
 }
 

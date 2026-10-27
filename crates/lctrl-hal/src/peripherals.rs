@@ -20,6 +20,13 @@ pub trait TouchpadControl: Send + Sync {
         state: lctrl_core::DeviceState,
         apply: ApplyMode,
     ) -> Result<ChangeReport<lctrl_core::DeviceState>>;
+
+    /// Enable observed input leaves after an interrupted split-state transition.
+    fn recover_touchpad(&self, _apply: ApplyMode) -> Result<lctrl_core::TouchpadRecoveryReport> {
+        Err(lctrl_core::LctrlError::Unsupported {
+            feature: "touchpad.recover".into(),
+        })
+    }
 }
 
 pub trait PrivacyControl: Send + Sync {

@@ -290,7 +290,7 @@ pub enum Command {
     },
     Touchpad {
         #[arg(value_enum)]
-        state: Toggle,
+        state: TouchpadAction,
     },
     Panel {
         #[command(subcommand)]
@@ -773,6 +773,16 @@ pub enum Toggle {
     Off,
 }
 
+#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
+pub enum TouchpadAction {
+    On,
+    Off,
+    /// Read the aggregate input state without changing devices.
+    Status,
+    /// Enable observed input leaves after an interrupted split-state transition.
+    Recover,
+}
+
 #[derive(Clone, Debug, ValueEnum, PartialEq, Eq)]
 pub enum ChargeModeArg {
     Normal,
@@ -1143,7 +1153,9 @@ fn command_is_mutating(command: &Command) -> bool {
                         | KbdCommand::Winlock { .. },
                 )
             }
-            | Command::Touchpad { .. }
+            | Command::Touchpad {
+                state: TouchpadAction::On | TouchpadAction::Off | TouchpadAction::Recover,
+            }
             | Command::Privacy {
                 command: Some(
                     PrivacyCommand::Cam { .. }
@@ -3362,15 +3374,38 @@ fn execute_backlight(
 }
 fn execute_touchpad(
     touchpad: Option<&dyn TouchpadControl>,
-    state: Toggle,
+    state: TouchpadAction,
     apply: ApplyMode,
 ) -> CommandResult {
     let touchpad = touchpad.ok_or_else(|| LctrlError::Unsupported {
-        feature: "touchpad".into(),
+        feature: match state {
+            TouchpadAction::Status => "touchpad.status",
+            TouchpadAction::Recover => "touchpad.recover",
+            _ => "touchpad",
+        }
+        .into(),
     })?;
     let requested = match state {
-        Toggle::On => DeviceState::Enabled,
-        Toggle::Off => DeviceState::Disabled,
+        TouchpadAction::On => DeviceState::Enabled,
+        TouchpadAction::Off => DeviceState::Disabled,
+        TouchpadAction::Status => {
+            let actual = touchpad.touchpad_state()?;
+            return structured_output(
+                &serde_json::json!({"actual": actual}),
+                format!("touchpad: {actual}\n"),
+            );
+        }
+        TouchpadAction::Recover => {
+            let report = touchpad.recover_touchpad(apply)?;
+            return structured_output(
+                &report,
+                if apply == ApplyMode::DryRun {
+                    "touchpad recovery dry run; no input leaf changed\n".into()
+                } else {
+                    "touchpad input leaves enabled and independently read back\n".into()
+                },
+            );
+        }
     };
     let report = touchpad.set_touchpad(requested, apply)?;
     structured_output(
@@ -4134,6 +4169,12 @@ fn command_feature(command: &Command) -> String {
         Command::Perf { command } => prefixed("perf", command.as_ref().map(PerfCommand::feature)),
         Command::Tune { command } => prefixed("tune", command.as_ref().map(TuneCommand::feature)),
         Command::Kbd { command } => prefixed("kbd", command.as_ref().map(KbdCommand::feature)),
+        Command::Touchpad {
+            state: TouchpadAction::Status,
+        } => "touchpad.status".into(),
+        Command::Touchpad {
+            state: TouchpadAction::Recover,
+        } => "touchpad.recover".into(),
         Command::Touchpad { .. } => "touchpad".into(),
         Command::Panel { command } => {
             prefixed("panel", command.as_ref().map(PanelCommand::feature))

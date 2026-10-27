@@ -743,6 +743,84 @@ fn touchpad_input_toggle_preserves_controller_and_can_be_restored_by_a_fresh_cli
 }
 
 #[test]
+fn touchpad_recovery_enables_only_disabled_input_leaves_after_a_split() {
+    let api = touchpad_topology();
+    api.states
+        .lock()
+        .insert("HID\\PAD&COL02".into(), DeviceState::Disabled);
+    let controller = WindowsRuntimeDevices::new(&api);
+    assert!(
+        controller.touchpad_state().is_err(),
+        "a split group has no single state"
+    );
+    let preview = controller.recover_touchpad(ApplyMode::DryRun).unwrap();
+    assert_eq!(preview.leaves[0].previous, DeviceState::Disabled);
+    assert_eq!(preview.leaves[1].previous, DeviceState::Enabled);
+    assert!(preview.leaves.iter().all(|leaf| leaf.actual.is_none()));
+    assert!(api.writes.lock().is_empty());
+    let result = controller.recover_touchpad(ApplyMode::Commit).unwrap();
+    assert!(
+        result
+            .leaves
+            .iter()
+            .all(|leaf| leaf.actual == Some(DeviceState::Enabled))
+    );
+    assert_eq!(
+        *api.writes.lock(),
+        vec![("HID\\PAD&COL02".into(), DeviceState::Enabled)]
+    );
+    assert_eq!(api.states.lock()["ACPI\\PAD\\0"], DeviceState::Enabled);
+    assert_eq!(api.states.lock()["HID\\OTHER-MOUSE"], DeviceState::Enabled);
+}
+
+#[test]
+fn touchpad_recovery_continues_after_effectful_failure_and_retry_is_safe() {
+    let mut api =
+        touchpad_topology().with_failure(1, FakeError::Channel("injected recovery failure"));
+    api.failed_write_takes_effect = true;
+    api.states
+        .lock()
+        .insert("HID\\PAD&COL02".into(), DeviceState::Disabled);
+    api.states
+        .lock()
+        .insert("HID\\PAD&COL01".into(), DeviceState::Disabled);
+    let controller = WindowsRuntimeDevices::new(&api);
+    assert!(controller.recover_touchpad(ApplyMode::Commit).is_err());
+    assert_eq!(api.states.lock()["HID\\PAD&COL02"], DeviceState::Enabled);
+    assert_eq!(api.states.lock()["HID\\PAD&COL01"], DeviceState::Enabled);
+    let writes = api.writes.lock().len();
+    controller.recover_touchpad(ApplyMode::Commit).unwrap();
+    assert_eq!(api.writes.lock().len(), writes);
+}
+
+#[test]
+fn touchpad_recovery_rejects_an_unverified_missing_mouse_collection() {
+    let mut api = touchpad_topology();
+    api.devices
+        .retain(|device| device.instance_id != "HID\\PAD&COL01");
+    let controller = WindowsRuntimeDevices::new(&api);
+    assert!(controller.recover_touchpad(ApplyMode::DryRun).is_err());
+    assert!(controller.recover_touchpad(ApplyMode::Commit).is_err());
+    assert!(api.writes.lock().is_empty());
+}
+
+#[test]
+fn excessive_touchpad_input_leaves_are_rejected_before_any_write() {
+    let mut api = touchpad_topology();
+    for index in 0..16 {
+        let id = format!("HID\\PAD&EXTRA-{index}");
+        let mut mouse = RuntimeDevice::new(RuntimeDeviceClass::Mouse, id.clone());
+        mouse.hardware_ids = vec!["HID_DEVICE_UP:0001_U:0002".into()];
+        mouse.parent_instance_id = Some("ACPI\\PAD\\0".into());
+        api.devices.push(mouse);
+        api.states.lock().insert(id, DeviceState::Enabled);
+    }
+    let controller = WindowsRuntimeDevices::new(&api);
+    assert!(controller.recover_touchpad(ApplyMode::Commit).is_err());
+    assert!(api.writes.lock().is_empty());
+}
+
+#[test]
 fn touchpad_dry_run_does_not_change_any_input_or_controller_state() {
     let api = touchpad_topology();
     let original = api.states.lock().clone();

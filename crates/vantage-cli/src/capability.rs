@@ -145,11 +145,13 @@ pub fn command_layer(command: &crate::Command) -> lctrl_core::StateLayer {
         } => StateLayer::OsPersistent,
         Command::Daemon { .. } => StateLayer::Runtime,
         Command::Scan { .. } => StateLayer::NotApplicable,
-        Command::Info
-        | Command::Doctor
-        | Command::Capability
-        | Command::Touchpad { .. }
-        | Command::Completions { .. } => StateLayer::Runtime,
+        Command::Touchpad {
+            state: crate::TouchpadAction::Status | crate::TouchpadAction::Recover,
+        } => StateLayer::Runtime,
+        Command::Touchpad { .. } => StateLayer::PlatformDependent,
+        Command::Info | Command::Doctor | Command::Capability | Command::Completions { .. } => {
+            StateLayer::Runtime
+        }
     }
 }
 
@@ -396,6 +398,12 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
             command: Some(crate::KbdCommand::Winlock { .. }),
         } => CommandId::KBD_WINLOCK,
         Command::Kbd { command: None } => return None,
+        Command::Touchpad {
+            state: crate::TouchpadAction::Status,
+        } => CommandId::TOUCHPAD_STATUS,
+        Command::Touchpad {
+            state: crate::TouchpadAction::Recover,
+        } => CommandId::TOUCHPAD_RECOVER,
         Command::Touchpad { .. } => CommandId::TOUCHPAD,
         Command::Panel {
             command: Some(PanelCommand::Rate { .. }),
