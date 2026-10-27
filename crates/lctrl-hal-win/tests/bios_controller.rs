@@ -34,6 +34,10 @@ impl FakeWmi {
 }
 
 impl WmiTransport for FakeWmi {
+    fn bios_staging_isolation_verified(&self) -> bool {
+        true
+    }
+
     fn query(&self, namespace: &str, wql: &str) -> lctrl_core::Result<Vec<WmiObject>> {
         self.queries
             .lock()
@@ -78,6 +82,39 @@ impl WmiTransport for FakeWmi {
                 channel: "fake WMI reply exhausted".into(),
             })
     }
+}
+
+#[test]
+fn unverified_staging_blocks_stage_save_and_discard_before_wmi() {
+    struct UnknownScope;
+    impl WmiTransport for UnknownScope {
+        fn query(&self, _: &str, _: &str) -> lctrl_core::Result<Vec<WmiObject>> {
+            panic!("a rejected BIOS write must not query a WMI method instance")
+        }
+        fn invoke_instance(
+            &self,
+            _: &str,
+            _: &str,
+            _: &str,
+            _: &str,
+            _: &WmiObject,
+        ) -> lctrl_core::Result<WmiObject> {
+            panic!("a rejected BIOS write must not invoke firmware")
+        }
+    }
+    let controller = WindowsBiosController::new(UnknownScope);
+    assert!(matches!(
+        controller.stage(BiosChange::new("Camera", "Enable").unwrap()),
+        Err(LctrlError::ChannelUnavailable { .. })
+    ));
+    assert!(matches!(
+        controller.save(),
+        Err(LctrlError::ChannelUnavailable { .. })
+    ));
+    assert!(matches!(
+        controller.discard(),
+        Err(LctrlError::ChannelUnavailable { .. })
+    ));
 }
 
 fn method_reply(accepted: bool, return_value: &str) -> WmiObject {
