@@ -2,11 +2,11 @@ use lctrl_core::{DiagnosticKind, DiagnosticOutcome, DiagnosticResult, UpdateCapa
 
 #[test]
 fn diagnostics_and_update_states_serialize_truthfully() {
-    let result = DiagnosticResult {
-        kind: DiagnosticKind::Battery,
-        outcome: DiagnosticOutcome::Unavailable,
-        detail: "no battery".into(),
-    };
+    let result = DiagnosticResult::new(
+        DiagnosticKind::Battery,
+        DiagnosticOutcome::Unavailable,
+        "no battery",
+    );
     let json = serde_json::to_value(result).unwrap();
     assert_eq!(json["kind"], "battery");
     assert_eq!(json["outcome"], "unavailable");

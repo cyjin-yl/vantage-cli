@@ -346,7 +346,12 @@ fn main() {
     let system_inventory = lctrl_hal_win::WindowsSystemInventory::new(lctrl_hal_win::NativeWmi);
     let magicbay = lctrl_hal_win::NativeMagicBay;
     let peripherals = lctrl_hal_win::WindowsPeripheralController::new(lctrl_hal_win::NativeWmi);
+    let panel = lctrl_hal_win::WindowsPanelController::new(
+        lctrl_hal_win::NativeDisplayApi,
+        lctrl_hal_win::NativeWmi,
+    );
     let power = lctrl_hal_win::WindowsPowerP0::new(lctrl_hal_win::NativePowerApi);
+    let thermal = lctrl_hal_win::WindowsThermal::new(lctrl_hal_win::NativeWmi, &battery);
     let services = vantage_cli::CommandServices::new(&hal)
         .with_battery(&battery)
         .with_conflict_detection(&conflicts)
@@ -356,7 +361,11 @@ fn main() {
         .with_magicbay(&magicbay)
         .with_performance(&performance)
         .with_power(&power)
-        .with_panel(&peripherals)
+        .with_tuning(&power)
+        .with_processor_power(&power)
+        .with_panel(&panel)
+        .with_temperature(&thermal)
+        .with_fan(&thermal)
         .with_update(&system_inventory);
     finish(execute_with_services(cli, services), json);
 }

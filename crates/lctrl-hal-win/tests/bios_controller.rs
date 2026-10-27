@@ -260,12 +260,15 @@ fn stage_rejects_false_return_value_and_non_success_business_return() {
 }
 
 #[test]
-fn password_status_decodes_supervisor_bit_one() {
+fn password_status_preserves_raw_state_and_decodes_all_metadata() {
     let transport = FakeWmi {
         password_settings: vec![BTreeMap::from([
             ("MinLength".into(), WmiValue::U32(1)),
             ("MaxLength".into(), WmiValue::U32(128)),
-            ("PasswordState".into(), WmiValue::U32(2)),
+            ("PasswordMode".into(), WmiValue::U32(1)),
+            ("PasswordState".into(), WmiValue::U32(3)),
+            ("SupportedEncodings".into(), WmiValue::U32(1)),
+            ("SupportedKeyboard".into(), WmiValue::U32(1)),
         ])],
         ..FakeWmi::default()
     };
@@ -273,6 +276,14 @@ fn password_status_decodes_supervisor_bit_one() {
 
     assert_eq!(
         controller.password_status().unwrap(),
-        BiosPasswordStatus::from_raw(1, 128, 2)
+        BiosPasswordStatus::from_raw_metadata(1, 128, 1, 3, 1, 1)
+    );
+    let queries = controller.transport().queries.lock().clone();
+    assert_eq!(
+        queries,
+        vec![(
+            "ROOT\\WMI".into(),
+            "SELECT MinLength, MaxLength, PasswordMode, PasswordState, SupportedEncodings, SupportedKeyboard FROM Lenovo_BiosPasswordSettings".into()
+        )]
     );
 }

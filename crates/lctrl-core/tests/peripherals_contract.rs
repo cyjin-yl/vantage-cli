@@ -1,9 +1,10 @@
 use lctrl_core::{
     BacklightState, BiosChange, BiosName, BiosPasswordStatus, BiosRisk, BiosValue, DeviceState,
     DolbyProfile, GamutMode, LeaveAction, LightingEffect, LockState, LowLatencyMode,
-    NoiseCancellationMode, PanelDisplayMode, PanelRefreshCapability, PanelSupportBits,
-    PresenceDistance, PrivacyDevice, PrivacyState, RefreshMode, SenseGlobal, SenseMode,
-    classify_risk, is_success, parse_current_setting, parse_selections, save_parameter,
+    NoiseCancellationMode, PanelAdapterId, PanelDisplayMode, PanelMode, PanelRefreshCapability,
+    PanelRefreshRequest, PanelRotation, PanelSupportBits, PanelTarget, PresenceDistance,
+    PrivacyDevice, PrivacyState, RefreshMode, SenseGlobal, SenseMode, classify_risk, is_success,
+    parse_current_setting, parse_selections, save_parameter,
 };
 
 #[test]
@@ -61,6 +62,72 @@ fn refresh_capability_uses_discovered_range() {
     assert!(capability.supports_hz(60));
     assert!(capability.supports_hz(120));
     assert!(!capability.supports_hz(144));
+}
+
+#[test]
+fn native_panel_mode_preserves_every_non_refresh_field() {
+    let target = PanelTarget::new(
+        r"\\.\DISPLAY1",
+        PanelAdapterId::new(7, 9),
+        3,
+        5,
+        true,
+    );
+    let mut current = PanelMode::new(target, 3200, 2000, 32, 60);
+    current.position_x = -40;
+    current.position_y = 20;
+    let requested = current.with_refresh_hz(120);
+    assert!(current.same_mode_except_refresh(&requested));
+    assert_eq!(requested.refresh_hz, 120);
+
+    let mut wrong_width = requested.clone();
+    wrong_width.width = 2560;
+    let mut wrong_height = requested.clone();
+    wrong_height.height = 1600;
+    let mut wrong_depth = requested.clone();
+    wrong_depth.bits_per_pixel = 30;
+    let mut wrong_x = requested.clone();
+    wrong_x.position_x = 0;
+    let mut wrong_y = requested.clone();
+    wrong_y.position_y = 0;
+    let mut wrong_rotation = requested.clone();
+    wrong_rotation.rotation = PanelRotation::Rotate180;
+    let mut wrong_adapter = requested.clone();
+    wrong_adapter.target.adapter = PanelAdapterId::new(7, 10);
+    let mut wrong_source = requested.clone();
+    wrong_source.target.source_id = 4;
+    let mut wrong_target = requested.clone();
+    wrong_target.target.target_id = 6;
+
+    for altered in [
+        wrong_width,
+        wrong_height,
+        wrong_depth,
+        wrong_x,
+        wrong_y,
+        wrong_rotation,
+        wrong_adapter,
+        wrong_source,
+        wrong_target,
+    ] {
+        assert!(!current.same_mode_except_refresh(&altered));
+    }
+}
+
+#[test]
+fn panel_auto_has_explicit_default_mode_semantics() {
+    assert_eq!(PanelRefreshRequest::Auto.to_string(), "auto (firmware default)");
+    assert_eq!(PanelRefreshRequest::Fixed(60).to_string(), "60 Hz");
+    for (raw, rotation) in [
+        (0, PanelRotation::Default),
+        (1, PanelRotation::Rotate90),
+        (2, PanelRotation::Rotate180),
+        (3, PanelRotation::Rotate270),
+    ] {
+        assert_eq!(PanelRotation::from_raw(raw), Some(rotation));
+        assert_eq!(rotation.raw(), raw);
+    }
+    assert_eq!(PanelRotation::from_raw(4), None);
 }
 
 #[test]

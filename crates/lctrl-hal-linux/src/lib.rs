@@ -1685,11 +1685,29 @@ impl DiagnosticsControl for LinuxHal {
         ])
     }
 
-    fn run_diagnostics(&self, items: &[DiagnosticKind]) -> Result<Vec<DiagnosticResult>> {
+    fn run_diagnostics(&self, items: &[DiagnosticKind], options: lctrl_core::DiagnosticRunOptions) -> Result<Vec<DiagnosticResult>> {
         items
             .iter()
             .copied()
-            .map(|kind| run_diagnostic(self, kind))
+            .map(|kind| {
+                if let Some(reason) = options.cancellation.reason() {
+                    return Ok(DiagnosticResult::new(kind, DiagnosticOutcome::Cancelled, "diagnostic cancelled")
+                        .with_reason(lctrl_core::DiagnosticReason::Cancelled { reason }));
+                }
+                let started = std::time::Instant::now();
+                let result = run_diagnostic(self, kind)?;
+                if let Some(reason) = options.cancellation.reason() {
+                    return Ok(DiagnosticResult::new(kind, DiagnosticOutcome::Cancelled, "diagnostic cancelled")
+                        .with_reason(lctrl_core::DiagnosticReason::Cancelled { reason }));
+                }
+                if started.elapsed() >= options.per_item_deadline {
+                    return Ok(DiagnosticResult::new(kind, DiagnosticOutcome::ResourceError, "diagnostic per-item deadline exceeded")
+                        .with_reason(lctrl_core::DiagnosticReason::DeadlineExceeded {
+                            deadline_ms: options.per_item_deadline.as_millis().min(u128::from(u64::MAX)) as u64,
+                        }));
+                }
+                Ok(result)
+            })
             .collect()
     }
 }
@@ -1697,19 +1715,15 @@ impl DiagnosticsControl for LinuxHal {
 fn run_diagnostic(hal: &LinuxHal, kind: DiagnosticKind) -> Result<DiagnosticResult> {
     match kind {
         DiagnosticKind::Battery => match hal.battery_telemetry(0) {
-            Ok(telemetry) => Ok(DiagnosticResult {
+            Ok(telemetry) => Ok(DiagnosticResult::new(
                 kind,
-                outcome: DiagnosticOutcome::Warning,
-                detail: format!(
+                DiagnosticOutcome::Warning,
+                format!(
                     "power_supply telemetry parsed (design={:?}, remaining={:?}); deep vendor-driver tests are excluded",
                     telemetry.design_capacity_mwh, telemetry.remaining_capacity_mwh
                 ),
-            }),
-            Err(error) => Ok(DiagnosticResult {
-                kind,
-                outcome: DiagnosticOutcome::Unavailable,
-                detail: error.to_string(),
-            }),
+            )),
+            Err(error) => Ok(DiagnosticResult::new(kind, DiagnosticOutcome::Unavailable, error.to_string())),
         },
         DiagnosticKind::Thermal => match hal.temperature_sensors() {
             Ok(sensors) => {
@@ -1718,24 +1732,20 @@ fn run_diagnostic(hal: &LinuxHal, kind: DiagnosticKind) -> Result<DiagnosticResu
                         .value_c
                         .is_some_and(|value| value.is_finite() && (-40.0..=150.0).contains(&value))
                 });
-                Ok(DiagnosticResult {
+                Ok(DiagnosticResult::new(
                     kind,
-                    outcome: if valid {
+                    if valid {
                         DiagnosticOutcome::Warning
                     } else {
                         DiagnosticOutcome::Unavailable
                     },
-                    detail: format!(
+                    format!(
                         "{} sysfs temperature sensor(s) parsed; vendor stress tests are excluded",
                         sensors.len()
                     ),
-                })
+                ))
             }
-            Err(error) => Ok(DiagnosticResult {
-                kind,
-                outcome: DiagnosticOutcome::Unavailable,
-                detail: error.to_string(),
-            }),
+            Err(error) => Ok(DiagnosticResult::new(kind, DiagnosticOutcome::Unavailable, error.to_string())),
         },
         DiagnosticKind::Storage => {
             let count = inventory_count(hal, "sys/block")?;
@@ -1750,11 +1760,7 @@ fn run_diagnostic(hal: &LinuxHal, kind: DiagnosticKind) -> Result<DiagnosticResu
             let meminfo = match hal.read_required("proc/meminfo") {
                 Ok(meminfo) => meminfo,
                 Err(error) => {
-                    return Ok(DiagnosticResult {
-                        kind,
-                        outcome: DiagnosticOutcome::Unavailable,
-                        detail: error.to_string(),
-                    });
+                    return Ok(DiagnosticResult::new(kind, DiagnosticOutcome::Unavailable, error.to_string()));
                 }
             };
             let total = meminfo.lines().find_map(|line| {
@@ -1763,36 +1769,36 @@ fn run_diagnostic(hal: &LinuxHal, kind: DiagnosticKind) -> Result<DiagnosticResu
                     .and_then(|value| value.parse::<u64>().ok())
             });
             Ok(if total.is_some_and(|value| value > 0) {
-                DiagnosticResult {
+                DiagnosticResult::new(
                     kind,
-                    outcome: DiagnosticOutcome::Warning,
-                    detail: "MemTotal is readable; deep vendor-driver diagnostics are excluded; destructive memtest is not run automatically".into(),
-                }
+                    DiagnosticOutcome::Warning,
+                    "MemTotal is readable; deep vendor-driver diagnostics are excluded; destructive memtest is not run automatically",
+                )
             } else {
-                DiagnosticResult {
+                DiagnosticResult::new(
                     kind,
-                    outcome: DiagnosticOutcome::Unavailable,
-                    detail: "MemTotal is missing or zero".into(),
-                }
+                    DiagnosticOutcome::Unavailable,
+                    "MemTotal is missing or zero",
+                )
             })
         }
         DiagnosticKind::Firmware => {
             let info = hal.hardware_info()?;
             let available =
                 info.product_name.is_some() || info.family.is_some() || info.bios_version.is_some();
-            Ok(DiagnosticResult {
+            Ok(DiagnosticResult::new(
                 kind,
-                outcome: if available {
+                if available {
                     DiagnosticOutcome::Warning
                 } else {
                     DiagnosticOutcome::Unavailable
                 },
-                detail: if available {
-                    "DMI firmware identity is readable; firmware flashing is excluded".into()
+                if available {
+                    "DMI firmware identity is readable; firmware flashing is excluded"
                 } else {
-                    "DMI firmware identity is unavailable".into()
+                    "DMI firmware identity is unavailable"
                 },
-            })
+            ))
         }
         DiagnosticKind::Network => {
             let count = inventory_count(hal, "sys/class/net")?;
@@ -1823,19 +1829,19 @@ fn inventory_result(
     label: &str,
     limitation: &str,
 ) -> DiagnosticResult {
-    DiagnosticResult {
+    DiagnosticResult::new(
         kind,
-        outcome: if count == 0 {
+        if count == 0 {
             DiagnosticOutcome::Unavailable
         } else {
             DiagnosticOutcome::Warning
         },
-        detail: if count == 0 {
+        if count == 0 {
             format!("no {label} records were found")
         } else {
             format!("{count} {label} record(s) inventoried; {limitation}")
         },
-    }
+    )
 }
 
 fn peripheral_write_with_rollback(

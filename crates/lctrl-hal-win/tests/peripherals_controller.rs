@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
-use lctrl_core::{ApplyMode, LightingEffect, RefreshMode};
-use lctrl_hal::{KeyboardControl, PanelControl};
+use lctrl_core::{ApplyMode, LightingEffect};
+use lctrl_hal::KeyboardControl;
 use lctrl_hal_win::{WindowsPeripheralController, WmiObject, WmiTransport, WmiValue};
 use parking_lot::Mutex;
 
@@ -34,14 +34,6 @@ impl WmiTransport for FakeWmi {
             return Ok(vec![BTreeMap::from([
                 ("__Path".into(), WmiValue::String("lighting-path".into())),
                 ("Active".into(), WmiValue::Bool(true)),
-            ])]);
-        }
-        if wql.contains("LENOVO_INTERNAL_PANEL_REFRESH_RATE_DATA") {
-            return Ok(vec![BTreeMap::from([
-                ("MinimumRefreshRate".into(), WmiValue::U16(60)),
-                ("MaximumRefreshRate".into(), WmiValue::U16(120)),
-                ("DefaultRefreshRate".into(), WmiValue::U16(60)),
-                ("Mode".into(), WmiValue::U16(1)),
             ])]);
         }
         Ok(Vec::new())
@@ -122,15 +114,4 @@ fn single_color_keyboard_rejects_non_static_effect_before_set() {
             .is_err()
     );
     assert_eq!(controller.transport().invocations.lock().len(), 1);
-}
-
-#[test]
-fn panel_refresh_is_read_only_and_preserves_mode() {
-    let controller = WindowsPeripheralController::new(FakeWmi::default());
-
-    let capability = controller.refresh_capability().unwrap();
-    assert_eq!(capability.min_hz, 60);
-    assert_eq!(capability.max_hz, 120);
-    assert_eq!(capability.default_hz, 60);
-    assert_eq!(controller.refresh_mode().unwrap(), RefreshMode::Adaptive);
 }

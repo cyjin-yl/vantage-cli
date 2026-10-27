@@ -60,30 +60,65 @@ pub fn active_instance(transport: &dyn WmiTransport, class: &str) -> Result<WmiI
     validate_class_identifier(class)?;
     let query = format!("SELECT __Path, Active, InstanceName FROM {class} WHERE Active = TRUE");
     let objects = transport.query(ROOT_WMI, &query)?;
-    let object = objects
-        .into_iter()
-        .next()
-        .ok_or_else(|| LctrlError::Unsupported {
+    if objects.is_empty() {
+        return Err(LctrlError::Unsupported {
             feature: format!("wmi.class.{class}"),
-        })?;
-    if let Some(WmiValue::Bool(false)) = object.get("Active") {
+        });
+    }
+    // Firmware providers can answer a filtered SELECT with extra rows that carry
+    // no instance key, and those rows cannot be invoked. Continue to the first
+    // row that has a usable key instead of failing the whole channel.
+    let mut inactive = false;
+    let mut missing_key = None;
+    for object in objects {
+        if let Some(WmiValue::Bool(false)) = object.get("Active") {
+            inactive = true;
+            continue;
+        }
+        match instance_path(class, &object) {
+            Ok(path) => return Ok(WmiInstance { class: class.into(), path }),
+            Err(error) => {
+                missing_key.get_or_insert(error);
+            }
+        }
+    }
+    if inactive && missing_key.is_none() {
         return Err(LctrlError::ChannelUnavailable {
             channel: format!("{ROOT_WMI} class {class} returned an inactive instance"),
         });
     }
+    Err(missing_key.unwrap_or_else(|| LctrlError::ChannelUnavailable {
+        channel: format!("{ROOT_WMI} class {class} returned an inactive instance"),
+    }))
+}
+
+fn instance_path(class: &str, object: &WmiObject) -> Result<String> {
     let path = match object.get("__Path") {
         Some(WmiValue::String(path)) if !path.is_empty() => path.clone(),
-        _ => {
-            return Err(LctrlError::ChannelUnavailable {
-                channel: format!("{ROOT_WMI} class {class} omitted string __Path"),
-            });
-        }
+        _ => match object.get("InstanceName") {
+            Some(WmiValue::String(instance)) if !instance.is_empty() && !instance.contains('\0') => {
+                // These firmware-backed classes do not expose a usable __Path
+                // system property. Their InstanceName is the instance key used
+                // by the official ManagementObject invocation form.
+                format!("{class}.InstanceName={}", quote_wql(instance))
+            }
+            _ => {
+                return Err(LctrlError::ChannelUnavailable {
+                    channel: format!(
+                        "{ROOT_WMI} class {class} omitted both __Path and InstanceName"
+                    ),
+                });
+            }
+        },
     };
+    Ok(path)
+}
 
-    Ok(WmiInstance {
-        class: class.into(),
-        path,
-    })
+fn quote_wql(value: &str) -> String {
+    format!(
+        "\"{}\"",
+        value.replace('\\', "\\\\").replace('"', "\\\"")
+    )
 }
 
 fn validate_class_identifier(class: &str) -> Result<()> {

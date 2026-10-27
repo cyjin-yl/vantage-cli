@@ -70,12 +70,7 @@ impl PowerApi for NativePowerApi {
 
     fn activate(&self, id: &PowerSchemeId) -> Result<()> {
         let guid = parse_guid(id.as_str())?;
-        let status = unsafe { PowerSetActiveScheme(null_hkey(), &guid) };
-        if status == 0 {
-            Ok(())
-        } else {
-            Err(map_win_error(status, "PowerSetActiveScheme"))
-        }
+        set_active_scheme(&guid, "PowerSetActiveScheme")
     }
 
     fn read_value(&self, key: &PowerSettingKey, source: PowerSource) -> Result<u32> {
@@ -131,14 +126,21 @@ impl PowerApi for NativePowerApi {
         if status != 0 {
             return Err(map_win_error(status, "PowerWrite*ValueIndex"));
         }
-        let apply_status = unsafe { PowerSetActiveScheme(null_hkey(), &scheme) };
-        if apply_status != 0 {
-            return Err(map_win_error(
-                apply_status,
-                "PowerSetActiveScheme after value write",
-            ));
-        }
         Ok(())
+    }
+
+    fn apply_active_scheme(&self) -> Result<()> {
+        let scheme = active_guid()?;
+        set_active_scheme(&scheme, "PowerSetActiveScheme after value write")
+    }
+}
+
+fn set_active_scheme(scheme: &GUID, context: &str) -> Result<()> {
+    let status = unsafe { PowerSetActiveScheme(null_hkey(), scheme) };
+    if status == 0 {
+        Ok(())
+    } else {
+        Err(map_win_error(status, context))
     }
 }
 

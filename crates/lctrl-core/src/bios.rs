@@ -85,6 +85,50 @@ pub struct BiosItem {
     pub selections: Vec<String>,
 }
 
+/// One validated BIOS mutation and the state captured before any staging.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct BiosPlannedChange {
+    pub previous: BiosChange,
+    pub requested: BiosChange,
+}
+
+/// A side-effect-free preview of an atomic BIOS apply operation.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct BiosApplyPlan {
+    pub changes: Vec<BiosPlannedChange>,
+}
+
+/// A saved setting and its post-save `CurrentSetting` mirror readback.
+///
+/// The mirror is not evidence that the running hardware state has changed.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct BiosAppliedChange {
+    pub previous: BiosChange,
+    pub requested: BiosChange,
+    pub readback: BiosItem,
+}
+
+/// What is known about the effect of a successful BIOS NVRAM save.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BiosApplyEffect {
+    /// The setting was saved and its mirror was verified, but firmware does
+    /// not say whether it is effective now or only after a reboot.
+    PendingRebootOrUnknown,
+}
+
+/// Receipt for an all-or-nothing BIOS apply operation.
+///
+/// This deliberately has no `actual` field: `readback` is the firmware's
+/// saved-settings mirror, not a claim about the running hardware state.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct BiosApplyResult {
+    pub accepted: bool,
+    pub saved: bool,
+    pub effect: BiosApplyEffect,
+    pub changes: Vec<BiosAppliedChange>,
+}
+
 pub fn parse_current_setting(raw: &str) -> Option<BiosItem> {
     let (name, value) = raw.split_once(',')?;
     let name = name.trim();
@@ -144,9 +188,17 @@ pub struct BiosPasswordStatus {
     pub max_length: u32,
     pub password_state: u32,
     pub supervisor_set: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub password_mode: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub supported_encodings: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub supported_keyboard: Option<u32>,
 }
 
 impl BiosPasswordStatus {
+    /// Construct the legacy status subset without inventing metadata that was
+    /// not queried. New backends should use [`Self::from_raw_metadata`].
     #[must_use]
     pub const fn from_raw(min_length: u32, max_length: u32, password_state: u32) -> Self {
         Self {
@@ -154,6 +206,84 @@ impl BiosPasswordStatus {
             max_length,
             password_state,
             supervisor_set: password_state & 0x2 != 0,
+            password_mode: None,
+            supported_encodings: None,
+            supported_keyboard: None,
+        }
+    }
+
+    #[must_use]
+    pub const fn from_raw_metadata(
+        min_length: u32,
+        max_length: u32,
+        password_mode: u32,
+        password_state: u32,
+        supported_encodings: u32,
+        supported_keyboard: u32,
+    ) -> Self {
+        Self {
+            min_length,
+            max_length,
+            password_state,
+            supervisor_set: password_state & 0x2 != 0,
+            password_mode: Some(password_mode),
+            supported_encodings: Some(supported_encodings),
+            supported_keyboard: Some(supported_keyboard),
+        }
+    }
+}
+
+/// Decoded `LENOVO_BIOS_ASSISTANT.GetCapabilityValue` data.
+///
+/// Capability bits are meaningful only when `command_accepted` is true. The
+/// GPU field preserves the documented two-bit field without inferring a list
+/// of supported GPU modes.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+pub struct BiosAssistantCapabilities {
+    pub raw: u32,
+    pub command_accepted: bool,
+    pub super_boost_supported: bool,
+    pub gpu_mode_support: u8,
+    pub fn_ctrl_swap_supported: bool,
+    pub major_version: u8,
+    pub minor_version: u8,
+}
+
+impl BiosAssistantCapabilities {
+    #[must_use]
+    pub const fn from_raw(raw: u32) -> Self {
+        Self {
+            raw,
+            command_accepted: raw & 0x8000_0000 != 0,
+            super_boost_supported: raw & 0x0000_0001 != 0,
+            gpu_mode_support: ((raw & 0x0000_0006) >> 1) as u8,
+            fn_ctrl_swap_supported: raw & 0x0000_0008 != 0,
+            major_version: ((raw & 0x00f0_0000) >> 20) as u8,
+            minor_version: ((raw & 0x000f_0000) >> 16) as u8,
+        }
+    }
+}
+
+/// Decoded `LENOVO_BIOS_ASSISTANT.GetValue` data.
+///
+/// `payload` removes only bit31. No function-specific meaning is assigned to
+/// the remaining bits by this generic read API.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+pub struct BiosAssistantValue {
+    pub index_data: u32,
+    pub raw: u32,
+    pub command_accepted: bool,
+    pub payload: u32,
+}
+
+impl BiosAssistantValue {
+    #[must_use]
+    pub const fn from_raw(index_data: u32, raw: u32) -> Self {
+        Self {
+            index_data,
+            raw,
+            command_accepted: raw & 0x8000_0000 != 0,
+            payload: raw & 0x7fff_ffff,
         }
     }
 }

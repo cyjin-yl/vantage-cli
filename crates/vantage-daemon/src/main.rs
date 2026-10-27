@@ -35,10 +35,7 @@ fn spawn_event_source(events: mpsc::Sender<DaemonEvent>) {
                 "magicbay": value_or_error(hal.detect_magicbay()),
             });
             if snapshot != previous {
-                if events
-                    .send(DaemonEvent::now("hardware_state_changed", snapshot.clone()))
-                    .is_err()
-                {
+                if events.send(DaemonEvent::snapshot_changed(snapshot.clone())).is_err() {
                     break;
                 }
                 previous = snapshot;
@@ -50,6 +47,32 @@ fn spawn_event_source(events: mpsc::Sender<DaemonEvent>) {
 
 #[cfg(windows)]
 fn spawn_event_source(events: mpsc::Sender<DaemonEvent>) {
+    spawn_windows_snapshot_source(events.clone());
+    thread::spawn(move || {
+        use lctrl_hal::{EventCancellation, EventSource};
+        use lctrl_hal_win::{DOCUMENTED_LENOVO_EVENT_CLASSES, NativeWmiEventSource};
+
+        let result = (|| -> lctrl_core::Result<()> {
+            let source = NativeWmiEventSource::new()?;
+            let mut reader = source.subscribe(
+                DOCUMENTED_LENOVO_EVENT_CLASSES,
+                EventCancellation::new(),
+            )?;
+            while let Some(event) = reader.read()? {
+                if events.send(DaemonEvent::vendor_wmi(event)?).is_err() {
+                    break;
+                }
+            }
+            Ok(())
+        })();
+        if let Err(error) = result {
+            eprintln!("native WMI event source stopped: {error}");
+        }
+    });
+}
+
+#[cfg(windows)]
+fn spawn_windows_snapshot_source(events: mpsc::Sender<DaemonEvent>) {
     use lctrl_hal::{Hal, MagicBayControl, PerformanceControl, PowerControl};
 
     thread::spawn(move || {
@@ -71,10 +94,7 @@ fn spawn_event_source(events: mpsc::Sender<DaemonEvent>) {
                 "magicbay": value_or_error(magicbay.detect_magicbay()),
             });
             if snapshot != previous {
-                if events
-                    .send(DaemonEvent::now("hardware_state_changed", snapshot.clone()))
-                    .is_err()
-                {
+                if events.send(DaemonEvent::snapshot_changed(snapshot.clone())).is_err() {
                     break;
                 }
                 previous = snapshot;

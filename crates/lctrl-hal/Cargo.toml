@@ -7,4 +7,5 @@ publish = false
 
 [dependencies]
 lctrl-core = { path = "../lctrl-core" }
+serde.workspace = true
 

@@ -171,6 +171,64 @@ fn invalid_class_identifier_is_rejected_before_query() {
 }
 
 #[test]
+fn firmware_instance_without_system_path_uses_its_instance_key() {
+    let transport = FakeTransport {
+        objects: vec![BTreeMap::from([
+            (
+                "InstanceName".into(),
+                WmiValue::String(r#"ACPI\PNP0C14\LSK20_0"#.into()),
+            ),
+            ("Active".into(), WmiValue::Bool(true)),
+        ])],
+        ..Default::default()
+    };
+
+    let instance = active_instance(&transport, "LENOVO_UTILITY_DATA").unwrap();
+
+    assert_eq!(
+        instance.path(),
+        r#"LENOVO_UTILITY_DATA.InstanceName="ACPI\\PNP0C14\\LSK20_0""#
+    );
+}
+
+#[test]
+fn missing_both_path_forms_is_a_channel_error() {
+    let transport = FakeTransport {
+        objects: vec![BTreeMap::from([("Active".into(), WmiValue::Bool(true))])],
+        ..Default::default()
+    };
+
+    assert!(matches!(
+        active_instance(&transport, "LENOVO_UTILITY_DATA"),
+        Err(LctrlError::ChannelUnavailable { .. })
+    ));
+}
+
+#[test]
+fn pathless_row_is_skipped_for_the_first_invokable_instance() {
+    let transport = FakeTransport {
+        objects: vec![
+            BTreeMap::from([("Active".into(), WmiValue::Bool(true))]),
+            BTreeMap::from([
+                (
+                    "InstanceName".into(),
+                    WmiValue::String(r#"ACPI\PNP0C14\LSK20_0"#.into()),
+                ),
+                ("Active".into(), WmiValue::Bool(true)),
+            ]),
+        ],
+        ..Default::default()
+    };
+
+    assert_eq!(
+        active_instance(&transport, "LENOVO_UTILITY_DATA")
+            .unwrap()
+            .path(),
+        r#"LENOVO_UTILITY_DATA.InstanceName="ACPI\\PNP0C14\\LSK20_0""#
+    );
+}
+
+#[test]
 fn vendor_control_conflicts_are_discovered_through_read_only_process_inventory() {
     let transport = FakeTransport {
         objects: vec![

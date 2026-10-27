@@ -14,6 +14,7 @@ const ERROR_OPERATION_ABORTED: u32 = 995;
 const ERROR_IO_DEVICE: u32 = 1117;
 
 const WBEM_E_NOT_FOUND: i32 = 0x8004_1002_u32 as i32;
+const WBEM_E_NOT_SUPPORTED: i32 = 0x8004_1001_u32 as i32;
 const WBEM_E_ACCESS_DENIED: i32 = 0x8004_1003_u32 as i32;
 const WBEM_E_INVALID_PARAMETER: i32 = 0x8004_1008_u32 as i32;
 const WBEM_E_INVALID_OBJECT: i32 = 0x8004_100f_u32 as i32;
@@ -59,7 +60,8 @@ pub fn map_win_error(gle: u32, context: &str) -> LctrlError {
 #[must_use]
 pub fn map_wmi_hresult(hresult: i32, context: &str) -> LctrlError {
     match hresult {
-        WBEM_E_NOT_FOUND
+        WBEM_E_NOT_SUPPORTED
+        | WBEM_E_NOT_FOUND
         | WBEM_E_INVALID_PARAMETER
         | WBEM_E_INVALID_OBJECT
         | WBEM_E_INVALID_CLASS => LctrlError::Unsupported {

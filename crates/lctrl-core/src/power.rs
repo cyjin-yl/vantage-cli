@@ -24,6 +24,22 @@ pub enum PowerSource {
     Dc,
 }
 
+/// Values stored independently for AC and DC operation in one power scheme.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+pub struct PowerSourceValues<T> {
+    pub ac: T,
+    pub dc: T,
+}
+
+/// A processor performance-boost policy index from `PERFBOOSTMODE`.
+///
+/// Unknown indices are preserved so a newer policy can be rolled back without
+/// collapsing it to a boolean. Writes remain subject to the range advertised
+/// by the Windows Power API.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(transparent)]
+pub struct ProcessorBoostMode(u32);
+
 /// A named power setting inside a power scheme, addressed by its subgroup
 /// GUID and its setting GUID.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -87,6 +103,52 @@ impl PowerSchemeId {
     #[must_use]
     pub fn as_str(&self) -> &str {
         self.0.as_str()
+    }
+}
+
+impl<T> PowerSourceValues<T> {
+    #[must_use]
+    pub const fn new(ac: T, dc: T) -> Self {
+        Self { ac, dc }
+    }
+
+    #[must_use]
+    pub fn same(value: T) -> Self
+    where
+        T: Copy,
+    {
+        Self { ac: value, dc: value }
+    }
+
+    #[must_use]
+    pub fn map<U>(self, mut map: impl FnMut(T) -> U) -> PowerSourceValues<U> {
+        PowerSourceValues {
+            ac: map(self.ac),
+            dc: map(self.dc),
+        }
+    }
+}
+
+impl ProcessorBoostMode {
+    pub const DISABLED: Self = Self(0);
+    pub const ENABLED: Self = Self(1);
+    pub const AGGRESSIVE: Self = Self(2);
+    pub const EFFICIENT_ENABLED: Self = Self(3);
+    pub const EFFICIENT_AGGRESSIVE: Self = Self(4);
+
+    #[must_use]
+    pub const fn from_raw(raw: u32) -> Self {
+        Self(raw)
+    }
+
+    #[must_use]
+    pub const fn get(self) -> u32 {
+        self.0
+    }
+
+    #[must_use]
+    pub const fn is_enabled(self) -> bool {
+        self.0 != Self::DISABLED.0
     }
 }
 
@@ -211,6 +273,19 @@ impl fmt::Display for PowerGuid {
 impl fmt::Display for PowerSettingValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
+    }
+}
+
+impl fmt::Display for ProcessorBoostMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Self::DISABLED => f.write_str("disabled"),
+            Self::ENABLED => f.write_str("enabled"),
+            Self::AGGRESSIVE => f.write_str("aggressive"),
+            Self::EFFICIENT_ENABLED => f.write_str("efficient-enabled"),
+            Self::EFFICIENT_AGGRESSIVE => f.write_str("efficient-aggressive"),
+            Self(raw) => write!(f, "mode-{raw}"),
+        }
     }
 }
 
