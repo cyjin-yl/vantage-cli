@@ -1,0 +1,41 @@
+{
+  "scope": "PR42 BIOS staging ownership guard; no BIOS mutation or full-replacement claim",
+  "source_commit": "a0e3598f8fb7f3188343f817f7aa6b530bffa3f2",
+  "merged_main_commit": "5998f606edf97809ffd14ea365941b2cf346ce50",
+  "source_archive_sha256": "69b338e976eaa88743fd5ac163494d98b29cf6a7ab681a74c61e90a6f0ccb8c2",
+  "source_manifest_sha256": "977c6a92bcfcc14eed9d685b099a8de35406e7a764ceca8fe86f3e62ab1297ca",
+  "source_file_count": 167,
+  "source_file_sha256_length_and_membership_verified": true,
+  "gitea_ci": {
+    "run": 546,
+    "event": "pull_request",
+    "status": "success",
+    "checks": ["format", "clippy", "workspace_tests", "release_build", "artifact_upload"]
+  },
+  "published_merge": {
+    "parent_commit": "a6413ab5d0b958ad3cc7f019705ea758ad3f8bd8",
+    "head_tree_equal_to_merge_tree": true,
+    "parents_verified": true,
+    "changed_file_bytes_verified": 11
+  },
+  "windows": {
+    "machine": "TB14P-EZRA",
+    "first_build": "cargo reported finished; wrapper exit code was null and is not treated as success",
+    "incremental_build_confirmation_exit": 0,
+    "binary_sha256": "b6b74b2d2496d4a39453caa8b9f5ccab8ff66efe916d40c16e29e8c54b042bca",
+    "binary_bytes": 3634176,
+    "info_exit": 0,
+    "capability_exit": 0,
+    "bios_staging_owned": "unavailable",
+    "bios_set": "unavailable",
+    "kbd_fnlock_bios_layer": "unavailable",
+    "privacy_camera_bios_layer": "unavailable",
+    "discard_dry_run_exit": 0,
+    "discard_dry_run_mode": "dry_run",
+    "bios_mirror_before_count": 53,
+    "bios_mirror_after_count": 53,
+    "bios_mirror_before_after_equal": true,
+    "bios_write_or_discard_executed": false
+  },
+  "boundary": "Read-only target capability and dry-run proof; no firmware effective-state, BIOS mutation, post-reboot, or complete replacement acceptance is claimed."
+}
