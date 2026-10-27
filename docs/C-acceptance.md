@@ -17,6 +17,66 @@
 执行显示类验收的会话 1 脚本以计划任务(`-LogonType Interactive -RunLevel Highest`)承载,
 输出落盘为审计日志;所有写操作均先 `--dry-run`,写后回读,并在 `finally` 中恢复原状态。
 
+### 0.1 · 38 个功能域的准入基线(2026-10-27)
+
+Gitea `ezra/vantage-cli` 的 #1–#38 均仍为 open;#39 是总追踪,不是完成证明。
+当时冻结的本地实现基线为 `work/vantage-replacement` @
+`0d149130feb7779bb15ba25095c38b33bd60a58b` 加 C7 的触控板修复工作区变更。
+此后已将经验证的实现基线作为 Gitea PR #40 合入 `main` 的 `15766658e16ad6bb98af8d1db707119f79d0b186`;
+该合并不是 38 项完整替代验收,后续工作区仍含尚未交付的实验性改动。
+
+逐项保存的工单原始验收条件、111 个原生命令能力观测、已有 C 节证据索引、远端分支 SHA
+和全部 38 项覆盖检查见 `evidence/replacement-baseline-20261027.json`。
+程序的只读基线见 `evidence/target-read-baseline-20261027.json`:
+info、电池状态/适配器、电源计划、性能模式、风扇清单、温度、调优遥测、隐私状态、
+BIOS 密码元数据、MagicBay 检测和 scan 清单共 **12 次实际运行,均退出 0,无超时**。
+它们只证明相应读取路径,不证明控制或深度诊断已完成。
+
+| 工单 | 当前准入结论与未完成项 |
+|---|---|
+| #1 事件/watch | 原生 WMI 源已有源码;CLI watch 尚未闭环,不得以 daemon IPC 代替 |
+| #2 自动策略 | parser/catalog/手动计划已有;自动求值、配置恢复与执行闭环待完成 |
+| #3 OSD | 当前未附接真实 overlay/热键动作消费者 |
+| #4 能力/切换检查 | 原生矩阵可运行;平台依赖投影、实际服务绑定与替代就绪报告仍需修正 |
+| #5 电池/适配器 | 实际读取成功;健康/寿命与各指标有效性逐字段验收待完成 |
+| #6 充电/阈值 | C2:限定通道差分未获得独立状态回读;任意阈值仍无已验证写通道 |
+| #7 夜间/临时充电 | 当前入口 Unsupported;支持性、状态及写契约待完成,不据此判硬件不适用 |
+| #8 USB 供电 | 运行时覆盖未接通;BIOS 默认值需经现有事务路径暴露并单独验收 |
+| #9 电源计划 | 实际枚举成功;高级字段/名称一致性仍须按工单逐项验证 |
+| #10 性能模式 | C4:ITS V3 可读;写入缺版本绑定的已确认控制契约 |
+| #11 风扇 | 清单读取成功;真实 RPM/手动策略/曲线未完成;不可把元数据当实时转速 |
+| #12 温度/功耗 | 读取入口成功;有界 interval、源定位和实际功率指标待完成 |
+| #13 DBDC | 当前命令矩阵未覆盖;读表、单位与受门控写入待完成 |
+| #14 超频/SuperBoost | 当前命令矩阵未覆盖;条件能力与精确适用性待核实 |
+| #15 GPU 模式/功耗墙 | 独立枚举仅见 Intel Arc B390 实体 GPU 和两个 ROOT 虚拟显示适配器;不得将虚拟适配器算独显,控制面按具体硬件继续门控 |
+| #16 EPP/睿频 | C5/C6 已有真实写入/独立注册表回读/恢复;矩阵的 turbo 声明仍与执行器不一致 |
+| #17 PL1/PL2/tau | 尚无可供精确写入与独立回读的目标机契约;不绕过 HVCI |
+| #18 进程管理 | 原生事务执行器已有源码;CLI、恢复日志和真实拓扑策略未闭环 |
+| #19 profile/省电事务 | 现有部分手动执行/restore;完整目标、配方及复合动作仍须完成 |
+| #20 键盘灯 | 当前目标机方法不可用;不得以静态灯光元数据提升写能力 |
+| #21 Win 锁/触控板 | C7 仅确认触控板恢复及非中断 smoke;新版禁用循环与 Win 锁尚未完成验收 |
+| #22 内屏刷新率 | C1 已验收;要求交互式会话,不以 SSH 无显示路径误判硬件不支持 |
+| #23 色彩/显示增强 | 当前写入口 Unsupported;按硬件/接口/授权分别核实,不是统一判不适用 |
+| #24 运行时隐私 | 状态实际读取成功;逐层写入、独立读回及恢复证据须按版本保存 |
+| #25 SmartSense/HPD | 当前无控制执行器;设备存在性与可调用契约需分开确认 |
+| #26 Dolby | 当前无已授权控制执行器;保留许可/接口边界,不分析私有 SDK |
+| #27 音频降噪 | 当前无受支持控制执行器;不把普通音频设备存在当作降噪支持 |
+| #28 BIOS 批量/元数据 | 原生事务源码与只读密码元数据已有;CLI 批量、风险和实际生效态验收待完成 |
+| #29 MagicBay LTE | 当前检测未见附件;实现缺口与附件未连接分别记录,不伪报完成 |
+| #30 MagicBay 摄像头 | 当前检测未见附件;UVC 实现及目标附件验收待完成 |
+| #31 MagicBay 扩展屏 | 当前检测未见附件;关联与安全切换待完成 |
+| #32 可信目录 | 缺已准入的目录/信任/适用性契约;不能靠猜测接口开放安装 |
+| #33 下载/驱动安装 | 本地 INF 执行器源码已有;远程下载及主力机安全安装验收未完成 |
+| #34 历史/回滚/调度 | 本地策略源码不等于真实任务调度;各生命周期仍须验收 |
+| #35 实际诊断 | 清单入口成功不算硬件通过;六类检查、取消/状态与结果语义仍须验收 |
+| #36 MachineFix | 当前无命令矩阵条目;透明规则、允许的修复原语和跟踪未完成 |
+| #37 系统/固件清单 | 现有 info 读取成功;完整模块 schema、逐模块错误和只读 UEFI 待完成 |
+| #38 Wi-Fi 评估 | 当前 CLI 尚未接入现有服务;原生 WlanApi、持久本地历史与权限失败语义待完成 |
+
+每一项适用写入的准入门槛保持为:**实际效果、独立回读、dry-run 零副作用、前值与允许时的恢复**。
+缺实现、缺接口契约、当前未连接硬件与型号不适用分别记录;所有必要功能及最小依赖切换验证之前,
+不建议停用或卸载任何官方驱动/服务。当前记录不宣称 38 项已完成。
+
 ## C1 · 内屏刷新率(显示)
 
 **状态:已验收** — 真实生效 + 独立回读 + dry-run 无副作用 + 失败前检测 + 状态恢复。
@@ -101,6 +161,77 @@
 5. `active_instance` 在固件类返回无实例键的附加行时直接失败 → 改为跳过不可调用的行,取第一条
    可调用实例;全部不可调用时仍 fail-closed(Windows 侧 `bios_controller` 用例回归)。
 
+## C4 · 性能模式(ITS/Dispatcher)读回
+
+**状态:读回已验收;写入为"缺少接口契约"(不是实现遗漏)。**
+
+目标机 Dispatcher 注册表
+`HKLM\SYSTEM\CurrentControlSet\Services\LenovoProcessManagement\Performance\PowerSlider`
+的实际值名与文档常量拼写不一致(`Version` / `ITS_CurrentSetting` / `ITS_AutomaticModeSetting`
+/ `PowerSlider`),且 `RegGetValueW` 对这些混合大小写值名按**大小写敏感**比较:实测
+`ITS_CURRENT_SETTING` 返回 2(找不到),`ITS_CurrentSetting` 返回 3。因此读取端对每个值同时尝试
+文档拼写与实际拼写。
+
+| 项 | 值(实机) |
+|---|---|
+| `Version` | `8193`(0x2001 → Dispatcher **V3**) |
+| `ITS_CurrentSetting` / `ITS_CurrentSettingV` | `3` → `MmcPerformance` |
+| `ITS_AutomaticModeSetting` | `7`(非零 → 自动切换开启) |
+| `PowerSlider` | `1` |
+| `CURRENT_SETTING` / `CURRENT_STATE` / `AUTOMATIC_MODE_SETTING` | 不存在(该代只写 ITS 值名) |
+
+验收命令与结果:
+
+| 命令 | 结果 |
+|---|---|
+| `vantage perf mode --json` | `{"active":"performance","automatic":true,"capabilities":{"raw":1},"requested":"performance","version":"v3"}` |
+| `vantage tune telemetry --json` | `performance` 槽位返回同一状态对象(不再报 `CURRENT_SETTING` 缺失) |
+
+写入通道评估:WMI `LENOVO_GAMEZONE_DATA` 方法族在本机固件未实现(docs/03 §2.3 实机勘误,已复核);
+`LenovoProcessManagement` 的 SCM 控制码数值随 AcpiVpc 版本变化且服务对未知码静默返回成功,
+文档未给出可固化的数值 → 实测扫描控制码被排除在授权范围外,写入通道记录为**缺少接口契约**,
+`perf mode <mode>` 继续如实返回 `Unsupported`。
+
+附带实测(排除性证据):Windows 电源覆盖层 `PowerSetActiveOverlayScheme` 与
+`PowerGetActualOverlayScheme` 可用(actual 值随写入变化),但 `ITS_CurrentSetting` 不随之改变,
+`PowerGetEffectiveOverlayScheme` 始终保持 efficiency → 覆盖层不是 ITS 模式的替代写通道。
+
+## C5 · 处理器能效偏好(EPP)真实写入
+
+**状态:已验收** — 真实生效 + 服务回读 + **独立注册表回读** + dry-run 无副作用 + 精确恢复。
+
+独立回读来源:
+`HKLM\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes\<方案>\54533251-…\36687f9e-…`
+的 `ACSettingIndex`/`DCSettingIndex`(Power API 写入的持久化索引,不经我方代码)。
+
+| 步骤 | 命令 | 服务回读 | 注册表回读 |
+|---|---|---|---|
+| 初始 | `vantage tune telemetry --json` | raw 127 | AC=50 DC=50 |
+| dry-run | `vantage tune epp performance --dry-run` | previous 127, requested 0 | AC=50 DC=50(未变) |
+| 提交 | `vantage --yes tune epp performance` | actual 0 | **AC=0 DC=0** |
+| 恢复 | `vantage --yes tune epp 127` | actual 127 | **AC=50 DC=50** |
+
+`127 ↔ 50%` 的往返证明"raw HWP 值 ↔ Windows 百分比"映射是精确可逆的;无精确反解的 raw 值
+(如 128)继续被拒绝,不会静默取整。
+
+## C6 · 处理器睿频策略(PERFBOOSTMODE)真实写入
+
+**状态:已验收** — 真实生效 + 服务回读 + 独立注册表回读 + dry-run 无副作用 + 恢复。
+
+独立回读:`…\54533251-…\be337238-0d82-4146-a960-4f3749d470c7` 的 `ACSettingIndex`/`DCSettingIndex`。
+
+| 步骤 | 命令 | 服务回读 | 注册表回读 |
+|---|---|---|---|
+| 初始 | 读取 | previous ac=2 dc=2 | AC=(缺省→有效 2) DC=2 |
+| 关闭 | `vantage --yes tune turbo off` | actual 0/0 | **AC=0 DC=0** |
+| 开启 | `vantage --yes tune turbo on` | actual 1/1 | **AC=1 DC=1** |
+| 恢复 | `vantage --yes tune turbo aggressive` | actual 2/2 | **AC=2 DC=2** |
+| dry-run | `vantage --dry-run tune turbo off` | previous 2/2, requested 0/0 | AC=2 DC=2(未变) |
+
+真机暴露并修复的缺陷:`PERFBOOSTMODE` 的 `PowerReadValueMin` 在本机返回不可用,旧实现因此把整条
+睿频写入判定为不可用。修复为按文档枚举域(0..4)约束写入,`tune turbo` 也由布尔开关扩展为文档
+模式集(`off|on|aggressive|efficient|efficient-aggressive`),并保留原值恢复能力。
+
 ## C7 · 触控板失效恢复与控制器禁用缺陷修复
 
 **状态:触控板已恢复,用户确认可用;新版控制路径已通过回归与非中断式真机 smoke。
@@ -142,3 +273,48 @@ SHA-256:`8888c6f771c51f86ef7216d856a66a3952eb0b64ab4de0100fe66fe58154bfa5`。
 
 **使用安全边界:**确认恢复后没有再次提交 `touchpad off`,没有对正在使用的触摸板做故障注入。
 新版真实禁用效果及恢复仍需另行安排不会打断用户工作的验收窗口。
+
+## C8 · 新增功能的开发状态(尚未验收)
+
+本节记录 2026-10-27 的实验性工作区,不是发布或完成声明。Windows 工作区测试曾通过,
+但新增的 CLI/daemon 路径并非均有行为测试或真实硬件验收;整体状态仍为**开发中**。
+`evidence/native-admission-smoke-20261027.json` 仅记录 capability、进程清单和 Wi-Fi
+dry-run 的实际运行,不能证明写入、事件、OSD 或自动化完成。
+
+| 域 | 接入内容 | 当前证据 | 仍需的真机验收 |
+|---|---|---|---|
+| #4 能力矩阵 | `vantage capability/info/doctor` 改为按 `CommandServices` 实际服务绑定评估,输出 read/write/readback/rollback 轴、官方依赖清单与替代就绪报告 | 源码 + 单测 | 目标机重跑矩阵,确认服务绑定与实际执行路径一致 |
+| #18 进程调度 | `perf top/boost/throttle/restore/trim`:精确 PID + 创建时间身份守卫、拓扑派生的 P/E 亲和性掩码、用户态可恢复日志、显式一次性内存整理 | 源码 + 单测 | 目标机对自有进程实际读写优先级/亲和性并恢复;不得对关键系统进程操作 |
+| #38 Wi-Fi | `wifi security/history/policy`:改用公开 WlanApi 读取当前认证/加密,历史仅存本地且默认脱敏 | 源码 + 单测 | 目标机读取当前连接的认证/加密并与系统显示核对;未连接/权限拒绝需如实报告 |
+| #1 事件/watch | 有实验性 WMI 订阅与轮询路径 | 源码,未完成运行验证 | 实际变化、错误传播、断线重连、Ctrl+C/释放及 MagicBay 300 ms 重查 |
+| #2 自动策略 | 有求值引擎、配置模型与尚在检查的 daemon 集成 | 引擎单测,运行闭环未验收 | 不得把 UTC 冒充本地时间、硬件前值或未执行的回退当成功;完整场景切换和恢复待验证 |
+| #3 OSD | 有实验性 Windows overlay 与事件消费者 | 尚无真实画面或多屏证据 | 显示、非夺焦、生命周期、持久偏好及只显示实际回读均需修复并验证 |
+| #28 BIOS | `bios apply` 批量事务(复用 HAL 的 `plan_bios_apply`/`apply_bios_transaction`),破坏性项需 `--allow-destructive`,JSON 区分 accepted/saved/pending-reboot | 源码 + 单测 | 目标机批量写入后逐项回读并恢复;不得自动重启 |
+| #35 诊断 | HAL 有七态结果及取消模型;新 CLI 的跨进程生命周期尚未可靠 | HAL 单测;CLI 生命周期未验收 | 修复扫描结束等待、跨进程状态/取消的身份与并发;真机验证六类检查 |
+| #37 清单 | 有实验性只读固件报告 | 尚未有有效的变量读取证据 | 修复命名空间 GUID 和错误分类;结构布局/版本缺契约时只报告原始受限状态 |
+
+接入过程暴露的缺陷和当前边界:
+
+1. **能力矩阵错报**:Windows 输出把 `linux_sysfs` 列为必需依赖,且把已有
+   `ProcessorPowerControl` 的 turbo 写成不支持 → 改为按平台投影依赖并按实际服务绑定评估。
+2. **配置分层宏类型错误**:`overlay!` 把 `Option<T>` 直接赋给具体字段,
+   合并"已显式配置"时又需要相反语义 → 拆成 `overlay!` 与 `overlay_option!` 两套宏。
+3. **OSD/UEFI 运行语义尚待验证**:编译修复不等于屏幕上实际可见或固件变量可读;
+   不应将上述实验性接口发布为完成结果。
+
+## C9 · 基线 PR #40 与 main 集成
+
+**状态:增量实现基线已合入 `main`;完整替代仍未完成。**
+
+| 证据 | 实际结果 |
+|---|---|
+| Gitea PR #40 | 源头 `52805ef16c8bcdaaafe9ff2ef52b69fc4e448b6e`;原生 merge 提交 `15766658e16ad6bb98af8d1db707119f79d0b186` |
+| 合并对象 | 父提交依次为原 `main` `e5edaf40eebd6b1edf8d3fd9408902f1b2801219` 和上述 PR head;合并树与 PR head 的 Git 树逐对象一致 |
+| Gitea Linux CI | 精确 head 的 run **537**:fmt、clippy、workspace tests、release 构建和 artifact 上传均成功 |
+| 目标机 Windows | 精确 head 的 162 个归档源文件均经 SHA-256/长度核对;MSVC 全量 workspace 测试和 release 构建均退出 **0**,运行时设备测试 **29 passed** |
+| 非中断式触控板 smoke | 新程序 `--dry-run touchpad off` 报 `previous=enabled,requested=disabled`;控制器及四个 HID 集合的独立 PnP 状态前后均为 `OK / 0`,完全一致 |
+| Windows 二进制 | `C:\Users\ezra\vantage-replacement-target-r7\release\vantage.exe`;SHA-256 `e9b6cca961846b0db91712633e896197ad903da40c81e884e2e011f0c0596892` |
+| 回执 | 目标机原始 JSON SHA-256 `ba9223b799a44564429dbe8a013ccda6b76541d86e2e811f9ea9f590ae8f7454`;投影见 `evidence/pr40-exact-native-20261028.json`,PR 评论 292 保存核对结果 |
+
+该验证没有再次提交 `touchpad off`,没有 BIOS/固件写入或停用任何厂商组件。
+触控板叶节点完整禁用/恢复循环、其余 38 域的实际硬件效果和最小依赖切换依然按各自工单追踪。
