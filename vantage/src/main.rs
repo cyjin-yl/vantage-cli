@@ -352,6 +352,7 @@ fn main() {
     );
     let power = lctrl_hal_win::WindowsPowerP0::new(lctrl_hal_win::NativePowerApi);
     let thermal = lctrl_hal_win::WindowsThermal::new(lctrl_hal_win::NativeWmi, &battery);
+    let runtime_devices = lctrl_hal_win::NativeWindowsRuntimeDevices::default();
     let services = vantage_cli::CommandServices::new(&hal)
         .with_battery(&battery)
         .with_conflict_detection(&conflicts)
@@ -361,6 +362,8 @@ fn main() {
         .with_magicbay(&magicbay)
         .with_performance(&performance)
         .with_power(&power)
+        .with_privacy(&runtime_devices)
+        .with_touchpad(&runtime_devices)
         .with_tuning(&power)
         .with_processor_power(&power)
         .with_panel(&panel)
