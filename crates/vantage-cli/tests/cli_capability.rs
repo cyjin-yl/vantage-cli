@@ -221,6 +221,28 @@ fn runtime_and_persistent_layers_use_separate_services_and_statuses() {
 }
 
 #[test]
+fn capability_metadata_does_not_prove_an_unobserved_service_is_attached() {
+    let hal = FakeHal::new();
+    let rows = vantage_cli::evaluate_commands(&hal).unwrap();
+    let battery = rows
+        .iter()
+        .find(|row| row.command == lctrl_core::CommandId::BATTERY_STATUS)
+        .unwrap();
+    assert_eq!(battery.status, ObservedStatus::Unverified);
+    assert!(battery.service_roles.contains(&"battery"));
+    assert!(
+        rows.iter()
+            .flat_map(|row| &row.dependencies)
+            .all(|dependency| {
+                dependency
+                    .dependency
+                    .platform()
+                    .is_none_or(|platform| platform == Platform::Linux)
+            })
+    );
+}
+
+#[test]
 fn observed_absent_hardware_is_not_applicable_not_unsupported() {
     let hal = FakeHal::new();
     let capabilities = hal.capabilities().unwrap();

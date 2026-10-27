@@ -283,10 +283,10 @@ fn is_internal_audio_bus(parent: &str) -> bool {
 }
 
 fn is_internal_camera(device: &RuntimeDevice) -> bool {
-    if has_magicbay_identity(device) || !names(device).any(|name| has_camera_name(name)) {
+    if has_magicbay_identity(device) || !names(device).any(has_camera_name) {
         return false;
     }
-    names(device).any(|name| has_internal_camera_name(name)) || is_acpi_device(device)
+    names(device).any(has_internal_camera_name) || is_acpi_device(device)
 }
 
 fn has_magicbay_identity(device: &RuntimeDevice) -> bool {

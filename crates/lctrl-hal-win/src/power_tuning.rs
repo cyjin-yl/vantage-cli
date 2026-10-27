@@ -31,7 +31,7 @@ fn validate_epp_percent(percent: u32) -> Result<()> {
 /// values with no exact inverse are rejected rather than silently rounded.
 pub fn epp_percent_from_raw(raw: u8) -> Result<u32> {
     let raw_u32 = u32::from(raw);
-    let percent = (raw_u32 * 100 + 254) / 255;
+    let percent = (raw_u32 * 100).div_ceil(255);
     if percent <= 100 && epp_raw_from_percent(percent)? == raw {
         return Ok(percent);
     }
