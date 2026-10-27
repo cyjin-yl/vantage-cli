@@ -221,6 +221,43 @@ fn runtime_and_persistent_layers_use_separate_services_and_statuses() {
 }
 
 #[test]
+fn unavailable_staging_is_reported_for_bios_writes_not_reads() {
+    let hal = FakeHal::new();
+    let mut capabilities = hal.capabilities().unwrap();
+    capabilities
+        .record(
+            "bios.staging.owned",
+            Availability::Unavailable,
+            Some("ownership unverified".into()),
+        )
+        .unwrap();
+    let rows = vantage_cli::evaluate_commands_with_hardware(
+        &hal,
+        &capabilities,
+        lctrl_hal::HardwareObservation {
+            magicbay: lctrl_core::HardwarePresence::Unknown,
+        },
+    );
+    let write = rows
+        .iter()
+        .find(|row| row.command == lctrl_core::CommandId::KBD_FNLOCK)
+        .unwrap();
+    assert_eq!(write.status, ObservedStatus::Unavailable);
+    assert!(
+        write
+            .detail
+            .as_deref()
+            .unwrap()
+            .contains("ownership unverified")
+    );
+    let read = rows
+        .iter()
+        .find(|row| row.command == lctrl_core::CommandId::BIOS_GET)
+        .unwrap();
+    assert_ne!(read.status, ObservedStatus::Unavailable);
+}
+
+#[test]
 fn capability_metadata_does_not_prove_an_unobserved_service_is_attached() {
     let hal = FakeHal::new();
     let rows = vantage_cli::evaluate_commands(&hal).unwrap();

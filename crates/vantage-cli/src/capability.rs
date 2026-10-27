@@ -661,6 +661,26 @@ fn evaluate_command(
     let service_roles = service_role_names(entry.service);
     let service = service_presence(entry.service);
     let feature = feature_presence(entry.feature, capabilities, platform);
+    let blocked_staging = if entry.axes.write
+        && entry.service == ServiceBinding::One(ServiceRole::Bios)
+        && matches!(entry.dispatch, DispatchSupport::Implemented)
+    {
+        capabilities
+            .get("bios.staging.owned")
+            .filter(|capability| capability.availability == lctrl_core::Availability::Unavailable)
+    } else {
+        None
+    };
+    if let Some(capability) = blocked_staging {
+        return make(
+            entry,
+            hardware,
+            ObservedStatus::Unavailable,
+            capability.detail.clone(),
+            service_roles,
+            dependencies(entry, platform),
+        );
+    }
     let status = match (entry.dispatch, service, feature) {
         (_, _, _)
             if entry.hardware == HardwareRequirement::MagicBay

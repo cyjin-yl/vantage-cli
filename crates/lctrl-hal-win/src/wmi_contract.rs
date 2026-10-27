@@ -26,6 +26,12 @@ pub enum WmiValue {
 pub type WmiObject = BTreeMap<String, WmiValue>;
 
 pub trait WmiTransport: Send + Sync {
+    /// True only with an independently verified target-wide staging isolation
+    /// contract, not merely because WMI is reachable.
+    fn bios_staging_isolation_verified(&self) -> bool {
+        false
+    }
+
     fn query(&self, namespace: &str, wql: &str) -> Result<Vec<WmiObject>>;
 
     fn invoke_instance(
