@@ -61,6 +61,18 @@ where
     fn capabilities(&self) -> Result<CapabilitySet> {
         let mut capabilities = CapabilitySet::new(Platform::Windows);
 
+        let staging_isolated = self.wmi.bios_staging_isolation_verified();
+        capabilities.record(
+            "bios.staging.owned",
+            if staging_isolated {
+                Availability::Available
+            } else {
+                Availability::Unavailable
+            },
+            (!staging_isolated)
+                .then(|| "BIOS staging-buffer ownership and isolation are unverified".into()),
+        )?;
+
         let wmi_available = match active_instance(&self.wmi, "LENOVO_UTILITY_DATA") {
             Ok(_) => {
                 capabilities.record("channel.wmi.root", Availability::Available, None)?;

@@ -38,6 +38,16 @@ impl<W> BiosControl for WindowsBiosController<W>
 where
     W: WmiTransport,
 {
+    fn require_owned_staging(&self) -> Result<()> {
+        if self.transport.bios_staging_isolation_verified() {
+            Ok(())
+        } else {
+            Err(LctrlError::ChannelUnavailable {
+                channel: "BIOS staging-buffer ownership and isolation are unverified".into(),
+            })
+        }
+    }
+
     fn list(&self) -> Result<Vec<BiosItem>> {
         let mut items = self.settings()?;
         for item in &mut items {
@@ -75,6 +85,7 @@ where
     }
 
     fn stage(&self, change: BiosChange) -> Result<()> {
+        self.require_owned_staging()?;
         let output = self.invoke(
             BIOS_SET_CLASS,
             "SetBiosSetting",
@@ -84,6 +95,7 @@ where
     }
 
     fn save(&self) -> Result<()> {
+        self.require_owned_staging()?;
         let output = self.invoke(
             BIOS_SAVE_CLASS,
             "SaveBiosSettings",
@@ -96,6 +108,7 @@ where
     }
 
     fn discard(&self) -> Result<()> {
+        self.require_owned_staging()?;
         let output = self.invoke(
             BIOS_DISCARD_CLASS,
             "DiscardBiosSettings",

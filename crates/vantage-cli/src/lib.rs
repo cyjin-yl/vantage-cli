@@ -3786,6 +3786,7 @@ fn stage_and_save(bios: &dyn BiosControl, change: BiosChange) -> lctrl_core::Res
 }
 
 fn stage_and_save_many(bios: &dyn BiosControl, changes: &[BiosChange]) -> lctrl_core::Result<()> {
+    bios.require_owned_staging()?;
     for change in changes {
         if let Err(error) = bios.stage(change.clone()) {
             return discard_after_bios_failure(bios, error);
@@ -3924,6 +3925,7 @@ fn execute_bios(
                     "BIOS discard dry run validated; no staged changes discarded\n".into(),
                 )
             } else {
+                bios.require_owned_staging()?;
                 bios.discard()?;
                 structured_output(&(), "BIOS staged changes discarded\n".into())
             }
