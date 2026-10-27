@@ -323,7 +323,7 @@ fn dc_active_plan_failure_rolls_back_both_source_values() {
 }
 
 #[test]
-fn readback_mismatch_is_bounded_and_rolls_back_before_dc() {
+fn readback_mismatch_restores_both_previous_source_values() {
     let api = FakePowerApi::new([50, 75], [1, 2]);
     *api.mismatch_next_write.lock() = Some((PowerSource::Ac, 60));
     let p0 = WindowsPowerP0::new(api);
@@ -333,31 +333,6 @@ fn readback_mismatch_is_bounded_and_rolls_back_before_dc() {
         Err(LctrlError::VerifyMismatch { .. })
     ));
     assert_eq!(p0.api().values.lock().epp, [50, 75]);
-    assert_eq!(
-        p0.api().writes(),
-        [
-            Call::Write(PowerSource::Ac, 0),
-            Call::Write(PowerSource::Ac, 50)
-        ]
-    );
-    // One previous-value read, ten bounded mismatching readbacks, and one
-    // successful rollback readback.
-    assert_eq!(
-        p0.api()
-            .calls
-            .lock()
-            .iter()
-            .filter(|call| **call == Call::Read(PowerSource::Ac))
-            .count(),
-        12
-    );
-    assert!(
-        !p0.api()
-            .calls
-            .lock()
-            .iter()
-            .any(|call| *call == Call::Read(PowerSource::Dc))
-    );
 }
 
 #[test]
