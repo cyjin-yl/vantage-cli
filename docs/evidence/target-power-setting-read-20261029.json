@@ -1,0 +1,600 @@
+{
+  "scope": "Read-only selected Windows power-scheme setting indices, numeric-range availability and group-policy results; no power-setting writes or physical-effect acceptance.",
+  "machine": "TB14P-EZRA",
+  "tested_source_commit": "96d0be70719e0ee5b95cbbddfa3db231d3be3469",
+  "base_main": "6d8018e995157bb1d667760c3a664adbb5d6c4e2",
+  "source": {
+    "manifest_sha256": "d6c7deec5ee440f60035781cde595ae6922d16e182e554237d1d02023a49ea99",
+    "archive_sha256": "18bdf7d485cbdf8987452581872f0ad2ef987bb9182ec2052e5018dbcb0ce91c",
+    "rust_build_file_count": 140,
+    "source_membership_equal": true,
+    "source_bytes_equal_before_and_after_build": true,
+    "dependency_binding_sha256": "08516a7de379e8694e94db99fd4e62039ac14e8657155affb796eff2bb67e2bc"
+  },
+  "ci": {
+    "run": 605,
+    "tested_head": "96d0be70719e0ee5b95cbbddfa3db231d3be3469",
+    "conclusion": "success"
+  },
+  "native": {
+    "binary_sha256": "7158e4662d09398555c0f850aadc727640864e75e4c13fe2d258063bf33e5b77",
+    "binary_bytes": 3837440,
+    "build_exit": 0,
+    "native_test_exit": 0,
+    "cli_test_exit": 0,
+    "library_tests": 24,
+    "power_backend_fake_tests": 14,
+    "power_tuning_fake_tests": 12,
+    "cli_fake_tests": 5,
+    "build_receipt_sha256": "366fb9e0aad230b6871e6aeb4ce78e13c09de84ff9501206a9bea074c109045f",
+    "logs": [
+      {
+        "role": "build.out",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "length": 0
+      },
+      {
+        "role": "build.err",
+        "sha256": "72d25a7fe63754d25ca8027d43e736a46e412f009102936cf0529a1a2af8ba29",
+        "length": 3269
+      },
+      {
+        "role": "native-test.out",
+        "sha256": "8fab18806cf0563f85754fd701acb6a500bf2b8baad8f8c5f6333c9412badc18",
+        "length": 4511
+      },
+      {
+        "role": "native-test.err",
+        "sha256": "f35e56d76b7ed5523b9210f2ee64b3e425186bf5cdfbb7bd4a4fc2f92c228db9",
+        "length": 961
+      },
+      {
+        "role": "contract-test.out",
+        "sha256": "60b6325e89dd5fdad0b308e745f86b8a49eede904fe650324cb40755fb3beefe",
+        "length": 468
+      },
+      {
+        "role": "contract-test.err",
+        "sha256": "68d897dfd691580f036a59a665846fa80475a5882c98b8bb0115a1ea59d249c2",
+        "length": 1166
+      }
+    ]
+  },
+  "linux_cli_smoke": {
+    "machine": "doesvm Linux host",
+    "source_manifest_sha256": "d6c7deec5ee440f60035781cde595ae6922d16e182e554237d1d02023a49ea99",
+    "binary_sha256": "ac09c10bf877270c1ddd61ce0858d950a686877db546a9f130953a2d41cb8d95",
+    "capability_exit": 0,
+    "setting_read_row": {
+      "command": "power.scheme.setting.read",
+      "status": "unsupported",
+      "feature_ids": [
+        "power.scheme.setting.read"
+      ],
+      "layer": "os_persistent"
+    },
+    "help_exit": 0,
+    "help_exposes_paired_selectors": true,
+    "receipt_source": "successful actual CLI smoke in this session; the original output was not saved separately",
+    "hardware_writes_requested": false
+  },
+  "target_live": {
+    "binary_sha256": "7158e4662d09398555c0f850aadc727640864e75e4c13fe2d258063bf33e5b77",
+    "source_manifest_sha256": "d6c7deec5ee440f60035781cde595ae6922d16e182e554237d1d02023a49ea99",
+    "scheme": "381b4222-f694-41f0-9685-ff5bb260df2e",
+    "stage": "display_idle",
+    "completed_utc": "2026-10-28T18:37:08.8683475Z",
+    "machine": "TB14P-EZRA",
+    "status": "success",
+    "hardware_writes_requested": false,
+    "observations": [
+      {
+        "name": "epp",
+        "before": {
+          "scheme": "381b4222-f694-41f0-9685-ff5bb260df2e",
+          "subgroup": "54533251-82be-4824-96c1-47b60b740d00",
+          "setting": "36687f9e-e3a5-4dbf-b1dc-15eb381c6863",
+          "ac_status": 0,
+          "ac": 50,
+          "dc_status": 0,
+          "dc": 50,
+          "min_status": 0,
+          "min": 0,
+          "max_status": 0,
+          "max": 100,
+          "increment_status": 0,
+          "increment": 1,
+          "ac_policy_status": 0,
+          "dc_policy_status": 0,
+          "registry": {
+            "key_present": true,
+            "ac_present": true,
+            "dc_present": true,
+            "ac": 50,
+            "dc": 50
+          }
+        },
+        "cli": {
+          "exit_code": 0,
+          "timed_out": false,
+          "stdout_sha256": "8218a753d06b603f57c1016e18434345dee7a1a157d79ffb1a65f92c0bb0c1b6",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "json": {
+            "key": {
+              "setting": "36687f9e-e3a5-4dbf-b1dc-15eb381c6863",
+              "subgroup": "54533251-82be-4824-96c1-47b60b740d00"
+            },
+            "policy_overrides": {
+              "ac": false,
+              "dc": false
+            },
+            "range": {
+              "range": {
+                "increment": 1,
+                "max": 100,
+                "min": 0
+              },
+              "status": "available"
+            },
+            "scheme": "381b4222-f694-41f0-9685-ff5bb260df2e",
+            "values": {
+              "ac": 50,
+              "dc": 50
+            }
+          },
+          "parse_error": null,
+          "stderr_present": false
+        },
+        "after": {
+          "scheme": "381b4222-f694-41f0-9685-ff5bb260df2e",
+          "subgroup": "54533251-82be-4824-96c1-47b60b740d00",
+          "setting": "36687f9e-e3a5-4dbf-b1dc-15eb381c6863",
+          "ac_status": 0,
+          "ac": 50,
+          "dc_status": 0,
+          "dc": 50,
+          "min_status": 0,
+          "min": 0,
+          "max_status": 0,
+          "max": 100,
+          "increment_status": 0,
+          "increment": 1,
+          "ac_policy_status": 0,
+          "dc_policy_status": 0,
+          "registry": {
+            "key_present": true,
+            "ac_present": true,
+            "dc_present": true,
+            "ac": 50,
+            "dc": 50
+          }
+        },
+        "active_scheme_after": "381b4222-f694-41f0-9685-ff5bb260df2e",
+        "reference_stable": true
+      },
+      {
+        "name": "boost",
+        "before": {
+          "scheme": "381b4222-f694-41f0-9685-ff5bb260df2e",
+          "subgroup": "54533251-82be-4824-96c1-47b60b740d00",
+          "setting": "be337238-0d82-4146-a960-4f3749d470c7",
+          "ac_status": 0,
+          "ac": 2,
+          "dc_status": 0,
+          "dc": 2,
+          "min_status": 2,
+          "min": null,
+          "max_status": 2,
+          "max": null,
+          "increment_status": 2,
+          "increment": null,
+          "ac_policy_status": 0,
+          "dc_policy_status": 0,
+          "registry": {
+            "key_present": true,
+            "ac_present": true,
+            "dc_present": true,
+            "ac": 2,
+            "dc": 2
+          }
+        },
+        "cli": {
+          "exit_code": 0,
+          "timed_out": false,
+          "stdout_sha256": "dd5aa6572e55dd03e4d81bdfec78a6e815d2d8f9d94ea125bced9ec0e41c364f",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "json": {
+            "key": {
+              "setting": "be337238-0d82-4146-a960-4f3749d470c7",
+              "subgroup": "54533251-82be-4824-96c1-47b60b740d00"
+            },
+            "policy_overrides": {
+              "ac": false,
+              "dc": false
+            },
+            "range": {
+              "detail": "channel is unavailable: PowerReadValueMin",
+              "status": "unavailable"
+            },
+            "scheme": "381b4222-f694-41f0-9685-ff5bb260df2e",
+            "values": {
+              "ac": 2,
+              "dc": 2
+            }
+          },
+          "parse_error": null,
+          "stderr_present": false
+        },
+        "after": {
+          "scheme": "381b4222-f694-41f0-9685-ff5bb260df2e",
+          "subgroup": "54533251-82be-4824-96c1-47b60b740d00",
+          "setting": "be337238-0d82-4146-a960-4f3749d470c7",
+          "ac_status": 0,
+          "ac": 2,
+          "dc_status": 0,
+          "dc": 2,
+          "min_status": 2,
+          "min": null,
+          "max_status": 2,
+          "max": null,
+          "increment_status": 2,
+          "increment": null,
+          "ac_policy_status": 0,
+          "dc_policy_status": 0,
+          "registry": {
+            "key_present": true,
+            "ac_present": true,
+            "dc_present": true,
+            "ac": 2,
+            "dc": 2
+          }
+        },
+        "active_scheme_after": "381b4222-f694-41f0-9685-ff5bb260df2e",
+        "reference_stable": true
+      },
+      {
+        "name": "processor_max",
+        "before": {
+          "scheme": "381b4222-f694-41f0-9685-ff5bb260df2e",
+          "subgroup": "54533251-82be-4824-96c1-47b60b740d00",
+          "setting": "bc5038f7-23e0-4960-96da-33abaf5935ec",
+          "ac_status": 0,
+          "ac": 100,
+          "dc_status": 0,
+          "dc": 100,
+          "min_status": 0,
+          "min": 0,
+          "max_status": 0,
+          "max": 100,
+          "increment_status": 0,
+          "increment": 1,
+          "ac_policy_status": 0,
+          "dc_policy_status": 0,
+          "registry": {
+            "key_present": true,
+            "ac_present": true,
+            "dc_present": true,
+            "ac": 100,
+            "dc": 100
+          }
+        },
+        "cli": {
+          "exit_code": 0,
+          "timed_out": false,
+          "stdout_sha256": "9aa03f4b19a158f990296c4f234f41ca8e1de3f575586a4cbeeefab6e47fe179",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "json": {
+            "key": {
+              "setting": "bc5038f7-23e0-4960-96da-33abaf5935ec",
+              "subgroup": "54533251-82be-4824-96c1-47b60b740d00"
+            },
+            "policy_overrides": {
+              "ac": false,
+              "dc": false
+            },
+            "range": {
+              "range": {
+                "increment": 1,
+                "max": 100,
+                "min": 0
+              },
+              "status": "available"
+            },
+            "scheme": "381b4222-f694-41f0-9685-ff5bb260df2e",
+            "values": {
+              "ac": 100,
+              "dc": 100
+            }
+          },
+          "parse_error": null,
+          "stderr_present": false
+        },
+        "after": {
+          "scheme": "381b4222-f694-41f0-9685-ff5bb260df2e",
+          "subgroup": "54533251-82be-4824-96c1-47b60b740d00",
+          "setting": "bc5038f7-23e0-4960-96da-33abaf5935ec",
+          "ac_status": 0,
+          "ac": 100,
+          "dc_status": 0,
+          "dc": 100,
+          "min_status": 0,
+          "min": 0,
+          "max_status": 0,
+          "max": 100,
+          "increment_status": 0,
+          "increment": 1,
+          "ac_policy_status": 0,
+          "dc_policy_status": 0,
+          "registry": {
+            "key_present": true,
+            "ac_present": true,
+            "dc_present": true,
+            "ac": 100,
+            "dc": 100
+          }
+        },
+        "active_scheme_after": "381b4222-f694-41f0-9685-ff5bb260df2e",
+        "reference_stable": true
+      },
+      {
+        "name": "disk_idle",
+        "before": {
+          "scheme": "381b4222-f694-41f0-9685-ff5bb260df2e",
+          "subgroup": "0012ee47-9041-4b5d-9b77-535fba8b1442",
+          "setting": "6738e2c4-e8a5-4a42-b16a-e040e769756e",
+          "ac_status": 0,
+          "ac": 30,
+          "dc_status": 0,
+          "dc": 30,
+          "min_status": 0,
+          "min": 0,
+          "max_status": 0,
+          "max": 4294967295,
+          "increment_status": 0,
+          "increment": 1,
+          "ac_policy_status": 0,
+          "dc_policy_status": 0,
+          "registry": {
+            "key_present": true,
+            "ac_present": true,
+            "dc_present": true,
+            "ac": 30,
+            "dc": 30
+          }
+        },
+        "cli": {
+          "exit_code": 0,
+          "timed_out": false,
+          "stdout_sha256": "484fc93d7a928cc541362af06f74fe5085bd60b36f1580e68b5ae0bbb596e10b",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "json": {
+            "key": {
+              "setting": "6738e2c4-e8a5-4a42-b16a-e040e769756e",
+              "subgroup": "0012ee47-9041-4b5d-9b77-535fba8b1442"
+            },
+            "policy_overrides": {
+              "ac": false,
+              "dc": false
+            },
+            "range": {
+              "range": {
+                "increment": 1,
+                "max": 4294967295,
+                "min": 0
+              },
+              "status": "available"
+            },
+            "scheme": "381b4222-f694-41f0-9685-ff5bb260df2e",
+            "values": {
+              "ac": 30,
+              "dc": 30
+            }
+          },
+          "parse_error": null,
+          "stderr_present": false
+        },
+        "after": {
+          "scheme": "381b4222-f694-41f0-9685-ff5bb260df2e",
+          "subgroup": "0012ee47-9041-4b5d-9b77-535fba8b1442",
+          "setting": "6738e2c4-e8a5-4a42-b16a-e040e769756e",
+          "ac_status": 0,
+          "ac": 30,
+          "dc_status": 0,
+          "dc": 30,
+          "min_status": 0,
+          "min": 0,
+          "max_status": 0,
+          "max": 4294967295,
+          "increment_status": 0,
+          "increment": 1,
+          "ac_policy_status": 0,
+          "dc_policy_status": 0,
+          "registry": {
+            "key_present": true,
+            "ac_present": true,
+            "dc_present": true,
+            "ac": 30,
+            "dc": 30
+          }
+        },
+        "active_scheme_after": "381b4222-f694-41f0-9685-ff5bb260df2e",
+        "reference_stable": true
+      },
+      {
+        "name": "display_idle",
+        "before": {
+          "scheme": "381b4222-f694-41f0-9685-ff5bb260df2e",
+          "subgroup": "7516b95f-f776-4464-8c53-06167f40cc99",
+          "setting": "3c0bc021-c8a8-4e07-a973-6b14cbcb2b7e",
+          "ac_status": 0,
+          "ac": 0,
+          "dc_status": 0,
+          "dc": 180,
+          "min_status": 0,
+          "min": 0,
+          "max_status": 0,
+          "max": 4294967295,
+          "increment_status": 0,
+          "increment": 1,
+          "ac_policy_status": 0,
+          "dc_policy_status": 0,
+          "registry": {
+            "key_present": true,
+            "ac_present": true,
+            "dc_present": true,
+            "ac": 0,
+            "dc": 180
+          }
+        },
+        "cli": {
+          "exit_code": 0,
+          "timed_out": false,
+          "stdout_sha256": "db3b9a45087f7af99c7352a6805c9e35283a11e83393154505b7680c9edc2f64",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "json": {
+            "key": {
+              "setting": "3c0bc021-c8a8-4e07-a973-6b14cbcb2b7e",
+              "subgroup": "7516b95f-f776-4464-8c53-06167f40cc99"
+            },
+            "policy_overrides": {
+              "ac": false,
+              "dc": false
+            },
+            "range": {
+              "range": {
+                "increment": 1,
+                "max": 4294967295,
+                "min": 0
+              },
+              "status": "available"
+            },
+            "scheme": "381b4222-f694-41f0-9685-ff5bb260df2e",
+            "values": {
+              "ac": 0,
+              "dc": 180
+            }
+          },
+          "parse_error": null,
+          "stderr_present": false
+        },
+        "after": {
+          "scheme": "381b4222-f694-41f0-9685-ff5bb260df2e",
+          "subgroup": "7516b95f-f776-4464-8c53-06167f40cc99",
+          "setting": "3c0bc021-c8a8-4e07-a973-6b14cbcb2b7e",
+          "ac_status": 0,
+          "ac": 0,
+          "dc_status": 0,
+          "dc": 180,
+          "min_status": 0,
+          "min": 0,
+          "max_status": 0,
+          "max": 4294967295,
+          "increment_status": 0,
+          "increment": 1,
+          "ac_policy_status": 0,
+          "dc_policy_status": 0,
+          "registry": {
+            "key_present": true,
+            "ac_present": true,
+            "dc_present": true,
+            "ac": 0,
+            "dc": 180
+          }
+        },
+        "active_scheme_after": "381b4222-f694-41f0-9685-ff5bb260df2e",
+        "reference_stable": true
+      }
+    ]
+  },
+  "private_receipt_hashes": [
+    {
+      "name": "final.json",
+      "sha256": "92bb754970f39c6ce21e0ff8c4de1490387956e39292cc54f791a9ee4d601d63",
+      "length": 7863
+    },
+    {
+      "name": "power-read-live.ps1",
+      "sha256": "a204554170f772637c2509ebcd6a831cd190c24d89fde12a5fb612c537b505cb",
+      "length": 10935
+    },
+    {
+      "name": "epp.out",
+      "sha256": "8218a753d06b603f57c1016e18434345dee7a1a157d79ffb1a65f92c0bb0c1b6",
+      "length": 300
+    },
+    {
+      "name": "epp.err",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "length": 0
+    },
+    {
+      "name": "boost.out",
+      "sha256": "dd5aa6572e55dd03e4d81bdfec78a6e815d2d8f9d94ea125bced9ec0e41c364f",
+      "length": 311
+    },
+    {
+      "name": "boost.err",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "length": 0
+    },
+    {
+      "name": "processor_max.out",
+      "sha256": "9aa03f4b19a158f990296c4f234f41ca8e1de3f575586a4cbeeefab6e47fe179",
+      "length": 302
+    },
+    {
+      "name": "processor_max.err",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "length": 0
+    },
+    {
+      "name": "disk_idle.out",
+      "sha256": "484fc93d7a928cc541362af06f74fe5085bd60b36f1580e68b5ae0bbb596e10b",
+      "length": 307
+    },
+    {
+      "name": "disk_idle.err",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "length": 0
+    },
+    {
+      "name": "display_idle.out",
+      "sha256": "db3b9a45087f7af99c7352a6805c9e35283a11e83393154505b7680c9edc2f64",
+      "length": 307
+    },
+    {
+      "name": "display_idle.err",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "length": 0
+    },
+    {
+      "name": "vantage-power-read-source-readback-d6c7deec5ee440f6.json",
+      "sha256": "f6bdff92bd385a95d4e65979b94502d1ec0af8f3157fdca7ecd6e218f75001b9",
+      "length": 19838
+    },
+    {
+      "name": "vantage-power-read-dependency-binding-d6c7deec5ee440f6.json",
+      "sha256": "d94c91bc79fd15ffa1421701c7c22e9f1e538fe7aeafae546ea7d97663328f32",
+      "length": 303
+    },
+    {
+      "name": "vantage-power-read-native-d6c7deec5ee440f6-directwait1.json",
+      "sha256": "366fb9e0aad230b6871e6aeb4ce78e13c09de84ff9501206a9bea074c109045f",
+      "length": 985
+    },
+    {
+      "name": "vantage-power-read-postbuild-readback-d6c7deec5ee440f6.json",
+      "sha256": "942fa8a6b53cb2511da850c09d4dcc528b931271eb04ab6e85bbfdb5b73fdde4",
+      "length": 2424
+    }
+  ],
+  "boundaries": [
+    "Independent comparison used a separate PowerShell process calling the same public Windows Power APIs, plus direct registry indices where present; it is not a separate physical sensor.",
+    "The target had one active plan; binding a non-active named scheme and active-plan switching were exercised with fakes only.",
+    "The individual observations are non-atomic; equality before/after does not exclude every intervening change.",
+    "PowerSettingAccessCheck reports group-policy status per setting/source, not a per-scheme or general write-permission guarantee.",
+    "Stored policy values and ranges are not evidence of actual CPU frequency, power consumption, disk spin-down or display behaviour.",
+    "No target power-setting mutation, scheme activation, external concurrent-write or crash-recovery test was performed.",
+    "This read-only primitive does not complete tracker #39 or the entire power-control domain."
+  ]
+}
