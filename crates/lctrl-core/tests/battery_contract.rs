@@ -279,10 +279,21 @@ fn telemetry_maps_unsupported_sentinels_to_absent_fields() {
 #[test]
 fn telemetry_converts_deci_kelvin_to_celsius() {
     let mut telemetry = BatteryTelemetry::parse(&telemetry_fixture()).unwrap();
-    telemetry.temperature_deci_kelvin = Some(3061);
-    let celsius = telemetry.temperature_celsius().unwrap();
-    assert!((celsius - 32.94).abs() < 0.01, "got {celsius}");
-    assert_eq!(telemetry.temperature_deci_kelvin, Some(3061));
+    for (raw, expected) in [
+        (2731, -0.05_f32),
+        (2732, 0.05),
+        (3061, 32.95),
+        (5000, 226.85),
+    ] {
+        telemetry.temperature_deci_kelvin = Some(raw);
+        let celsius = telemetry.temperature_celsius().unwrap();
+        assert!(
+            (celsius - expected).abs() < 0.0001,
+            "raw={raw}, got={celsius}"
+        );
+    }
+    telemetry.temperature_deci_kelvin = None;
+    assert_eq!(telemetry.temperature_celsius(), None);
 }
 
 #[test]
