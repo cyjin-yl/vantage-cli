@@ -1,0 +1,212 @@
+{
+  "scope": "Target 1% brightness change with synthetic transport failure after real WMI method completion and independent midpoint/final WMI observations. The executable is a diagnostic consumer of the exact production backend, not the production CLI.",
+  "machine": "TB14P-EZRA",
+  "tested_production_source_commit": "9cc6f98da0006da30e0897a973a8173484ba35da",
+  "production_source_manifest_sha256": "c9da34756964d8db9606a1cb380589bcd3a9a6ae5cb33277b5c641ffacd56048",
+  "production_cli_binary_sha256": "a867b8548f1acf9c8497477d0d2f2d30f752c230d6bcd15217520029d004601f",
+  "diagnostic_consumer": {
+    "source_sha256": "33c3b6a8987acca23784befec0b297308832aea5a92b799e37f4e667424c02fe",
+    "manifest_sha256": "7c5e558b078f437d56de03cad4557ad73879d63520800601dbcdfea290591d9d",
+    "lock_sha256": "29bb38659d4d6becedd5db8aebfbce7464fffd8b478fc97918e4fd081120774b",
+    "dependency_binding_sha256": "08516a7de379e8694e94db99fd4e62039ac14e8657155affb796eff2bb67e2bc",
+    "binary_sha256": "fc799277949de4cab4d40a4c3ef2130718f29672bb59e25a61c91c8b942a6e0d",
+    "binary_bytes": 431104,
+    "native_build_exit": 0,
+    "native_fake_test_exit": 0,
+    "native_fake_cases": 4,
+    "consumer_membership_equal": true,
+    "consumer_all_input_bytes_equal": true,
+    "production_source_membership_and_bytes_verified_before_after_build": true,
+    "observer_timeout_seconds": 30,
+    "failure_injection": "On first successful native WMI setter completion, signal independent observer; after acknowledgement or timeout return synthetic I/O failure to the unmodified WindowsPanelBrightness backend. A second setter, if recovery is appropriate, is forwarded to native WMI."
+  },
+  "observer_simulations": [
+    {
+      "case": "normal",
+      "final_sha256": "f9e5b8cd47c75bed45591fece9326e4084aa64826d55038eadf5a1ab13dd01f9",
+      "simulation_script_sha256": "f254d5fc798e4baa9034bcb35ed9e02676098d9f8e56e275f348e846c1a6428a",
+      "child_script_sha256": "82da604c9c50f039c462dda0f2550e4586c0546f3af1b7721b438c544f7155ca",
+      "status": "success",
+      "recovery": "independent_previous",
+      "outer_restore_attempted": false
+    },
+    {
+      "case": "foreign",
+      "final_sha256": "b53c4787d52d167feb39c8fa5df44b6be1a0a75309fd0ceee14c77bb6c4cb611",
+      "simulation_script_sha256": "63bb2ab22e79b4a8d0fa2174fdaa3e04195b83257dd8e4d3a603f8bbc523d3eb",
+      "child_script_sha256": "82da604c9c50f039c462dda0f2550e4586c0546f3af1b7721b438c544f7155ca",
+      "status": "failed",
+      "recovery": "third_value_no_write",
+      "outer_restore_attempted": false
+    },
+    {
+      "case": "outer",
+      "final_sha256": "ae91ce8161c3a1d32762c85a420dffffc335ef7dd9496158eaf704387f58dbd0",
+      "simulation_script_sha256": "f513d2a10f31a07ae21b190f97a5a09231a4106542ca857c955f9bfb4cf586ad",
+      "child_script_sha256": "82da604c9c50f039c462dda0f2550e4586c0546f3af1b7721b438c544f7155ca",
+      "status": "failed",
+      "recovery": "outer_restored",
+      "outer_restore_attempted": true
+    },
+    {
+      "case": "unobserved",
+      "final_sha256": "7137fbde78100583c43837bf113ff1ebcbc56d56900820bf975faeb8c5c1dae1",
+      "simulation_script_sha256": "62540ce2cc502007ebf0ad647e00f4e914fcf00844ba7756645d4507347a6ad6",
+      "child_script_sha256": "82da604c9c50f039c462dda0f2550e4586c0546f3af1b7721b438c544f7155ca",
+      "status": "failed",
+      "recovery": "third_value_no_write",
+      "outer_restore_attempted": false
+    }
+  ],
+  "target_fault": {
+    "same_identity_after_fault": true,
+    "after_fault": {
+      "current": 55,
+      "levels_count": 101,
+      "technology": 2147483648
+    },
+    "mid_verified": true,
+    "recovery": "independent_previous",
+    "child_exit": 0,
+    "completed_utc": "2026-10-28T17:22:25.1477753Z",
+    "child_exit_known": true,
+    "user_approved_vendor_conflict_override": true,
+    "before": {
+      "current": 55,
+      "levels_count": 101,
+      "technology": 2147483648
+    },
+    "scope": "one adjacent one-percent brightness change with a synthetic failure after native WMI completion",
+    "raw_monitor_identity_in_public_receipt": false,
+    "production_binary_sha256": "a867b8548f1acf9c8497477d0d2f2d30f752c230d6bcd15217520029d004601f",
+    "fault_started": true,
+    "stage": "verification",
+    "marker_seen": true,
+    "mid": {
+      "current": 54,
+      "same_identity": true
+    },
+    "source_manifest_sha256": "c9da34756964d8db9606a1cb380589bcd3a9a6ae5cb33277b5c641ffacd56048",
+    "fault_binary_sha256": "fc799277949de4cab4d40a4c3ef2130718f29672bb59e25a61c91c8b942a6e0d",
+    "outer_restore_attempted": false,
+    "requested": 54,
+    "status": "success",
+    "fault": {
+      "exit_code": 0,
+      "stdout_sha256": "612e5d480f9eb4aa28cd3228a26804452abf898c8b893c47f27b4e28638296dd",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "json": {
+        "dry_run_no_setter": true,
+        "expected_injected_error": true,
+        "setter_calls": 2,
+        "first_transport_completed": true,
+        "recovery_transport_completed": true,
+        "marker_written": true,
+        "observer_acknowledged": true
+      },
+      "parse_error": null,
+      "stderr_present": false
+    },
+    "machine": "TB14P-EZRA"
+  },
+  "private_receipt_hashes": [
+    {
+      "name": "native-build-corrected.json",
+      "sha256": "574138041d557ba2b6c3f322346dfe43250f664e962ed12cd69ddf8b6411741f",
+      "length": 990
+    },
+    {
+      "name": "native-build-corrected.lock.out",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "length": 0
+    },
+    {
+      "name": "native-build-corrected.lock.err",
+      "sha256": "09141599f4a56c00e4f14259b821077143607204366d096b709e8e1f18f15af3",
+      "length": 67
+    },
+    {
+      "name": "native-build-corrected.test.out",
+      "sha256": "2e2d0e45111d7cd7343084c667d84e10e06981e2b19d3784065a2dbe592241cb",
+      "length": 318
+    },
+    {
+      "name": "native-build-corrected.test.err",
+      "sha256": "d64b3eff69cc704df206fdd8b4702919bd03cc79bcb4a22db3c393437a0d660a",
+      "length": 2022
+    },
+    {
+      "name": "native-build-corrected.build.out",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "length": 0
+    },
+    {
+      "name": "native-build-corrected.build.err",
+      "sha256": "a9b6001e6fe050ba9c124f9dd0a726e99d70ac0a1ecd749c49f6ed05433a0194",
+      "length": 560
+    },
+    {
+      "name": "fault-live-approved.ps1",
+      "sha256": "fd56f40c3eab6df81abd9e3d025667de760b81fda4f90f984c117add5d00503c",
+      "length": 12252
+    },
+    {
+      "name": "fault-intent.json",
+      "sha256": "5a29bb44206b60f1252a7d5220549c1ca48c2d32e3f6a74775570839b3e6e133",
+      "length": 353
+    },
+    {
+      "name": "native-completion.marker",
+      "sha256": "3879b6d1b63438cd7ea033dd09e9fc7ca869236ecc7e7489ba508007ad584628",
+      "length": 47
+    },
+    {
+      "name": "observer-ack.marker",
+      "sha256": "981f9b84ef41dc7379031a8ba6f85c1ced96c747e4bd04fe1dc6c8ec4eb9a6ff",
+      "length": 48
+    },
+    {
+      "name": "mid-observation.json",
+      "sha256": "6e609255e796172aebcf881777202ba9be4010463992e36146a35327565284d1",
+      "length": 35
+    },
+    {
+      "name": "fault.out",
+      "sha256": "612e5d480f9eb4aa28cd3228a26804452abf898c8b893c47f27b4e28638296dd",
+      "length": 195
+    },
+    {
+      "name": "fault.err",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "length": 0
+    },
+    {
+      "name": "fault.json",
+      "sha256": "b520c0013bfa134486d886a50820ea8744a16d7e1038613e1eb8701e79cb7bea",
+      "length": 425
+    },
+    {
+      "name": "final.json",
+      "sha256": "f9daa949533d8a96751918fe63d7533736b9401372b27141d1cce0a8879caa2d",
+      "length": 1415
+    },
+    {
+      "name": "Cargo.lock",
+      "sha256": "29bb38659d4d6becedd5db8aebfbce7464fffd8b478fc97918e4fd081120774b",
+      "length": 14628
+    }
+  ],
+  "failed_prebuild_gate": {
+    "reason": "An unexpanded manifest path placeholder caused the initial isolated diagnostic build guard to fail before Cargo or device actions. Corrected under a fresh receipt; no hardware write was issued by that failed step.",
+    "hardware_writes_requested": false
+  },
+  "boundaries": [
+    "Injected failure is synthetic after a successful native method call; this is not a genuine WMI-provider failure.",
+    "The diagnostic consumer called the exact production backend from the source snapshot; the production CLI was not invoked during the successful fault test.",
+    "A separate process independently read the same WMI identity at the requested midpoint and at the previous value afterward; no independent physical luminance measurement was made.",
+    "No outer recovery write was needed.",
+    "Observed third values are protected in fake tests; real concurrent writers, same-value ambiguity, late provider completion and process crash recovery remain unproved.",
+    "Global mutex and expected-current checks cannot make foreign writers atomic.",
+    "This does not implement or validate the full power saver-once transaction or vendor replacement."
+  ]
+}
