@@ -81,6 +81,14 @@ impl PowerControl for FakeP0 {
         unreachable!()
     }
 
+    fn read_power_setting(
+        &self,
+        _scheme: &PowerSchemeId,
+        _key: &PowerSettingKey,
+    ) -> lctrl_core::Result<lctrl_core::PowerSettingObservation> {
+        unreachable!()
+    }
+
     fn apply_power_mutation(
         &self,
         _mutation: PowerMutation,

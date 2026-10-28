@@ -57,6 +57,29 @@ pub struct PowerValueRange {
     pub increment: u32,
 }
 
+/// A numeric range may be unavailable even when stored setting values exist.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum PowerRangeObservation {
+    Available { range: PowerValueRange },
+    Unavailable { detail: String },
+}
+
+/// Stored values and metadata for one setting in a selected power scheme.
+///
+/// Components are read separately and are not an atomic snapshot. Policy
+/// overrides are per setting and source rather than per scheme: `true` means
+/// group policy overrides the setting. Neither value establishes general
+/// permission, writability, or effectiveness on the hardware.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct PowerSettingObservation {
+    pub scheme: PowerSchemeId,
+    pub key: PowerSettingKey,
+    pub values: PowerSourceValues<u32>,
+    pub range: PowerRangeObservation,
+    pub policy_overrides: PowerSourceValues<bool>,
+}
+
 /// A validated power-setting index.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]

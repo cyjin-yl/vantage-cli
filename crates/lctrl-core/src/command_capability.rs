@@ -29,6 +29,7 @@ impl CommandId {
     pub const POWER_SCHEME_ACTIVE: Self = Self("power.scheme");
     pub const POWER_SCHEME_LIST: Self = Self("power.scheme.list");
     pub const POWER_SCHEME_GET: Self = Self("power.scheme.get");
+    pub const POWER_SCHEME_SETTING_READ: Self = Self("power.scheme.setting.read");
     pub const POWER_SCHEME_APPLY: Self = Self("power.scheme.apply");
     pub const POWER_SCHEME_SET: Self = Self("power.scheme.set");
     pub const POWER_SAVER_ONCE: Self = Self("power.saver-once");
@@ -158,6 +159,7 @@ impl CommandId {
         Self::POWER_SCHEME_ACTIVE,
         Self::POWER_SCHEME_LIST,
         Self::POWER_SCHEME_GET,
+        Self::POWER_SCHEME_SETTING_READ,
         Self::POWER_SCHEME_APPLY,
         Self::POWER_SCHEME_SET,
         Self::POWER_SAVER_ONCE,

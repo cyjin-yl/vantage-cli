@@ -1,10 +1,21 @@
 use std::time::Duration;
 
 use lctrl_core::{
-    ApplyMode, ChangeReport, LctrlError, PowerMutation, PowerScheme, PowerSchemeId,
-    PowerSettingValue, PowerValueRange, Result, validate_power_write,
+    ApplyMode, ChangeReport, LctrlError, PowerMutation, PowerRangeObservation, PowerScheme,
+    PowerSchemeId, PowerSettingKey, PowerSettingObservation, PowerSettingValue, PowerSource,
+    PowerSourceValues, PowerValueRange, Result, validate_power_write,
 };
 use lctrl_hal::{PowerControl, poll_readback};
+
+#[cfg(any(windows, test))]
+pub(crate) fn policy_override_from_status(status: u32) -> Result<bool> {
+    const ERROR_ACCESS_DISABLED_BY_POLICY: u32 = 1260;
+    match status {
+        0 => Ok(false),
+        ERROR_ACCESS_DISABLED_BY_POLICY => Ok(true),
+        error => Err(crate::map_win_error(error, "PowerSettingAccessCheck")),
+    }
+}
 
 pub trait PowerApi: Send + Sync {
     fn schemes(&self) -> Result<Vec<PowerScheme>>;
@@ -17,6 +28,9 @@ pub trait PowerApi: Send + Sync {
         source: lctrl_core::PowerSource,
     ) -> Result<u32>;
     fn range(&self, key: &lctrl_core::PowerSettingKey) -> Result<PowerValueRange>;
+    /// Report a group-policy override for the setting and source. This is not
+    /// a general writability or permission check and is independent of scheme.
+    fn policy_overridden(&self, key: &PowerSettingKey, source: PowerSource) -> Result<bool>;
     /// Write one stored AC/DC index without reapplying the active scheme.
     fn write_value(
         &self,
@@ -29,6 +43,29 @@ pub trait PowerApi: Send + Sync {
     /// Returns `false` without applying when a different scheme is active.
     /// The check and Windows API call are not atomic with other processes.
     fn apply_if_active(&self, scheme: &PowerSchemeId) -> Result<bool>;
+}
+
+#[cfg(test)]
+mod policy_status_tests {
+    use super::policy_override_from_status;
+    use lctrl_core::LctrlError;
+
+    #[test]
+    fn only_policy_disabled_is_an_override() {
+        assert!(!policy_override_from_status(0).unwrap());
+        assert!(policy_override_from_status(1260).unwrap());
+        assert!(matches!(
+            policy_override_from_status(5),
+            Err(LctrlError::PermissionDenied { .. })
+        ));
+        assert!(matches!(
+            policy_override_from_status(87),
+            Err(LctrlError::Unsupported { .. })
+        ));
+        let error = policy_override_from_status(1640).unwrap_err();
+        assert!(matches!(&error, LctrlError::Io(_)));
+        assert!(error.to_string().contains("1640"));
+    }
 }
 
 #[derive(Debug)]
@@ -61,6 +98,33 @@ where
 
     fn active_power_scheme(&self) -> Result<PowerScheme> {
         self.api.active_scheme()
+    }
+
+    fn read_power_setting(
+        &self,
+        scheme: &PowerSchemeId,
+        key: &PowerSettingKey,
+    ) -> Result<PowerSettingObservation> {
+        let ac = self.api.read_value(scheme, key, PowerSource::Ac)?;
+        let dc = self.api.read_value(scheme, key, PowerSource::Dc)?;
+        let range = match self.api.range(key) {
+            Ok(range) => PowerRangeObservation::Available { range },
+            Err(
+                error @ (LctrlError::Unsupported { .. } | LctrlError::ChannelUnavailable { .. }),
+            ) => PowerRangeObservation::Unavailable {
+                detail: error.to_string(),
+            },
+            Err(error) => return Err(error),
+        };
+        let ac_policy = self.api.policy_overridden(key, PowerSource::Ac)?;
+        let dc_policy = self.api.policy_overridden(key, PowerSource::Dc)?;
+        Ok(PowerSettingObservation {
+            scheme: scheme.clone(),
+            key: key.clone(),
+            values: PowerSourceValues::new(ac, dc),
+            range,
+            policy_overrides: PowerSourceValues::new(ac_policy, dc_policy),
+        })
     }
 
     fn apply_power_mutation(

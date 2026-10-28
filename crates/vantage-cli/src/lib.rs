@@ -16,8 +16,8 @@ use clap::{Parser, Subcommand, ValueEnum};
 use lctrl_core::{
     ApplyMode, Availability, BacklightState, BiosChange, Capability, CapabilitySet, ChargeMode,
     ChargeModeActual, DeviceState, DiagnosticKind, FanMode, HardwareInfo, LctrlError,
-    PerformanceMode, Platform, PowerGuid, PowerMutation, PowerSchemeId, PowerSettingKey,
-    PowerSettingValue, PowerSource, UpdateCapability,
+    PerformanceMode, Platform, PowerGuid, PowerMutation, PowerRangeObservation, PowerSchemeId,
+    PowerSettingKey, PowerSettingValue, PowerSource, UpdateCapability,
 };
 use lctrl_hal::{
     BatteryControl, BiosControl, ControlConflictDetection, DiagnosticsControl, FanControl, Hal,
@@ -408,6 +408,12 @@ pub enum SchemeCommand {
     List,
     Get {
         name: String,
+        /// Subgroup GUID of the advanced setting (requires --setting).
+        #[arg(long, requires = "setting", value_name = "GUID")]
+        subgroup: Option<String>,
+        /// Setting GUID within the subgroup (requires --subgroup).
+        #[arg(long, requires = "subgroup", value_name = "GUID")]
+        setting: Option<String>,
     },
     Apply {
         name: String,
@@ -1871,9 +1877,53 @@ fn execute_power_scheme(
             let schemes = power.power_schemes()?;
             structured_output(&schemes, format!("{} power scheme(s)\n", schemes.len()))
         }
-        SchemeCommand::Get { name } => {
+        SchemeCommand::Get {
+            name,
+            subgroup,
+            setting,
+        } => {
+            let key = match (subgroup, setting) {
+                (None, None) => None,
+                (Some(subgroup), Some(setting)) => Some(PowerSettingKey {
+                    subgroup: PowerGuid::new(subgroup)?,
+                    setting: PowerGuid::new(setting)?,
+                }),
+                _ => {
+                    return Err(LctrlError::InvalidArgument {
+                        detail: "--subgroup and --setting must be provided together".into(),
+                    });
+                }
+            };
             let scheme = resolve_power_scheme(power.power_schemes()?, &name)?;
-            structured_output(&scheme, format!("power scheme: {}\n", scheme.name))
+            if let Some(key) = key {
+                let observation = power.read_power_setting(&scheme.id, &key)?;
+                let mut human = format!(
+                    "power setting observation (non-atomic):\n  scheme: {} ({})\n  subgroup: {}\n  setting: {}\n  AC value: {} (group-policy overridden: {})\n  DC value: {} (group-policy overridden: {})\n",
+                    scheme.name,
+                    observation.scheme.as_str(),
+                    observation.key.subgroup.as_str(),
+                    observation.key.setting.as_str(),
+                    observation.values.ac,
+                    observation.policy_overrides.ac,
+                    observation.values.dc,
+                    observation.policy_overrides.dc,
+                );
+                use std::fmt::Write as _;
+                match &observation.range {
+                    PowerRangeObservation::Available { range } => writeln!(
+                        human,
+                        "  range: {}..={} (increment: {})",
+                        range.min, range.max, range.increment
+                    ),
+                    PowerRangeObservation::Unavailable { detail } => {
+                        writeln!(human, "  range: unavailable ({detail})")
+                    }
+                }
+                .expect("writing to a String cannot fail");
+                structured_output(&observation, human)
+            } else {
+                structured_output(&scheme, format!("power scheme: {}\n", scheme.name))
+            }
         }
         SchemeCommand::Apply { name } => {
             let scheme = resolve_power_scheme(power.power_schemes()?, &name)?;

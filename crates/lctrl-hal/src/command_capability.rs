@@ -428,6 +428,14 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
+        CommandId::POWER_SCHEME_SETTING_READ,
+        CommandAxes::read_only(StateLayer::OsPersistent),
+        FeatureBinding::Capability("power.scheme.setting.read"),
+        ServiceBinding::One(ServiceRole::Power),
+        &[lctrl_core::required(Dependency::Win32PowerApi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
         CommandId::POWER_SCHEME_APPLY,
         CommandAxes::mutation(
             StateLayer::OsPersistent,

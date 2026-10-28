@@ -9,8 +9,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use lctrl_core::{
     AdapterAuthentication, ApplyMode, Availability, BatteryHealth, ChargeMode, ChargeModeActual,
     ChargeStatus, DeviceState, DiagnosticKind, DiagnosticOutcome, FanMode, LctrlError,
-    LightingEffect, MagicBayKind, PerformanceMode, Platform, PowerMutation, PowerSchemeId,
-    UpdateCapability,
+    LightingEffect, MagicBayKind, PerformanceMode, Platform, PowerGuid, PowerMutation,
+    PowerSchemeId, PowerSettingKey, UpdateCapability,
 };
 use lctrl_hal::{
     BatteryControl, ControlConflictDetection, DiagnosticsControl, FanControl, Hal, KeyboardControl,
@@ -270,6 +270,28 @@ fn linux_epp_power_schemes_apply_with_readback() {
             "power"
         );
     }
+}
+
+#[test]
+fn linux_advanced_setting_read_is_unsupported_without_mutating_epp() {
+    let tree = TempTree::new();
+    let path = "sys/devices/system/cpu/cpufreq/policy0/energy_performance_preference";
+    tree.write(path, "balance_performance\n");
+    let hal = tree.hal();
+    let key = PowerSettingKey {
+        subgroup: PowerGuid::new("subgroup").unwrap(),
+        setting: PowerGuid::new("setting").unwrap(),
+    };
+    let scheme = PowerSchemeId::new("performance").unwrap();
+
+    assert!(matches!(
+        hal.read_power_setting(&scheme, &key),
+        Err(LctrlError::Unsupported { feature }) if feature == "power.scheme.setting"
+    ));
+    assert_eq!(
+        fs::read_to_string(tree.path(path)).unwrap(),
+        "balance_performance\n"
+    );
 }
 
 #[test]

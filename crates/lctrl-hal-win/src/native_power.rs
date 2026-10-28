@@ -8,10 +8,11 @@ use windows_sys::{
         Foundation::LocalFree,
         System::{
             Power::{
-                ACCESS_SCHEME, PowerEnumerate, PowerGetActiveScheme, PowerReadACValueIndex,
+                ACCESS_AC_POWER_SETTING_INDEX, ACCESS_DC_POWER_SETTING_INDEX, ACCESS_SCHEME,
+                POWER_DATA_ACCESSOR, PowerEnumerate, PowerGetActiveScheme, PowerReadACValueIndex,
                 PowerReadDCValueIndex, PowerReadFriendlyName, PowerReadValueIncrement,
-                PowerReadValueMax, PowerReadValueMin, PowerSetActiveScheme, PowerWriteACValueIndex,
-                PowerWriteDCValueIndex,
+                PowerReadValueMax, PowerReadValueMin, PowerSetActiveScheme,
+                PowerSettingAccessCheck, PowerWriteACValueIndex, PowerWriteDCValueIndex,
             },
             Registry::HKEY,
         },
@@ -114,6 +115,12 @@ impl PowerApi for NativePowerApi {
         PowerValueRange::new(min, max, increment)
     }
 
+    fn policy_overridden(&self, key: &PowerSettingKey, source: PowerSource) -> Result<bool> {
+        read_policy_override(key, source, |accessor, setting| unsafe {
+            PowerSettingAccessCheck(accessor, setting)
+        })
+    }
+
     fn write_value(
         &self,
         scheme: &PowerSchemeId,
@@ -148,6 +155,21 @@ impl PowerApi for NativePowerApi {
         set_active_scheme(&expected, "PowerSetActiveScheme after value write")?;
         Ok(true)
     }
+}
+
+fn read_policy_override(
+    key: &PowerSettingKey,
+    source: PowerSource,
+    check: impl FnOnce(POWER_DATA_ACCESSOR, &GUID) -> u32,
+) -> Result<bool> {
+    // The Windows access check identifies the setting, not its subgroup or
+    // scheme, and reports group-policy override rather than general access.
+    let setting = parse_guid(key.setting.as_str())?;
+    let accessor = match source {
+        PowerSource::Ac => ACCESS_AC_POWER_SETTING_INDEX,
+        PowerSource::Dc => ACCESS_DC_POWER_SETTING_INDEX,
+    };
+    crate::power_p0::policy_override_from_status(check(accessor, &setting))
 }
 
 fn set_active_scheme(scheme: &GUID, context: &str) -> Result<()> {
@@ -286,4 +308,47 @@ fn guid_eq(left: &GUID, right: &GUID) -> bool {
         && left.data2 == right.data2
         && left.data3 == right.data3
         && left.data4 == right.data4
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use lctrl_core::PowerGuid;
+
+    #[test]
+    fn policy_check_keeps_ac_and_dc_override_results_distinct() {
+        let setting = "36687f9e-e3a5-4dbf-b1dc-15eb381c6863";
+        let key = PowerSettingKey {
+            subgroup: PowerGuid::new("54533251-82be-4824-96c1-47b60b740d00").unwrap(),
+            setting: PowerGuid::new(setting).unwrap(),
+        };
+        let policy = |accessor, guid: &GUID| match (accessor, format_guid(guid).as_str()) {
+            (ACCESS_AC_POWER_SETTING_INDEX, value) if value == setting => 0,
+            (ACCESS_DC_POWER_SETTING_INDEX, value) if value == setting => 1260,
+            _ => 1640,
+        };
+        let ac = read_policy_override(&key, PowerSource::Ac, policy).unwrap();
+        let dc = read_policy_override(&key, PowerSource::Dc, policy).unwrap();
+        assert_eq!((ac, dc), (false, true));
+    }
+
+    #[test]
+    fn invalid_setting_or_other_policy_status_does_not_become_an_override() {
+        let key = PowerSettingKey {
+            subgroup: PowerGuid::new("subgroup").unwrap(),
+            setting: PowerGuid::new("not-a-guid").unwrap(),
+        };
+        assert!(matches!(
+            read_policy_override(&key, PowerSource::Ac, |_, _| unreachable!()),
+            Err(LctrlError::InvalidArgument { .. })
+        ));
+        let valid_key = PowerSettingKey {
+            subgroup: key.subgroup,
+            setting: PowerGuid::new("36687f9e-e3a5-4dbf-b1dc-15eb381c6863").unwrap(),
+        };
+        assert!(matches!(
+            read_policy_override(&valid_key, PowerSource::Dc, |_, _| 5),
+            Err(LctrlError::PermissionDenied { .. })
+        ));
+    }
 }
