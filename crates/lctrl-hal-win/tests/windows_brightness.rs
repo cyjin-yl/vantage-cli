@@ -7,6 +7,8 @@ use lctrl_hal_win::{WindowsPanelBrightness, WmiObject, WmiTransport, WmiValue};
 #[derive(Clone, Copy)]
 enum Action {
     Success,
+    NoOutputApplied,
+    NoOutputUnchanged,
     FailAfterEffect,
     ThirdParty,
     Lost,
@@ -104,7 +106,7 @@ impl WmiTransport for Fake {
         assert_eq!(input.get("Timeout"), Some(&WmiValue::U32(0)));
         let action = state.actions.remove(0);
         match action {
-            Action::Success | Action::FailAfterEffect => {
+            Action::Success | Action::NoOutputApplied | Action::FailAfterEffect => {
                 state.brightness[0].insert("CurrentBrightness".into(), WmiValue::U8(value));
             }
             Action::ThirdParty => {
@@ -116,7 +118,10 @@ impl WmiTransport for Fake {
                 state.connections = vec![connection("replacement", 11)];
                 state.methods = vec![row("replacement")];
             }
-            Action::FailWithoutEffect | Action::BadReturn | Action::Rejected => {}
+            Action::FailWithoutEffect
+            | Action::BadReturn
+            | Action::Rejected
+            | Action::NoOutputUnchanged => {}
             Action::ObservationFailed => state.observation_failed = true,
         }
         match action {
@@ -136,6 +141,7 @@ impl WmiTransport for Fake {
             )])),
             Action::Rejected => Ok(WmiObject::from([("ReturnValue".into(), WmiValue::U32(5))])),
             Action::Success => Ok(WmiObject::from([("ReturnValue".into(), WmiValue::U32(0))])),
+            Action::NoOutputApplied | Action::NoOutputUnchanged => Ok(WmiObject::new()),
         }
     }
 }
@@ -303,6 +309,34 @@ fn setter_requires_uint32_zero_return() {
         ));
         assert_eq!(fake.0.lock().unwrap().calls.len(), 1);
     }
+}
+
+#[test]
+fn outputless_setter_requires_observed_effect() {
+    let applied = fixture(vec![Action::NoOutputApplied, Action::Success]);
+    let report = WindowsPanelBrightness::new(applied.clone())
+        .set_brightness(50, Some(100), ApplyMode::Commit)
+        .unwrap();
+    assert_eq!(report.actual(), Some(&50));
+    assert_eq!(
+        applied.0.lock().unwrap().brightness[0].get("CurrentBrightness"),
+        Some(&WmiValue::U8(50))
+    );
+
+    let unchanged = fixture(vec![Action::NoOutputUnchanged]);
+    assert!(matches!(
+        WindowsPanelBrightness::new(unchanged.clone()).set_brightness(
+            50,
+            Some(100),
+            ApplyMode::Commit
+        ),
+        Err(LctrlError::VerifyMismatch { .. })
+    ));
+    assert_eq!(unchanged.0.lock().unwrap().calls.len(), 1);
+    assert_eq!(
+        unchanged.0.lock().unwrap().brightness[0].get("CurrentBrightness"),
+        Some(&WmiValue::U8(100))
+    );
 }
 
 #[test]

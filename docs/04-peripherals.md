@@ -148,7 +148,9 @@ Windows 使用公开 `WmiMonitorBrightness`、`WmiMonitorConnectionParams` 和
 `WmiMonitorBrightnessMethods.WmiSetBrightness`：按非空 `InstanceName` 精确关联唯一活动内置屏，
 不暴露显示器身份，不把外接或多个候选屏当成目标。设置前重新核对身份/当前值;写后轮询
 实际亮度。失败时仅在同一屏仍为本次请求值时尝试恢复前值，观察到第三值或无法确认身份
-时不覆盖并报告状态未验证。WMI `ReturnValue` 是 UInt32，0 才表示方法接受请求。
+时不覆盖并报告状态未验证。Microsoft 网页将 `ReturnValue` 描述为 UInt32/0 成功;目标
+WMI 类元数据报告 Boolean，而方法签名未提供输出参数对象。若传输成功但没有输出属性，
+只能继续等待同一屏的实际读回，不能把空输出直接当作设备成功;未知布尔语义不猜测。
 
 Windows 全局命名互斥量只串行化合作的本程序写入，不能阻止厂商应用、热键或用户设置
 并发修改;检查与写入不是原子操作，WMI 单次调用也可能阻塞。命名互斥量不是持久崩溃

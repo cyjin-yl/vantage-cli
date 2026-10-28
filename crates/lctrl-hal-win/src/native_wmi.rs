@@ -51,11 +51,11 @@ impl WmiTransport for NativeWmi {
 
         let output = connection
             .exec_method(object_path, method, input_instance.as_ref())
-            .map_err(|error| map_error(error, &format!("{class}.{method}")))?
-            .ok_or_else(|| LctrlError::ChannelUnavailable {
-                channel: format!("WMI {class}.{method} returned no output object"),
-            })?;
-        wrapper_to_object(&output, class, method)
+            .map_err(|error| map_error(error, &format!("{class}.{method}")))?;
+        match output {
+            Some(output) => wrapper_to_object(&output, class, method),
+            None => Ok(WmiObject::new()),
+        }
     }
 }
 
