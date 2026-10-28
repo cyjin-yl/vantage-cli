@@ -376,11 +376,11 @@ impl BatteryTelemetry {
             .is_some_and(|capacity| capacity != 39_000)
     }
 
-    /// Temperature in degrees Celsius: `(t − 2731.6) / 10` (docs/02 §7.1).
+    /// Temperature in degrees Celsius: `t / 10 − 273.15` (docs/02 §7.1).
     #[must_use]
     pub fn temperature_celsius(&self) -> Option<f32> {
         self.temperature_deci_kelvin
-            .map(|t| (f32::from(t) - 2731.6) / 10.0)
+            .map(|t| (f64::from(t) / 10.0 - 273.15) as f32)
     }
 }
 
