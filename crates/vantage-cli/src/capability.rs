@@ -406,10 +406,13 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
         } => CommandId::TOUCHPAD_RECOVER,
         Command::Touchpad { .. } => CommandId::TOUCHPAD,
         Command::Panel {
-            command: Some(PanelCommand::Brightness { percent: None }),
+            command: Some(PanelCommand::Brightness { percent: None, .. }),
         } => CommandId::PANEL_BRIGHTNESS_STATUS,
         Command::Panel {
-            command: Some(PanelCommand::Brightness { percent: Some(_) }),
+            command:
+                Some(PanelCommand::Brightness {
+                    percent: Some(_), ..
+                }),
         } => CommandId::PANEL_BRIGHTNESS_SET,
         Command::Panel {
             command: Some(PanelCommand::Rate { .. }),

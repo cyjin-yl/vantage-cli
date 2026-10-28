@@ -143,6 +143,7 @@ SetLightControlOwner(Data)   # 抢占控制权(多控制者仲裁)
 
 `panel brightness` 只读返回当前百分比和实际公布的可选档位;
 `panel brightness N` 设置一个已公布的档位，`--dry-run` 只读并返回前值和请求，不调用 setter。
+可附加 `--expect-current M`，若新观察的当前值不是 M 则在写入前拒绝;该检查不是跨进程原子 CAS。
 Windows 使用公开 `WmiMonitorBrightness`、`WmiMonitorConnectionParams` 和
 `WmiMonitorBrightnessMethods.WmiSetBrightness`：按非空 `InstanceName` 精确关联唯一活动内置屏，
 不暴露显示器身份，不把外接或多个候选屏当成目标。设置前重新核对身份/当前值;写后轮询

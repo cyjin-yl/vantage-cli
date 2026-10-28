@@ -208,12 +208,26 @@ fn rejects_bad_levels_duplicates_and_untrusted_identities() {
 fn dry_run_and_invalid_value_never_invoke() {
     let fake = fixture(vec![]);
     let control = WindowsPanelBrightness::new(fake.clone());
-    let report = control.set_brightness(50, ApplyMode::DryRun).unwrap();
+    let report = control.set_brightness(50, None, ApplyMode::DryRun).unwrap();
     assert_eq!(
         (*report.previous(), *report.requested(), report.actual()),
         (100, 50, None)
     );
-    assert!(control.set_brightness(51, ApplyMode::Commit).is_err());
+    assert!(control.set_brightness(51, None, ApplyMode::Commit).is_err());
+    assert!(fake.0.lock().unwrap().calls.is_empty());
+}
+
+#[test]
+fn stale_expected_brightness_refuses_before_setter() {
+    let fake = fixture(vec![]);
+    let control = WindowsPanelBrightness::new(fake.clone());
+    for apply in [ApplyMode::DryRun, ApplyMode::Commit] {
+        assert!(matches!(
+            control.set_brightness(50, Some(80), apply),
+            Err(LctrlError::ChannelUnavailable { .. })
+        ));
+    }
+    assert_eq!(control.brightness().unwrap().current_percent, 100);
     assert!(fake.0.lock().unwrap().calls.is_empty());
 }
 
@@ -223,7 +237,7 @@ fn read_remains_available_without_a_matching_setter() {
     fake.0.lock().unwrap().methods.clear();
     let control = WindowsPanelBrightness::new(fake.clone());
     assert_eq!(control.brightness().unwrap().current_percent, 100);
-    assert!(control.set_brightness(50, ApplyMode::DryRun).is_err());
+    assert!(control.set_brightness(50, None, ApplyMode::DryRun).is_err());
     assert!(fake.0.lock().unwrap().calls.is_empty());
 }
 
@@ -232,7 +246,7 @@ fn commits_with_escaped_identity_and_uint32_result() {
     let fake = fixture(vec![Action::Success]);
     fake.0.lock().unwrap().methods[0].insert("__Path".into(), WmiValue::String("unrelated".into()));
     let report = WindowsPanelBrightness::new(fake.clone())
-        .set_brightness(50, ApplyMode::Commit)
+        .set_brightness(50, Some(100), ApplyMode::Commit)
         .unwrap();
     assert_eq!(report.actual(), Some(&50));
     let state = fake.0.lock().unwrap();
@@ -247,7 +261,7 @@ fn commits_with_escaped_identity_and_uint32_result() {
 fn failure_after_effect_restores_only_requested_value() {
     let fake = fixture(vec![Action::FailAfterEffect, Action::Success]);
     let error = WindowsPanelBrightness::new(fake.clone())
-        .set_brightness(50, ApplyMode::Commit)
+        .set_brightness(50, None, ApplyMode::Commit)
         .unwrap_err();
     assert!(matches!(error, LctrlError::ChannelUnavailable { .. }));
     let state = fake.0.lock().unwrap();
@@ -269,7 +283,7 @@ fn third_party_or_lost_or_changed_target_is_never_overwritten() {
     ] {
         let fake = fixture(vec![action]);
         let error = WindowsPanelBrightness::new(fake.clone())
-            .set_brightness(50, ApplyMode::Commit)
+            .set_brightness(50, None, ApplyMode::Commit)
             .unwrap_err();
         assert!(matches!(error, LctrlError::FirmwareRejected { .. }));
         assert_eq!(fake.0.lock().unwrap().calls.len(), 1);
@@ -281,7 +295,7 @@ fn setter_requires_uint32_zero_return() {
     for action in [Action::BadReturn, Action::Rejected] {
         let fake = fixture(vec![action]);
         let error = WindowsPanelBrightness::new(fake.clone())
-            .set_brightness(50, ApplyMode::Commit)
+            .set_brightness(50, None, ApplyMode::Commit)
             .unwrap_err();
         assert!(matches!(
             error,
@@ -295,7 +309,7 @@ fn setter_requires_uint32_zero_return() {
 fn failed_recovery_retains_both_errors_and_marks_unverified() {
     let fake = fixture(vec![Action::FailAfterEffect, Action::FailWithoutEffect]);
     let error = WindowsPanelBrightness::new(fake.clone())
-        .set_brightness(50, ApplyMode::Commit)
+        .set_brightness(50, None, ApplyMode::Commit)
         .unwrap_err()
         .to_string();
     assert!(error.contains("channel is unavailable"));
@@ -308,7 +322,7 @@ fn failed_set_with_previous_observed_does_not_write_again() {
     let fake = fixture(vec![Action::FailWithoutEffect]);
     assert!(
         WindowsPanelBrightness::new(fake.clone())
-            .set_brightness(50, ApplyMode::Commit)
+            .set_brightness(50, None, ApplyMode::Commit)
             .is_err()
     );
     assert_eq!(fake.0.lock().unwrap().calls.len(), 1);
