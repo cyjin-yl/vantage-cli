@@ -1,0 +1,140 @@
+{
+  "scope": "Scheme-identity safety improvement: mock concurrency tests plus target Windows build and read-only same-value dry-run; not physical write or concurrent-actor acceptance.",
+  "base_main": "aa54f11faf231e891fe8f2bb31619e1c63176b23",
+  "source": {
+    "manifest_sha256": "71cf4741bc0e0099e0eb9a938c4ecb615703d3eba39c11b71a375f72748577a7",
+    "archive_sha256": "10d2d5b81baeeaace20b7170eea234e9e82699e324441c812d1ab19bae75f0b0",
+    "rust_build_file_count": 138,
+    "membership_equal": true,
+    "source_bytes_equal_before_and_after_build": true,
+    "dependency_binding_sha256": "08516a7de379e8694e94db99fd4e62039ac14e8657155affb796eff2bb67e2bc"
+  },
+  "native": {
+    "machine": "TB14P-EZRA",
+    "binary_sha256": "cd8a2e0780a6de9268e69ebb5c262fae96c7af1b5e937c90d0cf76642f463508",
+    "binary_bytes": 3773440,
+    "build_exit": 0,
+    "mock_power_tests": 8,
+    "mock_tuning_tests": 11,
+    "native_test_exit": 0,
+    "contract_test_exit": 0,
+    "build_receipt_sha256": "6a4554437e537cb978c9225b639d80bbecd14d0059e88c4812061d814f6c1672",
+    "logs": [
+      {
+        "role": "build.out",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "length": 0
+      },
+      {
+        "role": "build.err",
+        "sha256": "bc62a9b7fd058aa5f8678e564c30b5533519570890f72cbf1bd9e609a7cb1651",
+        "length": 3234
+      },
+      {
+        "role": "native-test.out",
+        "sha256": "1364b14cd08b8f398d68ae252d9c3776e91ebacebabcc563f7e89bd9c338dbc8",
+        "length": 662
+      },
+      {
+        "role": "native-test.err",
+        "sha256": "13fc3797fe9310a8c05e2e86d0bbec3b6bf167c52a7b72965c453ef8fa44654d",
+        "length": 653
+      },
+      {
+        "role": "contract-test.out",
+        "sha256": "ecf42da7a3f18821ebc67efb93590070c69e06c12489b03a3c50ace1ca3e30c6",
+        "length": 908
+      },
+      {
+        "role": "contract-test.err",
+        "sha256": "d4eba07ba7b5466d7cf870b5739a2c7d3c64d6af3e58cd8225e61f20e243942b",
+        "length": 323
+      }
+    ],
+    "test_boundary": "Fake Power API: no hardware mutations"
+  },
+  "dry_run": {
+    "binary_sha256": "cd8a2e0780a6de9268e69ebb5c262fae96c7af1b5e937c90d0cf76642f463508",
+    "source_manifest_sha256": "71cf4741bc0e0099e0eb9a938c4ecb615703d3eba39c11b71a375f72748577a7",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "timed_out": false,
+    "exit_code": 0,
+    "after": {
+      "active_guid": "381b4222-f694-41f0-9685-ff5bb260df2e",
+      "ac_index": 50,
+      "dc_index": 50
+    },
+    "before": {
+      "active_guid": "381b4222-f694-41f0-9685-ff5bb260df2e",
+      "ac_index": 50,
+      "dc_index": 50
+    },
+    "machine": "TB14P-EZRA",
+    "status": "success",
+    "hardware_writes_requested": false,
+    "output": {
+      "mode": "dry_run",
+      "previous": {
+        "set_value": {
+          "key": {
+            "setting": "36687f9e-e3a5-4dbf-b1dc-15eb381c6863",
+            "subgroup": "54533251-82be-4824-96c1-47b60b740d00"
+          },
+          "source": "dc",
+          "value": 50
+        }
+      },
+      "requested": {
+        "set_value": {
+          "key": {
+            "setting": "36687f9e-e3a5-4dbf-b1dc-15eb381c6863",
+            "subgroup": "54533251-82be-4824-96c1-47b60b740d00"
+          },
+          "source": "dc",
+          "value": 50
+        }
+      }
+    },
+    "operation": "power scheme set EPP DC dry-run",
+    "stdout_sha256": "5826c110acf1fa0205817920879332f10ab595f7075f3c1c0f2187e3dfc26090",
+    "readback_unchanged": true
+  },
+  "receipt_files": [
+    {
+      "name": "vantage-power-source-readback-71cf4741bc0e0099.json",
+      "sha256": "912c161aa4937c5ef524a6fe7ad6b3fa424c2b70fb1df890b378c3700ef02b1a",
+      "length": 19545
+    },
+    {
+      "name": "vantage-power-dependency-binding-71cf4741bc0e0099.json",
+      "sha256": "dbfc71e3bc281dfb34c4d88b1f44b943e8fc09f866a22f85408ebe4e40d630cb",
+      "length": 303
+    },
+    {
+      "name": "vantage-power-native-71cf4741bc0e0099-directwait1.json",
+      "sha256": "6a4554437e537cb978c9225b639d80bbecd14d0059e88c4812061d814f6c1672",
+      "length": 984
+    },
+    {
+      "name": "vantage-power-postbuild-readback-71cf4741bc0e0099.json",
+      "sha256": "8edbd437bbabc031ef0390bf56783b7fff9fc50d5ce1f52aa3f18cbe964478d6",
+      "length": 2353
+    },
+    {
+      "name": "vantage-power-dryrun-71cf4741bc0e0099.json",
+      "sha256": "0a1a047c09efbca6d8e064d366b7cb9caff974644c5a773b1ae9c36bc3c36f01",
+      "length": 1052
+    }
+  ],
+  "consumer_smoke": [
+    "after_snapshot: error; original and other stored values unchanged; other remains active",
+    "after_write: error; original stored value restored; other stored value unchanged and remains active"
+  ],
+  "limitations": [
+    "The requested DC EPP value equaled the previous value; the before/after snapshot cannot alone rule out a same-value write. The fake transport dry-run test asserts no write calls.",
+    "PowerSetActiveScheme check and call are not atomic relative to external writers.",
+    "Concurrent modification of the same scheme/setting and crash recovery are not proven safe.",
+    "No target scheme activation or power-setting write was performed for this verification.",
+    "Full domain #9 and full replacement remain unaccepted."
+  ]
+}
