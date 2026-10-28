@@ -1,0 +1,225 @@
+{
+  "scope": "User-authorized Windows internal-panel brightness dry-run and one adjacent 1% change with guarded restoration; independently observed WMI state, not physical luminance or full power-saver acceptance.",
+  "machine": "TB14P-EZRA",
+  "tested_source_commit": "9cc6f98da0006da30e0897a973a8173484ba35da",
+  "base_main": "6c42cd3ff15760f043e71362049a9f282a031df6",
+  "source": {
+    "manifest_sha256": "c9da34756964d8db9606a1cb380589bcd3a9a6ae5cb33277b5c641ffacd56048",
+    "archive_sha256": "1fab3b46dae961257e4bf0c79892a6a6694197482146cdd89f40a9b4b551c928",
+    "rust_build_file_count": 140,
+    "source_membership_equal": true,
+    "source_bytes_equal_before_and_after_build": true,
+    "dependency_binding_sha256": "08516a7de379e8694e94db99fd4e62039ac14e8657155affb796eff2bb67e2bc"
+  },
+  "ci": {
+    "run": 599,
+    "tested_head": "9cc6f98da0006da30e0897a973a8173484ba35da",
+    "conclusion": "success"
+  },
+  "native": {
+    "binary_sha256": "a867b8548f1acf9c8497477d0d2f2d30f752c230d6bcd15217520029d004601f",
+    "binary_bytes": 3814400,
+    "build_exit": 0,
+    "native_test_exit": 0,
+    "cli_test_exit": 0,
+    "fake_brightness_tests": 13,
+    "strict_wmi_contract_tests": 14,
+    "fake_cli_tests": 4,
+    "build_receipt_sha256": "ec2ff18a9d1347b18917004a79de46c864c904568144d45c26476a8a286f525e",
+    "logs": [
+      {
+        "role": "build.out",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "length": 0
+      },
+      {
+        "role": "build.err",
+        "sha256": "fc8f6bfe23f9f914b06452efc89e255f330c6b8091cad67be9764da8e318b77d",
+        "length": 3269
+      },
+      {
+        "role": "native-test.out",
+        "sha256": "1d1ddf424f6b3ee20c22949803bdb1cbccd8f5d68ceef5ddf26d81265ad577d3",
+        "length": 1901
+      },
+      {
+        "role": "native-test.err",
+        "sha256": "cf1ac2b795a5e65d5329314614aa0a2de74c4e80bcabd947fb5093e388344b03",
+        "length": 808
+      },
+      {
+        "role": "contract-test.out",
+        "sha256": "feb1e0e09405d3b5d7ad9c556caf8b09b728c875df60c500bb9a30697db2fd22",
+        "length": 378
+      },
+      {
+        "role": "contract-test.err",
+        "sha256": "8145038de5a498742e7d31dd7a66365dfaf1e89c8b001554e0217c39491d6856",
+        "length": 1166
+      }
+    ]
+  },
+  "target_live": {
+    "requested": 54,
+    "raw_monitor_identity_in_public_receipt": false,
+    "restore_attempted": true,
+    "scope": "one adjacent one-percent brightness change and guarded restoration",
+    "after_restore": {
+      "current": 55,
+      "levels_count": 101,
+      "technology": 2147483648
+    },
+    "commit_attempted": true,
+    "commit": {
+      "exit_code": 0,
+      "stdout_sha256": "f111217597f251287e78c7b219116661d2c75060352d88f8d5b48eb580757c5b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "json": {
+        "actual": 54,
+        "mode": "commit",
+        "previous": 55,
+        "requested": 54
+      },
+      "parse_error": null,
+      "stderr_present": false
+    },
+    "recovery": "verified_previous",
+    "before": {
+      "current": 55,
+      "levels_count": 101,
+      "technology": 2147483648
+    },
+    "after_dryrun": {
+      "current": 55,
+      "levels_count": 101,
+      "technology": 2147483648
+    },
+    "same_identity_after_commit": true,
+    "completed_utc": "2026-10-28T17:04:01.4389514Z",
+    "machine": "TB14P-EZRA",
+    "dryrun": {
+      "exit_code": 0,
+      "stdout_sha256": "bd0ddead39b9101b0e1336fac3e51bafd4660db976a30f5295557f6965bebda7",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "json": {
+        "mode": "dry_run",
+        "previous": 55,
+        "requested": 54
+      },
+      "parse_error": null,
+      "stderr_present": false
+    },
+    "restore": {
+      "exit_code": 0,
+      "stdout_sha256": "451c5ac58be5b54419482c2356ef9179050707ea8c4a3376a8991af68a3b3bfa",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "json": {
+        "actual": 55,
+        "mode": "commit",
+        "previous": 54,
+        "requested": 55
+      },
+      "parse_error": null,
+      "stderr_present": false
+    },
+    "commit_verified": true,
+    "same_identity_after_restore": true,
+    "stage": "recovery",
+    "before_restore": {
+      "current": 54,
+      "levels_count": 101,
+      "technology": 2147483648
+    },
+    "status": "success",
+    "same_identity_after_dryrun": true,
+    "after_commit": {
+      "current": 54,
+      "levels_count": 101,
+      "technology": 2147483648
+    },
+    "binary_sha256": "a867b8548f1acf9c8497477d0d2f2d30f752c230d6bcd15217520029d004601f",
+    "source_manifest_sha256": "c9da34756964d8db9606a1cb380589bcd3a9a6ae5cb33277b5c641ffacd56048",
+    "same_identity_before_restore": true,
+    "user_approved_vendor_conflict_override": true
+  },
+  "private_receipt_hashes": [
+    {
+      "name": "vantage-brightness-source-readback-c9da34756964d8db.json",
+      "sha256": "8d370f14c40edeed6d7e34c115313491f435460f9c38db6639cacc34a0b99369",
+      "length": 19837
+    },
+    {
+      "name": "vantage-brightness-dependency-binding-c9da34756964d8db.json",
+      "sha256": "1281a7a0c459aa79164821e8638afa95bb04dc90a39f4fcc9dc27d07eb6000b9",
+      "length": 303
+    },
+    {
+      "name": "vantage-brightness-native-c9da34756964d8db-directwait1.json",
+      "sha256": "ec2ff18a9d1347b18917004a79de46c864c904568144d45c26476a8a286f525e",
+      "length": 985
+    },
+    {
+      "name": "vantage-brightness-postbuild-readback-c9da34756964d8db.json",
+      "sha256": "d94fbb7273349216786cc9fbc9df1b3c3c8e6c01a1a96f14c1b5f974fd307dc3",
+      "length": 2380
+    },
+    {
+      "name": "final.json",
+      "sha256": "6d2e7307fac8b04efed45f6abd30bca97b11b3525dcfcefc511c3ae20c37e96d",
+      "length": 1960
+    },
+    {
+      "name": "dryrun.json",
+      "sha256": "38b60f9b1c21dff072e9b13772890fb1f8a9c3eb77e1ac6d98466bc894a3ad8c",
+      "length": 278
+    },
+    {
+      "name": "commit-intent.json",
+      "sha256": "ba59cc5b1dbeade3d2ca8cd32b6d95b0639e6317c8748e0a340ab381136e542a",
+      "length": 359
+    },
+    {
+      "name": "commit.json",
+      "sha256": "d09581cf49f867fb2fbf9d5e8c6643618217d01abbbb9f6f5048ed08fe1adb82",
+      "length": 289
+    },
+    {
+      "name": "restore-intent.json",
+      "sha256": "eeaafe27ec2d6a61424647c23149016ac4d5226d887ac79107827c297694ed4a",
+      "length": 82
+    },
+    {
+      "name": "restore.json",
+      "sha256": "f7f5923816d79653f95043dde9c7a5fdb04edda129ad336228f9cc439f5811c3",
+      "length": 289
+    },
+    {
+      "name": "commit.out",
+      "sha256": "f111217597f251287e78c7b219116661d2c75060352d88f8d5b48eb580757c5b",
+      "length": 59
+    },
+    {
+      "name": "commit.err",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "length": 0
+    },
+    {
+      "name": "restore.out",
+      "sha256": "451c5ac58be5b54419482c2356ef9179050707ea8c4a3376a8991af68a3b3bfa",
+      "length": 59
+    },
+    {
+      "name": "restore.err",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "length": 0
+    }
+  ],
+  "boundaries": [
+    "Raw panel identity remains only in the target owner-only private receipt, not in this evidence.",
+    "WMI state readback does not independently measure physical luminance.",
+    "The expected-current check and guarded recovery are not atomic against external actors.",
+    "WMI calls can block; late effects and process crash recovery are not proved.",
+    "A successful normal restore is not a proof of fault-path or crash recovery.",
+    "This primitive does not implement or validate power saver-once or full vendor replacement."
+  ]
+}
