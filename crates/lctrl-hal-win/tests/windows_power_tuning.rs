@@ -127,6 +127,10 @@ impl PowerApi for FakePowerApi {
         }
     }
 
+    fn policy_overridden(&self, _: &PowerSettingKey, _: PowerSource) -> Result<bool> {
+        unreachable!()
+    }
+
     fn write_value(
         &self,
         _: &PowerSchemeId,
@@ -285,6 +289,9 @@ fn epp_scheme_switch_between_sources_restores_only_original_scheme() {
         fn range(&self, _: &PowerSettingKey) -> Result<PowerValueRange> {
             PowerValueRange::new(0, 100, 1)
         }
+        fn policy_overridden(&self, _: &PowerSettingKey, _: PowerSource) -> Result<bool> {
+            unreachable!()
+        }
         fn write_value(
             &self,
             scheme: &PowerSchemeId,
@@ -354,6 +361,9 @@ fn dc_failure_does_not_overwrite_a_concurrent_ac_edit() {
         }
         fn range(&self, _: &PowerSettingKey) -> Result<PowerValueRange> {
             PowerValueRange::new(0, 100, 1)
+        }
+        fn policy_overridden(&self, _: &PowerSettingKey, _: PowerSource) -> Result<bool> {
+            unreachable!()
         }
         fn write_value(
             &self,

@@ -530,6 +530,14 @@ impl PowerControl for FakePower {
         unreachable!()
     }
 
+    fn read_power_setting(
+        &self,
+        _scheme: &lctrl_core::PowerSchemeId,
+        _key: &lctrl_core::PowerSettingKey,
+    ) -> lctrl_core::Result<lctrl_core::PowerSettingObservation> {
+        unreachable!()
+    }
+
     fn power_value_range(
         &self,
         _key: &lctrl_core::PowerSettingKey,
@@ -928,6 +936,14 @@ impl PowerControl for FakeSchemes {
         unreachable!()
     }
 
+    fn read_power_setting(
+        &self,
+        _scheme: &lctrl_core::PowerSchemeId,
+        _key: &lctrl_core::PowerSettingKey,
+    ) -> lctrl_core::Result<lctrl_core::PowerSettingObservation> {
+        unreachable!()
+    }
+
     fn power_value_range(
         &self,
         _key: &lctrl_core::PowerSettingKey,
@@ -951,6 +967,15 @@ fn power_scheme_get_and_apply_resolve_the_same_friendly_name() {
     let power = FakeSchemes {
         mutations: Mutex::new(Vec::new()),
     };
+    let get = Cli::try_parse_from(["vantage", "power", "scheme", "get", "balanced"]).unwrap();
+    let read = execute_with_services(get, CommandServices::new(&hal).with_power(&power)).unwrap();
+    assert_eq!(
+        read.json,
+        serde_json::json!({"id": "scheme-guid", "name": "Balanced", "active": false})
+    );
+    assert_eq!(read.human, "power scheme: Balanced\n");
+    assert!(power.mutations.lock().is_empty());
+
     let cli = Cli::try_parse_from([
         "vantage",
         "--dry-run",
@@ -1006,6 +1031,13 @@ impl PowerControl for AmbiguousSchemes {
     fn active_power_scheme(&self) -> lctrl_core::Result<lctrl_core::PowerScheme> {
         unreachable!()
     }
+    fn read_power_setting(
+        &self,
+        _: &lctrl_core::PowerSchemeId,
+        _: &lctrl_core::PowerSettingKey,
+    ) -> lctrl_core::Result<lctrl_core::PowerSettingObservation> {
+        unreachable!()
+    }
     fn power_value_range(
         &self,
         _: &lctrl_core::PowerSettingKey,
@@ -1023,7 +1055,7 @@ impl PowerControl for AmbiguousSchemes {
 }
 
 #[test]
-fn power_scheme_ambiguous_name_is_rejected_before_activation() {
+fn power_scheme_ambiguous_name_is_rejected_before_read_or_activation() {
     let hal = FakeHal::new("unused");
     let power = AmbiguousSchemes {
         schemes: vec![
@@ -1047,6 +1079,20 @@ fn power_scheme_ambiguous_name_is_rejected_before_activation() {
         let result = execute_with_services(cli, CommandServices::new(&hal).with_power(&power));
         assert!(matches!(result, Err(LctrlError::InvalidArgument { .. })));
     }
+    let cli = Cli::try_parse_from([
+        "vantage",
+        "power",
+        "scheme",
+        "get",
+        "balanced",
+        "--subgroup",
+        SETTING_SUBGROUP,
+        "--setting",
+        FIRST_SETTING,
+    ])
+    .unwrap();
+    let result = execute_with_services(cli, CommandServices::new(&hal).with_power(&power));
+    assert!(matches!(result, Err(LctrlError::InvalidArgument { .. })));
     assert!(power.mutations.lock().is_empty());
 }
 
@@ -1077,6 +1123,331 @@ fn power_scheme_exact_id_takes_precedence_over_another_scheme_name() {
             lctrl_core::PowerSchemeId::new("two").unwrap()
         )]
     );
+}
+
+const ACTIVE_SCHEME_ID: &str = "11111111-1111-4111-8111-111111111111";
+const SELECTED_SCHEME_ID: &str = "22222222-2222-4222-8222-222222222222";
+const SETTING_SUBGROUP: &str = "33333333-3333-4333-8333-333333333333";
+const FIRST_SETTING: &str = "44444444-4444-4444-8444-444444444444";
+const SECOND_SETTING: &str = "55555555-5555-4555-8555-555555555555";
+const UNAVAILABLE_RANGE_DETAIL: &str = "fixture minimum is unavailable";
+
+struct ObservedSchemes {
+    schemes: Vec<lctrl_core::PowerScheme>,
+    observations: Vec<lctrl_core::PowerSettingObservation>,
+    reads: Mutex<Vec<(lctrl_core::PowerSchemeId, lctrl_core::PowerSettingKey)>>,
+    fail_list: bool,
+    fail_read: bool,
+}
+
+impl ObservedSchemes {
+    fn new() -> Self {
+        let schemes = vec![
+            // An exact ID must win even when it is also another scheme's name.
+            lctrl_core::PowerScheme::new(
+                lctrl_core::PowerSchemeId::new(ACTIVE_SCHEME_ID).unwrap(),
+                SELECTED_SCHEME_ID,
+                true,
+            ),
+            lctrl_core::PowerScheme::new(
+                lctrl_core::PowerSchemeId::new(SELECTED_SCHEME_ID).unwrap(),
+                "Office",
+                false,
+            ),
+        ];
+        let observations = [
+            (ACTIVE_SCHEME_ID, FIRST_SETTING, 9, 31, true, false, Some(1)),
+            (SELECTED_SCHEME_ID, FIRST_SETTING, 26, 64, false, true, None),
+            (
+                SELECTED_SCHEME_ID,
+                SECOND_SETTING,
+                35,
+                55,
+                true,
+                false,
+                Some(5),
+            ),
+        ]
+        .into_iter()
+        .map(
+            |(scheme, setting, ac, dc, ac_policy, dc_policy, increment)| {
+                lctrl_core::PowerSettingObservation {
+                    scheme: lctrl_core::PowerSchemeId::new(scheme).unwrap(),
+                    key: lctrl_core::PowerSettingKey {
+                        subgroup: lctrl_core::PowerGuid::new(SETTING_SUBGROUP).unwrap(),
+                        setting: lctrl_core::PowerGuid::new(setting).unwrap(),
+                    },
+                    values: lctrl_core::PowerSourceValues::new(ac, dc),
+                    range: match increment {
+                        Some(increment) => lctrl_core::PowerRangeObservation::Available {
+                            range: lctrl_core::PowerValueRange::new(0, 100, increment).unwrap(),
+                        },
+                        None => lctrl_core::PowerRangeObservation::Unavailable {
+                            detail: UNAVAILABLE_RANGE_DETAIL.into(),
+                        },
+                    },
+                    policy_overrides: lctrl_core::PowerSourceValues::new(ac_policy, dc_policy),
+                }
+            },
+        )
+        .collect();
+        Self {
+            schemes,
+            observations,
+            reads: Mutex::new(Vec::new()),
+            fail_list: false,
+            fail_read: false,
+        }
+    }
+}
+
+impl PowerControl for ObservedSchemes {
+    fn power_schemes(&self) -> lctrl_core::Result<Vec<lctrl_core::PowerScheme>> {
+        if self.fail_list {
+            return Err(std::io::Error::from_raw_os_error(1234).into());
+        }
+        Ok(self.schemes.clone())
+    }
+
+    fn active_power_scheme(&self) -> lctrl_core::Result<lctrl_core::PowerScheme> {
+        panic!("a selected-scheme observation must not resolve the active scheme")
+    }
+
+    fn read_power_setting(
+        &self,
+        scheme: &lctrl_core::PowerSchemeId,
+        key: &lctrl_core::PowerSettingKey,
+    ) -> lctrl_core::Result<lctrl_core::PowerSettingObservation> {
+        self.reads.lock().push((scheme.clone(), key.clone()));
+        if self.fail_read {
+            return Err(std::io::Error::from_raw_os_error(2345).into());
+        }
+        self.observations
+            .iter()
+            .find(|observation| &observation.scheme == scheme && &observation.key == key)
+            .cloned()
+            .ok_or_else(|| LctrlError::ChannelUnavailable {
+                channel: "fixture setting".into(),
+            })
+    }
+
+    fn power_value_range(
+        &self,
+        _: &lctrl_core::PowerSettingKey,
+    ) -> lctrl_core::Result<lctrl_core::PowerValueRange> {
+        panic!("the observation already includes range availability")
+    }
+
+    fn apply_power_mutation(
+        &self,
+        _: lctrl_core::PowerMutation,
+        _: ApplyMode,
+    ) -> lctrl_core::Result<ChangeReport<lctrl_core::PowerMutation>> {
+        panic!("a setting observation must not mutate power configuration")
+    }
+}
+
+fn get_power_setting(name: &str, setting: &str) -> Cli {
+    Cli::try_parse_from([
+        "vantage",
+        "--json",
+        "power",
+        "scheme",
+        "get",
+        name,
+        "--subgroup",
+        SETTING_SUBGROUP,
+        "--setting",
+        setting,
+    ])
+    .unwrap()
+}
+
+#[test]
+fn power_setting_get_requires_both_flags() {
+    for args in [
+        [
+            "vantage",
+            "power",
+            "scheme",
+            "get",
+            "Office",
+            "--subgroup",
+            SETTING_SUBGROUP,
+        ],
+        [
+            "vantage",
+            "power",
+            "scheme",
+            "get",
+            "Office",
+            "--setting",
+            FIRST_SETTING,
+        ],
+    ] {
+        assert!(Cli::try_parse_from(args).is_err());
+    }
+
+    // Publicly constructed commands must enforce the same pair invariant.
+    let hal = FakeHal::new("unused");
+    let power = ObservedSchemes::new();
+    for (subgroup, setting) in [
+        (Some(SETTING_SUBGROUP.to_owned()), None),
+        (None, Some(FIRST_SETTING.to_owned())),
+    ] {
+        let cli = Cli {
+            command: vantage_cli::Command::Power {
+                command: Some(vantage_cli::PowerCommand::Scheme {
+                    command: Some(vantage_cli::SchemeCommand::Get {
+                        name: "Office".into(),
+                        subgroup,
+                        setting,
+                    }),
+                }),
+            },
+            ..Cli::try_parse_from(["vantage", "power", "scheme", "get", "Office"]).unwrap()
+        };
+        let result = execute_with_services(cli, CommandServices::new(&hal).with_power(&power));
+        assert!(matches!(result, Err(LctrlError::InvalidArgument { .. })));
+    }
+    assert!(power.reads.lock().is_empty());
+}
+
+#[test]
+fn power_setting_get_reports_selected_values_even_when_range_unavailable() {
+    let hal = FakeHal::new("unused");
+    let power = ObservedSchemes::new();
+    let output = execute_with_services(
+        get_power_setting("office", FIRST_SETTING),
+        CommandServices::new(&hal)
+            .with_power(&power)
+            .with_conflict_detection(&FakeConflicts),
+    )
+    .unwrap();
+
+    assert_eq!(
+        output.json,
+        serde_json::json!({
+            "scheme": SELECTED_SCHEME_ID,
+            "key": {"subgroup": SETTING_SUBGROUP, "setting": FIRST_SETTING},
+            "values": {"ac": 26, "dc": 64},
+            "range": {"status": "unavailable", "detail": UNAVAILABLE_RANGE_DETAIL},
+            "policy_overrides": {"ac": false, "dc": true}
+        })
+    );
+    let reads = power.reads.lock();
+    assert_eq!(reads.len(), 1);
+    assert_eq!(reads[0].0.as_str(), SELECTED_SCHEME_ID);
+    assert_eq!(reads[0].1.subgroup.as_str(), SETTING_SUBGROUP);
+    assert_eq!(reads[0].1.setting.as_str(), FIRST_SETTING);
+}
+
+#[test]
+fn power_setting_get_resolves_exact_id_and_each_setting_independently() {
+    let hal = FakeHal::new("unused");
+    let power = ObservedSchemes::new();
+    // The selected ID is also the active scheme's name; exact ID takes precedence.
+    let cli = Cli::try_parse_from([
+        "vantage",
+        "--json",
+        "power",
+        "scheme",
+        "get",
+        "--setting",
+        FIRST_SETTING,
+        SELECTED_SCHEME_ID,
+        "--subgroup",
+        SETTING_SUBGROUP,
+    ])
+    .unwrap();
+    let selected =
+        execute_with_services(cli, CommandServices::new(&hal).with_power(&power)).unwrap();
+    assert_eq!(selected.json["scheme"], SELECTED_SCHEME_ID);
+    assert_eq!(
+        selected.json["values"],
+        serde_json::json!({"ac": 26, "dc": 64})
+    );
+    assert_eq!(
+        selected.json["policy_overrides"],
+        serde_json::json!({"ac": false, "dc": true})
+    );
+
+    let active = execute_with_services(
+        get_power_setting(ACTIVE_SCHEME_ID, FIRST_SETTING),
+        CommandServices::new(&hal).with_power(&power),
+    )
+    .unwrap();
+    assert_eq!(active.json["scheme"], ACTIVE_SCHEME_ID);
+    assert_eq!(
+        active.json["values"],
+        serde_json::json!({"ac": 9, "dc": 31})
+    );
+    assert_eq!(
+        active.json["policy_overrides"],
+        serde_json::json!({"ac": true, "dc": false})
+    );
+
+    let other_setting = execute_with_services(
+        get_power_setting("Office", SECOND_SETTING),
+        CommandServices::new(&hal).with_power(&power),
+    )
+    .unwrap();
+    assert_eq!(
+        other_setting.json,
+        serde_json::json!({
+            "scheme": SELECTED_SCHEME_ID,
+            "key": {"subgroup": SETTING_SUBGROUP, "setting": SECOND_SETTING},
+            "values": {"ac": 35, "dc": 55},
+            "range": {"status": "available", "range": {"min": 0, "max": 100, "increment": 5}},
+            "policy_overrides": {"ac": true, "dc": false}
+        })
+    );
+    assert!(other_setting.human.contains("35"));
+    assert!(other_setting.human.contains("55"));
+    assert!(other_setting.human.contains("100"));
+}
+
+#[test]
+fn power_setting_get_rejects_unresolvable_schemes_before_reading() {
+    let hal = FakeHal::new("unused");
+    let mut power = ObservedSchemes::new();
+    let result = execute_with_services(
+        get_power_setting("unknown", FIRST_SETTING),
+        CommandServices::new(&hal).with_power(&power),
+    );
+    assert!(matches!(result, Err(LctrlError::InvalidArgument { .. })));
+    assert!(power.reads.lock().is_empty());
+
+    power.schemes.push(lctrl_core::PowerScheme::new(
+        lctrl_core::PowerSchemeId::new(SELECTED_SCHEME_ID).unwrap(),
+        "Duplicated ID",
+        false,
+    ));
+    let result = execute_with_services(
+        get_power_setting(SELECTED_SCHEME_ID, FIRST_SETTING),
+        CommandServices::new(&hal).with_power(&power),
+    );
+    assert!(matches!(result, Err(LctrlError::InvalidArgument { .. })));
+    assert!(power.reads.lock().is_empty());
+}
+
+#[test]
+fn power_setting_get_propagates_enumeration_and_read_errors() {
+    let hal = FakeHal::new("unused");
+    for (fail_list, expected_code, expected_reads) in [(true, 1234, 0), (false, 2345, 1)] {
+        let mut power = ObservedSchemes::new();
+        power.fail_list = fail_list;
+        power.fail_read = !fail_list;
+        let result = execute_with_services(
+            get_power_setting("Office", FIRST_SETTING),
+            CommandServices::new(&hal).with_power(&power),
+        );
+        let Err(LctrlError::Io(error)) = result else {
+            panic!("expected original I/O error");
+        };
+        assert_eq!(error.raw_os_error(), Some(expected_code));
+        assert_eq!(power.reads.lock().len(), expected_reads);
+    }
 }
 
 struct FakeTune {

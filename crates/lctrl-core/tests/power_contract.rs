@@ -1,6 +1,7 @@
 use lctrl_core::{
-    LctrlError, PowerGuid, PowerMutation, PowerScheme, PowerSchemeId, PowerSettingKey,
-    PowerSettingValue, PowerSource, PowerValueRange, validate_power_write,
+    LctrlError, PowerGuid, PowerMutation, PowerRangeObservation, PowerScheme, PowerSchemeId,
+    PowerSettingKey, PowerSettingObservation, PowerSettingValue, PowerSource, PowerSourceValues,
+    PowerValueRange, validate_power_write,
 };
 
 #[test]
@@ -76,6 +77,39 @@ fn ac_and_dc_are_distinct_sources() {
     assert_eq!(
         serde_json::to_value(PowerSource::Dc).unwrap(),
         serde_json::json!("dc")
+    );
+}
+
+#[test]
+fn setting_observation_serializes_values_policy_and_range_availability() {
+    let mut observation = PowerSettingObservation {
+        scheme: PowerSchemeId::new("selected").unwrap(),
+        key: PowerSettingKey {
+            subgroup: PowerGuid::new("sub").unwrap(),
+            setting: PowerGuid::new("setting").unwrap(),
+        },
+        values: PowerSourceValues::new(20, 80),
+        range: PowerRangeObservation::Available {
+            range: PowerValueRange::new(0, 100, 10).unwrap(),
+        },
+        policy_overrides: PowerSourceValues::new(true, false),
+    };
+    assert_eq!(
+        serde_json::to_value(&observation).unwrap(),
+        serde_json::json!({
+            "scheme": "selected",
+            "key": {"subgroup": "sub", "setting": "setting"},
+            "values": {"ac": 20, "dc": 80},
+            "range": {"status": "available", "range": {"min": 0, "max": 100, "increment": 10}},
+            "policy_overrides": {"ac": true, "dc": false}
+        })
+    );
+    observation.range = PowerRangeObservation::Unavailable {
+        detail: "range unavailable".into(),
+    };
+    assert_eq!(
+        serde_json::to_value(&observation).unwrap()["range"],
+        serde_json::json!({"status": "unavailable", "detail": "range unavailable"})
     );
 }
 

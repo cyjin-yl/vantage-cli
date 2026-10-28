@@ -68,8 +68,9 @@ pub use performance::{
     TemperatureSensorMetadata, TemperatureSource,
 };
 pub use power::{
-    PowerGuid, PowerMutation, PowerScheme, PowerSchemeId, PowerSettingKey, PowerSettingValue,
-    PowerSource, PowerSourceValues, PowerValueRange, ProcessorBoostMode, validate_power_write,
+    PowerGuid, PowerMutation, PowerRangeObservation, PowerScheme, PowerSchemeId, PowerSettingKey,
+    PowerSettingObservation, PowerSettingValue, PowerSource, PowerSourceValues, PowerValueRange,
+    ProcessorBoostMode, validate_power_write,
 };
 pub use privacy::{PrivacyDevice, PrivacyLayer, PrivacyState};
 pub use process::{

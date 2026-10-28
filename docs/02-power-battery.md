@@ -360,6 +360,14 @@ DeviceIoControl 返回 FALSE 时记 `"… failed, GLE = %d"`(GetLastError)。
   不按枚举顺序选择一个可能错误的目标。
 - 高级设置:`PowerReadACValueIndex`/`PowerReadDCValueIndex`/`PowerWriteACValueIndex`/
   `PowerWriteDCValueIndex` + `PowerReadValueMin/Max/Increment` + `PowerSettingAccessCheck`。
+- `power scheme get NAME --subgroup GUID --setting GUID` 只读所选方案的 AC/DC 设置索引、
+  数值范围及两种电源来源的组策略覆盖状态。两个 GUID 参数必须同时提供;不带它们时
+  `get NAME` 仍只返回方案信息。AC/DC 均绑定解析后的同一方案 GUID，但多次读取并非
+  原子快照。离散设置可能没有数值范围：此时保留设置值并明确报告范围不可用，不猜测
+  边界或步进;其他读取错误继续报告。`PowerSettingAccessCheck` 按设置 GUID 和 AC/DC
+  来源查询组策略，而不是按方案查询一般权限;未覆盖不代表当前用户必然能写，也不证明
+  硬件功耗、频率或其他物理效果。Linux 不支持此 Windows GUID 设置读取。目标机只读
+  对照及未验收边界见 C18。
 - Windows 设置事务先捕获活动方案 GUID，同一事务的 AC/DC 读取、写入、核验和恢复均绑定
   该 GUID。若观察到活动方案已切换，拒绝或停止事务;恢复原方案内的保存值时不主动
   重新激活已离开的方案。方案激活失败后，若观察到既非前值也非目标的第三个方案，
@@ -434,6 +442,7 @@ battery watch                  # §11 事件流,Ctrl-C 退出
 usb always-on on|off [--persistent]
 usb charge-on-battery on|off [--persistent]
 power scheme list|get|apply NAME
+power scheme get NAME --subgroup GUID --setting GUID  # 只读指定方案的 AC/DC 设置与策略状态
 power scheme set SUBGROUP SETTING AC|DC VALUE   # PowerWrite*ValueIndex 直映射
 power saver-once               # §4.3
 ```

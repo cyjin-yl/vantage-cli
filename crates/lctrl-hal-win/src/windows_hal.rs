@@ -365,6 +365,13 @@ where
             Availability::Limited,
             Some("Power API readiness is probed by the power service at command time".into()),
         )?;
+        capabilities.record(
+            "power.scheme.setting.read",
+            Availability::Limited,
+            Some(
+                "selected setting and group-policy availability are checked at command time".into(),
+            ),
+        )?;
         for (feature, availability, detail) in [
             (
                 "perf.mode",
