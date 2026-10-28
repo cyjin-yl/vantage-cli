@@ -24,9 +24,9 @@ use lctrl_core::{
     DiagnosticResult, DispatcherVersion, FanDescriptor, FanId, FanMode, FanTable, HardwareInfo,
     LctrlError, LightingEffect, MagicBayDevice, MagicBayInventory, MagicBayKind,
     PerformanceCapabilities, PerformanceMode, PerformanceState, Platform, PowerMutation,
-    PowerScheme, PowerSchemeId, PowerValueRange, Result, SensorId, TemperatureLocation,
-    TemperatureSensor, TemperatureSensorMetadata, TemperatureSource, UpdateCapability,
-    identify_magicbay, plan_charge_mode,
+    PowerScheme, PowerSchemeId, PowerSettingKey, PowerSettingObservation, PowerValueRange, Result,
+    SensorId, TemperatureLocation, TemperatureSensor, TemperatureSensorMetadata, TemperatureSource,
+    UpdateCapability, identify_magicbay, plan_charge_mode,
 };
 use lctrl_hal::{
     BatteryControl, ControlConflictDetection, DiagnosticsControl, FanControl, Hal, KeyboardControl,
@@ -702,6 +702,11 @@ impl Hal for LinuxHal {
         )?;
         Self::record_fixed_unsupported(
             &mut capabilities,
+            "power.scheme.setting.read",
+            "Windows-style advanced power settings are unavailable on Linux",
+        )?;
+        Self::record_fixed_unsupported(
+            &mut capabilities,
             "channel.acpi_call",
             "raw ACPI calls are intentionally not exposed by this backend",
         )?;
@@ -760,6 +765,16 @@ impl PowerControl for LinuxHal {
     }
 
     fn power_value_range(&self, _key: &lctrl_core::PowerSettingKey) -> Result<PowerValueRange> {
+        Err(LctrlError::Unsupported {
+            feature: "power.scheme.setting".into(),
+        })
+    }
+
+    fn read_power_setting(
+        &self,
+        _scheme: &PowerSchemeId,
+        _key: &PowerSettingKey,
+    ) -> Result<PowerSettingObservation> {
         Err(LctrlError::Unsupported {
             feature: "power.scheme.setting".into(),
         })
