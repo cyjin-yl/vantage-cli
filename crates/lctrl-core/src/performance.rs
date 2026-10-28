@@ -339,7 +339,7 @@ pub enum TemperatureLocation {
 pub enum TemperatureSource {
     WmiGamezone,
     WmiFanMetadata,
-    BatterySmbus,
+    WindowsBatteryClass,
     Acpi,
     Sysfs,
 }

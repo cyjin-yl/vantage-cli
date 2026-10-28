@@ -1194,6 +1194,7 @@ impl BatteryControl for LinuxHal {
             firmware_version: battery_text(self.battery_value(index, "firmware_version")?),
             serial_number: battery_text(self.battery_value(index, "serial_number")?),
             chemistry: battery_text(self.battery_value(index, "technology")?),
+            source_issues: Vec::new(),
         })
     }
 

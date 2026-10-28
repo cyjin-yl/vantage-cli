@@ -106,7 +106,7 @@ fn adapter_queries_gapd_only_when_gbmd_advertises_it() {
     let info = p0.adapter_info().unwrap();
     assert_eq!(info.authentication, AdapterAuthentication::Lenovo);
     assert!(info.has_detail);
-    assert!(info.is_underpowered());
+    assert_eq!(info.is_underpowered(), Some(true));
     assert_eq!(p0.ioctl().calls.lock()[1].code, IOCTL_GAPD);
 }
 

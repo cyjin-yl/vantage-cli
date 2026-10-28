@@ -148,7 +148,7 @@ BIOS 收到后重算 DPTF 参与者。**本工具的两条路线**:
 | 核/核群频率 | PDH `\Processor Information`\;`CallNtPowerInformation` | `/proc/cpuinfo`、`cpufreq/scaling_cur_freq` |
 | 温度 | DTT SEN1-5 参与者(经 ESIF IPC 读,或 ACPI 热区);`LENOVO_GAMEZONE_DATA.GetCPUTemp/GetGPUTemp` | hwmon(`coretemp`、`acpitz`) |
 | C-state 驻留 | PDH `% Cx Time` | `/sys/devices/system/cpu/cpu*/cpuidle/state*/time` |
-| 电池充放功率 | `_BATTERY_INFORMATION_EX` Wattage/Current(02 文档 §7) | `/sys/class/power_supply/BAT0/power_now` |
+| 电池充放功率 | Windows 电池类状态原始带符号速率(mW)，可缺失(02 文档 §7.1a) | `/sys/class/power_supply/BAT0/power_now` |
 | 充电节流状态 | DTT CHRG 参与者;DBDC 实例 | power_supply `charge_control_*`[若内核支持] |
 
 事件:模式切换经 `LENOVO_DISPATCHER_EVENT`(PowerLevel);AC 切换 `LENOVO_AC_PD_EVENT`(02 文档 §11)。
@@ -167,7 +167,7 @@ BIOS 收到后重算 DPTF 参与者。**本工具的两条路线**:
 | EPP | balance-power(≈179-220) | pstate / Power GUID |
 | 风扇 | Smart Fan 静音档 | `SetSmartFanMode` |
 | turbo | off | `no_turbo` / 处理器最大状态 99% |
-| 充电 | 养护开(若长期插电) | GBMD 0x03 |
+| 充电 | 不执行未验证的养护切换 | 目标 21VG 的 GBMD `0x03` 有运输模式风险，禁止发送 |
 | 面板 | 60 Hz 固定 | §04 面板 |
 | 后台 | 非前台进程工作集收缩 + 低优先级 | §3.3 |
 

@@ -289,8 +289,11 @@ fn battery_adapter_executes_through_explicit_service_only() {
         .expect("adapter succeeds with service");
 
     assert_eq!(battery.adapter_calls.load(Ordering::SeqCst), 1);
-    assert_eq!(output.json["authentication"], "inbox");
-    assert_eq!(output.json["has_detail"], false);
+    assert_eq!(output.json["vendor_adapter"]["authentication"], "inbox");
+    assert_eq!(output.json["vendor_adapter"]["has_detail"], false);
+    assert_eq!(output.json["source_association"], "unverified");
+    assert!(output.json["system_power"].is_null());
+    assert!(!output.json["system_power_error"].is_null());
     assert_eq!(hal.info_calls.load(Ordering::SeqCst), 0);
 }
 

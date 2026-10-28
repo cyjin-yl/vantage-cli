@@ -360,7 +360,14 @@ JSON 曲线 schema:
 
 ### 4.1 传感器来源
 
-`vantage perf temp` 需要聚合三种温度来源:
+当前 Windows 实现只读 `MSAcpi_ThermalZoneTemperature` 和可选 Windows 电池类温度。
+电池类温度来自同一电池类句柄和 tag 的 `BatteryTemperature` 查询，输出来源
+`windows_battery_class`、ID `windows-battery-class/temperature`;该电池与厂商索引 0 的
+关联未验证。没有温度时数值为 null，不能把有记录等同于测得温度。ACPI 热区保留固件
+实例名，物理位置标为 unknown，不猜测为 CPU/GPU;查询失败(除不支持外)不会被隐藏。
+两者以 `deci_kelvin / 10 - 273.15` 换算摄氏度。目标传感器覆盖仍需真机验收。
+
+下面列出原设计拟聚合的温度来源，并不表示当前都已实现:
 
 | 来源 | WMI/接口 | 粒度 |
 |---|---|---|

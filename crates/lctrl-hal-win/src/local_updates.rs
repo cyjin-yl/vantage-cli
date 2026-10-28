@@ -410,8 +410,10 @@ mod native {
             }
             let mut selected: Option<(SP_DRVINFO_DATA_V2_W, DriverIdentity)> = None;
             for index in 0..=MAX_LOCAL_UPDATE_PACKAGE_FILES {
-                let mut node = SP_DRVINFO_DATA_V2_W::default();
-                node.cbSize = size_of::<SP_DRVINFO_DATA_V2_W>() as u32;
+                let mut node = SP_DRVINFO_DATA_V2_W {
+                    cbSize: size_of::<SP_DRVINFO_DATA_V2_W>() as u32,
+                    ..SP_DRVINFO_DATA_V2_W::default()
+                };
                 if unsafe {
                     SetupDiEnumDriverInfoW(
                         set.0,
@@ -743,8 +745,10 @@ mod native {
     }
 
     fn install_parameters(set: HDEVINFO, data: &SP_DEVINFO_DATA) -> Result<SP_DEVINSTALL_PARAMS_W> {
-        let mut parameters = SP_DEVINSTALL_PARAMS_W::default();
-        parameters.cbSize = size_of::<SP_DEVINSTALL_PARAMS_W>() as u32;
+        let mut parameters = SP_DEVINSTALL_PARAMS_W {
+            cbSize: size_of::<SP_DEVINSTALL_PARAMS_W>() as u32,
+            ..SP_DEVINSTALL_PARAMS_W::default()
+        };
         if unsafe { SetupDiGetDeviceInstallParamsW(set, data, &mut parameters) } == 0 {
             return Err(last_error("SetupDiGetDeviceInstallParamsW"));
         }
@@ -784,7 +788,7 @@ mod native {
         }
         // u64 storage supplies alignment for both native and x86 packed SDK
         // layouts; variable HardwareID data remains inside the returned size.
-        let mut storage = vec![0u64; (required as usize + 7) / 8];
+        let mut storage = vec![0u64; (required as usize).div_ceil(8)];
         let detail = storage.as_mut_ptr().cast::<SP_DRVINFO_DETAIL_DATA_W>();
         unsafe {
             ptr::addr_of_mut!((*detail).cbSize)
@@ -824,8 +828,10 @@ mod native {
 
     fn inf_signature(inf: &Path) -> Result<(PathBuf, DriverSignature)> {
         let inf_wide = wide(inf.as_os_str())?;
-        let mut info = SP_INF_SIGNER_INFO_V2_W::default();
-        info.cbSize = size_of::<SP_INF_SIGNER_INFO_V2_W>() as u32;
+        let mut info = SP_INF_SIGNER_INFO_V2_W {
+            cbSize: size_of::<SP_INF_SIGNER_INFO_V2_W>() as u32,
+            ..SP_INF_SIGNER_INFO_V2_W::default()
+        };
         if unsafe { SetupVerifyInfFileW(inf_wide.as_ptr(), ptr::null(), &mut info) } == 0 {
             return Err(invalid(format!(
                 "INF catalog signature was rejected (SetupVerifyInfFileW: 0x{:08x})",

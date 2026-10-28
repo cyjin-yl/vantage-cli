@@ -1,0 +1,12 @@
+{
+  "scope": "Read-only target comparison; dynamic readings are time-dependent and no charging control was changed.",
+  "machine": "TB14P-EZRA",
+  "binary_commit": "69bd462dc938600f12681cc25d46a148a4bd9e49",
+  "binary_sha256": "3074c7de8e058d70fcbbd8a4cbf95f0841a4b37dc3ba5a22b49bdee7ce383c80",
+  "cli": {"voltage_mv": 15600, "design_voltage_mv": null, "current_ma": 23446, "charge_status": "no_activity"},
+  "windows_wmi": {"voltage_mv": 17721, "charge_rate_raw": 0, "discharge_rate_raw": 0, "charging": false, "discharging": false, "power_online": true},
+  "battery_static_capabilities": 2147483648,
+  "analysis": "The repository's documented EnergyDrv offset 0x14 is nominal/design voltage, yet the CLI reported it as instantaneous voltage. The EnergyDrv offset 0x10 current interpretation is inferred and conflicts with a no-activity battery observation; do not treat it as verified mA. WMI rate fields are preserved here as raw values, not asserted as mA.",
+  "privacy": "No serial number, manufacturer, or device instance identifier retained.",
+  "boundary": "Read-only discrepancy reproduction; no battery mode or hardware state was changed."
+}
