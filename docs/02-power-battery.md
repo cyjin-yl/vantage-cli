@@ -243,7 +243,7 @@ PCManager `BatterySetting.exe` 提供四种充电策略(Vantage 仅有前三态�
 | 4 | u16 | RemainingCapacity | ×10 → mWh |
 | 10 | u16 | Voltage | mV |
 | 12 | i32 | Current | mA(正=充电,负=放电) |
-| 16 | u16 | Temperature | 0.1 K,℃ = (t − 2731.6)/10 |
+| 16 | u16 | Temperature | 0.1 K,℃ = t / 10 − 273.15 |
 | 18 | u16 | ManufactureDate | BCD:day[4:0] \| month[8:5] \| (year−1980)[15:9] |
 | 20 | u16 | FirstUsedDate | 同上 |
 | 22 | u16 | DesignVoltage | mV |
