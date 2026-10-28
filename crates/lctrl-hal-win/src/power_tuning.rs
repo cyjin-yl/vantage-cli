@@ -1,5 +1,5 @@
 use lctrl_core::{
-    ApplyMode, ChangeReport, LctrlError, PowerGuid, PowerMutation, PowerSettingKey,
+    ApplyMode, ChangeReport, LctrlError, PowerGuid, PowerMutation, PowerSchemeId, PowerSettingKey,
     PowerSettingValue, PowerSource, PowerSourceValues, PowerValueRange, ProcessorBoostMode, Result,
 };
 use lctrl_hal::{PowerLimitKind, ProcessorPowerControl, TuningControl};
@@ -88,10 +88,11 @@ where
     }
 
     fn read_index_ac_dc(&self, key: &PowerSettingKey) -> Result<PowerSourceValues<u32>> {
-        Ok(PowerSourceValues::new(
-            self.api().read_value(key, PowerSource::Ac)?,
-            self.api().read_value(key, PowerSource::Dc)?,
-        ))
+        let scheme = self.active_scheme_id()?;
+        let ac = self.api().read_value(&scheme, key, PowerSource::Ac)?;
+        let dc = self.api().read_value(&scheme, key, PowerSource::Dc)?;
+        self.require_active_scheme(&scheme)?;
+        Ok(PowerSourceValues::new(ac, dc))
     }
 
     fn set_index_ac_dc(
@@ -104,7 +105,9 @@ where
         let range = self.api().range(&key)?;
         let ac = PowerSettingValue::new(values.ac, &range)?;
         let dc = PowerSettingValue::new(values.dc, &range)?;
+        let scheme = self.active_scheme_id()?;
         let report = self.apply_source_pair(
+            &scheme,
             PowerMutation::SetValue {
                 key: key.clone(),
                 source: PowerSource::Ac,
@@ -123,13 +126,14 @@ where
 
     fn apply_source_pair(
         &self,
+        scheme: &PowerSchemeId,
         ac: PowerMutation,
         dc: PowerMutation,
         apply: ApplyMode,
         range: PowerValueRange,
     ) -> Result<ChangeReport<PowerSourceValues<PowerMutation>>> {
-        let ac_report = self.apply_source_mutation(ac, apply, range)?;
-        let dc_report = match self.apply_source_mutation(dc, apply, range) {
+        let ac_report = self.apply_source_mutation(scheme, ac, apply, range)?;
+        let dc_report = match self.apply_source_mutation(scheme, dc, apply, range) {
             Ok(report) => report,
             Err(error) => {
                 if apply == ApplyMode::DryRun {
@@ -138,15 +142,11 @@ where
                 // The failed DC mutation has already attempted its own
                 // rollback. Restore the successful AC mutation as well.
                 return Err(
-                    match self.apply_source_mutation(
-                        ac_report.previous().clone(),
-                        ApplyMode::Commit,
-                        range,
-                    ) {
-                        Ok(_) => error,
+                    match self.restore_source_mutation(scheme, ac_report.previous()) {
+                        Ok(()) => error,
                         Err(rollback) => LctrlError::FirmwareRejected {
                             detail: format!(
-                                "AC/DC power-policy write failed ({error}); restoring AC also failed ({rollback})"
+                                "AC/DC power-policy write failed ({error}); restoring AC for scheme {scheme} also failed ({rollback}); state is unverified"
                             ),
                         },
                     },
@@ -170,13 +170,29 @@ where
 
     fn apply_source_mutation(
         &self,
+        scheme: &PowerSchemeId,
         mutation: PowerMutation,
         apply: ApplyMode,
         range: PowerValueRange,
     ) -> Result<ChangeReport<PowerMutation>> {
         match mutation {
             PowerMutation::SetValue { key, source, value } => {
-                self.set_value(key, source, value, apply, Some(range))
+                self.set_value_for_scheme(scheme, key, source, value, apply, Some(range))
+            }
+            PowerMutation::Activate(_) => Err(LctrlError::ChannelUnavailable {
+                channel: "processor source pair contained a scheme activation".into(),
+            }),
+        }
+    }
+
+    fn restore_source_mutation(
+        &self,
+        scheme: &PowerSchemeId,
+        previous: &PowerMutation,
+    ) -> Result<()> {
+        match previous {
+            PowerMutation::SetValue { key, source, value } => {
+                self.restore_value_for_scheme(scheme, key, *source, value.get())
             }
             PowerMutation::Activate(_) => Err(LctrlError::ChannelUnavailable {
                 channel: "processor source pair contained a scheme activation".into(),

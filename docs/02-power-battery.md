@@ -354,6 +354,13 @@ DeviceIoControl 返回 FALSE 时记 `"… failed, GLE = %d"`(GetLastError)。
 - 枚举:`PowerEnumerate` / 活动方案 `PowerGetActiveScheme` / 切换 `PowerSetActiveScheme`。
 - 高级设置:`PowerReadACValueIndex`/`PowerReadDCValueIndex`/`PowerWriteACValueIndex`/
   `PowerWriteDCValueIndex` + `PowerReadValueMin/Max/Increment` + `PowerSettingAccessCheck`。
+- Windows 设置事务先捕获活动方案 GUID，同一事务的 AC/DC 读取、写入、核验和恢复均绑定
+  该 GUID。若观察到活动方案已切换，拒绝或停止事务;恢复原方案内的保存值时不主动
+  重新激活已离开的方案。方案激活失败后，若观察到既非前值也非目标的第三个方案，
+  不覆盖它。传输失败后恢复仍可能发出写请求。
+- **并发边界**:检查活动 GUID 与调用 `PowerSetActiveScheme` 不是跨进程原子操作;
+  Windows 设置或其他软件仍可在两者间切换，也可能并发修改同一方案的值。该实现不
+  宣称排除外部竞争或崩溃恢复。模拟测试与目标机原生验收的区别见 C16。
 - **PCManager 不新建电源方案**,而是在内置方案上覆盖以下 GUID 域(证据见 §14):
   `GUID_PROCESSOR_THROTTLE`(CPU 上限)、`GUID_VIDEO_SUBGROUP`、
   `GUID_PROCESSOR_IDLE_SUBGROUP`(C-state)、`GUID_DISK_SUBGROUP`、`GUID_SYSTEM_SUBGROUP→PROC_THR_STATE`。

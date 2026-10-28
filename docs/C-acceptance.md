@@ -421,3 +421,25 @@ finally 又发送 `0x07`。未发送 `0x03`。原脚本把四字节状态按大�
 控制器恢复逻辑另经 13 项离线测试及模拟传输 consumer smoke 验证：首个写请求在
 模拟设备生效后报错时尝试恢复前值;恢复也失败时保留两个错误且不报告恢复成功。
 Linux 与 Windows 交叉 lint 均通过。这些是模拟结果，不是目标机实际恢复验收。
+
+## C16 · 电源方案身份隔离（模拟验证，非真机并发验收）
+
+旧设置事务多次重新读取活动方案：若前值读取与写入间发生切换，可能把前一方案的值
+写入或恢复到另一方案。修复后，每次单值事务及其 AC/DC 组合绑定同一个方案 GUID;
+观察到活动方案改变时不把写入转移给新方案，必要恢复只针对原 GUID。激活失败时，
+若当前方案既非前值也非目标，不自动覆盖该第三方案。
+
+离线 fake Power API 覆盖了读取后切换、写入后切换、AC 与 DC 之间切换、激活失败后
+第三方切换，以及原有成功/dry-run/恢复等场景;真实控制器的模拟 consumer smoke 覆盖
+前两种切换。Windows 交叉 lint 和 Linux 测试通过。目标机逐文件核对 138 个 Rust 构建
+输入后，Windows release 构建退出 0，8 项电源及 11 项调优 fake 测试通过;二进制
+SHA-256 `cd8a2e0780a6de9268e69ebb5c262fae96c7af1b5e937c90d0cf76642f463508`，
+源 manifest `71cf4741bc0e0099e0eb9a938c4ecb615703d3eba39c11b71a375f72748577a7`。
+
+实际程序对 DC EPP 50 执行 `--dry-run power scheme set`，退出 0、报告 `dry_run`
+且无 actual。独立 `powercfg`/注册表前后均为平衡方案 GUID，AC/DC 指数均为 50。
+请求值恰等于前值，因此该前后快照本身不能排除同值写入; fake dry-run 测试另验证未
+调用写接口。未在目标机执行方案切换或电源设置 commit。
+活动 GUID 检查与 Windows `PowerSetActiveScheme` 本身仍非跨进程原子操作；对同一方案
+的并发改值及进程崩溃恢复也未证明安全。完整回执哈希见
+`evidence/target-power-scheme-isolation-20261028.json`；#9 继续开放。
