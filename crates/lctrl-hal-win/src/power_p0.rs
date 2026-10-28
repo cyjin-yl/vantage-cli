@@ -176,7 +176,14 @@ where
             });
         };
         if let Err(error) = self.api.write_value(scheme, key, *source, value.get()) {
-            return Err(self.rollback_value(scheme, key, *source, previous_raw, error));
+            return Err(self.rollback_value(
+                scheme,
+                key,
+                *source,
+                previous_raw,
+                value.get(),
+                error,
+            ));
         }
         match self.api.apply_if_active(scheme) {
             Ok(true) => {}
@@ -184,10 +191,24 @@ where
                 let error = LctrlError::ChannelUnavailable {
                     channel: format!("power scheme {scheme} became inactive after value write"),
                 };
-                return Err(self.rollback_value(scheme, key, *source, previous_raw, error));
+                return Err(self.rollback_value(
+                    scheme,
+                    key,
+                    *source,
+                    previous_raw,
+                    value.get(),
+                    error,
+                ));
             }
             Err(error) => {
-                return Err(self.rollback_value(scheme, key, *source, previous_raw, error));
+                return Err(self.rollback_value(
+                    scheme,
+                    key,
+                    *source,
+                    previous_raw,
+                    value.get(),
+                    error,
+                ));
             }
         }
         match poll_readback(&requested, 10, Duration::from_millis(50), || {
@@ -201,9 +222,13 @@ where
         }) {
             Ok(actual) => match self.require_active_scheme(scheme) {
                 Ok(()) => Ok(ChangeReport::committed(previous, requested, actual)),
-                Err(error) => Err(self.rollback_value(scheme, key, *source, previous_raw, error)),
+                Err(error) => {
+                    Err(self.rollback_value(scheme, key, *source, previous_raw, value.get(), error))
+                }
             },
-            Err(error) => Err(self.rollback_value(scheme, key, *source, previous_raw, error)),
+            Err(error) => {
+                Err(self.rollback_value(scheme, key, *source, previous_raw, value.get(), error))
+            }
         }
     }
 
@@ -254,9 +279,10 @@ where
         key: &lctrl_core::PowerSettingKey,
         source: lctrl_core::PowerSource,
         previous_raw: u32,
+        attempted_raw: u32,
         error: LctrlError,
     ) -> LctrlError {
-        match self.restore_value_for_scheme(scheme, key, source, previous_raw) {
+        match self.restore_value_for_scheme(scheme, key, source, previous_raw, attempted_raw) {
             Ok(_) => error,
             Err(rollback) => LctrlError::FirmwareRejected {
                 detail: format!(
@@ -272,7 +298,19 @@ where
         key: &lctrl_core::PowerSettingKey,
         source: lctrl_core::PowerSource,
         previous_raw: u32,
+        attempted_raw: u32,
     ) -> Result<()> {
+        let observed = self.api.read_value(scheme, key, source)?;
+        if observed == previous_raw {
+            return Ok(());
+        }
+        if observed != attempted_raw {
+            return Err(LctrlError::ChannelUnavailable {
+                channel: format!(
+                    "scheme {scheme} value is {observed}, neither previous {previous_raw} nor attempted {attempted_raw}; recovery did not overwrite it"
+                ),
+            });
+        }
         self.api.write_value(scheme, key, source, previous_raw)?;
         // A user-selected different active scheme must not be deliberately
         // reactivated merely to restore the saved value of this scheme.
