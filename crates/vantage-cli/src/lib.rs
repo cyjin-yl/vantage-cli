@@ -21,9 +21,9 @@ use lctrl_core::{
 };
 use lctrl_hal::{
     BatteryControl, BiosControl, ControlConflictDetection, DiagnosticsControl, FanControl, Hal,
-    KeyboardControl, MagicBayControl, PanelControl, PerformanceControl, PowerControl,
-    PowerLimitKind, PrivacyControl, ProcessorPowerControl, TemperatureControl, TouchpadControl,
-    TuningControl, UpdateControl,
+    KeyboardControl, MagicBayControl, PanelBrightnessControl, PanelControl, PerformanceControl,
+    PowerControl, PowerLimitKind, PrivacyControl, ProcessorPowerControl, TemperatureControl,
+    TouchpadControl, TuningControl, UpdateControl,
 };
 use serde::{Deserialize, Serialize};
 
@@ -52,6 +52,7 @@ pub struct CommandServices<'a> {
     privacy: Option<&'a dyn PrivacyControl>,
     touchpad: Option<&'a dyn TouchpadControl>,
     panel: Option<&'a dyn PanelControl>,
+    panel_brightness: Option<&'a dyn PanelBrightnessControl>,
     temperature: Option<&'a dyn TemperatureControl>,
     tuning: Option<&'a dyn TuningControl>,
     processor_power: Option<&'a dyn ProcessorPowerControl>,
@@ -74,6 +75,7 @@ impl<'a> CommandServices<'a> {
             privacy: None,
             touchpad: None,
             panel: None,
+            panel_brightness: None,
             temperature: None,
             tuning: None,
             processor_power: None,
@@ -150,6 +152,12 @@ impl<'a> CommandServices<'a> {
     #[must_use]
     pub fn with_panel(mut self, panel: &'a dyn PanelControl) -> Self {
         self.panel = Some(panel);
+        self
+    }
+
+    #[must_use]
+    pub fn with_panel_brightness(mut self, panel: &'a dyn PanelBrightnessControl) -> Self {
+        self.panel_brightness = Some(panel);
         self
     }
 
@@ -532,6 +540,13 @@ pub enum BacklightEffect {
 /// Panel command tree.
 #[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
 pub enum PanelCommand {
+    Brightness {
+        #[arg(value_parser = clap::value_parser!(u8).range(0..=100))]
+        percent: Option<u8>,
+        /// Refuse if the observed current brightness differs from this value.
+        #[arg(long, requires = "percent", value_parser = clap::value_parser!(u8).range(0..=100))]
+        expect_current: Option<u8>,
+    },
     Rate {
         rate: PanelRate,
     },
@@ -968,6 +983,25 @@ pub use lctrl_hal::{
 };
 
 pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> CommandResult {
+    let invalid_brightness = match &cli.command {
+        Command::Panel {
+            command:
+                Some(PanelCommand::Brightness {
+                    percent,
+                    expect_current,
+                }),
+        } => {
+            percent.is_some_and(|value| value > 100)
+                || expect_current.is_some_and(|value| value > 100)
+                || (percent.is_none() && expect_current.is_some())
+        }
+        _ => false,
+    };
+    if invalid_brightness {
+        return Err(LctrlError::InvalidArgument {
+            detail: "brightness and expected current must be 0..=100; --expect-current requires a requested brightness".into(),
+        });
+    }
     let local_dry_run = matches!(
         &cli.command,
         Command::Tune {
@@ -1048,6 +1082,13 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
             command: Some(KbdCommand::FnCtrlSwap { state }),
         } => execute_fn_ctrl_swap(services.bios, state, apply, confirmed, interactive),
         Command::Touchpad { state } => execute_touchpad(services.touchpad, state, apply),
+        Command::Panel {
+            command:
+                Some(PanelCommand::Brightness {
+                    percent,
+                    expect_current,
+                }),
+        } => execute_panel_brightness(services.panel_brightness, percent, expect_current, apply),
         Command::Panel {
             command: Some(command),
         } => execute_panel(services.panel, command, apply),
@@ -1132,28 +1173,35 @@ fn command_is_mutating(command: &Command) -> bool {
             )
         } | Command::Snapshot {
             command: Some(SnapshotCommand::Restore)
-        } | Command::Panel { command: Some(_) }
-            | Command::Kbd {
-                command: Some(
-                    KbdCommand::Backlight { .. }
-                        | KbdCommand::Fnlock { .. }
-                        | KbdCommand::FnCtrlSwap { .. }
-                        | KbdCommand::Winlock { .. },
-                )
-            }
-            | Command::Touchpad {
-                state: TouchpadAction::On | TouchpadAction::Off | TouchpadAction::Recover,
-            }
-            | Command::Privacy {
-                command: Some(
-                    PrivacyCommand::Cam { .. }
-                        | PrivacyCommand::Mic { .. }
-                        | PrivacyCommand::Fingerprint { .. },
-                )
-            }
-            | Command::Bios {
-                command: Some(BiosCommand::Set { .. } | BiosCommand::Discard)
-            }
+        } | Command::Panel {
+            command: Some(
+                PanelCommand::Brightness {
+                    percent: Some(_),
+                    ..
+                } | PanelCommand::Rate { .. }
+                    | PanelCommand::Color { .. }
+                    | PanelCommand::SuperResolution { .. }
+                    | PanelCommand::Overdrive { .. }
+                    | PanelCommand::EyeCare { .. },
+            )
+        } | Command::Kbd {
+            command: Some(
+                KbdCommand::Backlight { .. }
+                    | KbdCommand::Fnlock { .. }
+                    | KbdCommand::FnCtrlSwap { .. }
+                    | KbdCommand::Winlock { .. },
+            )
+        } | Command::Touchpad {
+            state: TouchpadAction::On | TouchpadAction::Off | TouchpadAction::Recover,
+        } | Command::Privacy {
+            command: Some(
+                PrivacyCommand::Cam { .. }
+                    | PrivacyCommand::Mic { .. }
+                    | PrivacyCommand::Fingerprint { .. },
+            )
+        } | Command::Bios {
+            command: Some(BiosCommand::Set { .. } | BiosCommand::Discard)
+        }
     )
 }
 
@@ -1700,6 +1748,33 @@ fn execute_fan(
     }
 }
 
+fn execute_panel_brightness(
+    panel: Option<&dyn PanelBrightnessControl>,
+    percent: Option<u8>,
+    expect_current: Option<u8>,
+    apply: ApplyMode,
+) -> CommandResult {
+    let panel = panel.ok_or_else(|| LctrlError::Unsupported {
+        feature: "panel.brightness".into(),
+    })?;
+    match percent {
+        Some(percent) => {
+            let report = panel.set_brightness(percent, expect_current, apply)?;
+            structured_output(
+                &report,
+                format!("panel brightness transition requested: {percent}%\n"),
+            )
+        }
+        None => {
+            let brightness = panel.brightness()?;
+            structured_output(
+                &brightness,
+                format!("panel brightness: {}%\n", brightness.current_percent),
+            )
+        }
+    }
+}
+
 fn execute_panel(
     panel: Option<&dyn PanelControl>,
     command: PanelCommand,
@@ -1709,6 +1784,10 @@ fn execute_panel(
         feature: "panel".into(),
     })?;
     match command {
+        PanelCommand::Brightness {
+            percent,
+            expect_current,
+        } => execute_panel_brightness(None, percent, expect_current, apply),
         PanelCommand::Rate { rate } => {
             let requested = match rate {
                 PanelRate::Fps60 => lctrl_core::PanelRefreshRequest::Fixed(60),
@@ -4308,6 +4387,7 @@ impl KbdCommand {
 impl PanelCommand {
     const fn feature(&self) -> &'static str {
         match self {
+            Self::Brightness { .. } => "brightness",
             Self::Rate { .. } => "rate",
             Self::Color { .. } => "color",
             Self::SuperResolution { .. } => "super-resolution",

@@ -340,6 +340,30 @@ fn mutations_have_required_readback_and_unsupported_have_honest_axes() {
 }
 
 #[test]
+fn brightness_read_and_write_have_distinct_unverified_capabilities() {
+    let rows = vantage_cli::evaluate_commands(&FakeHal::new()).unwrap();
+    for (args, id, writes) in [
+        (
+            &["vantage", "panel", "brightness"][..],
+            lctrl_core::CommandId::PANEL_BRIGHTNESS_STATUS,
+            false,
+        ),
+        (
+            &["vantage", "panel", "brightness", "50"][..],
+            lctrl_core::CommandId::PANEL_BRIGHTNESS_SET,
+            true,
+        ),
+    ] {
+        let cli = Cli::try_parse_from(args).unwrap();
+        let selector = command_selector(&cli.command).unwrap();
+        assert_eq!(selector.command, id);
+        let observed = rows.iter().find(|row| row.command == id).unwrap();
+        assert_eq!(observed.status, ObservedStatus::Unverified);
+        assert_eq!(observed.axes.write, writes);
+    }
+}
+
+#[test]
 fn vendor_dependency_checklist_never_recommends_blanket_disable() {
     let selected = command_registry()
         .iter()
