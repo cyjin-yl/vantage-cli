@@ -253,8 +253,14 @@ impl PanelBrightnessControl for FakeBrightness {
     fn set_brightness(
         &self,
         percent: u8,
+        expected_current: Option<u8>,
         apply: ApplyMode,
     ) -> lctrl_core::Result<ChangeReport<u8>> {
+        if expected_current.is_some_and(|expected| expected != 80) {
+            return Err(LctrlError::ChannelUnavailable {
+                channel: "brightness precondition changed".into(),
+            });
+        }
         self.writes.lock().push((percent, apply));
         Ok(match apply {
             ApplyMode::DryRun => ChangeReport::dry_run(80, percent),
@@ -308,7 +314,10 @@ fn panel_brightness_missing_and_invalid_do_not_call_service() {
     assert!(Cli::try_parse_from(["vantage", "panel", "brightness", "256"]).is_err());
     let cli = vantage_cli::Cli {
         command: vantage_cli::Command::Panel {
-            command: Some(vantage_cli::PanelCommand::Brightness { percent: Some(101) }),
+            command: Some(vantage_cli::PanelCommand::Brightness {
+                percent: Some(101),
+                expect_current: None,
+            }),
         },
         ..Cli::try_parse_from(["vantage", "--dry-run", "panel", "brightness"]).unwrap()
     };
@@ -320,6 +329,32 @@ fn panel_brightness_missing_and_invalid_do_not_call_service() {
         Err(LctrlError::InvalidArgument { .. })
     ));
     assert_eq!(panel.reads.load(Ordering::SeqCst), 0);
+    assert!(panel.writes.lock().is_empty());
+}
+
+#[test]
+fn panel_brightness_expected_current_prevents_stale_writes() {
+    let hal = FakeHal::new("unused");
+    let panel = FakeBrightness::default();
+    assert!(
+        Cli::try_parse_from(["vantage", "panel", "brightness", "--expect-current", "80"]).is_err()
+    );
+    let cli = Cli::try_parse_from([
+        "vantage",
+        "panel",
+        "brightness",
+        "50",
+        "--expect-current",
+        "90",
+    ])
+    .unwrap();
+    assert!(matches!(
+        execute_with_services(
+            cli,
+            CommandServices::new(&hal).with_panel_brightness(&panel)
+        ),
+        Err(LctrlError::ChannelUnavailable { .. })
+    ));
     assert!(panel.writes.lock().is_empty());
 }
 

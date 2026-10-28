@@ -543,6 +543,9 @@ pub enum PanelCommand {
     Brightness {
         #[arg(value_parser = clap::value_parser!(u8).range(0..=100))]
         percent: Option<u8>,
+        /// Refuse if the observed current brightness differs from this value.
+        #[arg(long, requires = "percent", value_parser = clap::value_parser!(u8).range(0..=100))]
+        expect_current: Option<u8>,
     },
     Rate {
         rate: PanelRate,
@@ -980,16 +983,23 @@ pub use lctrl_hal::{
 };
 
 pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> CommandResult {
-    if matches!(
-        &cli.command,
+    let invalid_brightness = match &cli.command {
         Command::Panel {
-            command: Some(PanelCommand::Brightness {
-                percent: Some(101..=u8::MAX)
-            }),
+            command:
+                Some(PanelCommand::Brightness {
+                    percent,
+                    expect_current,
+                }),
+        } => {
+            percent.is_some_and(|value| value > 100)
+                || expect_current.is_some_and(|value| value > 100)
+                || (percent.is_none() && expect_current.is_some())
         }
-    ) {
+        _ => false,
+    };
+    if invalid_brightness {
         return Err(LctrlError::InvalidArgument {
-            detail: "panel brightness must be between 0 and 100".into(),
+            detail: "brightness and expected current must be 0..=100; --expect-current requires a requested brightness".into(),
         });
     }
     let local_dry_run = matches!(
@@ -1073,8 +1083,12 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
         } => execute_fn_ctrl_swap(services.bios, state, apply, confirmed, interactive),
         Command::Touchpad { state } => execute_touchpad(services.touchpad, state, apply),
         Command::Panel {
-            command: Some(PanelCommand::Brightness { percent }),
-        } => execute_panel_brightness(services.panel_brightness, percent, apply),
+            command:
+                Some(PanelCommand::Brightness {
+                    percent,
+                    expect_current,
+                }),
+        } => execute_panel_brightness(services.panel_brightness, percent, expect_current, apply),
         Command::Panel {
             command: Some(command),
         } => execute_panel(services.panel, command, apply),
@@ -1161,8 +1175,10 @@ fn command_is_mutating(command: &Command) -> bool {
             command: Some(SnapshotCommand::Restore)
         } | Command::Panel {
             command: Some(
-                PanelCommand::Brightness { percent: Some(_) }
-                    | PanelCommand::Rate { .. }
+                PanelCommand::Brightness {
+                    percent: Some(_),
+                    ..
+                } | PanelCommand::Rate { .. }
                     | PanelCommand::Color { .. }
                     | PanelCommand::SuperResolution { .. }
                     | PanelCommand::Overdrive { .. }
@@ -1735,6 +1751,7 @@ fn execute_fan(
 fn execute_panel_brightness(
     panel: Option<&dyn PanelBrightnessControl>,
     percent: Option<u8>,
+    expect_current: Option<u8>,
     apply: ApplyMode,
 ) -> CommandResult {
     let panel = panel.ok_or_else(|| LctrlError::Unsupported {
@@ -1742,7 +1759,7 @@ fn execute_panel_brightness(
     })?;
     match percent {
         Some(percent) => {
-            let report = panel.set_brightness(percent, apply)?;
+            let report = panel.set_brightness(percent, expect_current, apply)?;
             structured_output(
                 &report,
                 format!("panel brightness transition requested: {percent}%\n"),
@@ -1767,7 +1784,10 @@ fn execute_panel(
         feature: "panel".into(),
     })?;
     match command {
-        PanelCommand::Brightness { percent } => execute_panel_brightness(None, percent, apply),
+        PanelCommand::Brightness {
+            percent,
+            expect_current,
+        } => execute_panel_brightness(None, percent, expect_current, apply),
         PanelCommand::Rate { rate } => {
             let requested = match rate {
                 PanelRate::Fps60 => lctrl_core::PanelRefreshRequest::Fixed(60),

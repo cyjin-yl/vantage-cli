@@ -53,5 +53,12 @@ pub trait PanelControl: Send + Sync {
 /// must not redirect a transition to an external or newly attached monitor.
 pub trait PanelBrightnessControl: Send + Sync {
     fn brightness(&self) -> Result<lctrl_core::PanelBrightness>;
-    fn set_brightness(&self, percent: u8, apply: ApplyMode) -> Result<ChangeReport<u8>>;
+    /// If provided, `expected_current` must match the freshly observed value
+    /// before any write is attempted; it is not an atomic cross-process CAS.
+    fn set_brightness(
+        &self,
+        percent: u8,
+        expected_current: Option<u8>,
+        apply: ApplyMode,
+    ) -> Result<ChangeReport<u8>>;
 }

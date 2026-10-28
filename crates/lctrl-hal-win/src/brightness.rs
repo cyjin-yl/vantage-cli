@@ -310,7 +310,12 @@ impl<W: WmiTransport> PanelBrightnessControl for WindowsPanelBrightness<W> {
         Ok(self.snapshot(false)?.panel)
     }
 
-    fn set_brightness(&self, percent: u8, apply: ApplyMode) -> Result<ChangeReport<u8>> {
+    fn set_brightness(
+        &self,
+        percent: u8,
+        expected_current: Option<u8>,
+        apply: ApplyMode,
+    ) -> Result<ChangeReport<u8>> {
         // Serialize cooperating Windows CLI processes; foreign brightness
         // controllers do not honor this lease. A vanished mutex does not
         // constitute a crash-recovery journal.
@@ -322,6 +327,11 @@ impl<W: WmiTransport> PanelBrightnessControl for WindowsPanelBrightness<W> {
         };
         let initial = self.snapshot(true)?;
         let previous = initial.panel.current_percent;
+        if let Some(expected) = expected_current.filter(|expected| *expected != previous) {
+            return Err(unavailable(&format!(
+                "expected current brightness {expected}%, observed {previous}%; no write attempted"
+            )));
+        }
         if !initial.panel.supported_levels.contains(&percent) {
             return Err(LctrlError::InvalidArgument {
                 detail: "requested brightness is not a supported panel level".into(),
