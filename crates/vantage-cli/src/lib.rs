@@ -1741,6 +1741,44 @@ fn execute_active_power_scheme(power: Option<&dyn PowerControl>) -> CommandResul
     structured_output(&scheme, format!("active power scheme: {}\n", scheme.name))
 }
 
+fn resolve_power_scheme(
+    mut schemes: Vec<lctrl_core::PowerScheme>,
+    name: &str,
+) -> lctrl_core::Result<lctrl_core::PowerScheme> {
+    let exact_id = {
+        let mut matches = schemes
+            .iter()
+            .enumerate()
+            .filter(|(_, scheme)| scheme.id.as_str() == name);
+        let first = matches.next().map(|(index, _)| index);
+        if matches.next().is_some() {
+            return Err(LctrlError::InvalidArgument {
+                detail: format!("power scheme ID {name:?} is duplicated"),
+            });
+        }
+        first
+    };
+    if let Some(index) = exact_id {
+        return Ok(schemes.swap_remove(index));
+    }
+    let index = {
+        let mut matches = schemes
+            .iter()
+            .enumerate()
+            .filter(|(_, scheme)| scheme.name.eq_ignore_ascii_case(name));
+        let first = matches.next().map(|(index, _)| index);
+        if matches.next().is_some() {
+            return Err(LctrlError::InvalidArgument {
+                detail: format!("power scheme name {name:?} is ambiguous; use an exact scheme ID"),
+            });
+        }
+        first.ok_or_else(|| LctrlError::InvalidArgument {
+            detail: format!("power scheme {name:?} is not enumerated"),
+        })?
+    };
+    Ok(schemes.swap_remove(index))
+}
+
 fn execute_power_scheme(
     power: Option<&dyn PowerControl>,
     command: SchemeCommand,
@@ -1755,27 +1793,11 @@ fn execute_power_scheme(
             structured_output(&schemes, format!("{} power scheme(s)\n", schemes.len()))
         }
         SchemeCommand::Get { name } => {
-            let schemes = power.power_schemes()?;
-            let scheme = schemes
-                .into_iter()
-                .find(|scheme| {
-                    scheme.id.as_str() == name || scheme.name.eq_ignore_ascii_case(&name)
-                })
-                .ok_or_else(|| LctrlError::InvalidArgument {
-                    detail: format!("power scheme {name:?} is not enumerated"),
-                })?;
+            let scheme = resolve_power_scheme(power.power_schemes()?, &name)?;
             structured_output(&scheme, format!("power scheme: {}\n", scheme.name))
         }
         SchemeCommand::Apply { name } => {
-            let scheme = power
-                .power_schemes()?
-                .into_iter()
-                .find(|scheme| {
-                    scheme.id.as_str() == name || scheme.name.eq_ignore_ascii_case(&name)
-                })
-                .ok_or_else(|| LctrlError::InvalidArgument {
-                    detail: format!("power scheme {name:?} is not enumerated"),
-                })?;
+            let scheme = resolve_power_scheme(power.power_schemes()?, &name)?;
             let mutation = PowerMutation::Activate(scheme.id);
             let report = power.apply_power_mutation(mutation, apply)?;
             structured_output(&report, "power scheme activation requested\n".into())

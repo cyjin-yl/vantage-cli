@@ -352,6 +352,9 @@ DeviceIoControl 返回 FALSE 时记 `"… failed, GLE = %d"`(GetLastError)。
 `CPowerScheme` / PCManager `BatterySetting.exe` 均只使用 Windows Power API,无私有通道:
 
 - 枚举:`PowerEnumerate` / 活动方案 `PowerGetActiveScheme` / 切换 `PowerSetActiveScheme`。
+- `power scheme get` / `apply` 优先匹配精确方案 ID;没有精确 ID 时按不区分大小写的
+  名称匹配。多个方案名称相同则拒绝，并要求使用 `power scheme list` 返回的精确 ID，
+  不按枚举顺序选择一个可能错误的目标。
 - 高级设置:`PowerReadACValueIndex`/`PowerReadDCValueIndex`/`PowerWriteACValueIndex`/
   `PowerWriteDCValueIndex` + `PowerReadValueMin/Max/Increment` + `PowerSettingAccessCheck`。
 - Windows 设置事务先捕获活动方案 GUID，同一事务的 AC/DC 读取、写入、核验和恢复均绑定
