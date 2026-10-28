@@ -232,12 +232,12 @@ fn telemetry_parses_verified_target_layout() {
     assert_eq!(telemetry.design_capacity_mwh, Some(99_900));
     assert_eq!(telemetry.full_charge_capacity_mwh, Some(96_450));
     assert_eq!(telemetry.remaining_capacity_mwh, Some(90_000));
-    assert_eq!(telemetry.voltage_mv, Some(15_600));
-    assert_eq!(telemetry.current_ma, Some(1200));
-    assert_eq!(telemetry.temperature_deci_kelvin, Some(3061));
+    assert_eq!(telemetry.voltage_mv, None);
+    assert_eq!(telemetry.current_ma, None);
+    assert_eq!(telemetry.temperature_deci_kelvin, None);
     assert_eq!(telemetry.manufacture_date, None);
     assert_eq!(telemetry.first_used_date, None);
-    assert_eq!(telemetry.design_voltage_mv, None);
+    assert_eq!(telemetry.design_voltage_mv, Some(15_600));
     assert_eq!(telemetry.remaining_percent, None);
     assert_eq!(telemetry.life_percent, None);
     // Offset 0x0a is an inferred vendor status/alert word, not a documented
@@ -261,7 +261,7 @@ fn telemetry_maps_unsupported_sentinels_to_absent_fields() {
     assert_eq!(telemetry.full_charge_capacity_mwh, None);
     assert_eq!(telemetry.remaining_capacity_mwh, None);
     assert_eq!(telemetry.voltage_mv, None);
-    assert_eq!(telemetry.current_ma, None); // 0xffff_ffff
+    assert_eq!(telemetry.current_ma, None);
     assert_eq!(telemetry.temperature_deci_kelvin, None);
     assert_eq!(telemetry.manufacture_date, None);
     assert_eq!(telemetry.first_used_date, None);
@@ -277,16 +277,9 @@ fn telemetry_maps_unsupported_sentinels_to_absent_fields() {
 }
 
 #[test]
-fn telemetry_decodes_signed_discharge_current() {
-    let mut raw = telemetry_fixture();
-    raw[16..18].copy_from_slice(&(-850i16).to_le_bytes());
-    let telemetry = BatteryTelemetry::parse(&raw).unwrap();
-    assert_eq!(telemetry.current_ma, Some(-850));
-}
-
-#[test]
 fn telemetry_converts_deci_kelvin_to_celsius() {
-    let telemetry = BatteryTelemetry::parse(&telemetry_fixture()).unwrap();
+    let mut telemetry = BatteryTelemetry::parse(&telemetry_fixture()).unwrap();
+    telemetry.temperature_deci_kelvin = Some(3061);
     let celsius = telemetry.temperature_celsius().unwrap();
     assert!((celsius - 32.94).abs() < 0.01, "got {celsius}");
     assert_eq!(telemetry.temperature_deci_kelvin, Some(3061));
@@ -345,10 +338,11 @@ fn telemetry_serializes_with_stable_field_names() {
     let telemetry = BatteryTelemetry::parse(&telemetry_fixture()).unwrap();
     let json = serde_json::to_value(telemetry).unwrap();
     assert_eq!(json["design_capacity_mwh"], 99_900);
-    assert_eq!(json["current_ma"], 1200);
+    assert!(json["current_ma"].is_null());
     assert!(json["charge_status"].is_null());
-    assert_eq!(json["temperature_deci_kelvin"], 3061);
-    assert_eq!(json["voltage_mv"], 15_600);
+    assert!(json["temperature_deci_kelvin"].is_null());
+    assert!(json["voltage_mv"].is_null());
+    assert_eq!(json["design_voltage_mv"], 15_600);
     assert_eq!(json["chemistry"], "Lion");
     assert_eq!(json["manufacturer"], "Sunwoda");
     assert_eq!(json["serial_number"], "W1LX5CN0294");
@@ -430,13 +424,13 @@ fn adapter_info_gates_detail_on_gbmd_bit24() {
     assert_eq!(info.authentication, AdapterAuthentication::Inbox);
     assert!(!info.has_detail);
     assert_eq!(info.detail, None);
-    assert!(!info.is_underpowered());
+    assert_eq!(info.is_underpowered(), None);
 
     // Bit 24 set → detailed capability advertised even before a GAPD read.
     let info = AdapterInfo::from_gbmd(0x0100_0004, None);
     assert!(info.has_detail);
     assert_eq!(info.detail, None);
-    assert!(!info.is_underpowered());
+    assert_eq!(info.is_underpowered(), None);
 }
 
 #[test]
@@ -450,21 +444,27 @@ fn adapter_info_computes_underpowered_only_with_detail() {
     let info = AdapterInfo::from_gbmd(0x0100_0004, Some(detail));
     assert!(info.has_detail);
     assert_eq!(info.detail, Some(detail));
-    assert!(info.is_underpowered());
+    assert_eq!(info.is_underpowered(), Some(true));
 
     let sufficient = AdapterDetailValues {
         system_power_w: 65,
         current_power_w: 100,
         ..detail
     };
-    assert!(!AdapterInfo::from_gbmd(0x0100_0004, Some(sufficient)).is_underpowered());
+    assert_eq!(
+        AdapterInfo::from_gbmd(0x0100_0004, Some(sufficient)).is_underpowered(),
+        Some(false)
+    );
 
     let equal = AdapterDetailValues {
         system_power_w: 100,
         current_power_w: 100,
         ..detail
     };
-    assert!(!AdapterInfo::from_gbmd(0x0100_0004, Some(equal)).is_underpowered());
+    assert_eq!(
+        AdapterInfo::from_gbmd(0x0100_0004, Some(equal)).is_underpowered(),
+        Some(false)
+    );
 }
 
 #[test]

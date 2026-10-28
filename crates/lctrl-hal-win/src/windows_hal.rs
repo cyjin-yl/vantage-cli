@@ -1,5 +1,5 @@
 use lctrl_core::{Availability, CapabilitySet, HardwareInfo, Platform, Result};
-use lctrl_hal::Hal;
+use lctrl_hal::{BatteryElectricalSource, Hal};
 
 use crate::{
     EnergyDriver, IoctlTransport, WmiObject, WmiTransport, WmiValue, active_instance,
@@ -9,15 +9,31 @@ use crate::{
 const ROOT_CIMV2: &str = "ROOT\\CIMV2";
 
 #[derive(Debug)]
-pub struct WindowsHal<W, I> {
+pub struct WindowsHal<W, I, E = crate::NativeBatteryElectrical> {
     wmi: W,
     ioctl: I,
+    electrical: E,
 }
 
 impl<W, I> WindowsHal<W, I> {
     #[must_use]
     pub const fn new(wmi: W, ioctl: I) -> Self {
-        Self { wmi, ioctl }
+        Self {
+            wmi,
+            ioctl,
+            electrical: crate::NativeBatteryElectrical,
+        }
+    }
+}
+
+impl<W, I, E> WindowsHal<W, I, E> {
+    #[must_use]
+    pub const fn with_electrical(wmi: W, ioctl: I, electrical: E) -> Self {
+        Self {
+            wmi,
+            ioctl,
+            electrical,
+        }
     }
 
     #[must_use]
@@ -31,10 +47,11 @@ impl<W, I> WindowsHal<W, I> {
     }
 }
 
-impl<W, I> Hal for WindowsHal<W, I>
+impl<W, I, E> Hal for WindowsHal<W, I, E>
 where
     W: WmiTransport,
     I: IoctlTransport,
+    E: BatteryElectricalSource,
 {
     fn platform(&self) -> Platform {
         Platform::Windows
@@ -254,28 +271,72 @@ where
                 )?;
             }
         }
-        let thermal_zone_available = matches!(
-            self.wmi
-                .query(ROOT_WMI, "SELECT CurrentTemperature FROM MSAcpi_ThermalZoneTemperature"),
-            Ok(objects) if !objects.is_empty()
-        );
+        let mut thermal_source_failed = false;
+        let thermal_zone_error = match self.wmi.query(
+            ROOT_WMI,
+            "SELECT CurrentTemperature FROM MSAcpi_ThermalZoneTemperature",
+        ) {
+            Ok(objects) if objects.is_empty() => {
+                Some("ACPI exposed no readable thermal-zone temperature".to_owned())
+            }
+            Ok(objects) => {
+                let error = objects.iter().find_map(|object| {
+                    crate::thermal::required_u32(object, "CurrentTemperature").err()
+                });
+                thermal_source_failed = error.is_some();
+                error.map(|error| error.to_string())
+            }
+            Err(error) => {
+                thermal_source_failed =
+                    !matches!(error, lctrl_core::LctrlError::Unsupported { .. });
+                Some(error.to_string())
+            }
+        };
+        let mut battery_source_failed = false;
+        let battery_temperature_error = match self.electrical.read_electrical() {
+            Ok(observation)
+                if observation.source_issues.is_empty()
+                    && observation.temperature_deci_kelvin.is_some() =>
+            {
+                None
+            }
+            Ok(observation) => Some(if observation.source_issues.is_empty() {
+                "Windows battery class exposed no temperature".to_owned()
+            } else {
+                battery_source_failed = true;
+                observation
+                    .source_issues
+                    .iter()
+                    .map(|issue| format!("{}: {}", issue.source, issue.detail))
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            }),
+            Err(error) => {
+                battery_source_failed =
+                    !matches!(error, lctrl_core::LctrlError::Unsupported { .. });
+                Some(error.to_string())
+            }
+        };
         capabilities.record(
             "perf.temp",
-            if thermal_zone_available || battery_telemetry_available {
+            if !thermal_source_failed
+                && !battery_source_failed
+                && (thermal_zone_error.is_none() || battery_temperature_error.is_none())
+            {
                 Availability::Available
             } else {
                 Availability::Unavailable
             },
-            match (thermal_zone_available, battery_telemetry_available) {
-                (true, true) => None,
-                (true, false) => {
-                    Some("ACPI thermal zones only; the battery channel is unavailable".into())
-                }
-                (false, true) => {
-                    Some("battery temperature only; no ACPI thermal zone is present".into())
-                }
-                (false, false) => {
-                    Some("no ACPI thermal zone and no battery temperature channel".into())
+            match (thermal_zone_error, battery_temperature_error) {
+                (None, None) => None,
+                (Some(reason), None) => Some(format!(
+                    "Windows battery class temperature readable; ACPI: {reason}"
+                )),
+                (None, Some(reason)) => Some(format!(
+                    "ACPI thermal zones readable; Windows battery class: {reason}"
+                )),
+                (Some(acpi), Some(battery)) => {
+                    Some(format!("ACPI: {acpi}; Windows battery class: {battery}"))
                 }
             },
         )?;
@@ -357,7 +418,7 @@ where
     }
 }
 
-impl<W, I> WindowsHal<W, I>
+impl<W, I, E> WindowsHal<W, I, E>
 where
     W: WmiTransport,
 {

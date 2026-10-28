@@ -1,4 +1,4 @@
-mod battery_fallback;
+mod battery_sources;
 mod bios;
 mod codec;
 mod conflict;
@@ -9,6 +9,7 @@ mod events;
 mod ioctl_contract;
 mod local_updates;
 mod magicbay;
+mod native_battery_electrical;
 #[cfg(windows)]
 mod native_ioctl;
 #[cfg(windows)]
@@ -33,7 +34,7 @@ mod wifi_security;
 mod windows_hal;
 mod wmi_contract;
 
-pub use battery_fallback::WindowsBatteryFallback;
+pub use battery_sources::WindowsBatterySources;
 pub use bios::WindowsBiosController;
 pub use codec::{
     AdapterDetail, BatteryDetail83, GbmdCommand, GenericGet, IOCTL_BATTERY_CONFIG,
@@ -55,6 +56,7 @@ pub use local_updates::{LocalDriverUpdateApi, WindowsLocalUpdateController};
 #[cfg(windows)]
 pub use magicbay::NativeMagicBay;
 pub use magicbay::{coalesce_magicbay_devices, parse_magicbay_instance_id};
+pub use native_battery_electrical::NativeBatteryElectrical;
 #[cfg(windows)]
 pub use native_ioctl::NativeIoctl;
 #[cfg(windows)]

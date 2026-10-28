@@ -807,9 +807,10 @@ mod native {
     }
 
     fn process_entry() -> PROCESSENTRY32W {
-        let mut entry = PROCESSENTRY32W::default();
-        entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
-        entry
+        PROCESSENTRY32W {
+            dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
+            ..PROCESSENTRY32W::default()
+        }
     }
 
     fn sample_process(
@@ -894,9 +895,7 @@ mod native {
     }
 
     fn image_name_from_path(path: &str) -> Result<&str> {
-        let start = path
-            .rfind(|character| character == '\\' || character == '/')
-            .map_or(0, |index| index + 1);
+        let start = path.rfind(['\\', '/']).map_or(0, |index| index + 1);
         let name = &path[start..];
         if name.is_empty() {
             return Err(LctrlError::ChannelUnavailable {
@@ -907,8 +906,10 @@ mod native {
     }
 
     fn query_working_set_bytes(handle: HANDLE) -> Result<usize> {
-        let mut counters = PROCESS_MEMORY_COUNTERS::default();
-        counters.cb = std::mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32;
+        let mut counters = PROCESS_MEMORY_COUNTERS {
+            cb: std::mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32,
+            ..PROCESS_MEMORY_COUNTERS::default()
+        };
         if unsafe {
             K32GetProcessMemoryInfo(
                 handle,

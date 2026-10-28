@@ -8,37 +8,48 @@ use serde::Serialize;
 
 use crate::error::{LctrlError, Result};
 
-/// A battery reading taken from the operating system's own battery
-/// interfaces (the Windows battery class and system power status).
-///
-/// This is the portable channel: it needs no vendor driver, so it stays
-/// available on machines that never had the EnergyDrv driver installed.
-/// Every field is optional because the OS exposes different subsets per
-/// machine and per firmware.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize)]
+/// One unavailable, failed or ambiguous source within a partial observation.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct BatterySourceIssue {
+    pub source: &'static str,
+    pub detail: String,
+}
+
+/// Electrical values from one independently admitted operating-system battery.
+/// `rate_mw` is power, not a measured current; relative-rate values are absent.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct BatteryElectricalObservation {
+    pub voltage_mv: Option<u32>,
+    pub rate_mw: Option<i32>,
+    pub power_state: u32,
+    pub temperature_deci_kelvin: Option<u32>,
+    pub source_issues: Vec<BatterySourceIssue>,
+}
+
+/// One identity-bound OS battery observation. Each field may be unavailable.
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize)]
 pub struct OsBatterySnapshot {
     pub remaining_capacity_mwh: Option<u32>,
     pub full_charge_capacity_mwh: Option<u32>,
     pub design_capacity_mwh: Option<u32>,
+    /// Full/design capacity percentage derived from this same OS battery.
+    pub capacity_ratio_percent: Option<u16>,
     pub voltage_mv: Option<u16>,
-    /// Charge rate in mA; positive while the pack is taking on charge.
-    pub charge_rate_ma: Option<i32>,
-    /// Discharge rate in mA; positive while the pack is losing charge.
-    pub discharge_rate_ma: Option<i32>,
     pub remaining_percent: Option<u16>,
     pub cycle_count: Option<u16>,
-    pub temperature_deci_kelvin: Option<u16>,
     pub estimated_runtime_min: Option<u16>,
     pub power_online: Option<bool>,
     pub charging: Option<bool>,
     pub discharging: Option<bool>,
     pub critical: Option<bool>,
+    /// Per-source failures or ambiguities retained alongside partial data.
+    pub source_issues: Vec<BatterySourceIssue>,
 }
 
 /// The operating system's aggregate power status.
 ///
-/// This is the only portable source for "is the charger connected", so it
-/// backs the adapter view when the vendor adapter channel is unavailable.
+/// It is reported separately and is not attributed to a specific pack or
+/// adapter unless an independent identity contract establishes that link.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize)]
 pub struct SystemPowerStatus {
     /// `true` when running on external power, `false` on battery, `None`
@@ -48,14 +59,6 @@ pub struct SystemPowerStatus {
     pub battery_life_percent: Option<u8>,
     pub battery_life_time: Option<u32>,
     pub battery_full_life_time: Option<u32>,
-}
-
-impl SystemPowerStatus {
-    /// The remaining charge percentage, when the platform reported one.
-    #[must_use]
-    pub fn battery_life_percent(&self) -> Option<u16> {
-        self.battery_life_percent.map(u16::from)
-    }
 }
 
 /// A user-selected charging mode (`BatteryChargeModeType`, docs/02 §3.1).
@@ -304,6 +307,8 @@ pub struct BatteryTelemetry {
     pub firmware_version: Option<String>,
     pub serial_number: Option<String>,
     pub chemistry: Option<String>,
+    /// Per-source failures retained alongside otherwise usable observations.
+    pub source_issues: Vec<BatterySourceIssue>,
 }
 
 impl BatteryTelemetry {
@@ -329,20 +334,21 @@ impl BatteryTelemetry {
         // the charge status is left to the operating-system channel, which
         // reports the actual charging and discharging flags.
         let status: Option<ChargeStatus> = None;
-        let temperature = scalar(u16_at(0x0e));
-        let current_ma = signed_scalar(u16_at(0x10));
-        let voltage_mv = scalar(u16_at(0x14));
+        // The target specification identifies 0x14 as nominal voltage, not
+        // present terminal voltage. The 0x0e/0x10 temperature/current
+        // interpretations remain inferred and cannot be exposed as facts.
+        let design_voltage_mv = scalar(u16_at(0x14));
 
         Ok(Self {
             design_capacity_mwh: mwh(u16_at(0x00)),
             full_charge_capacity_mwh: mwh(u16_at(0x02)),
             remaining_capacity_mwh: mwh(u16_at(0x04)),
-            voltage_mv,
-            current_ma,
-            temperature_deci_kelvin: temperature,
+            voltage_mv: None,
+            current_ma: None,
+            temperature_deci_kelvin: None,
             manufacture_date: None,
             first_used_date: None,
-            design_voltage_mv: None,
+            design_voltage_mv,
             remaining_percent: None,
             life_percent: None,
             charge_status: status,
@@ -356,6 +362,7 @@ impl BatteryTelemetry {
             firmware_version: None,
             serial_number: fixed_text(input, 0x34, 0x18)?,
             chemistry: fixed_text(input, 0x16, 0x12)?,
+            source_issues: Vec::new(),
         })
     }
 
@@ -374,123 +381,6 @@ impl BatteryTelemetry {
     pub fn temperature_celsius(&self) -> Option<f32> {
         self.temperature_deci_kelvin
             .map(|t| (f32::from(t) - 2731.6) / 10.0)
-    }
-
-    /// Build telemetry from an operating-system battery reading.
-    ///
-    /// The OS channel reports fewer identity fields than the vendor
-    /// structure, so unavailable fields stay `None` instead of being
-    /// inferred. Life percentage is derived only when both the design and
-    /// full-charge capacities are known; a zero design capacity is rejected
-    /// rather than divided by.
-    pub fn from_os_snapshot(snapshot: &OsBatterySnapshot) -> Result<Self> {
-        if snapshot.design_capacity_mwh == Some(0) {
-            return Err(LctrlError::FirmwareRejected {
-                detail: "operating-system battery report carries a zero design capacity".into(),
-            });
-        }
-
-        let charge_status = match (snapshot.charging, snapshot.discharging) {
-            (Some(true), _) => Some(ChargeStatus::Charging),
-            (_, Some(true)) if snapshot.power_online == Some(true) => {
-                Some(ChargeStatus::DischargingWithAc)
-            }
-            (_, Some(true)) => Some(ChargeStatus::Discharging),
-            _ => Some(ChargeStatus::NoActivity),
-        };
-
-        let current_ma = match (snapshot.charging, snapshot.discharging) {
-            (Some(true), _) => snapshot.charge_rate_ma,
-            (_, Some(true)) => snapshot.discharge_rate_ma.map(|rate| -rate),
-            _ => None,
-        };
-
-        let (life_percent, health) = match (
-            snapshot.design_capacity_mwh,
-            snapshot.full_charge_capacity_mwh,
-        ) {
-            (Some(design), Some(full)) if design > 0 => {
-                let life = (full * 100 / design).min(100) as u16;
-                (Some(life), Some(health_from_life_percent(life)))
-            }
-            _ => (None, None),
-        };
-
-        Ok(Self {
-            design_capacity_mwh: snapshot.design_capacity_mwh,
-            full_charge_capacity_mwh: snapshot.full_charge_capacity_mwh,
-            remaining_capacity_mwh: snapshot.remaining_capacity_mwh,
-            voltage_mv: snapshot.voltage_mv,
-            current_ma,
-            temperature_deci_kelvin: snapshot.temperature_deci_kelvin,
-            manufacture_date: None,
-            first_used_date: None,
-            design_voltage_mv: None,
-            remaining_percent: snapshot.remaining_percent,
-            life_percent,
-            charge_status,
-            health,
-            remaining_time_min: snapshot.estimated_runtime_min,
-            charge_completion_time_min: None,
-            wattage_w: None,
-            cycle_count: snapshot.cycle_count,
-            manufacturer: None,
-            model_name: None,
-            firmware_version: None,
-            serial_number: None,
-            chemistry: None,
-        })
-    }
-
-    /// Fill fields this reading left unknown from a second reading.
-    ///
-    /// Used to combine a rich vendor channel with the portable operating
-    /// system channel: a field already known here is never overwritten, so
-    /// the more specific source always wins.
-    pub fn fill_missing_from(&mut self, other: &Self) {
-        macro_rules! fill {
-            ($($field:ident),+ $(,)?) => {
-                $(if self.$field.is_none() {
-                    self.$field = other.$field.clone();
-                })+
-            };
-        }
-        fill!(
-            design_capacity_mwh,
-            full_charge_capacity_mwh,
-            remaining_capacity_mwh,
-            voltage_mv,
-            current_ma,
-            temperature_deci_kelvin,
-            manufacture_date,
-            first_used_date,
-            design_voltage_mv,
-            remaining_percent,
-            life_percent,
-            charge_status,
-            health,
-            remaining_time_min,
-            charge_completion_time_min,
-            wattage_w,
-            cycle_count,
-            manufacturer,
-            model_name,
-            firmware_version,
-            serial_number,
-            chemistry,
-        );
-    }
-}
-
-/// Map a remaining-life percentage onto the documented health codes
-/// (docs/02 §7.2): 1=Green, 2=Yellow, 3=Red.
-fn health_from_life_percent(life: u16) -> BatteryHealth {
-    if life >= 80 {
-        BatteryHealth::Green
-    } else if life >= 60 {
-        BatteryHealth::Yellow
-    } else {
-        BatteryHealth::Red
     }
 }
 
@@ -540,11 +430,6 @@ fn mwh(raw: u16) -> Option<u32> {
 /// Keep a scalar u16 unless `0xFFFF` marks it unsupported.
 fn scalar(raw: u16) -> Option<u16> {
     (raw != u16::MAX).then_some(raw)
-}
-
-/// Decode the target's signed 16-bit current field; `0xFFFF` is unsupported.
-fn signed_scalar(raw: u16) -> Option<i32> {
-    (raw != u16::MAX).then_some(i32::from(i16::from_le_bytes(raw.to_le_bytes())))
 }
 
 /// Adapter type from the GBMD status word bits 15..16 (docs/02 §3.2, §8).
@@ -655,30 +540,12 @@ impl AdapterInfo {
         }
     }
 
-    /// Whether the charger is underpowered; `false` when no detail is present.
+    /// Whether the charger is underpowered, or unknown without adapter detail.
     #[must_use]
-    pub const fn is_underpowered(&self) -> bool {
+    pub const fn is_underpowered(&self) -> Option<bool> {
         match self.detail {
-            Some(detail) => detail.is_underpowered(),
-            None => false,
-        }
-    }
-
-    /// Build the adapter view from the operating system's power status.
-    ///
-    /// The OS reports only whether external power is present, so the charger
-    /// model, wattage and authentication stay unknown instead of being
-    /// guessed from the vendor adapter channel.
-    #[must_use]
-    pub fn from_system_power_status(status: &SystemPowerStatus) -> Self {
-        Self {
-            ac_connected: status.ac_line_status,
-            status: None,
-            connector_type: None,
-            wattage_w: None,
-            authentication: AdapterAuthentication::Unknown,
-            has_detail: false,
-            detail: None,
+            Some(detail) => Some(detail.is_underpowered()),
+            None => None,
         }
     }
 }

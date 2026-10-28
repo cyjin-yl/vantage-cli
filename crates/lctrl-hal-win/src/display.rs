@@ -576,9 +576,11 @@ mod native {
     }
 
     fn enum_raw_mode(device: &[u16], index: u32, flags: u32) -> Option<DEVMODEW> {
-        let mut raw = DEVMODEW::default();
-        raw.dmSize = struct_size16::<DEVMODEW>();
-        raw.dmDriverExtra = 0;
+        let mut raw = DEVMODEW {
+            dmSize: struct_size16::<DEVMODEW>(),
+            dmDriverExtra: 0,
+            ..DEVMODEW::default()
+        };
         let ok = unsafe { EnumDisplaySettingsExW(device.as_ptr(), index, &mut raw, flags) };
         (ok != 0).then_some(raw)
     }
@@ -709,14 +711,15 @@ mod native {
             DM_PELSWIDTH | DM_PELSHEIGHT | DM_BITSPERPEL | DM_DISPLAYFREQUENCY;
 
         fn raw_mode(fields: u32) -> DEVMODEW {
-            let mut raw = DEVMODEW::default();
-            raw.dmSize = u16::try_from(std::mem::size_of::<DEVMODEW>()).unwrap();
-            raw.dmFields = fields;
-            raw.dmPelsWidth = 3072;
-            raw.dmPelsHeight = 1920;
-            raw.dmBitsPerPel = 32;
-            raw.dmDisplayFrequency = 60;
-            raw
+            DEVMODEW {
+                dmSize: u16::try_from(std::mem::size_of::<DEVMODEW>()).unwrap(),
+                dmFields: fields,
+                dmPelsWidth: 3072,
+                dmPelsHeight: 1920,
+                dmBitsPerPel: 32,
+                dmDisplayFrequency: 60,
+                ..Default::default()
+            }
         }
 
         #[test]

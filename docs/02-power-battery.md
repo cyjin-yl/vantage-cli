@@ -61,7 +61,7 @@
 > Storage80 变体:固件 EM Spec 版本 ≥ `EM_SPEC_VERSION_STORAGE_80` 阈值时,合约层会额外置位
 > `ChargeModeStorage80`(上限 80%)。**目标机 21VG 该能力位为 0**,实现时按能力探测结果决定是否暴露。
 
-### 3.2 底层下发:GBMD 子命令表(已逐项验证)
+### 3.2 底层下发:GBMD 历史子命令资料(非目标机写入许可)
 
 下发统一经 `\\.\EnergyDrv` 的通用助手(官方内部名 `CDriverLib::DeviceIoControl`):
 `DeviceIoControl(hDrv, dwIoControlCode, inBuf, inSize, outBuf, outSize, &ret, NULL)`,同步调用。
@@ -72,17 +72,17 @@
 
 | 子命令字节 | 语义 | 验证来源(PowerBattery 组件行为分析) |
 |---|---|---|
-| `0x03` | 养护(Storage)模式 **开**(电池 gen1) | `CStorageMode::OpenFeature` 120 |
+| `0x03` | 历史资料称 gen1 养护开;**目标 21VG 存在运输模式风险，禁止发送** | `CStorageMode::OpenFeature` 120 |
 | `0x05` | 养护模式 **关**(gen1) | `CStorageMode::CloseFeature` 2d0 |
-| `0x0d`(13) | 养护模式 **开**,gen2 变体 | 同上函数内,当对象字段 `[obj+0x10]==2`(电池代际标志)时与 `0x03` **连发** |
+| `0x0d`(13) | 养护模式 **开**,gen2 变体 | 历史组件资料;目标机仅确认请求被接受，未证实实际生效 |
 | `0x0f`(15) | 养护模式 **关**,gen2 变体 | `CStorageMode::CloseFeature`,同上条件连发 |
 | `0x07` | 快充(Rapid/Express)**开** | `CExpressMode::OpenFeature` be0 |
 | `0x08` | 快充 **关** | `CExpressMode::CloseFeature` d00 |
 | `0xff`(255) | **查询特性支持**(养护/快充的 `IsSupport` 与 ARM 变体共用) | `CExpressMode::IsSupport` ac0、`CStorageMode::IsSupportOnARM` f70 |
 
-**gen1/gen2 连发规则**:写入养护模式时,先发送 `0x03`(开)或 `0x05`(关);若电池代际标志为 2,
-紧接着发送 `0x0d` 或 `0x0f`。第二次下发失败仅记日志,不影响第一次的结果。实现者应先以
-`0xff` 查询支持位,再按上述序列下发。
+**目标机安全边界**:历史资料的 gen1/gen2 连发规则不适用于 21VG 验收;
+不得发送 `0x03`，也不得把状态字成功当成模式已切换。目标机现有实现因独立回读契约
+未验证而拒绝充电模式提交;已测 `0x0d`/`0x0f` 请求被接受但所测回读未变，见 C2。
 
 **适配器状态读取(实机闭环,原 U2 已解决)**:`IdeaNotebookAddin ToastUtils\AdapterInformation.cs`
 接口规格——适配器状态 = GBMD **子命令 `0xFF`** 的返回 DWORD:`bit24`=认证充电器能力,
@@ -175,9 +175,9 @@ PCManager `BatterySetting.exe` 提供四种充电策略(Vantage 仅有前三态�
     本机 `C:\config.ini` 亦不存在(未启用过自定义阈值)。
   - 通用 SET `0x831020c0` `{6,1,0}`/`{6,1,1}` 实机写入 err=0 但 GET cmd 5-8、
     GBMD `0xFF`、`0x83102120` 均无变化——cmd 6 对本机为无效应答(休眠遗留)。
-  - **结论:本机(ThinkBook 14 G8+ 21VG / 16+ 2026 代)无可操作的任意百分比阈值写通道**;
-    充电控制的可用面 = GBMD 养护 `0x0d/0x0f`、快充 `7/8`、存储 `5`(⚠️ 子命令 `3`=运输模式,
-    断电池供电,禁止无防护暴露)、`0x83102134` 模式 `{0,1,9}`(9=EC 默认自定义档)。
+  - **结论:本机尚未找到经实际生效和独立回读验证的任意百分比阈值写通道**。
+    历史资料中 `0x0d/0x0f`、`7/8`、`5` 及 `0x83102134` 的模式不能仅凭请求被接受就
+    判定为可用;`0x03` 有运输模式风险，禁止发送。未验证的通道不暴露为成功操作。
 - 用户配置经 XML 序列化(TiXmlDocument),并另有加密二进制 `cfg.data`(AES 密文特征,
   位于 `ProgramData\devicecenter\cfg.data`)保存自定义阈值;实现者无需兼容该格式,自行持久化即可。
 - 参考工具:`pcm-cli.exe --charging-mode`(PCManager 自带 x86 CLI,含
@@ -224,6 +224,11 @@ PCManager `BatterySetting.exe` 提供四种充电策略(Vantage 仅有前三态�
 
 ### 7.1 `_BATTERY_INFORMATION_EX` 结构(字段偏移,值 0xFFFF = 不支持)
 
+下表为通用草图，不是 21VG 已验证的 EnergyDrv 83 字节布局。针对目标机，`docs/01` §3.3
+的 `0x14` 是标称/设计电压，不是瞬时端电压；`0x0e` 温度和 `0x10` 电流/功率仍属推断。
+当前实现不把这些推断值输出为已验证实时温度或电流。目标机只读差异见
+`evidence/target-battery-voltage-discrepancy-20261028.json`。
+
 | 偏移 | 类型 | 字段 | 单位/换算 |
 |---|---|---|---|
 | 0 | u16 | DesignCapacity | ×10 → mWh |
@@ -246,6 +251,24 @@ PCManager `BatterySetting.exe` 提供四种充电策略(Vantage 仅有前三态�
 | 56 | wstr | FirmwareVersion | SMBus |
 | 72 | wstr | BarCodingNumber | SMBus(16 进制清洗) |
 | 80 | wstr | DeviceChemistry | "LION"/"Li-I"→Li_Ion,"LiP"→Li_Polymer |
+
+### 7.1a 当前 Windows 只读输出与来源边界
+
+`battery status --json` 和人类可读输出均保留来源分组，不再混合为一个平坦的 `telemetry`:
+
+| 输出 | 读取来源 | 身份与单位边界 |
+|---|---|---|
+| `device_telemetry` | EnergyDrv 的设备索引 0 | `0x14` 仅作 `design_voltage_mv`;未证实的瞬时电压、电流和温度为 null |
+| `os_battery` | `root\WMI` 电池类 | 状态与静态、满充等可选行只按非空 `InstanceName` 精确关联;歧义拒绝;容量比仅在容量单位可信时计算 |
+| `electrical` | Windows 电池类只读查询 | 唯一非短时系统电池的状态电压(mV)、原始带符号速率(mW)及可选温度(0.1 K);不将 mW 推算为 mA |
+| `system_power` | `GetSystemPowerStatus` | 全系统聚合状态，不当作某一电池的百分比或厂商适配器读数 |
+| `adapter`、`charge_mode` | 各自的厂商接口 | 和 OS/电池类来源分开;无厂商详情时不虚构适配器额定功率或不足功率判定 |
+
+`source_association` 固定为 `unverified`:不同来源之间的电池身份没有被证明。每组有独立
+`*_error`，可用结果内的 `source_issues` 保留部分失败;所有主要观察来源均失败时命令失败。
+Windows WMI 原始 `ChargeRate`/`DischargeRate` 不标作 mA;`capacity_ratio_percent` 是
+满充容量与设计容量的算术比值，不是健康等级。原生电池查询最多等待 2 秒返回给调用者，
+但底层 Windows 操作可能继续阻塞;阻塞时不创建更多查询线程。
 
 ### 7.2 状态映射
 
@@ -281,7 +304,9 @@ PCManager `BatterySetting.exe` 提供四种充电策略(Vantage 仅有前三态�
 **认证/功率识别**:`UpdateAdapterInfo()` → **IOCTL `0x831020f4`(GAPD)** 与
 **`0x8310215c`**(均已验证),返回字段:`PID`(USB Vendor ID,0xFFFF=无)、`VID`、
 `SystemChargerPower`(W,系统需求)、`CurrentChargerPower`(W,实际)。
-`CurrentChargerPower < SystemChargerPower` ⇒ 触发「不足功率适配器」事件(toast)。
+`CurrentChargerPower < SystemChargerPower` ⇒ 不足功率判定;任一值缺失时结果为未知。
+`battery adapter --json` 分别返回 `vendor_adapter` 和聚合 `system_power` 及各自错误，
+不把后者补入厂商适配器字段。
 **实机校准(2026-08-27)**:`0x8310215c` GAPD 的精确格式经 `AdapterInformation.cs` 确认——
 in=4B 零,out=10B `{u16 PID, u16 VID, u16 SystemPowerW, u16 CurrentChargerPowerW}`;
 仅在 GBMD `0xFF` 返回 DWORD 的 bit24=1(认证充电器能力存在)时调用,否则 err=87。
@@ -375,7 +400,7 @@ Linux 替代:upower D-Bus + udev + `/sys/class/power_supply` uevent(见 09 文�
 ## 13. CLI 行为契约(摘要)
 
 ```
-battery status [--json]        # §7 全字段 + §8 适配器 + 当前 charge-mode(回读 bitmask)
+battery status [--json]        # §7 来源分组、各自错误及当前 charge-mode(回读 bitmask)
 battery charge-mode MODE       # normal|conservation|rapid;先探测支持,§3.3 序列下发,回读校验
 battery thresholds S E         # PCManager 语义,§4.2;S<E,5≤S≤95,10≤E≤100
 battery extreme-life on|off    # §4.1 + §4.3 组合原语
