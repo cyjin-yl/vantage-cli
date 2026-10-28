@@ -338,7 +338,11 @@ fn main() {
         lctrl_hal_win::NativeWmi,
         lctrl_hal_win::NativeSystemPowerStatus,
     );
-    let battery = lctrl_hal_win::WindowsBatteryFallback::new(vendor_battery, os_battery);
+    let battery = lctrl_hal_win::WindowsBatterySources::new(
+        vendor_battery,
+        os_battery,
+        lctrl_hal_win::NativeBatteryElectrical,
+    );
     let conflicts = lctrl_hal_win::WindowsControlConflictDetector::new(lctrl_hal_win::NativeWmi);
     let bios = lctrl_hal_win::WindowsBiosController::new(lctrl_hal_win::NativeWmi);
     let performance =

@@ -1,255 +1,394 @@
-use std::collections::BTreeMap;
-
-use lctrl_core::{LctrlError, OsBatterySnapshot, SystemPowerStatus};
+use lctrl_core::{LctrlError, SystemPowerStatus};
 use lctrl_hal_win::{
     OsBatteryChannel, SystemPowerStatusReader, WindowsOsBattery, WmiObject, WmiTransport, WmiValue,
 };
+use std::collections::BTreeMap;
 
-const ROOT_WMI: &str = "ROOT\\WMI";
-
-#[derive(Clone, Debug)]
-struct Query {
-    namespace: String,
-    wql: String,
-}
-
+#[derive(Default)]
 struct FakeWmi {
-    replies: parking_lot::Mutex<Vec<(String, WmiObject)>>,
-    queries: parking_lot::Mutex<Vec<Query>>,
+    replies: BTreeMap<&'static str, Vec<WmiObject>>,
+    failure: Option<&'static str>,
+    queries: parking_lot::Mutex<Vec<String>>,
 }
-
 impl FakeWmi {
-    fn new(replies: impl IntoIterator<Item = (&'static str, WmiObject)>) -> Self {
-        let mut replies: Vec<_> = replies
-            .into_iter()
-            .map(|(class, object)| (class.to_owned(), object))
-            .collect();
-        replies.reverse();
+    fn standard() -> Self {
         Self {
-            replies: parking_lot::Mutex::new(replies),
-            queries: parking_lot::Mutex::new(Vec::new()),
+            replies: BTreeMap::from([
+                ("BatteryStatus", vec![status("pack")]),
+                ("BatteryStaticData", vec![static_data("pack", 0x8000_0000)]),
+                (
+                    "BatteryFullChargedCapacity",
+                    vec![row(
+                        "pack",
+                        &[("FullChargedCapacity", WmiValue::U32(100_000))],
+                    )],
+                ),
+                (
+                    "BatteryCycleCount",
+                    vec![row("pack", &[("CycleCount", WmiValue::U32(224))])],
+                ),
+                (
+                    "BatteryRuntime",
+                    vec![row("pack", &[("EstimatedRuntime", WmiValue::U32(7200))])],
+                ),
+            ]),
+            ..Self::default()
         }
     }
 }
-
 impl WmiTransport for FakeWmi {
     fn query(&self, namespace: &str, wql: &str) -> lctrl_core::Result<Vec<WmiObject>> {
-        self.queries.lock().push(Query {
-            namespace: namespace.to_owned(),
-            wql: wql.to_owned(),
-        });
-        for (class, object) in self.replies.lock().iter() {
-            if wql.contains(class.as_str()) {
-                return Ok(vec![object.clone()]);
-            }
+        assert_eq!(namespace, "ROOT\\WMI");
+        assert!(!wql.contains('*'));
+        self.queries.lock().push(wql.into());
+        let class = wql.split(" FROM ").nth(1).unwrap();
+        if self.failure == Some(class) {
+            return Err(LctrlError::ChannelUnavailable {
+                channel: format!("{class}: provider failed"),
+            });
         }
-        Ok(Vec::new())
+        Ok(self.replies.get(class).cloned().unwrap_or_default())
     }
-
     fn invoke_instance(
         &self,
-        _namespace: &str,
-        _class: &str,
-        _object_path: &str,
-        _method: &str,
-        _input: &WmiObject,
+        _: &str,
+        _: &str,
+        _: &str,
+        _: &str,
+        _: &WmiObject,
     ) -> lctrl_core::Result<WmiObject> {
-        Err(LctrlError::Unsupported {
-            feature: "test.invoke".into(),
+        panic!("read-only battery queries must not invoke methods")
+    }
+}
+struct Power;
+impl SystemPowerStatusReader for Power {
+    fn read(&self) -> lctrl_core::Result<SystemPowerStatus> {
+        Ok(SystemPowerStatus {
+            battery_life_percent: Some(87),
+            ..SystemPowerStatus::default()
         })
     }
 }
-
-struct FakePowerStatus(SystemPowerStatus);
-
-impl SystemPowerStatusReader for FakePowerStatus {
-    fn read(&self) -> lctrl_core::Result<SystemPowerStatus> {
-        Ok(self.0)
-    }
-}
-
-fn object(entries: &[(&str, WmiValue)]) -> WmiObject {
-    entries
+fn row(name: &str, entries: &[(&str, WmiValue)]) -> WmiObject {
+    let mut result: WmiObject = entries
         .iter()
-        .map(|(name, value)| ((*name).to_owned(), value.clone()))
-        .collect::<BTreeMap<_, _>>()
+        .map(|(key, value)| ((*key).into(), value.clone()))
+        .collect();
+    result.insert("InstanceName".into(), WmiValue::String(name.into()));
+    result
 }
-
-fn status_object() -> WmiObject {
-    object(&[
-        ("Active", WmiValue::Bool(true)),
-        (
-            "InstanceName",
-            WmiValue::String("ACPI\\PNP0C0A\\1_0".into()),
-        ),
-        ("PowerOnline", WmiValue::Bool(true)),
-        ("Charging", WmiValue::Bool(false)),
-        ("Discharging", WmiValue::Bool(false)),
-        ("ChargeRate", WmiValue::I32(0)),
-        ("DischargeRate", WmiValue::I32(0)),
-        ("RemainingCapacity", WmiValue::U32(95_110)),
-        ("Voltage", WmiValue::U32(17_715)),
-        ("Critical", WmiValue::Bool(false)),
-    ])
+fn status(name: &str) -> WmiObject {
+    row(
+        name,
+        &[
+            ("Active", WmiValue::Bool(true)),
+            ("RemainingCapacity", WmiValue::U32(50_000)),
+            ("Voltage", WmiValue::U32(17_715)),
+            ("PowerOnline", WmiValue::Bool(true)),
+            ("Charging", WmiValue::Bool(false)),
+            ("Discharging", WmiValue::Bool(true)),
+            ("ChargeRate", WmiValue::U32(25_000)),
+        ],
+    )
 }
-
-fn full_charge_object() -> WmiObject {
-    object(&[
-        ("Active", WmiValue::Bool(true)),
-        (
-            "InstanceName",
-            WmiValue::String("ACPI\\PNP0C0A\\1_0".into()),
-        ),
-        ("FullChargedCapacity", WmiValue::U32(95_110)),
-    ])
-}
-
-fn cycle_object() -> WmiObject {
-    object(&[
-        ("Active", WmiValue::Bool(true)),
-        (
-            "InstanceName",
-            WmiValue::String("ACPI\\PNP0C0A\\1_0".into()),
-        ),
-        ("CycleCount", WmiValue::U32(224)),
-    ])
+fn static_data(name: &str, capabilities: u32) -> WmiObject {
+    row(
+        name,
+        &[
+            ("Capabilities", WmiValue::U32(capabilities)),
+            ("DesignedCapacity", WmiValue::U32(110_000)),
+        ],
+    )
 }
 
 #[test]
-fn os_battery_reads_the_public_battery_classes() {
-    let wmi = FakeWmi::new([
-        ("BatteryStatus", status_object()),
-        ("BatteryFullChargedCapacity", full_charge_object()),
-        ("BatteryCycleCount", cycle_object()),
-    ]);
-    let channel = WindowsOsBattery::new(wmi, FakePowerStatus(SystemPowerStatus::default()));
-
+fn exact_association_survives_reordered_rows_and_excludes_short_term_devices() {
+    let mut wmi = FakeWmi::standard();
+    wmi.replies
+        .get_mut("BatteryStatus")
+        .unwrap()
+        .insert(0, status("ups"));
+    wmi.replies
+        .get_mut("BatteryStaticData")
+        .unwrap()
+        .push(static_data("ups", 0xa000_0000));
+    wmi.replies
+        .get_mut("BatteryFullChargedCapacity")
+        .unwrap()
+        .insert(0, row("ups", &[("FullChargedCapacity", WmiValue::U32(1))]));
+    let channel = WindowsOsBattery::new(wmi, Power);
     let snapshot = channel.snapshot().unwrap();
-
-    assert_eq!(snapshot.remaining_capacity_mwh, Some(95_110));
-    assert_eq!(snapshot.full_charge_capacity_mwh, Some(95_110));
-    assert_eq!(snapshot.cycle_count, Some(224));
+    assert_eq!(snapshot.remaining_capacity_mwh, Some(50_000));
+    assert_eq!(snapshot.full_charge_capacity_mwh, Some(100_000));
+    assert_eq!(snapshot.design_capacity_mwh, Some(110_000));
+    assert_eq!(snapshot.remaining_percent, Some(50));
     assert_eq!(snapshot.voltage_mv, Some(17_715));
-    assert_eq!(snapshot.remaining_percent, None);
-    assert_eq!(snapshot.power_online, Some(true));
-    assert_eq!(snapshot.charging, Some(false));
-    assert_eq!(snapshot.discharging, Some(false));
+    assert_eq!(snapshot.cycle_count, Some(224));
+    assert_eq!(snapshot.estimated_runtime_min, Some(120));
+    let serialized = serde_json::to_value(&snapshot).unwrap();
+    assert!(serialized.get("charge_rate_ma").is_none());
+    assert!(serialized.get("discharge_rate_ma").is_none());
+    assert!(snapshot.source_issues.is_empty());
+    assert_eq!(channel.wmi().queries.lock().len(), 5);
 }
 
 #[test]
-fn os_battery_queries_only_the_root_wmi_battery_namespace() {
-    let wmi = FakeWmi::new([("BatteryStatus", status_object())]);
-    let channel = WindowsOsBattery::new(wmi, FakePowerStatus(SystemPowerStatus::default()));
+fn multiple_active_system_packs_are_not_arbitrarily_selected() {
+    let mut wmi = FakeWmi::standard();
+    wmi.replies
+        .get_mut("BatteryStatus")
+        .unwrap()
+        .push(status("second"));
+    wmi.replies
+        .get_mut("BatteryStaticData")
+        .unwrap()
+        .push(static_data("second", 0x8000_0000));
+    assert!(WindowsOsBattery::new(wmi, Power).snapshot().is_err());
+}
 
-    let _ = channel.snapshot();
+#[test]
+fn missing_charge_flags_remain_unknown() {
+    let mut wmi = FakeWmi::standard();
+    let status = &mut wmi.replies.get_mut("BatteryStatus").unwrap()[0];
+    status.remove("Charging");
+    status.remove("Discharging");
+    let snapshot = WindowsOsBattery::new(wmi, Power).snapshot().unwrap();
+    assert_eq!(snapshot.charging, None);
+    assert_eq!(snapshot.discharging, None);
+}
 
-    for query in channel.wmi().queries.lock().iter() {
-        assert_eq!(query.namespace, ROOT_WMI);
-        assert!(query.wql.contains("Battery"));
+#[test]
+fn known_non_system_short_term_inactive_and_absent_batteries_are_rejected() {
+    for capabilities in [0, 0xa000_0000] {
+        let mut wmi = FakeWmi::standard();
+        wmi.replies
+            .insert("BatteryStaticData", vec![static_data("pack", capabilities)]);
+        assert!(WindowsOsBattery::new(wmi, Power).snapshot().is_err());
+    }
+    let mut inactive = FakeWmi::standard();
+    inactive.replies.get_mut("BatteryStatus").unwrap()[0]
+        .insert("Active".into(), WmiValue::Bool(false));
+    assert!(WindowsOsBattery::new(inactive, Power).snapshot().is_err());
+    assert!(
+        WindowsOsBattery::new(FakeWmi::default(), Power)
+            .snapshot()
+            .is_err()
+    );
+}
+
+#[test]
+fn missing_and_empty_status_identities_are_rejected() {
+    for name in [None, Some("")] {
+        let mut wmi = FakeWmi::standard();
+        let status = &mut wmi.replies.get_mut("BatteryStatus").unwrap()[0];
+        status.remove("InstanceName");
+        if let Some(name) = name {
+            status.insert("InstanceName".into(), WmiValue::String(name.into()));
+        }
+        assert!(WindowsOsBattery::new(wmi, Power).snapshot().is_err());
     }
 }
 
 #[test]
-fn os_battery_reports_missing_optional_classes_without_failing() {
-    let wmi = FakeWmi::new([("BatteryStatus", status_object())]);
-    let channel = WindowsOsBattery::new(wmi, FakePowerStatus(SystemPowerStatus::default()));
+fn duplicate_status_identity_is_rejected_even_if_one_row_is_inactive() {
+    let mut wmi = FakeWmi::standard();
+    let mut duplicate = status("pack");
+    duplicate.insert("Active".into(), WmiValue::Bool(false));
+    wmi.replies
+        .get_mut("BatteryStatus")
+        .unwrap()
+        .push(duplicate);
+    assert!(WindowsOsBattery::new(wmi, Power).snapshot().is_err());
+}
 
-    let snapshot = channel.snapshot().unwrap();
-
-    assert_eq!(snapshot.remaining_capacity_mwh, Some(95_110));
+#[test]
+fn duplicate_optional_identity_does_not_contaminate_valid_status() {
+    let mut wmi = FakeWmi::standard();
+    wmi.replies
+        .get_mut("BatteryFullChargedCapacity")
+        .unwrap()
+        .push(row("pack", &[("FullChargedCapacity", WmiValue::U32(1))]));
+    let snapshot = WindowsOsBattery::new(wmi, Power).snapshot().unwrap();
     assert_eq!(snapshot.full_charge_capacity_mwh, None);
-    assert_eq!(snapshot.cycle_count, None);
+    assert_eq!(snapshot.remaining_percent, None);
+    assert_eq!(snapshot.voltage_mv, Some(17_715));
+    assert!(
+        snapshot
+            .source_issues
+            .iter()
+            .any(|issue| issue.source == "BatteryFullChargedCapacity"
+                && issue.detail.contains("duplicate"))
+    );
 }
 
 #[test]
-fn os_battery_fails_when_the_battery_class_is_absent() {
-    let wmi = FakeWmi::new([]);
-    let channel = WindowsOsBattery::new(wmi, FakePowerStatus(SystemPowerStatus::default()));
-
-    assert!(matches!(
-        channel.snapshot(),
-        Err(LctrlError::ChannelUnavailable { .. })
-    ));
+fn missing_mismatched_and_duplicate_static_capabilities_never_imply_absolute_units() {
+    for statics in [
+        vec![],
+        vec![static_data("PACK", 0x8000_0000)],
+        vec![row("pack", &[])],
+        vec![
+            static_data("pack", 0x8000_0000),
+            static_data("pack", 0x8000_0000),
+        ],
+    ] {
+        let mut wmi = FakeWmi::standard();
+        wmi.replies.insert("BatteryStaticData", statics);
+        let snapshot = WindowsOsBattery::new(wmi, Power).snapshot().unwrap();
+        assert_eq!(snapshot.remaining_capacity_mwh, None);
+        assert_eq!(snapshot.full_charge_capacity_mwh, None);
+        assert_eq!(snapshot.design_capacity_mwh, None);
+        assert_eq!(snapshot.remaining_percent, None);
+        assert_eq!(snapshot.voltage_mv, Some(17_715));
+        assert!(!snapshot.source_issues.is_empty());
+    }
 }
 
 #[test]
-fn os_battery_reads_the_system_power_percentage() {
-    let wmi = FakeWmi::new([("BatteryStatus", status_object())]);
-    let power = FakePowerStatus(SystemPowerStatus {
-        ac_line_status: Some(true),
-        battery_flag: Some(1),
-        battery_life_percent: Some(100),
-        battery_life_time: None,
-        battery_full_life_time: None,
-    });
-    let channel = WindowsOsBattery::new(wmi, power);
-
-    let snapshot = channel.snapshot().unwrap();
-
-    assert_eq!(snapshot.remaining_percent, Some(100));
-}
-
-#[test]
-fn os_battery_ignores_a_sentinel_runtime_value() {
-    let wmi = FakeWmi::new([
-        ("BatteryStatus", status_object()),
-        (
-            "BatteryRuntime",
-            object(&[
-                ("Active", WmiValue::Bool(true)),
-                ("EstimatedRuntime", WmiValue::U32(u32::MAX)),
-            ]),
-        ),
-    ]);
-    let channel = WindowsOsBattery::new(wmi, FakePowerStatus(SystemPowerStatus::default()));
-
-    let snapshot = channel.snapshot().unwrap();
-
+fn relative_capacities_and_unknown_sentinels_are_not_mwh_or_percent() {
+    let mut relative = FakeWmi::standard();
+    relative
+        .replies
+        .insert("BatteryStaticData", vec![static_data("pack", 0xc000_0000)]);
+    let snapshot = WindowsOsBattery::new(relative, Power).snapshot().unwrap();
+    assert_eq!(snapshot.remaining_capacity_mwh, None);
+    assert_eq!(snapshot.full_charge_capacity_mwh, None);
+    assert_eq!(snapshot.design_capacity_mwh, None);
+    assert_eq!(snapshot.remaining_percent, None);
+    let mut unknown = FakeWmi::standard();
+    unknown.replies.get_mut("BatteryStatus").unwrap()[0]
+        .insert("RemainingCapacity".into(), WmiValue::U32(u32::MAX));
+    unknown
+        .replies
+        .get_mut("BatteryFullChargedCapacity")
+        .unwrap()[0]
+        .insert("FullChargedCapacity".into(), WmiValue::U32(u32::MAX));
+    unknown.replies.get_mut("BatteryStaticData").unwrap()[0]
+        .insert("DesignedCapacity".into(), WmiValue::U32(u32::MAX));
+    unknown.replies.get_mut("BatteryRuntime").unwrap()[0]
+        .insert("EstimatedRuntime".into(), WmiValue::U32(u32::MAX));
+    let snapshot = WindowsOsBattery::new(unknown, Power).snapshot().unwrap();
+    assert_eq!(snapshot.remaining_capacity_mwh, None);
+    assert_eq!(snapshot.full_charge_capacity_mwh, None);
+    assert_eq!(snapshot.design_capacity_mwh, None);
+    assert_eq!(snapshot.remaining_percent, None);
     assert_eq!(snapshot.estimated_runtime_min, None);
 }
 
 #[test]
-fn os_battery_converts_a_runtime_value_to_minutes() {
-    let wmi = FakeWmi::new([
-        ("BatteryStatus", status_object()),
-        (
-            "BatteryRuntime",
-            object(&[
-                ("Active", WmiValue::Bool(true)),
-                ("EstimatedRuntime", WmiValue::U32(7_200)),
-            ]),
-        ),
-    ]);
-    let channel = WindowsOsBattery::new(wmi, FakePowerStatus(SystemPowerStatus::default()));
-
-    let snapshot = channel.snapshot().unwrap();
-
-    assert_eq!(snapshot.estimated_runtime_min, Some(120));
-}
-
-#[test]
-fn system_power_status_reads_the_aggregate_line_state() {
-    let power = FakePowerStatus(SystemPowerStatus {
-        ac_line_status: Some(true),
-        battery_flag: Some(1),
-        battery_life_percent: Some(87),
-        battery_life_time: None,
-        battery_full_life_time: None,
-    });
-    let wmi = FakeWmi::new([("BatteryStatus", status_object())]);
-    let channel = WindowsOsBattery::new(wmi, power);
-
-    let status = channel.system_power_status().unwrap();
-
-    assert_eq!(status.ac_line_status, Some(true));
-    assert_eq!(status.battery_life_percent(), Some(87));
-}
-
-#[test]
-fn snapshot_exposes_a_default_empty_reading() {
-    let snapshot = OsBatterySnapshot::default();
-
-    assert_eq!(snapshot.remaining_capacity_mwh, None);
+fn optional_provider_failure_retains_status_and_records_original_failure() {
+    let mut wmi = FakeWmi::standard();
+    wmi.failure = Some("BatteryCycleCount");
+    let snapshot = WindowsOsBattery::new(wmi, Power).snapshot().unwrap();
+    assert_eq!(snapshot.voltage_mv, Some(17_715));
+    assert_eq!(snapshot.remaining_percent, Some(50));
     assert_eq!(snapshot.cycle_count, None);
-    assert_eq!(snapshot.power_online, None);
+    assert!(snapshot.source_issues.iter().any(
+        |issue| issue.source == "BatteryCycleCount" && issue.detail.contains("provider failed")
+    ));
+}
+
+#[test]
+fn absent_and_unmatched_optional_rows_are_reported() {
+    let mut wmi = FakeWmi::standard();
+    wmi.replies.remove("BatteryCycleCount");
+    wmi.replies.insert(
+        "BatteryRuntime",
+        vec![row("other", &[("EstimatedRuntime", WmiValue::U32(60))])],
+    );
+    let snapshot = WindowsOsBattery::new(wmi, Power).snapshot().unwrap();
+    assert_eq!(snapshot.estimated_runtime_min, None);
+    assert!(
+        snapshot
+            .source_issues
+            .iter()
+            .any(|issue| issue.source == "BatteryCycleCount")
+    );
+    assert!(
+        snapshot
+            .source_issues
+            .iter()
+            .any(|issue| issue.source == "BatteryRuntime")
+    );
+}
+
+#[test]
+fn aggregate_percentage_is_separate_and_per_pack_arithmetic_is_widened() {
+    let mut wmi = FakeWmi::standard();
+    wmi.replies.get_mut("BatteryStatus").unwrap()[0]
+        .insert("RemainingCapacity".into(), WmiValue::U32(3_000_000_000));
+    wmi.replies.get_mut("BatteryFullChargedCapacity").unwrap()[0]
+        .insert("FullChargedCapacity".into(), WmiValue::U32(4_000_000_000));
+    let channel = WindowsOsBattery::new(wmi, Power);
+    assert_eq!(channel.snapshot().unwrap().remaining_percent, Some(75));
+    assert_eq!(
+        channel.system_power_status().unwrap().battery_life_percent,
+        Some(87)
+    );
+}
+
+#[test]
+fn required_provider_failure_is_not_empty_success() {
+    let mut wmi = FakeWmi::standard();
+    wmi.failure = Some("BatteryStatus");
+    assert!(
+        WindowsOsBattery::new(wmi, Power)
+            .snapshot()
+            .unwrap_err()
+            .to_string()
+            .contains("provider failed")
+    );
+}
+
+#[test]
+fn zero_baselines_are_unavailable_but_zero_remaining_is_valid() {
+    let mut wmi = FakeWmi::standard();
+    wmi.replies.get_mut("BatteryStatus").unwrap()[0]
+        .insert("RemainingCapacity".into(), WmiValue::U32(0));
+    let snapshot = WindowsOsBattery::new(wmi, Power).snapshot().unwrap();
+    assert_eq!(snapshot.remaining_capacity_mwh, Some(0));
+    assert_eq!(snapshot.remaining_percent, Some(0));
+
+    let mut wmi = FakeWmi::standard();
+    wmi.replies.get_mut("BatteryFullChargedCapacity").unwrap()[0]
+        .insert("FullChargedCapacity".into(), WmiValue::U32(0));
+    wmi.replies.get_mut("BatteryStaticData").unwrap()[0]
+        .insert("DesignedCapacity".into(), WmiValue::U32(0));
+    let snapshot = WindowsOsBattery::new(wmi, Power).snapshot().unwrap();
+    assert_eq!(snapshot.full_charge_capacity_mwh, None);
+    assert_eq!(snapshot.design_capacity_mwh, None);
+    assert_eq!(snapshot.remaining_percent, None);
+    assert!(
+        snapshot
+            .source_issues
+            .iter()
+            .any(|issue| issue.source == "BatteryFullChargedCapacity"
+                && issue.detail.contains("zero"))
+    );
+    assert!(
+        snapshot
+            .source_issues
+            .iter()
+            .any(|issue| issue.source == "BatteryStaticData" && issue.detail.contains("zero"))
+    );
+}
+
+#[test]
+fn capacity_ratio_uses_widened_arithmetic_without_clamping_or_health_thresholds() {
+    for (full, design, expected) in [
+        (3_000_000_000, 4_000_000_000, Some(75)),
+        (4_000_000_000, 3_000_000_000, Some(133)),
+        (65_535, 100, Some(u16::MAX)),
+        (65_536, 100, None),
+        (100_000, 0, None),
+        (u32::MAX, 100_000, None),
+    ] {
+        let mut wmi = FakeWmi::standard();
+        wmi.replies.get_mut("BatteryFullChargedCapacity").unwrap()[0]
+            .insert("FullChargedCapacity".into(), WmiValue::U32(full));
+        wmi.replies.get_mut("BatteryStaticData").unwrap()[0]
+            .insert("DesignedCapacity".into(), WmiValue::U32(design));
+        let snapshot = WindowsOsBattery::new(wmi, Power).snapshot().unwrap();
+        assert_eq!(snapshot.capacity_ratio_percent, expected);
+    }
 }

@@ -1,0 +1,336 @@
+{
+  "scope": "Exact scoped Rust source, native Windows build/fake-contract tests, and one read-only battery-source comparison. Not charge-control or full-replacement acceptance.",
+  "base_main": "dd0defe28db0683d0b0678616551ef1b5b5a1f58",
+  "source": {
+    "manifest_sha256": "912928d66e9f430a2806b9bc38141f3dea42a4430f0b3fe23e10a3af952c7895",
+    "archive_sha256": "fce64004a36403eb83f8356c6357ddeb45089081b4d2fe6faa0edf58a868da07",
+    "rust_build_file_count": 138,
+    "membership_equal": true,
+    "source_bytes_equal_before_and_after_build": true,
+    "dependency_binding_sha256": "08516a7de379e8694e94db99fd4e62039ac14e8657155affb796eff2bb67e2bc",
+    "scope": "Cargo manifests/lock plus complete crates/ and vantage/ physical source membership; generated .cargo/config.toml is a separate dependency-binding role"
+  },
+  "native": {
+    "binary_sha256": "84883d50f423be2d8c933f7fc810117eedab2d9fe7a0bc503095af8d47bdcf65",
+    "binary_bytes": 3767808,
+    "build_exit": 0,
+    "native_electrical_tests": 12,
+    "source_contract_suites": {
+      "windows_battery_sources": 3,
+      "windows_hal": 10,
+      "windows_os_battery": 15,
+      "windows_thermal": 13
+    },
+    "native_test_exit": 0,
+    "contract_test_exit": 0,
+    "test_boundary": "Mocked/native-decoder contracts, not hardware writes",
+    "build_receipt_sha256": "f08f35563130ede7d404cbc9724ae39ebf5e6711cbe0f5fffae1c0b6b683e331",
+    "logs": [
+      {
+        "role": "build.out",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "length": 0
+      },
+      {
+        "role": "build.err",
+        "sha256": "7041c28d0907b0515d57fe71ae10c5760bc70181f5fcd75c118b3de83395995c",
+        "length": 62
+      },
+      {
+        "role": "native-test.out",
+        "sha256": "09cb00547104a733f41e4cf5ea0d9d3a7824b96f1c6939fd1dd15297a3cbee3c",
+        "length": 1387
+      },
+      {
+        "role": "native-test.err",
+        "sha256": "b8478d48cc9a0d8bba333a5591913e55816970e72f2ef780cd52f9e1119b9cd6",
+        "length": 200
+      },
+      {
+        "role": "contract-test.out",
+        "sha256": "63e0d85f712a056558df14d7e2b62d02d637c4da85eb01164884553ed0f044d1",
+        "length": 3366
+      },
+      {
+        "role": "contract-test.err",
+        "sha256": "be65bed60fd2fccd65bdc7958bb84f7e2510e98777c730a0aed142bbb16ba045",
+        "length": 652
+      }
+    ]
+  },
+  "host_gates": {
+    "scoped_linux_affected_package_tests": "passed; core, HAL, Windows HAL, CLI, daemon and vantage --all-targets",
+    "scoped_linux_affected_package_clippy": "passed with -D warnings",
+    "scoped_windows_cross_clippy": "passed with --all-targets and -D warnings; worktree-private target",
+    "primary_windows_cross_clippy": "passed separately; broader primary work is not part of this native snapshot"
+  },
+  "receipt_files": [
+    {
+      "name": "vantage-battery-source-readback-912928d66e9f430a.json",
+      "sha256": "361abf870f9a0f72a3ced869f2e8bced0dbdce6c5a380a6be9242656413260ab",
+      "length": 19542
+    },
+    {
+      "name": "vantage-battery-dependency-binding-912928d66e9f430a.json",
+      "sha256": "835a2112018370fac86777d1572cf625280bfb933c8834ada4b81b02113732bf",
+      "length": 303
+    },
+    {
+      "name": "vantage-battery-native-912928d66e9f430a-directwait1.json",
+      "sha256": "f08f35563130ede7d404cbc9724ae39ebf5e6711cbe0f5fffae1c0b6b683e331",
+      "length": 1043
+    },
+    {
+      "name": "vantage-battery-postbuild-readback-912928d66e9f430a.json",
+      "sha256": "0848142cc3ce1bb82424fd9d75d7aa7caa5397c4128ad89e4fece6545c0d8ae5",
+      "length": 2428
+    },
+    {
+      "name": "vantage-battery-readonly-912928d66e9f430a-projection2.json",
+      "sha256": "bf4747be5dd078029df18e92df7ebb15fdbfef57eca599566c207b5b3862ec01",
+      "length": 5065
+    },
+    {
+      "name": "vantage-battery-native-912928d66e9f430a.wait-stall.json",
+      "sha256": "ee87bc2c01237317dc63a4a028fe1a5f961f7a6c064f52d90ae7c682dc6bf9ea",
+      "length": 600
+    }
+  ],
+  "smoke": {
+    "machine": "TB14P-EZRA",
+    "source_manifest_sha256": "912928d66e9f430a2806b9bc38141f3dea42a4430f0b3fe23e10a3af952c7895",
+    "source_archive_sha256": "fce64004a36403eb83f8356c6357ddeb45089081b4d2fe6faa0edf58a868da07",
+    "binary_sha256": "84883d50f423be2d8c933f7fc810117eedab2d9fe7a0bc503095af8d47bdcf65",
+    "hardware_writes_requested": false,
+    "touchpad_operations_requested": false,
+    "bios_operations_requested": false,
+    "source_association": "unverified",
+    "serials_redacted": true,
+    "independent_wmi_before": {
+      "observed_utc": "2026-10-28T01:21:22.5189269Z",
+      "status_instances": 1,
+      "active_instances": 1,
+      "static_instances": 1,
+      "full_capacity_instances": 1,
+      "exact_identity_match": true,
+      "voltage_mv": 16053,
+      "remaining_capacity_raw": 65240,
+      "capabilities": 2147483648,
+      "designed_capacity_raw": 99900,
+      "full_charge_capacity_raw": 94090,
+      "power_online": false,
+      "charging": false,
+      "discharging": true,
+      "critical": false,
+      "charge_rate_raw": 0,
+      "discharge_rate_raw": 19151,
+      "source_issues": []
+    },
+    "battery": {
+      "arguments": [
+        "battery",
+        "status",
+        "--json"
+      ],
+      "started_utc": "2026-10-28T01:21:22.7741705Z",
+      "elapsed_ms": 493,
+      "exit_code": 0,
+      "timed_out": false,
+      "stdout_sha256": "6edc11aa4ef6bf86602f1e8801d6c3087502688c1d51dc8d04afe8cab4e22137",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output": {
+        "adapter": {
+          "ac_connected": null,
+          "authentication": "inbox",
+          "connector_type": null,
+          "has_detail": false,
+          "status": null,
+          "wattage_w": null
+        },
+        "adapter_error": null,
+        "charge_mode": null,
+        "charge_mode_error": {
+          "error": {
+            "feature": "battery.charge-mode.readback",
+            "kind": "unsupported",
+            "message": "feature is unsupported: battery.charge-mode.readback"
+          }
+        },
+        "device_error": null,
+        "device_telemetry": {
+          "charge_completion_time_min": null,
+          "charge_status": null,
+          "chemistry": "Lion",
+          "current_ma": null,
+          "cycle_count": null,
+          "design_capacity_mwh": 99900,
+          "design_voltage_mv": 15600,
+          "first_used_date": null,
+          "full_charge_capacity_mwh": 94090,
+          "health": null,
+          "life_percent": null,
+          "manufacture_date": null,
+          "remaining_capacity_mwh": 65240,
+          "remaining_percent": null,
+          "remaining_time_min": null,
+          "source_issues": [],
+          "temperature_deci_kelvin": null,
+          "voltage_mv": null,
+          "wattage_w": null,
+          "serial_number_present": true,
+          "serial_number_redacted": true
+        },
+        "electrical": {
+          "power_state": 2,
+          "rate_mw": -19151,
+          "source_issues": [],
+          "temperature_deci_kelvin": null,
+          "voltage_mv": 16053
+        },
+        "electrical_error": null,
+        "os_battery": {
+          "capacity_ratio_percent": 94,
+          "charging": false,
+          "critical": false,
+          "cycle_count": 225,
+          "design_capacity_mwh": 99900,
+          "discharging": true,
+          "estimated_runtime_min": 204,
+          "full_charge_capacity_mwh": 94090,
+          "power_online": false,
+          "remaining_capacity_mwh": 65240,
+          "remaining_percent": 69,
+          "source_issues": [],
+          "voltage_mv": 16053
+        },
+        "os_error": null,
+        "source_association": "unverified",
+        "system_power": {
+          "ac_line_status": false,
+          "battery_flag": 1,
+          "battery_full_life_time": null,
+          "battery_life_percent": 69,
+          "battery_life_time": 12263
+        },
+        "system_power_error": null
+      },
+      "error": null,
+      "parse_error": null
+    },
+    "independent_wmi_after": {
+      "observed_utc": "2026-10-28T01:21:23.3019181Z",
+      "status_instances": 1,
+      "active_instances": 1,
+      "static_instances": 1,
+      "full_capacity_instances": 1,
+      "exact_identity_match": true,
+      "voltage_mv": 16053,
+      "remaining_capacity_raw": 65240,
+      "capabilities": 2147483648,
+      "designed_capacity_raw": 99900,
+      "full_charge_capacity_raw": 94090,
+      "power_online": false,
+      "charging": false,
+      "discharging": true,
+      "critical": false,
+      "charge_rate_raw": 0,
+      "discharge_rate_raw": 19151,
+      "source_issues": []
+    },
+    "adapter": {
+      "arguments": [
+        "battery",
+        "adapter",
+        "--json"
+      ],
+      "started_utc": "2026-10-28T01:21:23.3432389Z",
+      "elapsed_ms": 92,
+      "exit_code": 0,
+      "timed_out": false,
+      "stdout_sha256": "a84a44286207d6a50947fc5e77431d03413941023bec3152e35fcfaa2f8a5906",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output": {
+        "source_association": "unverified",
+        "system_power": {
+          "ac_line_status": false,
+          "battery_flag": 1,
+          "battery_full_life_time": null,
+          "battery_life_percent": 69,
+          "battery_life_time": 12263
+        },
+        "system_power_error": null,
+        "vendor_adapter": {
+          "ac_connected": null,
+          "authentication": "inbox",
+          "connector_type": null,
+          "has_detail": false,
+          "status": null,
+          "wattage_w": null
+        },
+        "vendor_adapter_error": null
+      },
+      "error": null,
+      "parse_error": null
+    },
+    "temperature": {
+      "arguments": [
+        "perf",
+        "temp",
+        "--json"
+      ],
+      "started_utc": "2026-10-28T01:21:23.4421934Z",
+      "elapsed_ms": 111,
+      "exit_code": 0,
+      "timed_out": false,
+      "stdout_sha256": "67cda899ba560b9bf7ed9a2fee43985b2b29d9ee1d51064c68ea74e332e57b27",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output": [
+        {
+          "metadata": {
+            "availability": "available",
+            "id": "acpi/<redacted>",
+            "location": "unknown",
+            "name": "ACPI thermal zone (identifier redacted)",
+            "source": "acpi"
+          },
+          "value_c": 37.04999923706055
+        },
+        {
+          "metadata": {
+            "availability": "unavailable",
+            "id": "windows-battery-class/temperature",
+            "location": "battery",
+            "name": "Windows battery class temperature (unassociated)",
+            "source": "windows_battery_class"
+          },
+          "value_c": null
+        }
+      ],
+      "error": null,
+      "parse_error": null
+    },
+    "independent_acpi_raw_deci_kelvin": [
+      3102
+    ],
+    "independent_acpi_error": null,
+    "source_readback_receipt": "C:\\Users\\ezra\\vantage-battery-source-readback-912928d66e9f430a.json",
+    "native_build_receipt": "C:\\Users\\ezra\\vantage-battery-native-912928d66e9f430a-directwait1.json"
+  },
+  "projection": "Vendor serial/manufacturer/model/firmware and ACPI instance identity omitted. PowerShell array wrapper normalized to the actual temperature list; original receipt retained by hash.",
+  "preserved_failed_attempts": {
+    "shared_target_cross_check": "Stale sibling dependency metadata; invalid as interface proof. Isolated targets used for final gates.",
+    "first_native_wrapper": "Start-Process -Wait stalled after terminal logs; original exit codes unconfirmed. Original logs/receipt preserved; exact owned wrapper retired, then direct System.Diagnostics.Process child waiting obtained real exit codes.",
+    "first_smoke_projection": "PowerShell array member enumeration treated missing device_telemetry as non-null on temperature array; raw logs preserved privately. Only projection fixed, no source or binary rebuilt."
+  },
+  "not_accepted": [
+    "charge_mode_control",
+    "arbitrary_charge_thresholds",
+    "cross_source_pack_association",
+    "battery_temperature",
+    "battery_health_classification",
+    "rated_adapter_power",
+    "usb_physical_supply",
+    "full_replacement"
+  ],
+  "privacy": "No battery serial, vendor identity string or ACPI instance identifier retained in this public projection."
+}

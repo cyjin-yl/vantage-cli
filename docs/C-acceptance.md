@@ -38,7 +38,7 @@ BIOS 密码元数据、MagicBay 检测和 scan 清单共 **12 次实际运行,�
 | #2 自动策略 | parser/catalog/手动计划已有;自动求值、配置恢复与执行闭环待完成 |
 | #3 OSD | 当前未附接真实 overlay/热键动作消费者 |
 | #4 能力/切换检查 | 原生矩阵可运行;平台依赖投影、实际服务绑定与替代就绪报告仍需修正 |
-| #5 电池/适配器 | 实际读取成功;健康/寿命与各指标有效性逐字段验收待完成 |
+| #5 电池/适配器 | C14:来源分组及实时电压/功率只读对照通过;健康/寿命、适配器额定功率等仍待逐字段验收 |
 | #6 充电/阈值 | C2:限定通道差分未获得独立状态回读;任意阈值仍无已验证写通道 |
 | #7 夜间/临时充电 | 当前入口 Unsupported;支持性、状态及写契约待完成,不据此判硬件不适用 |
 | #8 USB 供电 | 运行时覆盖未接通;BIOS 默认值需经现有事务路径暴露并单独验收 |
@@ -368,3 +368,34 @@ Windows fake PnP 测试 33 passed，未操作真实设备。
 HID 节点前后状态/问题码完全一致；未提交 touchpad off/on/recover。真实混合状态恢复
 和有独立备用输入条件下的完整 off/on 循环仍待验收。见
 `evidence/pr44-touchpad-dryrun-20261028.json` 和 PR 评论 324。
+
+## C14 · 电池来源分离的只读验证（非充电控制验收）
+
+最终 Rust 构建输入共 138 个文件，Git/文件系统独立成员枚举一致，传输至目标机后逐文件
+核对长度和 SHA-256；构建后再次核对成员、源字节及单独的离线依赖配置。源 manifest
+SHA-256 为 `912928d66e9f430a2806b9bc38141f3dea42a4430f0b3fe23e10a3af952c7895`。
+Windows MSVC release 构建退出 0；电池类解码 12 项和来源/WMI/温度/能力契约 41 项
+均通过，均为模拟或解码测试，不代表硬件写入。Linux 受影响包测试、Linux lint 和
+Windows 交叉 lint 均在工作树私有 target 中通过。
+
+实际执行的 `battery status --json`、`battery adapter --json`、`perf temp --json`
+均退出 0，无超时。观察时系统处于电池供电/放电状态；没有主动切换 AC 或充电模式。
+
+| 观察 | 新程序结果 | 独立只读对照 |
+|---|---|---|
+| 设计/标称电压 | `device_telemetry.design_voltage_mv=15600`;该来源实时电压、电流、温度均 null | 这是既有已记录的 EnergyDrv 标称字段，不当作瞬时端电压 |
+| 实时电压 | `electrical.voltage_mv=16053`、`os_battery.voltage_mv=16053` | 命令前后 `root\WMI BatteryStatus.Voltage` 均 16053 mV |
+| 放电功率 | `electrical.rate_mw=-19151`，原始 `power_state=2` | WMI `Discharging=true`、`Charging=false`、原始 `DischargeRate=19151`;容量能力位为绝对单位 |
+| 容量 | OS 每包电量 69%、满充/设计容量比 94%，不合成健康等级 | 同一非空 InstanceName 关联的容量为剩余 65240、满充 94090、设计 99900;不与厂商索引绑定 |
+| 温度 | ACPI 热区约 37.05 ℃、位置 unknown;电池类温度 null/unavailable | 独立 ACPI 原始值 3102 deci-K;未把未验证的 SMBus 字段当电池温度 |
+| 适配器 | 厂商详情/额定功率未知;聚合 `system_power` 单列、AC=false | WMI `PowerOnline=false`;未用它补全厂商适配器字段 |
+
+二进制为 `C:\Users\ezra\vantage-battery-target-912928d66e9f430a\release\vantage.exe`，
+SHA-256 `84883d50f423be2d8c933f7fc810117eedab2d9fe7a0bc503095af8d47bdcf65`。
+来源间的电池身份仍为 `unverified`；充电模式回读仍明确返回 unsupported。原构建包装器
+曾在完成日志后等待不返回，原回执保留为退出码未确认；改为直接等待 Cargo 进程后取得
+真实退出码。首份只读回执的 PowerShell 数组投影失败也被保留，未更改源程序。
+
+未执行硬件写入、触摸板操作或 BIOS 操作；本记录不验收充电控制、USB 物理供电、全部
+电池指标或全面替代。完整脱敏投影及各原始回执哈希见
+`evidence/target-battery-source-separation-20261028.json`。

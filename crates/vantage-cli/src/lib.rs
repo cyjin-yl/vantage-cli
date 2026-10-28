@@ -14,10 +14,10 @@ use std::{
 
 use clap::{Parser, Subcommand, ValueEnum};
 use lctrl_core::{
-    AdapterInfo, ApplyMode, Availability, BacklightState, BatteryTelemetry, BiosChange, Capability,
-    CapabilitySet, ChargeMode, ChargeModeActual, DeviceState, DiagnosticKind, FanMode,
-    HardwareInfo, LctrlError, PerformanceMode, Platform, PowerGuid, PowerMutation, PowerSchemeId,
-    PowerSettingKey, PowerSettingValue, PowerSource, UpdateCapability,
+    ApplyMode, Availability, BacklightState, BiosChange, Capability, CapabilitySet, ChargeMode,
+    ChargeModeActual, DeviceState, DiagnosticKind, FanMode, HardwareInfo, LctrlError,
+    PerformanceMode, Platform, PowerGuid, PowerMutation, PowerSchemeId, PowerSettingKey,
+    PowerSettingValue, PowerSource, UpdateCapability,
 };
 use lctrl_hal::{
     BatteryControl, BiosControl, ControlConflictDetection, DiagnosticsControl, FanControl, Hal,
@@ -27,6 +27,7 @@ use lctrl_hal::{
 };
 use serde::{Deserialize, Serialize};
 
+mod battery_observation;
 mod capability;
 use serde_json::Value;
 
@@ -845,19 +846,6 @@ struct InfoPayload {
 }
 
 #[derive(Debug, Serialize)]
-struct BatteryStatusPayload {
-    telemetry: BatteryTelemetry,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    adapter: Option<AdapterInfo>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    adapter_error: Option<Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    charge_mode: Option<ChargeModeActual>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    charge_mode_error: Option<Value>,
-}
-
-#[derive(Debug, Serialize)]
 struct PrivacyStatusPayload {
     #[serde(skip_serializing_if = "Option::is_none")]
     runtime_camera: Option<DeviceState>,
@@ -1004,8 +992,8 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
         Command::Capability => execute_capability(services.hal),
         Command::Battery {
             command: Some(BatteryCommand::Status),
-        } => execute_battery_status(services.battery),
-        Command::Battery { command: None } => execute_battery_status(services.battery),
+        } => battery_observation::execute(services.battery),
+        Command::Battery { command: None } => battery_observation::execute(services.battery),
         Command::Battery {
             command: Some(BatteryCommand::Adapter),
         } => execute_battery_adapter(services.battery),
@@ -1224,10 +1212,20 @@ fn execute_doctor(services: &CommandServices<'_>) -> CommandResult {
         },
         None => doctor_missing("control.conflicts"),
     });
-    checks.push(match services.battery {
-        Some(service) => doctor_check("battery.telemetry", service.battery_telemetry(0)),
-        None => doctor_missing("battery.telemetry"),
-    });
+    match services.battery {
+        Some(service) => checks.extend([
+            doctor_check("battery.device", service.battery_telemetry(0)),
+            doctor_check("battery.os", service.os_battery_snapshot()),
+            doctor_check("battery.electrical", service.battery_electrical()),
+            doctor_check("battery.system_power", service.system_power_status()),
+        ]),
+        None => checks.extend([
+            doctor_missing("battery.device"),
+            doctor_missing("battery.os"),
+            doctor_missing("battery.electrical"),
+            doctor_missing("battery.system_power"),
+        ]),
+    }
     checks.push(match services.bios {
         Some(service) => doctor_check("bios.settings", service.list()),
         None => doctor_missing("bios.settings"),
@@ -1350,41 +1348,24 @@ fn execute_battery_adapter(battery: Option<&dyn BatteryControl>) -> CommandResul
     let battery = battery.ok_or_else(|| LctrlError::Unsupported {
         feature: "battery.adapter".into(),
     })?;
-    let adapter = battery.adapter_info()?;
-    structured_output(&adapter, format!("adapter: {}\n", adapter.authentication))
-}
-
-fn execute_battery_status(battery: Option<&dyn BatteryControl>) -> CommandResult {
-    let battery = battery.ok_or_else(|| LctrlError::Unsupported {
-        feature: "battery.status".into(),
-    })?;
-    let telemetry = battery.battery_telemetry(0)?;
     let (adapter, adapter_error) = capture_optional(battery.adapter_info());
-    let (charge_mode, charge_mode_error) = capture_optional(battery.charge_mode());
-    let payload = BatteryStatusPayload {
-        telemetry,
-        adapter,
-        adapter_error,
-        charge_mode,
-        charge_mode_error,
-    };
+    let (system_power, system_power_error) = capture_optional(battery.system_power_status());
+    if adapter.is_none() && system_power.is_none() {
+        return Err(LctrlError::ChannelUnavailable {
+            channel: format!(
+                "adapter and aggregate power unavailable: adapter={adapter_error:?}; system_power={system_power_error:?}"
+            ),
+        });
+    }
+    let payload = serde_json::json!({
+        "vendor_adapter": adapter, "vendor_adapter_error": adapter_error,
+        "system_power": system_power, "system_power_error": system_power_error,
+        "source_association": "unverified"
+    });
     let human = format!(
-        "battery: {} mWh remaining\ncharge: {}%\nadapter: {}\ncharge mode: {}\n",
-        payload
-            .telemetry
-            .remaining_capacity_mwh
-            .map_or_else(|| "unknown".into(), |value| value.to_string()),
-        payload
-            .telemetry
-            .remaining_percent
-            .map_or_else(|| "unknown".into(), |value| value.to_string()),
-        payload.adapter.map_or_else(
-            || "unavailable".into(),
-            |value| value.authentication.to_string()
-        ),
-        payload
-            .charge_mode
-            .map_or_else(|| "unavailable".into(), |value| value.to_string())
+        "adapter and aggregate system power (independent sources):\n{}\n",
+        serde_json::to_string_pretty(&payload)
+            .map_err(|error| LctrlError::Io(io::Error::other(error)))?
     );
     structured_output(&payload, human)
 }
@@ -1392,7 +1373,10 @@ fn execute_battery_status(battery: Option<&dyn BatteryControl>) -> CommandResult
 fn capture_optional<T>(result: lctrl_core::Result<T>) -> (Option<T>, Option<Value>) {
     match result {
         Ok(value) => (Some(value), None),
-        Err(error) => (None, serde_json::to_value(error.report()).ok()),
+        Err(error) => (
+            None,
+            Some(serde_json::to_value(error.report()).expect("error reports are serializable")),
+        ),
     }
 }
 
@@ -1610,8 +1594,20 @@ fn execute_tune_telemetry(services: &CommandServices<'_>) -> CommandResult {
     }
     if let Some(battery) = services.battery {
         telemetry.insert(
-            "battery",
+            "device_battery",
             serialize_change(&capture_optional(battery.battery_telemetry(0)))?,
+        );
+        telemetry.insert(
+            "os_battery",
+            serialize_change(&capture_optional(battery.os_battery_snapshot()))?,
+        );
+        telemetry.insert(
+            "battery_electrical",
+            serialize_change(&capture_optional(battery.battery_electrical()))?,
+        );
+        telemetry.insert(
+            "system_power",
+            serialize_change(&capture_optional(battery.system_power_status()))?,
         );
     }
     if let Some(performance) = services.performance {
