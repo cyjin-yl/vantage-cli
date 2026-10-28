@@ -13,6 +13,7 @@ struct FakePowerApi {
     value: Mutex<u32>,
     calls: Mutex<Vec<&'static str>>,
     fail_next_apply: Mutex<bool>,
+    fail_next_write: Mutex<bool>,
 }
 
 impl FakePowerApi {
@@ -29,6 +30,7 @@ impl FakePowerApi {
             value: Mutex::new(50),
             calls: Mutex::new(Vec::new()),
             fail_next_apply: Mutex::new(false),
+            fail_next_write: Mutex::new(false),
         }
     }
 }
@@ -81,6 +83,9 @@ impl PowerApi for FakePowerApi {
         value: u32,
     ) -> lctrl_core::Result<()> {
         self.calls.lock().push("write_value");
+        if std::mem::take(&mut *self.fail_next_write.lock()) {
+            return Err(std::io::Error::other("write failed before effect").into());
+        }
         *self.value.lock() = value;
         Ok(())
     }
@@ -245,6 +250,28 @@ fn active_plan_failure_after_write_restores_the_previous_value() {
 }
 
 #[test]
+fn failed_write_with_previous_value_intact_needs_no_recovery_write() {
+    let api = FakePowerApi::new();
+    *api.fail_next_write.lock() = true;
+    let p0 = WindowsPowerP0::new(api);
+
+    assert!(
+        p0.apply_power_mutation(mutation(70), ApplyMode::Commit)
+            .is_err()
+    );
+    assert_eq!(*p0.api().value.lock(), 50);
+    assert_eq!(
+        p0.api()
+            .calls
+            .lock()
+            .iter()
+            .filter(|call| **call == "write_value")
+            .count(),
+        1
+    );
+}
+
+#[test]
 fn scheme_switch_after_snapshot_never_writes_a_different_scheme() {
     struct SwitchedPowerApi {
         active: Mutex<PowerSchemeId>,
@@ -388,4 +415,68 @@ fn scheme_switch_after_write_restores_only_original_scheme_without_reactivating_
             .iter()
             .all(|(scheme, _)| scheme.as_str() == "balanced")
     );
+}
+
+#[test]
+fn rollback_does_not_overwrite_a_distinct_concurrent_value() {
+    struct ConcurrentValue {
+        value: Mutex<u32>,
+        failed: Mutex<bool>,
+    }
+    impl PowerApi for ConcurrentValue {
+        fn schemes(&self) -> lctrl_core::Result<Vec<PowerScheme>> {
+            Ok(vec![])
+        }
+        fn active_scheme(&self) -> lctrl_core::Result<PowerScheme> {
+            Ok(PowerScheme::new(
+                PowerSchemeId::new("balanced")?,
+                "Balanced",
+                true,
+            ))
+        }
+        fn activate(&self, _: &PowerSchemeId) -> lctrl_core::Result<()> {
+            unreachable!()
+        }
+        fn read_value(
+            &self,
+            _: &PowerSchemeId,
+            _: &PowerSettingKey,
+            _: PowerSource,
+        ) -> lctrl_core::Result<u32> {
+            Ok(*self.value.lock())
+        }
+        fn range(&self, _: &PowerSettingKey) -> lctrl_core::Result<PowerValueRange> {
+            PowerValueRange::new(0, 100, 10)
+        }
+        fn write_value(
+            &self,
+            _: &PowerSchemeId,
+            _: &PowerSettingKey,
+            _: PowerSource,
+            value: u32,
+        ) -> lctrl_core::Result<()> {
+            let mut failed = self.failed.lock();
+            if !*failed {
+                *failed = true;
+                *self.value.lock() = 80;
+                return Err(std::io::Error::other("completion lost after concurrent edit").into());
+            }
+            *self.value.lock() = value;
+            Ok(())
+        }
+        fn apply_if_active(&self, _: &PowerSchemeId) -> lctrl_core::Result<bool> {
+            Ok(true)
+        }
+    }
+
+    let controller = WindowsPowerP0::new(ConcurrentValue {
+        value: Mutex::new(50),
+        failed: Mutex::new(false),
+    });
+    assert!(
+        controller
+            .apply_power_mutation(mutation(70), ApplyMode::Commit)
+            .is_err()
+    );
+    assert_eq!(*controller.api().value.lock(), 80);
 }

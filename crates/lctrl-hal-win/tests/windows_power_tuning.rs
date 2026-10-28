@@ -326,6 +326,66 @@ fn epp_scheme_switch_between_sources_restores_only_original_scheme() {
 }
 
 #[test]
+fn dc_failure_does_not_overwrite_a_concurrent_ac_edit() {
+    struct ConcurrentAcEdit {
+        values: Mutex<[u32; 2]>,
+    }
+    impl PowerApi for ConcurrentAcEdit {
+        fn schemes(&self) -> Result<Vec<PowerScheme>> {
+            Ok(vec![])
+        }
+        fn active_scheme(&self) -> Result<PowerScheme> {
+            Ok(PowerScheme::new(
+                PowerSchemeId::new("balanced")?,
+                "Balanced",
+                true,
+            ))
+        }
+        fn activate(&self, _: &PowerSchemeId) -> Result<()> {
+            unreachable!()
+        }
+        fn read_value(
+            &self,
+            _: &PowerSchemeId,
+            _: &PowerSettingKey,
+            source: PowerSource,
+        ) -> Result<u32> {
+            Ok(self.values.lock()[source_index(source)])
+        }
+        fn range(&self, _: &PowerSettingKey) -> Result<PowerValueRange> {
+            PowerValueRange::new(0, 100, 1)
+        }
+        fn write_value(
+            &self,
+            _: &PowerSchemeId,
+            _: &PowerSettingKey,
+            source: PowerSource,
+            value: u32,
+        ) -> Result<()> {
+            let mut values = self.values.lock();
+            if source == PowerSource::Dc && value == 100 {
+                values[0] = 60;
+                return Err(std::io::Error::other("DC completion lost").into());
+            }
+            values[source_index(source)] = value;
+            Ok(())
+        }
+        fn apply_if_active(&self, _: &PowerSchemeId) -> Result<bool> {
+            Ok(true)
+        }
+    }
+
+    let controller = WindowsPowerP0::new(ConcurrentAcEdit {
+        values: Mutex::new([50, 75]),
+    });
+    let error = controller
+        .set_epp_percent_ac_dc(PowerSourceValues::new(0, 100), ApplyMode::Commit)
+        .unwrap_err();
+    assert!(error.to_string().contains("DC completion lost"));
+    assert_eq!(*controller.api().values.lock(), [60, 75]);
+}
+
+#[test]
 fn raw_epp_commit_writes_exact_percentages_and_preserves_previous_values() {
     let p0 = WindowsPowerP0::new(FakePowerApi::new([50, 75], [1, 2]));
 
