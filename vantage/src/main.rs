@@ -354,6 +354,7 @@ fn main() {
         lctrl_hal_win::NativeDisplayApi,
         lctrl_hal_win::NativeWmi,
     );
+    let panel_brightness = lctrl_hal_win::WindowsPanelBrightness::new(lctrl_hal_win::NativeWmi);
     let power = lctrl_hal_win::WindowsPowerP0::new(lctrl_hal_win::NativePowerApi);
     let thermal = lctrl_hal_win::WindowsThermal::new(lctrl_hal_win::NativeWmi, &battery);
     let runtime_devices = lctrl_hal_win::NativeWindowsRuntimeDevices::default();
@@ -371,6 +372,7 @@ fn main() {
         .with_tuning(&power)
         .with_processor_power(&power)
         .with_panel(&panel)
+        .with_panel_brightness(&panel_brightness)
         .with_temperature(&thermal)
         .with_fan(&thermal)
         .with_update(&system_inventory);

@@ -68,6 +68,8 @@ impl CommandId {
     pub const TOUCHPAD_RECOVER: Self = Self("touchpad.recover");
 
     pub const PANEL_RATE: Self = Self("panel.rate");
+    pub const PANEL_BRIGHTNESS_STATUS: Self = Self("panel.brightness.status");
+    pub const PANEL_BRIGHTNESS_SET: Self = Self("panel.brightness.set");
     pub const PANEL_COLOR: Self = Self("panel.color");
     pub const PANEL_SUPER_RESOLUTION: Self = Self("panel.super-resolution");
     pub const PANEL_OVERDRIVE: Self = Self("panel.overdrive");
@@ -191,6 +193,8 @@ impl CommandId {
         Self::TOUCHPAD_STATUS,
         Self::TOUCHPAD_RECOVER,
         Self::PANEL_RATE,
+        Self::PANEL_BRIGHTNESS_STATUS,
+        Self::PANEL_BRIGHTNESS_SET,
         Self::PANEL_COLOR,
         Self::PANEL_SUPER_RESOLUTION,
         Self::PANEL_OVERDRIVE,

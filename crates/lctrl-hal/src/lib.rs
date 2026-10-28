@@ -36,7 +36,9 @@ pub use network::{
 pub use performance::{
     FanControl, PerformanceControl, PowerLimitKind, TemperatureControl, TuningControl,
 };
-pub use peripherals::{KeyboardControl, PanelControl, PrivacyControl, TouchpadControl};
+pub use peripherals::{
+    KeyboardControl, PanelBrightnessControl, PanelControl, PrivacyControl, TouchpadControl,
+};
 pub use power::{PowerControl, ProcessorPowerControl};
 pub use process::ProcessControl;
 pub use setting::{Setting, apply_setting};
