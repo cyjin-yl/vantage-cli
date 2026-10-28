@@ -73,8 +73,13 @@ impl PowerApi for NativePowerApi {
         set_active_scheme(&guid, "PowerSetActiveScheme")
     }
 
-    fn read_value(&self, key: &PowerSettingKey, source: PowerSource) -> Result<u32> {
-        let scheme = active_guid()?;
+    fn read_value(
+        &self,
+        scheme: &PowerSchemeId,
+        key: &PowerSettingKey,
+        source: PowerSource,
+    ) -> Result<u32> {
+        let scheme = parse_guid(scheme.as_str())?;
         let subgroup = parse_guid(key.subgroup.as_str())?;
         let setting = parse_guid(key.setting.as_str())?;
         let mut value = 0u32;
@@ -109,8 +114,14 @@ impl PowerApi for NativePowerApi {
         PowerValueRange::new(min, max, increment)
     }
 
-    fn write_value(&self, key: &PowerSettingKey, source: PowerSource, value: u32) -> Result<()> {
-        let scheme = active_guid()?;
+    fn write_value(
+        &self,
+        scheme: &PowerSchemeId,
+        key: &PowerSettingKey,
+        source: PowerSource,
+        value: u32,
+    ) -> Result<()> {
+        let scheme = parse_guid(scheme.as_str())?;
         let subgroup = parse_guid(key.subgroup.as_str())?;
         let setting = parse_guid(key.setting.as_str())?;
         let status = unsafe {
@@ -129,9 +140,13 @@ impl PowerApi for NativePowerApi {
         Ok(())
     }
 
-    fn apply_active_scheme(&self) -> Result<()> {
-        let scheme = active_guid()?;
-        set_active_scheme(&scheme, "PowerSetActiveScheme after value write")
+    fn apply_if_active(&self, scheme: &PowerSchemeId) -> Result<bool> {
+        let expected = parse_guid(scheme.as_str())?;
+        if !guid_eq(&active_guid()?, &expected) {
+            return Ok(false);
+        }
+        set_active_scheme(&expected, "PowerSetActiveScheme after value write")?;
+        Ok(true)
     }
 }
 
