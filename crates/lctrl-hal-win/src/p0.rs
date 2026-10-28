@@ -142,11 +142,12 @@ where
             return Ok(ChangeReport::dry_run(previous, mode));
         }
 
-        let mut wrote = false;
         let result = (|| {
             for primitive in plan_charge_mode(mode) {
+                // An error or malformed reply does not establish that the
+                // device ignored the request. Recovery is required even if
+                // the first attempted primitive reports failure.
                 self.write_primitive(primitive)?;
-                wrote = true;
             }
             poll_readback(&mode, 10, Duration::from_millis(50), || {
                 self.mode_for_write()
@@ -154,12 +155,11 @@ where
         })();
         match result {
             Ok(actual) => Ok(ChangeReport::committed(previous, mode, actual)),
-            Err(error) if !wrote => Err(error),
             Err(error) => match self.commit_charge_mode(previous) {
                 Ok(_) => Err(error),
                 Err(rollback) => Err(LctrlError::FirmwareRejected {
                     detail: format!(
-                        "charge-mode transition failed ({error}); restoring {previous} also failed ({rollback})"
+                        "charge-mode transition failed ({error}); restoring {previous} also failed ({rollback}); device state is unverified"
                     ),
                 }),
             },

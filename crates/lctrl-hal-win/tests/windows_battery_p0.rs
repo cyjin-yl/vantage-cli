@@ -238,3 +238,99 @@ fn unverified_readback_source_blocks_all_charge_mode_writes() {
     ));
     assert!(p0.ioctl().calls.lock().is_empty());
 }
+
+#[test]
+fn first_write_failure_after_effect_restores_prior_mode() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicU32, Ordering},
+    };
+
+    struct AppliedThenFailed {
+        state: Arc<AtomicU32>,
+        failed: AtomicBool,
+    }
+
+    impl IoctlTransport for AppliedThenFailed {
+        fn call(&self, code: u32, input: &[u8], _: usize) -> lctrl_core::Result<Vec<u8>> {
+            assert_eq!(code, IOCTL_GBMD);
+            match input {
+                [0x08] => self.state.fetch_and(!2, Ordering::SeqCst),
+                [0x0f] => self.state.fetch_and(!1, Ordering::SeqCst),
+                [0x07] => self.state.fetch_or(2, Ordering::SeqCst),
+                _ => panic!("unexpected charging command"),
+            };
+            if !self.failed.swap(true, Ordering::SeqCst) {
+                return Err(std::io::Error::other("completion lost after device effect").into());
+            }
+            Ok(0_u32.to_le_bytes().to_vec())
+        }
+    }
+
+    struct Reader(Arc<AtomicU32>);
+
+    impl ChargeModeReader for Reader {
+        fn read_charge_mode_raw(&self) -> lctrl_core::Result<u32> {
+            Ok(self.0.load(Ordering::SeqCst))
+        }
+    }
+
+    let state = Arc::new(AtomicU32::new(2));
+    let p0 = WindowsBatteryP0::new(
+        AppliedThenFailed {
+            state: Arc::clone(&state),
+            failed: AtomicBool::new(false),
+        },
+        Reader(Arc::clone(&state)),
+    );
+
+    assert!(matches!(
+        p0.set_charge_mode(ChargeMode::Conservation, ApplyMode::Commit),
+        Err(LctrlError::Io(_))
+    ));
+    assert_eq!(state.load(Ordering::SeqCst), 2);
+    assert_eq!(p0.charge_mode().unwrap(), ChargeModeActual::Rapid);
+}
+
+#[test]
+fn failed_recovery_keeps_both_errors_and_does_not_claim_restoration() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicU32, Ordering},
+    };
+
+    struct FailingIoctl(Arc<AtomicU32>);
+
+    impl IoctlTransport for FailingIoctl {
+        fn call(&self, code: u32, input: &[u8], _: usize) -> lctrl_core::Result<Vec<u8>> {
+            assert_eq!(code, IOCTL_GBMD);
+            match input {
+                [0x08] => {
+                    self.0.fetch_and(!2, Ordering::SeqCst);
+                    Err(std::io::Error::other("first dispatch lost").into())
+                }
+                [0x0f] => Err(std::io::Error::other("restore unavailable").into()),
+                _ => panic!("unexpected charging command"),
+            }
+        }
+    }
+
+    struct Reader(Arc<AtomicU32>);
+
+    impl ChargeModeReader for Reader {
+        fn read_charge_mode_raw(&self) -> lctrl_core::Result<u32> {
+            Ok(self.0.load(Ordering::SeqCst))
+        }
+    }
+
+    let state = Arc::new(AtomicU32::new(2));
+    let p0 = WindowsBatteryP0::new(FailingIoctl(Arc::clone(&state)), Reader(Arc::clone(&state)));
+    let error = p0
+        .set_charge_mode(ChargeMode::Conservation, ApplyMode::Commit)
+        .unwrap_err();
+    let message = error.to_string();
+    assert!(message.contains("first dispatch lost"));
+    assert!(message.contains("restore unavailable"));
+    assert_eq!(state.load(Ordering::SeqCst), 0);
+    assert_eq!(p0.charge_mode().unwrap(), ChargeModeActual::Normal);
+}
