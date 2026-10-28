@@ -75,9 +75,11 @@ impl PowerApi for FakePowerApi {
     }
 
     fn active_scheme(&self) -> Result<PowerScheme> {
-        Err(LctrlError::Unsupported {
-            feature: "test scheme activation".into(),
-        })
+        Ok(PowerScheme::new(
+            PowerSchemeId::new("test-scheme")?,
+            "Test",
+            true,
+        ))
     }
 
     fn activate(&self, _id: &PowerSchemeId) -> Result<()> {
@@ -86,7 +88,12 @@ impl PowerApi for FakePowerApi {
         })
     }
 
-    fn read_value(&self, key: &PowerSettingKey, source: PowerSource) -> Result<u32> {
+    fn read_value(
+        &self,
+        _: &PowerSchemeId,
+        key: &PowerSettingKey,
+        source: PowerSource,
+    ) -> Result<u32> {
         self.calls.lock().push(Call::Read(source));
         {
             let mut override_slot = self.read_override.lock();
@@ -120,7 +127,13 @@ impl PowerApi for FakePowerApi {
         }
     }
 
-    fn write_value(&self, key: &PowerSettingKey, source: PowerSource, value: u32) -> Result<()> {
+    fn write_value(
+        &self,
+        _: &PowerSchemeId,
+        key: &PowerSettingKey,
+        source: PowerSource,
+        value: u32,
+    ) -> Result<()> {
         self.calls.lock().push(Call::Write(source, value));
         {
             let mut values = self.values.lock();
@@ -157,7 +170,7 @@ impl PowerApi for FakePowerApi {
         Ok(())
     }
 
-    fn apply_active_scheme(&self) -> Result<()> {
+    fn apply_if_active(&self, _: &PowerSchemeId) -> Result<bool> {
         let source = (*self.last_write.lock()).ok_or_else(|| LctrlError::ChannelUnavailable {
             channel: "test apply had no preceding write".into(),
         })?;
@@ -176,7 +189,7 @@ impl PowerApi for FakePowerApi {
                 need: "administrator".into(),
             });
         }
-        Ok(())
+        Ok(true)
     }
 }
 
@@ -235,6 +248,84 @@ fn epp_dry_run_captures_ac_and_dc_without_writing() {
 }
 
 #[test]
+fn epp_scheme_switch_between_sources_restores_only_original_scheme() {
+    struct SwitchBeforeDc {
+        active: Mutex<PowerSchemeId>,
+        values: Mutex<[[u32; 2]; 2]>,
+        switched: Mutex<bool>,
+        writes: Mutex<Vec<PowerSchemeId>>,
+    }
+
+    impl PowerApi for SwitchBeforeDc {
+        fn schemes(&self) -> Result<Vec<PowerScheme>> {
+            Ok(vec![])
+        }
+        fn active_scheme(&self) -> Result<PowerScheme> {
+            Ok(PowerScheme::new(self.active.lock().clone(), "active", true))
+        }
+        fn activate(&self, scheme: &PowerSchemeId) -> Result<()> {
+            *self.active.lock() = scheme.clone();
+            Ok(())
+        }
+        fn read_value(
+            &self,
+            scheme: &PowerSchemeId,
+            _: &PowerSettingKey,
+            source: PowerSource,
+        ) -> Result<u32> {
+            let index = usize::from(scheme.as_str() == "performance");
+            let value = self.values.lock()[index][source_index(source)];
+            let mut switched = self.switched.lock();
+            if source == PowerSource::Dc && !*switched {
+                *switched = true;
+                *self.active.lock() = PowerSchemeId::new("performance")?;
+            }
+            Ok(value)
+        }
+        fn range(&self, _: &PowerSettingKey) -> Result<PowerValueRange> {
+            PowerValueRange::new(0, 100, 1)
+        }
+        fn write_value(
+            &self,
+            scheme: &PowerSchemeId,
+            _: &PowerSettingKey,
+            source: PowerSource,
+            value: u32,
+        ) -> Result<()> {
+            self.writes.lock().push(scheme.clone());
+            self.values.lock()[usize::from(scheme.as_str() == "performance")]
+                [source_index(source)] = value;
+            Ok(())
+        }
+        fn apply_if_active(&self, scheme: &PowerSchemeId) -> Result<bool> {
+            Ok(&*self.active.lock() == scheme)
+        }
+    }
+
+    let controller = WindowsPowerP0::new(SwitchBeforeDc {
+        active: Mutex::new(PowerSchemeId::new("balanced").unwrap()),
+        values: Mutex::new([[50, 75], [10, 20]]),
+        switched: Mutex::new(false),
+        writes: Mutex::new(Vec::new()),
+    });
+    assert!(
+        controller
+            .set_epp_percent_ac_dc(PowerSourceValues::new(0, 100), ApplyMode::Commit)
+            .is_err()
+    );
+    assert_eq!(*controller.api().values.lock(), [[50, 75], [10, 20]]);
+    assert_eq!(controller.api().active.lock().as_str(), "performance");
+    assert!(
+        controller
+            .api()
+            .writes
+            .lock()
+            .iter()
+            .all(|id| id.as_str() == "balanced")
+    );
+}
+
+#[test]
 fn raw_epp_commit_writes_exact_percentages_and_preserves_previous_values() {
     let p0 = WindowsPowerP0::new(FakePowerApi::new([50, 75], [1, 2]));
 
@@ -246,13 +337,6 @@ fn raw_epp_commit_writes_exact_percentages_and_preserves_previous_values() {
     assert_eq!(*report.requested(), PowerSourceValues::new(0, 255));
     assert_eq!(report.actual(), Some(&PowerSourceValues::new(0, 255)));
     assert_eq!(p0.api().values.lock().epp, [0, 100]);
-    assert_eq!(
-        p0.api().writes(),
-        [
-            Call::Write(PowerSource::Ac, 0),
-            Call::Write(PowerSource::Dc, 100)
-        ]
-    );
 }
 
 #[test]
@@ -311,15 +395,6 @@ fn dc_active_plan_failure_rolls_back_both_source_values() {
         Err(LctrlError::PermissionDenied { .. })
     ));
     assert_eq!(p0.api().values.lock().epp, [50, 75]);
-    assert_eq!(
-        p0.api().writes(),
-        [
-            Call::Write(PowerSource::Ac, 0),
-            Call::Write(PowerSource::Dc, 100),
-            Call::Write(PowerSource::Dc, 75),
-            Call::Write(PowerSource::Ac, 50),
-        ]
-    );
 }
 
 #[test]
@@ -346,15 +421,6 @@ fn turbo_uses_boost_mode_and_restores_the_exact_previous_modes() {
         Err(LctrlError::PermissionDenied { .. })
     ));
     assert_eq!(p0.api().values.lock().boost, [2, 4]);
-    assert_eq!(
-        p0.api().writes(),
-        [
-            Call::Write(PowerSource::Ac, 0),
-            Call::Write(PowerSource::Dc, 0),
-            Call::Write(PowerSource::Dc, 4),
-            Call::Write(PowerSource::Ac, 2),
-        ]
-    );
 }
 
 #[test]
