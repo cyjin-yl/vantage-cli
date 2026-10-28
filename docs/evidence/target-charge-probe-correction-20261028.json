@@ -1,0 +1,76 @@
+{
+  "scope": "Correction of prior charge write probe; observational result only, no new device calls",
+  "machine": "TB14P-EZRA",
+  "experiment_completed_utc": "2026-10-28T02:44:36.649Z",
+  "raw_history_result_entry": "2e4a7a41",
+  "preserved_files": [
+    {
+      "name": "original-call.txt",
+      "sha256": "0149918311bbf306c71acd7f55829b87d51a4ca47af0615d657403106d26a6e1",
+      "bytes": 4421
+    },
+    {
+      "name": "retry-call.txt",
+      "sha256": "8641cdc4995f64854a590917e2ab1e1206cf5e1ac56272d129384cc5982286c0",
+      "bytes": 945
+    },
+    {
+      "name": "original-result.txt",
+      "sha256": "1983e5e8714b2db2d9ad64127e668bb1ffa6aab6e7865fbe1523f97d8d1f3e60",
+      "bytes": 2396
+    }
+  ],
+  "initial_attempt": "Failed on unsigned integer conversion before the first documented read or write",
+  "writes_attempted_in_order": [
+    "0x08",
+    "0x07",
+    "0x0d",
+    "0x0f",
+    "0x07"
+  ],
+  "write_receipt_boundary": "DeviceIoControl calls returned without throwing, but status/reply bytes were discarded; no independent per-write return/semantic-success evidence retained. Final 0x07 was driven by incorrect endian conversion.",
+  "initial_raw_bytes": "04008600",
+  "final_raw_bytes": "04008600",
+  "raw_bytes_equal": true,
+  "little_endian_words": [
+    "0x00860004",
+    "0x00860004",
+    "0x00860000",
+    "0x00860004",
+    "0x00860004",
+    "0x00860004",
+    "0x00860004"
+  ],
+  "duplicate_first_after_rapid_off_row": "The first such row is before the 0x08 call; only the second is after it.",
+  "invalid_fields": [
+    "gbmd_word",
+    "rapid_state_bit2",
+    "conservation_state_bit5",
+    "rapid_supported_bit17"
+  ],
+  "wmi_during_observations": "PowerOnline=false, Discharging=true, Charging=false in each printed row",
+  "raw_result_interpretation": "After 0x08 and 0x07 the first GBMD output byte changed 04->00->04; 0x0d/0x0f yielded no change in printed GBMD bytes. Correlation does not establish charge current, independent firmware effect, or exact current hardware state.",
+  "recovery_boundary": "The script calculated baseline but did not use it in finally; last GBMD raw response matched initial, but direct physical/mode restoration was not verified independently. Do not repeat writes to repair evidence.",
+  "privacy": "Source and raw response retained privately, with no battery serial or device instance ID.",
+  "followup_read_only_observation": {
+    "machine": "TB14P-EZRA",
+    "observed_utc": "2026-10-28T12:40:10.0914348Z",
+    "source": "root/WMI BatteryStatus",
+    "total_instances": 1,
+    "active_instances": 1,
+    "hardware_writes_requested": false,
+    "battery": {
+      "voltage_mv": 15789,
+      "power_online": false,
+      "charging": false,
+      "discharging": true,
+      "critical": false,
+      "remaining_capacity_raw": 58620,
+      "charge_rate_raw": 0,
+      "discharge_rate_raw": 21994
+    }
+  },
+  "followup_receipt_sha256": "8ab85df7d6e010175653eb45811f467632b16d635f6ad045f07c5c6a55e9eb40",
+  "classification": "Unsafe probe/reporting: incorrect byte order and finally restoration not bound to baseline; no physical recovery claim.",
+  "write_access_decision": "Target charge-mode writes remain gated; this evidence must not authorize additional writes."
+}
