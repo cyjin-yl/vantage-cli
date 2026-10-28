@@ -841,6 +841,91 @@ fn unknown_power_scheme_name_is_rejected_without_activation() {
     assert!(power.mutations.lock().is_empty());
 }
 
+struct AmbiguousSchemes {
+    schemes: Vec<lctrl_core::PowerScheme>,
+    mutations: Mutex<Vec<lctrl_core::PowerMutation>>,
+}
+
+impl PowerControl for AmbiguousSchemes {
+    fn power_schemes(&self) -> lctrl_core::Result<Vec<lctrl_core::PowerScheme>> {
+        Ok(self.schemes.clone())
+    }
+    fn active_power_scheme(&self) -> lctrl_core::Result<lctrl_core::PowerScheme> {
+        unreachable!()
+    }
+    fn power_value_range(
+        &self,
+        _: &lctrl_core::PowerSettingKey,
+    ) -> lctrl_core::Result<lctrl_core::PowerValueRange> {
+        unreachable!()
+    }
+    fn apply_power_mutation(
+        &self,
+        mutation: lctrl_core::PowerMutation,
+        _: ApplyMode,
+    ) -> lctrl_core::Result<ChangeReport<lctrl_core::PowerMutation>> {
+        self.mutations.lock().push(mutation.clone());
+        Ok(ChangeReport::dry_run(mutation.clone(), mutation))
+    }
+}
+
+#[test]
+fn power_scheme_ambiguous_name_is_rejected_before_activation() {
+    let hal = FakeHal::new("unused");
+    let power = AmbiguousSchemes {
+        schemes: vec![
+            lctrl_core::PowerScheme::new(
+                lctrl_core::PowerSchemeId::new("one").unwrap(),
+                "Balanced",
+                true,
+            ),
+            lctrl_core::PowerScheme::new(
+                lctrl_core::PowerSchemeId::new("two").unwrap(),
+                "BALANCED",
+                false,
+            ),
+        ],
+        mutations: Mutex::new(Vec::new()),
+    };
+    for verb in ["get", "apply"] {
+        let cli =
+            Cli::try_parse_from(["vantage", "--dry-run", "power", "scheme", verb, "balanced"])
+                .unwrap();
+        let result = execute_with_services(cli, CommandServices::new(&hal).with_power(&power));
+        assert!(matches!(result, Err(LctrlError::InvalidArgument { .. })));
+    }
+    assert!(power.mutations.lock().is_empty());
+}
+
+#[test]
+fn power_scheme_exact_id_takes_precedence_over_another_scheme_name() {
+    let hal = FakeHal::new("unused");
+    let power = AmbiguousSchemes {
+        schemes: vec![
+            lctrl_core::PowerScheme::new(
+                lctrl_core::PowerSchemeId::new("one").unwrap(),
+                "two",
+                true,
+            ),
+            lctrl_core::PowerScheme::new(
+                lctrl_core::PowerSchemeId::new("two").unwrap(),
+                "Other",
+                false,
+            ),
+        ],
+        mutations: Mutex::new(Vec::new()),
+    };
+    let cli =
+        Cli::try_parse_from(["vantage", "--dry-run", "power", "scheme", "apply", "two"]).unwrap();
+    execute_with_services(cli, CommandServices::new(&hal).with_power(&power)).unwrap();
+    assert_eq!(
+        &*power.mutations.lock(),
+        &[lctrl_core::PowerMutation::Activate(
+            lctrl_core::PowerSchemeId::new("two").unwrap()
+        )]
+    );
+}
+
 struct FakeTune {
     epp_calls: Mutex<Vec<(u8, ApplyMode)>>,
 }
