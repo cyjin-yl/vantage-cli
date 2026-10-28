@@ -1,15 +1,19 @@
 use lctrl_core::{
-    ApplyMode, ChangeReport, PowerMutation, PowerScheme, PowerSourceValues, ProcessorBoostMode,
-    Result,
+    ApplyMode, ChangeReport, PowerMutation, PowerScheme, PowerSchemeId, PowerSettingKey,
+    PowerSettingObservation, PowerSourceValues, PowerValueRange, ProcessorBoostMode, Result,
 };
 
 pub trait PowerControl: Send + Sync {
     fn power_schemes(&self) -> Result<Vec<PowerScheme>>;
     fn active_power_scheme(&self) -> Result<PowerScheme>;
-    fn power_value_range(
+    fn power_value_range(&self, key: &PowerSettingKey) -> Result<PowerValueRange>;
+    /// Read a setting from the specified scheme without changing it. Values,
+    /// range, and policy overrides are sampled separately, not atomically.
+    fn read_power_setting(
         &self,
-        key: &lctrl_core::PowerSettingKey,
-    ) -> Result<lctrl_core::PowerValueRange>;
+        scheme: &PowerSchemeId,
+        key: &PowerSettingKey,
+    ) -> Result<PowerSettingObservation>;
     fn apply_power_mutation(
         &self,
         mutation: PowerMutation,

@@ -245,13 +245,35 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
                 }),
         } => CommandId::USB_CHARGE_ON_BATTERY,
         Command::Usb { command: None } => return None,
+        Command::Power { command: None } => CommandId::POWER_SCHEME_ACTIVE,
         Command::Power {
             command:
-                None
-                | Some(crate::PowerCommand::Scheme {
+                Some(crate::PowerCommand::Scheme {
+                    command:
+                        Some(SchemeCommand::Get {
+                            subgroup: None,
+                            setting: None,
+                            ..
+                        }),
+                }),
+        } => CommandId::POWER_SCHEME_GET,
+        Command::Power {
+            command:
+                Some(crate::PowerCommand::Scheme {
+                    command:
+                        Some(SchemeCommand::Get {
+                            subgroup: Some(_),
+                            setting: Some(_),
+                            ..
+                        }),
+                }),
+        } => CommandId::POWER_SCHEME_SETTING_READ,
+        Command::Power {
+            command:
+                Some(crate::PowerCommand::Scheme {
                     command: Some(SchemeCommand::Get { .. }),
                 }),
-        } => CommandId::POWER_SCHEME_ACTIVE,
+        } => return None,
         Command::Power {
             command: Some(crate::PowerCommand::Scheme { command: None }),
         } => CommandId::POWER_SCHEME_ACTIVE,
