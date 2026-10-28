@@ -1,0 +1,183 @@
+{
+  "scope": "User-authorized one-percent live brightness attempt failed; this is not hardware acceptance.",
+  "machine": "TB14P-EZRA",
+  "user_authorization": "Explicitly approved one 1% test while vendor processes remain running; subsequently said freely test.",
+  "source_head": "1f5c80fa1cf29e2bf00106c51539c4816d6f9bfb",
+  "source_manifest_sha256": "2ea2080ab1efd25137f1deceadd18d7889cebcd7c06437bb44ff3fccfb7c0f6a",
+  "archive_sha256": "59a10f82ed73c0f3792829150cd131c89b72f63f3148985d8ad2972400c7e56d",
+  "binary_sha256": "4d6a24d8fdb9f1df8bb3cff0e434753ad98c9746ed133ac0f840b88ce58cb247",
+  "native_build_exit": 0,
+  "native_mock_tests": {
+    "brightness": 12,
+    "cli": 4
+  },
+  "target_live": {
+    "requested": 54,
+    "raw_monitor_identity_in_public_receipt": false,
+    "restore_attempted": false,
+    "scope": "one adjacent one-percent brightness change and guarded restoration",
+    "completed_utc": "2026-10-28T16:27:26.1945664Z",
+    "commit_attempted": true,
+    "commit": {
+      "exit_code": 6,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "de089e2ce9fd4ebdfb59c13cf18f4ce4fbebdb6300d5dcdc86d644b261886089",
+      "json": null,
+      "parse_error": null,
+      "stderr_present": true
+    },
+    "failure_type": "System.Management.Automation.RuntimeException",
+    "recovery": "commit_unverified_no_retry",
+    "before": {
+      "current": 55,
+      "levels_count": 101,
+      "technology": 2147483648
+    },
+    "after_dryrun": {
+      "current": 55,
+      "levels_count": 101,
+      "technology": 2147483648
+    },
+    "same_identity_after_commit": true,
+    "machine": "TB14P-EZRA",
+    "dryrun": {
+      "exit_code": 0,
+      "stdout_sha256": "bd0ddead39b9101b0e1336fac3e51bafd4660db976a30f5295557f6965bebda7",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "json": {
+        "mode": "dry_run",
+        "previous": 55,
+        "requested": 54
+      },
+      "parse_error": null,
+      "stderr_present": false
+    },
+    "before_restore": {
+      "current": 55,
+      "levels_count": 101,
+      "technology": 2147483648
+    },
+    "stage": "recovery",
+    "failure_stage": "commit",
+    "status": "failed",
+    "same_identity_after_dryrun": true,
+    "after_commit": {
+      "current": 55,
+      "levels_count": 101,
+      "technology": 2147483648
+    },
+    "binary_sha256": "4d6a24d8fdb9f1df8bb3cff0e434753ad98c9746ed133ac0f840b88ce58cb247",
+    "source_manifest_sha256": "2ea2080ab1efd25137f1deceadd18d7889cebcd7c06437bb44ff3fccfb7c0f6a",
+    "same_identity_before_restore": true,
+    "user_approved_vendor_conflict_override": true
+  },
+  "structured_error": {
+    "error": {
+      "kind": "firmware_rejected",
+      "message": "firmware rejected request: brightness change failed (channel is unavailable: panel brightness WMI brightness setter failed); recovery failed (channel is unavailable: panel brightness WMI brightness setter failed); state is unverified",
+      "detail": "brightness change failed (channel is unavailable: panel brightness WMI brightness setter failed); recovery failed (channel is unavailable: panel brightness WMI brightness setter failed); state is unverified"
+    }
+  },
+  "wmi_method_schema": {
+    "machine": "TB14P-EZRA",
+    "method": "WmiSetBrightness",
+    "return_type": "Boolean",
+    "parameters": [
+      {
+        "name": "Brightness",
+        "cim_type": "UInt8",
+        "qualifiers": [
+          {
+            "name": "ID",
+            "value": 1
+          },
+          {
+            "name": "in",
+            "value": true
+          }
+        ]
+      },
+      {
+        "name": "Timeout",
+        "cim_type": "UInt32",
+        "qualifiers": [
+          {
+            "name": "ID",
+            "value": 0
+          },
+          {
+            "name": "in",
+            "value": true
+          }
+        ]
+      }
+    ],
+    "method_qualifiers": [
+      {
+        "name": "Implemented",
+        "value": true
+      },
+      {
+        "name": "WmiMethodId",
+        "value": 1
+      }
+    ],
+    "hardware_writes_requested": false
+  },
+  "private_receipt_hashes": [
+    {
+      "name": "final.json",
+      "sha256": "13cc5d2f3bb35d46271dcf4da47b325d89c456bd7bef0b12ab8bd87b9093cd33",
+      "length": 1570
+    },
+    {
+      "name": "commit-intent.json",
+      "sha256": "df3ed8a85fcbfd12aebaa650f2331f8a75a3099b7168cee2f3fc1eb2db9a8d41",
+      "length": 359
+    },
+    {
+      "name": "commit.json",
+      "sha256": "e26aaaeaa1a61085da53bac4de86c49e238da4959def1f0cfcc7de1c5af3188d",
+      "length": 234
+    },
+    {
+      "name": "commit.err",
+      "sha256": "de089e2ce9fd4ebdfb59c13cf18f4ce4fbebdb6300d5dcdc86d644b261886089",
+      "length": 503
+    },
+    {
+      "name": "dryrun.json",
+      "sha256": "38b60f9b1c21dff072e9b13772890fb1f8a9c3eb77e1ac6d98466bc894a3ad8c",
+      "length": 278
+    }
+  ],
+  "analysis": [
+    "The outer harness issued no restore command after the failed commit; however the backend error contains both initial and internal recovery setter failures.",
+    "Independent WMI reported 55 before, after the failed command, and at outer recovery observation, with the same matched internal identity; this does not rule out transient changes, delayed effects or prove physical luminance recovery.",
+    "Public Microsoft documentation says UInt32 return with zero for success, while target Get-CimClass reports Boolean ReturnType. The mapping and exact NativeWmi failure stage remain unverified.",
+    "No retry of the failed setter was executed after this observation.",
+    "The target System.Management method signature exposes an input parameter object but no output parameter object. [INFERENCE] This can explain the prior NativeWmi no-output error; the original sanitized receipt did not preserve the underlying stage, so it is not proven."
+  ],
+  "privacy": "Raw monitor instance identity is retained only in the owner-only target recovery directory, not in this projection.",
+  "wmi_method_signature": {
+    "method_exists": true,
+    "in_object_present": true,
+    "out_object_present": false,
+    "input_parameters": [
+      {
+        "name": "Brightness",
+        "type": "UInt8",
+        "is_array": false
+      },
+      {
+        "name": "Timeout",
+        "type": "UInt32",
+        "is_array": false
+      }
+    ],
+    "output_parameters": [],
+    "typed_input_assignment_succeeded": true,
+    "method_invoked": false,
+    "hardware_writes_requested": false
+  }
+}

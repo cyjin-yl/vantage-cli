@@ -15,6 +15,7 @@
 | Win 键锁定 | WMI `LENOVO_GAMEZONE_DATA.SetWinKeyStatus` | `kbd winlock {on|off}` |
 | 触控板开关 | GAMEZONE WMI;21VG 使用 Windows PnP 输入叶节点 | `touchpad {status|on|off|recover}` |
 | 面板刷新率 | WMI `LENOVO_INTERNAL_PANEL_REFRESH_RATE_DATA` + ChangeDisplaySettingsEx | `panel rate {60|120|auto}` |
+| 内置屏亮度 | Windows 公开 WMI 亮度及连接类 | `panel brightness [0..100]` |
 | 面板色彩/显示模式 | WMI `LENOVO_PANEL_METHOD` | `panel color MODE` |
 | 超分辨率(SR) | 注册表 + SmartEngine | `panel super-resolution {on|off}` |
 | Display OverDrive | BiosOD.dll → 注册表/WMI | `panel overdrive {on|off}` |
@@ -137,6 +138,24 @@ SetLightControlOwner(Data)   # 抢占控制权(多控制者仲裁)
 ---
 
 ## 3. 面板(显示屏)
+
+### 3.0 内置屏亮度
+
+`panel brightness` 只读返回当前百分比和实际公布的可选档位;
+`panel brightness N` 设置一个已公布的档位，`--dry-run` 只读并返回前值和请求，不调用 setter。
+可附加 `--expect-current M`，若新观察的当前值不是 M 则在写入前拒绝;该检查不是跨进程原子 CAS。
+Windows 使用公开 `WmiMonitorBrightness`、`WmiMonitorConnectionParams` 和
+`WmiMonitorBrightnessMethods.WmiSetBrightness`：按非空 `InstanceName` 精确关联唯一活动内置屏，
+不暴露显示器身份，不把外接或多个候选屏当成目标。设置前重新核对身份/当前值;写后轮询
+实际亮度。失败时仅在同一屏仍为本次请求值时尝试恢复前值，观察到第三值或无法确认身份
+时不覆盖并报告状态未验证。Microsoft 网页将 `ReturnValue` 描述为 UInt32/0 成功;目标
+WMI 类元数据报告 Boolean，而方法签名未提供输出参数对象。若传输成功但没有输出属性，
+只能继续等待同一屏的实际读回，不能把空输出直接当作设备成功;未知布尔语义不猜测。
+
+Windows 全局命名互斥量只串行化合作的本程序写入，不能阻止厂商应用、热键或用户设置
+并发修改;检查与写入不是原子操作，WMI 单次调用也可能阻塞。命名互斥量不是持久崩溃
+恢复日志。目标机 1% 实际写入、独立 WMI 读回、正常恢复及合成故障恢复的有限证据和
+未验收事项见 C17;当前亮度功能不等于完整 `power saver-once` 事务。
 
 ### 3.1 刷新率
 

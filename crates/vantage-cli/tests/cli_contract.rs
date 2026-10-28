@@ -8,8 +8,8 @@ use lctrl_core::{
     ChargeModeActual, DeviceState, HardwareInfo, LctrlError, Platform,
 };
 use lctrl_hal::{
-    BatteryControl, BiosControl, ControlConflictDetection, Hal, PerformanceControl, PowerControl,
-    PrivacyControl,
+    BatteryControl, BiosControl, ControlConflictDetection, Hal, PanelBrightnessControl,
+    PerformanceControl, PowerControl, PrivacyControl,
 };
 use vantage_cli::{
     Cli, CommandResult, CommandServices, execute, execute_with_services, render_error,
@@ -233,6 +233,159 @@ impl ControlConflictDetection for FakeConflicts {
     fn active_vendor_controllers(&self) -> lctrl_core::Result<Vec<String>> {
         Ok(vec!["LenovoVantageService.exe".into()])
     }
+}
+
+#[derive(Default)]
+struct FakeBrightness {
+    reads: AtomicUsize,
+    writes: Mutex<Vec<(u8, ApplyMode)>>,
+}
+
+impl PanelBrightnessControl for FakeBrightness {
+    fn brightness(&self) -> lctrl_core::Result<lctrl_core::PanelBrightness> {
+        self.reads.fetch_add(1, Ordering::SeqCst);
+        Ok(lctrl_core::PanelBrightness {
+            current_percent: 80,
+            supported_levels: vec![0, 50, 80, 100],
+        })
+    }
+
+    fn set_brightness(
+        &self,
+        percent: u8,
+        expected_current: Option<u8>,
+        apply: ApplyMode,
+    ) -> lctrl_core::Result<ChangeReport<u8>> {
+        if expected_current.is_some_and(|expected| expected != 80) {
+            return Err(LctrlError::ChannelUnavailable {
+                channel: "brightness precondition changed".into(),
+            });
+        }
+        self.writes.lock().push((percent, apply));
+        Ok(match apply {
+            ApplyMode::DryRun => ChangeReport::dry_run(80, percent),
+            ApplyMode::Commit => ChangeReport::committed(80, percent, percent),
+        })
+    }
+}
+
+#[test]
+fn panel_brightness_reads_without_checking_conflicts() {
+    struct FailOnConflict;
+    impl ControlConflictDetection for FailOnConflict {
+        fn active_vendor_controllers(&self) -> lctrl_core::Result<Vec<String>> {
+            panic!("read must not query conflict detection")
+        }
+    }
+    let hal = FakeHal::new("unused");
+    let panel = FakeBrightness::default();
+    let cli = Cli::try_parse_from(["vantage", "panel", "brightness"]).unwrap();
+    let output = execute_with_services(
+        cli,
+        CommandServices::new(&hal)
+            .with_panel_brightness(&panel)
+            .with_conflict_detection(&FailOnConflict),
+    )
+    .unwrap();
+    assert_eq!(output.json["current_percent"], 80);
+    assert_eq!(
+        output.json["supported_levels"],
+        serde_json::json!([0, 50, 80, 100])
+    );
+    assert_eq!(panel.reads.load(Ordering::SeqCst), 1);
+    assert!(panel.writes.lock().is_empty());
+}
+
+#[test]
+fn panel_brightness_missing_and_invalid_do_not_call_service() {
+    let hal = FakeHal::new("unused");
+    for args in [
+        &["vantage", "panel", "brightness"][..],
+        &["vantage", "panel", "brightness", "50"][..],
+    ] {
+        let cli = Cli::try_parse_from(args).unwrap();
+        assert!(
+            matches!(execute_with_services(cli, CommandServices::new(&hal)),
+            Err(LctrlError::Unsupported { feature }) if feature == "panel.brightness")
+        );
+    }
+    let panel = FakeBrightness::default();
+    assert!(Cli::try_parse_from(["vantage", "panel", "brightness", "101"]).is_err());
+    assert!(Cli::try_parse_from(["vantage", "panel", "brightness", "256"]).is_err());
+    let cli = vantage_cli::Cli {
+        command: vantage_cli::Command::Panel {
+            command: Some(vantage_cli::PanelCommand::Brightness {
+                percent: Some(101),
+                expect_current: None,
+            }),
+        },
+        ..Cli::try_parse_from(["vantage", "--dry-run", "panel", "brightness"]).unwrap()
+    };
+    assert!(matches!(
+        execute_with_services(
+            cli,
+            CommandServices::new(&hal).with_panel_brightness(&panel)
+        ),
+        Err(LctrlError::InvalidArgument { .. })
+    ));
+    assert_eq!(panel.reads.load(Ordering::SeqCst), 0);
+    assert!(panel.writes.lock().is_empty());
+}
+
+#[test]
+fn panel_brightness_expected_current_prevents_stale_writes() {
+    let hal = FakeHal::new("unused");
+    let panel = FakeBrightness::default();
+    assert!(
+        Cli::try_parse_from(["vantage", "panel", "brightness", "--expect-current", "80"]).is_err()
+    );
+    let cli = Cli::try_parse_from([
+        "vantage",
+        "panel",
+        "brightness",
+        "50",
+        "--expect-current",
+        "90",
+    ])
+    .unwrap();
+    assert!(matches!(
+        execute_with_services(
+            cli,
+            CommandServices::new(&hal).with_panel_brightness(&panel)
+        ),
+        Err(LctrlError::ChannelUnavailable { .. })
+    ));
+    assert!(panel.writes.lock().is_empty());
+}
+
+#[test]
+fn panel_brightness_write_obeys_conflict_and_apply_mode() {
+    let hal = FakeHal::new("unused");
+    let panel = FakeBrightness::default();
+    let services = || {
+        CommandServices::new(&hal)
+            .with_panel_brightness(&panel)
+            .with_conflict_detection(&FakeConflicts)
+    };
+    let cli = Cli::try_parse_from(["vantage", "--json", "panel", "brightness", "50"]).unwrap();
+    assert!(matches!(
+        execute_with_services(cli, services()),
+        Err(LctrlError::InvalidArgument { .. })
+    ));
+    assert!(panel.writes.lock().is_empty());
+    let cli = Cli::try_parse_from(["vantage", "--dry-run", "panel", "brightness", "50"]).unwrap();
+    let output = execute_with_services(cli, services()).unwrap();
+    assert_eq!(output.json["mode"], "dry_run");
+    assert_eq!(output.json["previous"], 80);
+    assert_eq!(output.json["requested"], 50);
+    assert!(output.json.get("actual").is_none());
+    let cli = Cli::try_parse_from(["vantage", "--yes", "panel", "brightness", "100"]).unwrap();
+    let output = execute_with_services(cli, services()).unwrap();
+    assert_eq!(output.json["mode"], "commit");
+    assert_eq!(
+        *panel.writes.lock(),
+        vec![(50, ApplyMode::DryRun), (100, ApplyMode::Commit)]
+    );
 }
 
 #[test]
