@@ -34,6 +34,10 @@ pub trait WmiTransport: Send + Sync {
 
     fn query(&self, namespace: &str, wql: &str) -> Result<Vec<WmiObject>>;
 
+    /// An empty output means the transport completed without returned properties
+    /// (possibly without an output object); it does not prove a device effect.
+    /// Callers requiring return data must
+    /// reject its absence, and outputless mutations require actual readback.
     fn invoke_instance(
         &self,
         namespace: &str,

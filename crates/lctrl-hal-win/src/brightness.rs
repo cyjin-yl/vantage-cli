@@ -264,6 +264,10 @@ impl<W: WmiTransport> WindowsPanelBrightness<W> {
             .map_err(|e| transport_error("WMI brightness setter", e))?;
         match result.get("ReturnValue") {
             Some(WmiValue::U32(0)) => Ok(()),
+            // Some providers expose WmiSetBrightness without an output
+            // signature. A completed call is not success by itself: the
+            // caller must still verify the requested value on the same panel.
+            None if result.is_empty() => Ok(()),
             Some(WmiValue::U32(code)) => Err(LctrlError::FirmwareRejected {
                 detail: format!("WMI brightness setter returned {code}"),
             }),

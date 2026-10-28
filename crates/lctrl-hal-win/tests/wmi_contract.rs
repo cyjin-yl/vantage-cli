@@ -62,6 +62,10 @@ fn malformed_return_value_is_channel_error() {
         WmiMethodResult::parse(malformed),
         Err(LctrlError::ChannelUnavailable { .. })
     ));
+    assert!(matches!(
+        WmiMethodResult::parse(BTreeMap::new()),
+        Err(LctrlError::ChannelUnavailable { .. })
+    ));
 }
 
 #[test]
