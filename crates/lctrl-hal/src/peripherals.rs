@@ -48,3 +48,10 @@ pub trait PanelControl: Send + Sync {
         apply: ApplyMode,
     ) -> Result<ChangeReport<PanelMode>>;
 }
+
+/// Brightness of a uniquely identified active internal panel. Implementations
+/// must not redirect a transition to an external or newly attached monitor.
+pub trait PanelBrightnessControl: Send + Sync {
+    fn brightness(&self) -> Result<lctrl_core::PanelBrightness>;
+    fn set_brightness(&self, percent: u8, apply: ApplyMode) -> Result<ChangeReport<u8>>;
+}

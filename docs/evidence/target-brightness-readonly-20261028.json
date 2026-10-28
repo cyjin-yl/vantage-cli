@@ -1,0 +1,280 @@
+{
+  "scope": "Windows internal-panel brightness source, mock contracts and real read/dry-run. No physical brightness write acceptance.",
+  "base_main": "6c42cd3ff15760f043e71362049a9f282a031df6",
+  "source": {
+    "manifest_sha256": "3ed6f8c3514d474dc71a32a09ce39fc7d55776980127368a2938a94caa08f92b",
+    "archive_sha256": "246b490b7131b01a4cfa87c84d79dabc917e0dddfe84cd60b3f1d7b4fa861f92",
+    "rust_build_file_count": 140,
+    "membership_equal": true,
+    "source_bytes_equal_before_and_after_build": true,
+    "dependency_binding_sha256": "08516a7de379e8694e94db99fd4e62039ac14e8657155affb796eff2bb67e2bc"
+  },
+  "native": {
+    "machine": "TB14P-EZRA",
+    "binary_sha256": "3c44a64c62b66d171b646d9534a4607f9b7041bdf5a6f0634a234fa9b8da8304",
+    "binary_bytes": 3811328,
+    "build_exit": 0,
+    "mock_backend_tests": 11,
+    "mock_cli_tests": 3,
+    "backend_test_exit": 0,
+    "cli_test_exit": 0,
+    "build_receipt_sha256": "31365ae343aba4f4c81aa740e78af8cc89ccddefd09238361e15efb757f56f27",
+    "logs": [
+      {
+        "role": "build.out",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "length": 0
+      },
+      {
+        "role": "build.err",
+        "sha256": "1636061c94a3ac2526bcbcd4e3c410353daaae06454fd818738f4bb403f4ed0c",
+        "length": 3269
+      },
+      {
+        "role": "native-test.out",
+        "sha256": "6e071a63ef4f682b5a7401a8bb670e499c4080d78f74156ca1f1cec385259b6c",
+        "length": 829
+      },
+      {
+        "role": "native-test.err",
+        "sha256": "cffd064dab7c4b4792caa7ff367a9963bd57652c909730b797473ceaf1d4ebf0",
+        "length": 667
+      },
+      {
+        "role": "contract-test.out",
+        "sha256": "d7486c8364bafa6fa4590cddc22f12b78a9b8f23d38449300124b76df701deda",
+        "length": 310
+      },
+      {
+        "role": "contract-test.err",
+        "sha256": "a7bee1620a2a231bd59e026c0074f910477ecff4c00e04077bcc1d07c54091a8",
+        "length": 1166
+      }
+    ]
+  },
+  "initial_public_wmi_preflight": {
+    "machine": "TB14P-EZRA",
+    "observed_utc": "2026-10-28T14:15:49.7680126Z",
+    "brightness_instances": 1,
+    "method_instances": 1,
+    "connection_instances": 1,
+    "method_exists": true,
+    "method_parameters": [
+      {
+        "name": "Brightness",
+        "type": "UInt8"
+      },
+      {
+        "name": "Timeout",
+        "type": "UInt32"
+      }
+    ],
+    "rows": [
+      {
+        "active": true,
+        "identity_present": true,
+        "unique_brightness_identity": true,
+        "current_percent": 100,
+        "reported_levels": 101,
+        "observed_levels": 101,
+        "current_in_levels": true,
+        "min_level": 0,
+        "max_level": 100,
+        "exact_method_matches": 1,
+        "method_active": true,
+        "exact_connection_matches": 1,
+        "connection_technology": 2147483648
+      }
+    ],
+    "raw_monitor_identifiers_retained": false,
+    "hardware_writes_requested": false
+  },
+  "dry_run": {
+    "binary_sha256": "3c44a64c62b66d171b646d9534a4607f9b7041bdf5a6f0634a234fa9b8da8304",
+    "source_manifest_sha256": "3ed6f8c3514d474dc71a32a09ce39fc7d55776980127368a2938a94caa08f92b",
+    "raw_monitor_identity_retained": false,
+    "same_identity": true,
+    "after": {
+      "current": 55,
+      "levels_count": 101,
+      "technology": 2147483648
+    },
+    "before": {
+      "current": 55,
+      "levels_count": 101,
+      "technology": 2147483648
+    },
+    "machine": "TB14P-EZRA",
+    "status": "success",
+    "hardware_writes_requested": false,
+    "unchanged": true,
+    "requested": 54,
+    "read": {
+      "exit_code": 0,
+      "timed_out": false,
+      "stdout_sha256": "4fa25ea7d6dc4100fcf4a52e19edea0ea91b83d7b7a31aae6055ea2e760e3a16",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "json": {
+        "current_percent": 55,
+        "supported_levels": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40,
+          41,
+          42,
+          43,
+          44,
+          45,
+          46,
+          47,
+          48,
+          49,
+          50,
+          51,
+          52,
+          53,
+          54,
+          55,
+          56,
+          57,
+          58,
+          59,
+          60,
+          61,
+          62,
+          63,
+          64,
+          65,
+          66,
+          67,
+          68,
+          69,
+          70,
+          71,
+          72,
+          73,
+          74,
+          75,
+          76,
+          77,
+          78,
+          79,
+          80,
+          81,
+          82,
+          83,
+          84,
+          85,
+          86,
+          87,
+          88,
+          89,
+          90,
+          91,
+          92,
+          93,
+          94,
+          95,
+          96,
+          97,
+          98,
+          99,
+          100
+        ]
+      },
+      "parse_error": null,
+      "stderr_present": false
+    },
+    "dryrun": {
+      "exit_code": 0,
+      "timed_out": false,
+      "stdout_sha256": "bd0ddead39b9101b0e1336fac3e51bafd4660db976a30f5295557f6965bebda7",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "json": {
+        "mode": "dry_run",
+        "previous": 55,
+        "requested": 54
+      },
+      "parse_error": null,
+      "stderr_present": false
+    }
+  },
+  "receipt_files": [
+    {
+      "name": "vantage-brightness-source-readback-3ed6f8c3514d474d.json",
+      "sha256": "e6712313b4e09813b4ecf4995307b75e970f34d810237f966d23ea75dc46149d",
+      "length": 19837
+    },
+    {
+      "name": "vantage-brightness-dependency-binding-3ed6f8c3514d474d.json",
+      "sha256": "1935bec6dd3f63559f6a3dcde77e41c749df0d5caf4a99582e963c5332c7a4d4",
+      "length": 303
+    },
+    {
+      "name": "vantage-brightness-native-3ed6f8c3514d474d-directwait1.json",
+      "sha256": "31365ae343aba4f4c81aa740e78af8cc89ccddefd09238361e15efb757f56f27",
+      "length": 985
+    },
+    {
+      "name": "vantage-brightness-postbuild-readback-3ed6f8c3514d474d.json",
+      "sha256": "d6a0fa9e009f0fa339592554829604f53312cc227af0b5ef135c2cb725ce2204",
+      "length": 2357
+    },
+    {
+      "name": "vantage-brightness-readonly-3ed6f8c3514d474d.json",
+      "sha256": "72dc1f08b32224410fbc6edea9f58470cb8bc593246e09ad86c2575f888645d6",
+      "length": 1376
+    }
+  ],
+  "vendor_conflict_observed": {
+    "observed_utc": "2026-10-28T15:17:39.5205784Z",
+    "process_count": 25,
+    "services_stopped_or_disabled": false
+  },
+  "limitations": [
+    "No target brightness commit or observed physical luminance change yet.",
+    "The target currently has matching vendor control processes; no conflict override was used.",
+    "WMI calls may block; polling count is bounded but operation duration is not guaranteed.",
+    "The named mutex protects cooperating instances, not external brightness controllers; checks and writes are not atomic.",
+    "A transient named mutex is not a durable crash-recovery journal.",
+    "One-key power saver remains unimplemented and issue #19 is open."
+  ]
+}

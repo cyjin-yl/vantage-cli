@@ -119,6 +119,14 @@ impl PanelSupportBits {
     }
 }
 
+/// Current brightness and selectable percentage levels for one uniquely
+/// identified active internal panel. Monitor instance identities stay private.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct PanelBrightness {
+    pub current_percent: u8,
+    pub supported_levels: Vec<u8>,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub struct PanelRefreshCapability {
     pub min_hz: u16,

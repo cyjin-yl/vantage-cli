@@ -1,5 +1,6 @@
 mod battery_sources;
 mod bios;
+mod brightness;
 mod codec;
 mod conflict;
 mod diagnostics;
@@ -36,6 +37,7 @@ mod wmi_contract;
 
 pub use battery_sources::WindowsBatterySources;
 pub use bios::WindowsBiosController;
+pub use brightness::WindowsPanelBrightness;
 pub use codec::{
     AdapterDetail, BatteryDetail83, GbmdCommand, GenericGet, IOCTL_BATTERY_CONFIG,
     IOCTL_BATTERY_DETAIL, IOCTL_GAPD, IOCTL_GBMD, IOCTL_GENERIC_GET, IOCTL_GENERIC_GET_VARIANT,
