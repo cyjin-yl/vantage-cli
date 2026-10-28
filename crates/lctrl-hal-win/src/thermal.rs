@@ -7,7 +7,7 @@ use lctrl_hal::{BatteryControl, FanControl, TemperatureControl};
 
 use crate::{WmiObject, WmiTransport, WmiValue, wmi_contract::ROOT_WMI};
 
-const BATTERY_SENSOR_ID: &str = "battery/0";
+const BATTERY_SENSOR_ID: &str = "windows-battery-class/temperature";
 const THERMAL_ZONE_QUERY: &str =
     "SELECT InstanceName, CurrentTemperature FROM MSAcpi_ThermalZoneTemperature";
 const FAN_INVENTORY_QUERY: &str =
@@ -15,7 +15,8 @@ const FAN_INVENTORY_QUERY: &str =
 
 /// Windows temperature and read-only fan-inventory services.
 ///
-/// Battery temperature comes from the existing battery channel. ACPI thermal
+/// Battery temperature comes from the Windows battery class, without a vendor
+/// pack association. ACPI thermal
 /// zones retain their firmware instance identity and are never relabelled as
 /// CPU sensors: the public WMI class does not establish that physical mapping.
 pub struct WindowsThermal<W, B> {
@@ -47,14 +48,26 @@ where
 {
     fn temperature_sensors(&self) -> Result<Vec<TemperatureSensor>> {
         let mut sensors = Vec::new();
-        match self.battery.battery_telemetry(0) {
-            Ok(telemetry) => {
-                let value_c = telemetry.temperature_celsius();
+        match self.battery.battery_electrical() {
+            Ok(observation) => {
+                if !observation.source_issues.is_empty() {
+                    return Err(LctrlError::ChannelUnavailable {
+                        channel: observation
+                            .source_issues
+                            .iter()
+                            .map(|issue| format!("{}: {}", issue.source, issue.detail))
+                            .collect::<Vec<_>>()
+                            .join("; "),
+                    });
+                }
+                let value_c = observation
+                    .temperature_deci_kelvin
+                    .map(|value| (f64::from(value) / 10.0 - 273.15) as f32);
                 sensors.push(TemperatureSensor {
                     metadata: TemperatureSensorMetadata {
                         id: BATTERY_SENSOR_ID.into(),
-                        name: "Battery pack 0 (SMBus)".into(),
-                        source: TemperatureSource::BatterySmbus,
+                        name: "Windows battery class temperature (unassociated)".into(),
+                        source: TemperatureSource::WindowsBatteryClass,
                         location: TemperatureLocation::Battery,
                         availability: if value_c.is_some() {
                             Availability::Available
@@ -65,8 +78,8 @@ where
                     value_c,
                 });
             }
-            Err(LctrlError::Unsupported { .. } | LctrlError::ChannelUnavailable { .. }) => {
-                // A battery and its vendor channel are optional on Windows.
+            Err(LctrlError::Unsupported { .. }) => {
+                // The native battery source is optional on Windows.
                 // Other errors still describe a present source that failed.
             }
             Err(error) => return Err(error),
@@ -90,7 +103,7 @@ where
                     location: TemperatureLocation::Unknown,
                     availability: Availability::Available,
                 },
-                value_c: Some((deci_kelvin as f32 - 2731.5) / 10.0),
+                value_c: Some((f64::from(deci_kelvin) / 10.0 - 273.15) as f32),
             });
         }
 
@@ -208,7 +221,7 @@ fn required_array<'a>(object: &'a WmiObject, name: &str) -> Result<&'a [WmiValue
     }
 }
 
-fn required_u32(object: &WmiObject, name: &str) -> Result<u32> {
+pub(crate) fn required_u32(object: &WmiObject, name: &str) -> Result<u32> {
     object
         .get(name)
         .ok_or_else(|| LctrlError::ChannelUnavailable {

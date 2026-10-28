@@ -1,22 +1,12 @@
-//! Battery readings from the operating system's own battery interfaces.
-//!
-//! The vendor EnergyDrv channel is richer, but it only exists on machines
-//! that shipped the Lenovo energy driver. This module reads the portable
-//! Windows battery class through WMI plus the aggregate system power status,
-//! so battery and AC state remain observable on any Windows machine.
-//!
-//! Everything here is a public Windows interface: the `root\WMI` battery
-//! classes and `GetSystemPowerStatus`. No vendor binary is inspected.
-
-use lctrl_core::{LctrlError, OsBatterySnapshot, Result, SystemPowerStatus};
+//! Public Windows battery observations, associated only by exact InstanceName.
+//! Aggregate system power status is deliberately separate from per-pack data.
 
 use crate::{WmiObject, WmiTransport, WmiValue, wmi_contract::ROOT_WMI};
+use lctrl_core::{BatterySourceIssue, LctrlError, OsBatterySnapshot, Result, SystemPowerStatus};
 
-const BATTERY_STATUS: &str = "BatteryStatus";
-const BATTERY_FULL_CHARGED_CAPACITY: &str = "BatteryFullChargedCapacity";
-const BATTERY_CYCLE_COUNT: &str = "BatteryCycleCount";
-const BATTERY_RUNTIME: &str = "BatteryRuntime";
-const BATTERY_STATIC_DATA: &str = "BatteryStaticData";
+const SYSTEM_BATTERY: u32 = 0x8000_0000;
+const CAPACITY_RELATIVE: u32 = 0x4000_0000;
+const SHORT_TERM: u32 = 0x2000_0000;
 
 /// A source of the operating system's aggregate power status.
 pub trait SystemPowerStatusReader: Send + Sync {
@@ -25,120 +15,269 @@ pub trait SystemPowerStatusReader: Send + Sync {
 
 /// Reads battery state through the public Windows battery classes.
 pub trait OsBatteryChannel: Send + Sync {
-    /// The battery reading, or a channel error when no battery is exposed.
     fn snapshot(&self) -> Result<OsBatterySnapshot>;
-
-    /// The aggregate system power status.
     fn system_power_status(&self) -> Result<SystemPowerStatus>;
 }
 
 /// The Windows implementation of the public battery channel.
+#[derive(Clone, Copy, Debug)]
 pub struct WindowsOsBattery<W, P> {
     wmi: W,
     power: P,
 }
 
 impl<W, P> WindowsOsBattery<W, P> {
-    /// Combine a WMI transport with a system power status reader.
     pub const fn new(wmi: W, power: P) -> Self {
         Self { wmi, power }
     }
-
-    /// The WMI transport used for battery class queries.
     pub const fn wmi(&self) -> &W {
         &self.wmi
     }
-
-    /// The system power status reader.
     pub const fn power(&self) -> &P {
         &self.power
     }
 }
 
-impl<W, P> OsBatteryChannel for WindowsOsBattery<W, P>
-where
-    W: WmiTransport,
-    P: SystemPowerStatusReader,
-{
+fn issue(issues: &mut Vec<BatterySourceIssue>, source: &'static str, detail: impl Into<String>) {
+    issues.push(BatterySourceIssue {
+        source,
+        detail: detail.into(),
+    });
+}
+
+fn rows(
+    wmi: &impl WmiTransport,
+    class: &'static str,
+    properties: &str,
+    issues: &mut Vec<BatterySourceIssue>,
+) -> Vec<WmiObject> {
+    match wmi.query(ROOT_WMI, &format!("SELECT {properties} FROM {class}")) {
+        Ok(rows) => {
+            if rows.is_empty() {
+                issue(issues, class, "class exposed no instances");
+            }
+            for row in &rows {
+                if identity(row).is_none() {
+                    issue(issues, class, "instance has missing or empty InstanceName");
+                }
+            }
+            rows
+        }
+        Err(error) => {
+            issue(issues, class, error.to_string());
+            Vec::new()
+        }
+    }
+}
+
+fn identity(row: &WmiObject) -> Option<&str> {
+    match row.get("InstanceName") {
+        Some(WmiValue::String(name)) if !name.trim().is_empty() => Some(name),
+        _ => None,
+    }
+}
+
+fn associated<'a>(
+    rows: &'a [WmiObject],
+    name: &str,
+    class: &'static str,
+    issues: &mut Vec<BatterySourceIssue>,
+) -> Option<&'a WmiObject> {
+    let mut matches = rows.iter().filter(|row| identity(row) == Some(name));
+    let first = matches.next();
+    if matches.next().is_some() {
+        issue(
+            issues,
+            class,
+            "duplicate InstanceName; association rejected",
+        );
+        None
+    } else {
+        if first.is_none() {
+            issue(issues, class, "no matching InstanceName");
+        }
+        first
+    }
+}
+
+impl<W: WmiTransport, P: SystemPowerStatusReader> OsBatteryChannel for WindowsOsBattery<W, P> {
     fn snapshot(&self) -> Result<OsBatterySnapshot> {
-        let status = self
-            .wmi
-            .query(ROOT_WMI, &format!("SELECT * FROM {BATTERY_STATUS}"))?
-            .into_iter()
-            .next()
-            .ok_or_else(|| LctrlError::ChannelUnavailable {
-                channel: format!("{ROOT_WMI} class {BATTERY_STATUS} exposed no instance"),
-            })?;
-
-        let power = self.power.read().ok();
-        let mut snapshot = OsBatterySnapshot {
-            remaining_capacity_mwh: u32_field(&status, "RemainingCapacity"),
-            full_charge_capacity_mwh: None,
-            design_capacity_mwh: None,
-            voltage_mv: u32_field(&status, "Voltage").and_then(|value| u16::try_from(value).ok()),
-            charge_rate_ma: i32_field(&status, "ChargeRate"),
-            discharge_rate_ma: i32_field(&status, "DischargeRate"),
-            remaining_percent: power.and_then(|status| status.battery_life_percent()),
-            cycle_count: None,
-            temperature_deci_kelvin: None,
-            estimated_runtime_min: None,
-            power_online: bool_field(&status, "PowerOnline"),
-            charging: bool_field(&status, "Charging"),
-            discharging: bool_field(&status, "Discharging"),
-            critical: bool_field(&status, "Critical"),
-        };
-
-        if let Some(capacity) = self
-            .wmi
-            .query(
-                ROOT_WMI,
-                &format!("SELECT * FROM {BATTERY_FULL_CHARGED_CAPACITY}"),
-            )?
-            .into_iter()
-            .next()
-            .and_then(|object| u32_field(&object, "FullChargedCapacity"))
-        {
-            snapshot.full_charge_capacity_mwh = Some(capacity);
+        let mut issues = Vec::new();
+        // Status is the required source: propagate its provider failure unchanged.
+        let statuses = self.wmi.query(ROOT_WMI, "SELECT InstanceName,Active,RemainingCapacity,Voltage,PowerOnline,Charging,Discharging,Critical FROM BatteryStatus")?;
+        let statics = rows(
+            &self.wmi,
+            "BatteryStaticData",
+            "InstanceName,Capabilities,DesignedCapacity",
+            &mut issues,
+        );
+        let mut selected = None;
+        for status in &statuses {
+            if bool_field(status, "Active") != Some(true) {
+                continue;
+            }
+            let Some(name) = identity(status) else {
+                issue(
+                    &mut issues,
+                    "BatteryStatus",
+                    "active instance has missing or empty InstanceName",
+                );
+                continue;
+            };
+            if statuses
+                .iter()
+                .filter(|row| identity(row) == Some(name))
+                .count()
+                != 1
+            {
+                return Err(LctrlError::ChannelUnavailable {
+                    channel: format!(
+                        "BatteryStatus has duplicate InstanceName; source issues: {issues:?}"
+                    ),
+                });
+            }
+            let static_row = associated(&statics, name, "BatteryStaticData", &mut issues);
+            let capabilities = static_row.and_then(|row| u32_field(row, "Capabilities"));
+            if capabilities.is_some_and(|caps| caps & SYSTEM_BATTERY == 0 || caps & SHORT_TERM != 0)
+            {
+                continue;
+            }
+            if selected.is_some() {
+                return Err(LctrlError::ChannelUnavailable {
+                    channel: format!(
+                        "multiple active battery identities; no unique system battery; source issues: {issues:?}"
+                    ),
+                });
+            }
+            selected = Some((status, name, static_row, capabilities));
         }
-
-        if let Some(cycles) = self
-            .wmi
-            .query(ROOT_WMI, &format!("SELECT * FROM {BATTERY_CYCLE_COUNT}"))?
-            .into_iter()
-            .next()
-            .and_then(|object| u32_field(&object, "CycleCount"))
-            .and_then(|value| u16::try_from(value).ok())
-        {
-            snapshot.cycle_count = Some(cycles);
+        let (status, name, static_row, capabilities) = selected.ok_or_else(|| LctrlError::ChannelUnavailable {
+            channel: format!("no uniquely identified active non-short-term system battery; source issues: {issues:?}"),
+        })?;
+        if capabilities.is_none() {
+            issue(
+                &mut issues,
+                "BatteryStaticData",
+                "missing capabilities; system-battery classification and absolute capacity units unavailable",
+            );
         }
-
-        if let Some(runtime) = self
-            .wmi
-            .query(ROOT_WMI, &format!("SELECT * FROM {BATTERY_RUNTIME}"))?
-            .into_iter()
-            .next()
-            .and_then(|object| u32_field(&object, "EstimatedRuntime"))
-            .filter(|seconds| *seconds != u32::MAX)
-            .and_then(|seconds| u16::try_from(seconds / 60).ok())
-        {
-            snapshot.estimated_runtime_min = Some(runtime);
+        let absolute = capabilities.is_some_and(|caps| caps & CAPACITY_RELATIVE == 0);
+        if !absolute && capabilities.is_some() {
+            issue(
+                &mut issues,
+                "BatteryStaticData",
+                "relative capacity units; mWh unavailable",
+            );
         }
-
-        if let Some(design) = self
-            .wmi
-            .query(ROOT_WMI, &format!("SELECT * FROM {BATTERY_STATIC_DATA}"))?
-            .into_iter()
-            .next()
-            .and_then(|object| u32_field(&object, "DesignedCapacity"))
-        {
-            snapshot.design_capacity_mwh = Some(design);
-        }
-
-        Ok(snapshot)
+        let full_rows = rows(
+            &self.wmi,
+            "BatteryFullChargedCapacity",
+            "InstanceName,FullChargedCapacity",
+            &mut issues,
+        );
+        let cycles = rows(
+            &self.wmi,
+            "BatteryCycleCount",
+            "InstanceName,CycleCount",
+            &mut issues,
+        );
+        let runtimes = rows(
+            &self.wmi,
+            "BatteryRuntime",
+            "InstanceName,EstimatedRuntime",
+            &mut issues,
+        );
+        let full = associated(&full_rows, name, "BatteryFullChargedCapacity", &mut issues);
+        let cycle = associated(&cycles, name, "BatteryCycleCount", &mut issues);
+        let runtime = associated(&runtimes, name, "BatteryRuntime", &mut issues);
+        let remaining = absolute
+            .then(|| capacity(status, "RemainingCapacity"))
+            .flatten();
+        let full_capacity = absolute
+            .then(|| {
+                full.and_then(|row| {
+                    positive_capacity(
+                        row,
+                        "FullChargedCapacity",
+                        "BatteryFullChargedCapacity",
+                        &mut issues,
+                    )
+                })
+            })
+            .flatten();
+        let design_capacity = absolute
+            .then(|| {
+                static_row.and_then(|row| {
+                    positive_capacity(row, "DesignedCapacity", "BatteryStaticData", &mut issues)
+                })
+            })
+            .flatten();
+        // Per-pack percentage is floor(100 * remaining / full), using widened
+        // arithmetic, only for supported absolute capacities and a valid ratio.
+        // GetSystemPowerStatus is aggregate and must never supply this field.
+        let percent = remaining.zip(full_capacity).and_then(|(remaining, full)| {
+            if full == 0 || remaining > full {
+                return None;
+            }
+            u16::try_from(u64::from(remaining) * 100 / u64::from(full)).ok()
+        });
+        // This is a capacity ratio, not a health classification. Ratios over
+        // 100 remain observable when representable, without thresholds/clamps.
+        let capacity_ratio_percent =
+            full_capacity
+                .zip(design_capacity)
+                .and_then(|(full, design)| {
+                    u16::try_from(u64::from(full) * 100 / u64::from(design)).ok()
+                });
+        Ok(OsBatterySnapshot {
+            remaining_capacity_mwh: remaining,
+            full_charge_capacity_mwh: full_capacity,
+            design_capacity_mwh: design_capacity,
+            voltage_mv: u32_field(status, "Voltage")
+                .filter(|value| *value != u32::MAX)
+                .and_then(|value| u16::try_from(value).ok()),
+            remaining_percent: percent,
+            capacity_ratio_percent,
+            cycle_count: cycle
+                .and_then(|row| u32_field(row, "CycleCount"))
+                .and_then(|value| u16::try_from(value).ok()),
+            estimated_runtime_min: runtime
+                .and_then(|row| u32_field(row, "EstimatedRuntime"))
+                .filter(|value| *value != u32::MAX)
+                .and_then(|value| u16::try_from(value / 60).ok()),
+            power_online: bool_field(status, "PowerOnline"),
+            charging: bool_field(status, "Charging"),
+            discharging: bool_field(status, "Discharging"),
+            critical: bool_field(status, "Critical"),
+            source_issues: issues,
+        })
     }
 
     fn system_power_status(&self) -> Result<SystemPowerStatus> {
         self.power.read()
+    }
+}
+
+fn capacity(row: &WmiObject, name: &str) -> Option<u32> {
+    u32_field(row, name).filter(|value| *value != u32::MAX)
+}
+
+fn positive_capacity(
+    row: &WmiObject,
+    name: &str,
+    source: &'static str,
+    issues: &mut Vec<BatterySourceIssue>,
+) -> Option<u32> {
+    match capacity(row, name) {
+        Some(value) if value > 0 => Some(value),
+        _ => {
+            issue(
+                issues,
+                source,
+                format!("{name} is missing, unknown, or zero; capacity unavailable"),
+            );
+            None
+        }
     }
 }
 
@@ -148,16 +287,6 @@ fn u32_field(object: &WmiObject, name: &str) -> Option<u32> {
         Some(WmiValue::U16(value)) => Some(u32::from(*value)),
         Some(WmiValue::I32(value)) => u32::try_from(*value).ok(),
         Some(WmiValue::I16(value)) => u32::try_from(*value).ok(),
-        _ => None,
-    }
-}
-
-fn i32_field(object: &WmiObject, name: &str) -> Option<i32> {
-    match object.get(name) {
-        Some(WmiValue::I32(value)) => Some(*value),
-        Some(WmiValue::I16(value)) => Some(i32::from(*value)),
-        Some(WmiValue::U32(value)) => i32::try_from(*value).ok(),
-        Some(WmiValue::U16(value)) => Some(i32::from(*value)),
         _ => None,
     }
 }

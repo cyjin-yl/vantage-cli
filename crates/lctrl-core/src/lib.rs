@@ -20,8 +20,9 @@ mod update;
 pub use audio::{DolbyProfile, NoiseCancellationMode};
 pub use battery::{
     AdapterAuthentication, AdapterConnectorType, AdapterDetailValues, AdapterInfo, AdapterStatus,
-    BatteryDate, BatteryHealth, BatteryTelemetry, ChargeMode, ChargeModeActual, ChargePrimitive,
-    ChargeStatus, OsBatterySnapshot, SystemPowerStatus, decode_charge_mode, plan_charge_mode,
+    BatteryDate, BatteryElectricalObservation, BatteryHealth, BatterySourceIssue, BatteryTelemetry,
+    ChargeMode, ChargeModeActual, ChargePrimitive, ChargeStatus, OsBatterySnapshot,
+    SystemPowerStatus, decode_charge_mode, plan_charge_mode,
 };
 pub use bios::{
     BiosAppliedChange, BiosApplyEffect, BiosApplyPlan, BiosApplyResult, BiosAssistantCapabilities,

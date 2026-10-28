@@ -41,6 +41,13 @@ vantage perf temp --json
 vantage magicbay detect --json
 ```
 
+On Windows, `battery status` reports vendor telemetry, WMI per-pack data,
+Windows battery-class electrical data, aggregate system power, adapter, and
+charge mode separately, with per-source errors. Their pack association is not
+established. Consumers of the former flat `telemetry` object must select the
+appropriate labeled source; unavailable values are not filled from another
+source. See `docs/02-power-battery.md` §7.1a for units and limitations.
+
 Mutating commands support `--dry-run`. Risky BIOS and persistent privacy operations require `--yes`; successful writes report the requested value and verified readback. Check the capability matrix before scripting a platform-specific command.
 
 ```bash

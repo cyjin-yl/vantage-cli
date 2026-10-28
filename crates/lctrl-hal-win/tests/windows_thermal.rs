@@ -1,19 +1,20 @@
 use std::collections::BTreeMap;
 
 use lctrl_core::{
-    AdapterInfo, ApplyMode, Availability, BatteryTelemetry, ChangeReport, ChargeMode,
-    ChargeModeActual, FanDescriptor, FanId, FanMode, LctrlError, Result, SensorId,
-    TemperatureLocation, TemperatureSource,
+    AdapterInfo, ApplyMode, Availability, BatteryElectricalObservation, BatteryTelemetry,
+    ChangeReport, ChargeMode, ChargeModeActual, FanDescriptor, FanId, FanMode, LctrlError, Result,
+    SensorId, TemperatureLocation, TemperatureSource,
 };
 use lctrl_hal::{BatteryControl, FanControl, TemperatureControl};
 use lctrl_hal_win::{WindowsThermal, WmiObject, WmiTransport, WmiValue};
 
 #[derive(Clone, Copy)]
 enum BatteryReply {
-    Telemetry(Option<u16>),
+    Telemetry(Option<u32>),
     Unsupported,
     Unavailable,
     PermissionDenied,
+    SourceIssue,
 }
 
 struct FakeBattery {
@@ -29,29 +30,44 @@ impl FakeBattery {
         }
     }
 
-    fn telemetry(temperature: Option<u16>) -> Self {
+    fn telemetry(temperature: Option<u32>) -> Self {
         Self::new(BatteryReply::Telemetry(temperature))
     }
 
     fn unavailable() -> Self {
-        Self::new(BatteryReply::Unavailable)
+        Self::new(BatteryReply::Unsupported)
     }
 }
 
 impl BatteryControl for FakeBattery {
-    fn battery_telemetry(&self, index: u32) -> Result<BatteryTelemetry> {
-        self.indices.lock().push(index);
+    fn battery_telemetry(&self, _index: u32) -> Result<BatteryTelemetry> {
+        panic!("thermal observations must not read vendor telemetry")
+    }
+
+    fn battery_electrical(&self) -> Result<BatteryElectricalObservation> {
         match self.reply {
-            BatteryReply::Telemetry(temperature) => {
-                let mut telemetry = BatteryTelemetry::parse(&[0; 83]).unwrap();
-                telemetry.temperature_deci_kelvin = temperature;
-                Ok(telemetry)
-            }
+            BatteryReply::SourceIssue => Ok(BatteryElectricalObservation {
+                voltage_mv: None,
+                rate_mw: None,
+                power_state: 0,
+                temperature_deci_kelvin: None,
+                source_issues: vec![lctrl_core::BatterySourceIssue {
+                    source: "Windows battery class temperature",
+                    detail: "native query failed".into(),
+                }],
+            }),
+            BatteryReply::Telemetry(temperature) => Ok(BatteryElectricalObservation {
+                voltage_mv: None,
+                rate_mw: None,
+                power_state: 0,
+                temperature_deci_kelvin: temperature,
+                source_issues: Vec::new(),
+            }),
             BatteryReply::Unsupported => Err(LctrlError::Unsupported {
-                feature: "battery.status".into(),
+                feature: "Windows battery class".into(),
             }),
             BatteryReply::Unavailable => Err(LctrlError::ChannelUnavailable {
-                channel: "test battery channel".into(),
+                channel: "test native battery failure".into(),
             }),
             BatteryReply::PermissionDenied => Err(LctrlError::PermissionDenied {
                 need: "administrator".into(),
@@ -204,7 +220,7 @@ fn temperatures_preserve_source_identity_and_convert_deci_kelvin() {
         [
             r"acpi/ACPI\ThermalZone\TZ00_0",
             r"acpi/ACPI\ThermalZone\TZ01_0",
-            "battery/0",
+            "windows-battery-class/temperature",
         ]
     );
 
@@ -217,13 +233,19 @@ fn temperatures_preserve_source_identity_and_convert_deci_kelvin() {
 
     let battery = sensors
         .iter()
-        .find(|sensor| sensor.metadata.id == "battery/0")
+        .find(|sensor| sensor.metadata.id == "windows-battery-class/temperature")
         .unwrap();
-    assert_eq!(battery.metadata.name, "Battery pack 0 (SMBus)");
-    assert_eq!(battery.metadata.source, TemperatureSource::BatterySmbus);
+    assert_eq!(
+        battery.metadata.name,
+        "Windows battery class temperature (unassociated)"
+    );
+    assert_eq!(
+        battery.metadata.source,
+        TemperatureSource::WindowsBatteryClass
+    );
     assert_eq!(battery.metadata.location, TemperatureLocation::Battery);
     assert_eq!(battery.metadata.availability, Availability::Available);
-    assert_celsius(battery.value_c, 28.54);
+    assert_celsius(battery.value_c, 28.55);
 
     let acpi = sensors
         .iter()
@@ -235,7 +257,7 @@ fn temperatures_preserve_source_identity_and_convert_deci_kelvin() {
     assert_eq!(acpi.metadata.availability, Availability::Available);
     // 3152 deci-Kelvin is 315.2 K = 42.05 degrees Celsius.
     assert_celsius(acpi.value_c, 42.05);
-    assert_eq!(controller.battery().indices.lock().as_slice(), &[0]);
+    assert!(controller.battery().indices.lock().is_empty());
 }
 
 #[test]
@@ -278,8 +300,8 @@ fn absent_acpi_class_does_not_hide_the_battery_temperature() {
     let sensors = controller.temperature_sensors().unwrap();
 
     assert_eq!(sensors.len(), 1);
-    assert_eq!(sensors[0].metadata.id, "battery/0");
-    assert_celsius(sensors[0].value_c, 28.54);
+    assert_eq!(sensors[0].metadata.id, "windows-battery-class/temperature");
+    assert_celsius(sensors[0].value_c, 28.55);
 }
 
 #[test]
@@ -299,7 +321,10 @@ fn missing_battery_temperature_is_unavailable_without_a_fabricated_value() {
     let sensors = controller.temperature_sensors().unwrap();
 
     assert_eq!(sensors.len(), 1);
-    assert_eq!(sensors[0].metadata.source, TemperatureSource::BatterySmbus);
+    assert_eq!(
+        sensors[0].metadata.source,
+        TemperatureSource::WindowsBatteryClass
+    );
     assert_eq!(sensors[0].metadata.availability, Availability::Unavailable);
     assert_eq!(sensors[0].value_c, None);
 }
@@ -316,6 +341,27 @@ fn battery_failures_other_than_absence_are_preserved() {
         controller.temperature_sensors(),
         Err(LctrlError::PermissionDenied { .. })
     ));
+}
+
+#[test]
+fn native_channel_failures_and_partial_source_issues_are_visible() {
+    for reply in [BatteryReply::Unavailable, BatteryReply::SourceIssue] {
+        let controller = WindowsThermal::new(FakeWmi::empty(), FakeBattery::new(reply));
+        assert!(matches!(controller.temperature_sensors(),
+            Err(LctrlError::ChannelUnavailable { channel }) if channel.contains("native")));
+    }
+}
+
+#[test]
+fn native_temperature_has_no_invented_sentinel() {
+    for raw in [0, u32::MAX] {
+        let controller = WindowsThermal::new(FakeWmi::empty(), FakeBattery::telemetry(Some(raw)));
+        let sensors = controller.temperature_sensors().unwrap();
+        assert_eq!(
+            sensors[0].value_c,
+            Some((f64::from(raw) / 10.0 - 273.15) as f32)
+        );
+    }
 }
 
 #[test]
