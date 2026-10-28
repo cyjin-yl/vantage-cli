@@ -142,7 +142,11 @@ where
                 // The failed DC mutation has already attempted its own
                 // rollback. Restore the successful AC mutation as well.
                 return Err(
-                    match self.restore_source_mutation(scheme, ac_report.previous()) {
+                    match self.restore_source_mutation(
+                        scheme,
+                        ac_report.previous(),
+                        ac_report.requested(),
+                    ) {
                         Ok(()) => error,
                         Err(rollback) => LctrlError::FirmwareRejected {
                             detail: format!(
@@ -189,13 +193,20 @@ where
         &self,
         scheme: &PowerSchemeId,
         previous: &PowerMutation,
+        attempted: &PowerMutation,
     ) -> Result<()> {
-        match previous {
-            PowerMutation::SetValue { key, source, value } => {
-                self.restore_value_for_scheme(scheme, key, *source, value.get())
-            }
-            PowerMutation::Activate(_) => Err(LctrlError::ChannelUnavailable {
-                channel: "processor source pair contained a scheme activation".into(),
+        match (previous, attempted) {
+            (
+                PowerMutation::SetValue { key, source, value },
+                PowerMutation::SetValue {
+                    key: attempted_key,
+                    source: attempted_source,
+                    value: attempted_value,
+                },
+            ) if key == attempted_key && source == attempted_source => self
+                .restore_value_for_scheme(scheme, key, *source, value.get(), attempted_value.get()),
+            _ => Err(LctrlError::ChannelUnavailable {
+                channel: "processor source-pair recovery keys do not match".into(),
             }),
         }
     }
