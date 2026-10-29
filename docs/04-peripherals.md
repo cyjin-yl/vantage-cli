@@ -159,6 +159,21 @@ Windows 全局命名互斥量只串行化合作的本程序写入，不能阻止
 
 ### 3.1 刷新率
 
+**当前交付边界**:Windows 固定刷新率请求只选择与当前内置屏布局一致的已枚举精确
+模式,`--dry-run` 使用公开 `CDS_TEST`,提交使用动态显示模式而不修改用户配置中的
+持久模式。活动内部路径必须唯一且不与外接输出共用显示源;提交前重新核对路径和
+当前模式。失败恢复时,前值已在则不写,仅在仍观察到本次请求值时尝试恢复前值;
+其他模式或不同路径保留并报告未验证。检查和写入不是原子操作,不能据此保证消除
+外部控制者竞争或证明进程崩溃恢复。`auto` 当前只是选择固件默认的固定模式,不是
+已验收的动态 AC/会话自适应策略。
+
+目标机在交互控制台对 120→60 Hz 执行真实程序 dry-run,退出 0;独立显示 API 观察
+同一内置路径的活动及注册表模式在前后保持不变。该观察不证明物理刷新率切换或
+实际写入恢复。140 项源输入经原生构建前后逐字节核对,原生 24 项库测试和 21 项
+模拟显示测试通过;完整脱敏回执与边界见
+`evidence/target-panel-refresh-dryrun-20261029.json`。#22 的真实切换、自适应行为和
+完整替代仍未验收。
+
 `LENOVO_INTERNAL_PANEL_REFRESH_RATE_DATA`(实例 `GMZN_0..GMZN_11`,每 GPU/输出一路,
 `Active=true` 为主屏):
 
@@ -169,10 +184,8 @@ Windows 全局命名互斥量只串行化合作的本程序写入，不能阻止
 | DefaultRefreshRate | UInt16 | 60 |
 | Mode | UInt16 | 0=手动固定,1=自适应 VRR,2=性能优先(恒高刷) |
 
-- 写:`LENOVO_BIOS_ASSISTANT.SetValue(IndexData, ValueData, out ReturnData)` 或
-  `LENOVO_OTHER_METHOD.SetFeatureValue(IDs, value)`;刷新率项 IDs 形如 `0xA000001..0xA000004`
-  (=167968769..167968772,`LENOVO_CAPABILITY_DATA_00` 描述其范围/步长)。
-- 即时切刷新率也可用 Windows `ChangeDisplaySettingsEx`(官方 SmartDisplayAddin 的 ARR 即此路径)。
+- 历史记录提及 BIOS/WMI 候选,不是目标机写入准入证明;不扫描或猜测其控制 ID。
+- 当前固定模式使用公开 Windows `ChangeDisplaySettingsExW`,不调用厂商私有写入方法。
 - 事件:`LENOVO_REPORT_REFRESH_RATE_EVENT`(MaxRefreshRate/MinRefreshRate: UInt16)。
 
 ### 3.2 色彩与显示模式(`LENOVO_PANEL_METHOD`,实例 `GMZN_0`)
