@@ -1,0 +1,232 @@
+{
+  "scope": "Finite actual Windows read-only CLI streams, independent thermal-source comparison, and generated console Ctrl+C termination. Not full hardware replacement acceptance.",
+  "machine": "TB14P-EZRA",
+  "tested_code_commit": "699bda95989a22e1909e538e44f6d1439b5414bd",
+  "source_manifest_sha256": "d7630bd6164e3d72abc2fb209fc54a84b20465f0b5bc2488510c191325774cdf",
+  "source_archive_sha256": "a15ba38e493a5918cf54c4ec0b255820891b9c2694bdc3c5304791438a0dc105",
+  "source_build_file_count": 140,
+  "binary_sha256": "aa4eecd3eaf70dbf360895b7cf286d2869c66a52db38cabbf0b1c44edef0b9e7",
+  "build_evidence": "telemetry-stream-build-linux-20261029.json",
+  "telemetry": {
+    "command": [
+      "vantage",
+      "--json",
+      "tune",
+      "telemetry",
+      "--interval",
+      "1"
+    ],
+    "observed_started_utc": "2026-10-29T15:43:23.2678399Z",
+    "observed_completed_utc": "2026-10-29T15:43:25.0948705Z",
+    "samples": 2,
+    "first_complete_sample_gap_ms": 1258.635,
+    "stdout_was_captured_before_json_parsing": true,
+    "each_json_sample_valid": true,
+    "same_isolated_console_parent_and_child": true,
+    "interrupt_delivery": "GenerateConsoleCtrlEvent_CTRL_C_EVENT",
+    "native_child_exit_code_hex": "C000013A",
+    "forced_termination": false,
+    "stderr_empty": true,
+    "stdout_sha256": "54dc132883739333190aae1d98d31d5b2c34c9a6b03ec25bcf63bc10ad7ee2dc",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "independent_temperature_reference": {
+      "independent_consumer": "PowerShell Get-CimInstance root/WMI MSAcpi_ThermalZoneTemperature",
+      "identity_set_equal_privately": true,
+      "stable_zone_count": 1,
+      "before_utc": "2026-10-29T15:43:22.3481076Z",
+      "after_utc": "2026-10-29T15:43:25.1269320Z",
+      "samples": [
+        {
+          "acpi_count": 1,
+          "stable_reference_comparisons": [
+            {
+              "source": "acpi",
+              "location": "unknown",
+              "reference_deci_kelvin": 3252,
+              "cli_celsius": 52.04999923706055,
+              "conversion_matches_f32": true
+            }
+          ],
+          "unavailable_sources": [
+            "windows_battery_class"
+          ]
+        },
+        {
+          "acpi_count": 1,
+          "stable_reference_comparisons": [
+            {
+              "source": "acpi",
+              "location": "unknown",
+              "reference_deci_kelvin": 3252,
+              "cli_celsius": 52.04999923706055,
+              "conversion_matches_f32": true
+            }
+          ],
+          "unavailable_sources": [
+            "windows_battery_class"
+          ]
+        }
+      ],
+      "atomic_observation": false,
+      "physical_sensor_location_verified": false
+    }
+  },
+  "temperature_watch": {
+    "command": [
+      "vantage",
+      "--json",
+      "perf",
+      "temp",
+      "watch",
+      "--interval",
+      "1"
+    ],
+    "observed_started_utc": "2026-10-29T16:05:08.7507376Z",
+    "observed_completed_utc": "2026-10-29T16:05:09.9591279Z",
+    "samples": 2,
+    "first_complete_sample_gap_ms": 997.71,
+    "stdout_was_captured_before_json_parsing": true,
+    "each_json_sample_valid": true,
+    "same_isolated_console_parent_and_child": true,
+    "interrupt_delivery": "GenerateConsoleCtrlEvent_CTRL_C_EVENT",
+    "native_child_exit_code_hex": "C000013A",
+    "forced_termination": false,
+    "stderr_empty": true,
+    "stdout_sha256": "0fe2eb2f8455bc9f9434e6a78d8724a9438fd2c450ac9b1b103c0700237e640d",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "independent_temperature_reference": {
+      "independent_consumer": "PowerShell Get-CimInstance root/WMI MSAcpi_ThermalZoneTemperature",
+      "identity_set_equal_privately": true,
+      "stable_zone_count": 1,
+      "before_utc": "2026-10-29T16:05:08.1037668Z",
+      "after_utc": "2026-10-29T16:05:09.9783845Z",
+      "samples": [
+        {
+          "acpi_count": 1,
+          "stable_reference_comparisons": [
+            {
+              "source": "acpi",
+              "location": "unknown",
+              "reference_deci_kelvin": 3212,
+              "cli_celsius": 48.04999923706055,
+              "conversion_matches_f32": true
+            }
+          ],
+          "unavailable_sources": [
+            "windows_battery_class"
+          ]
+        },
+        {
+          "acpi_count": 1,
+          "stable_reference_comparisons": [
+            {
+              "source": "acpi",
+              "location": "unknown",
+              "reference_deci_kelvin": 3212,
+              "cli_celsius": 48.04999923706055,
+              "conversion_matches_f32": true
+            }
+          ],
+          "unavailable_sources": [
+            "windows_battery_class"
+          ]
+        }
+      ],
+      "atomic_observation": false,
+      "physical_sensor_location_verified": false
+    }
+  },
+  "observer": {
+    "script_sha256": "153d45b9413ee58ae7290dc422212e5ad1bd517cc6affd9f4ebaa577cad9058f",
+    "telemetry_dispatcher_sha256": "e419eb49f76c273bac380c79ad7a6be6a84b720fe9267918f0d36f4a5e92c997",
+    "temperature_dispatcher_sha256": "61159eebd6859148febb49d383440f576986bef604e4c707aad263e487da44f7",
+    "target_script_parse_errors": 0,
+    "local_ssh_input_pipe_held_open_through_exit": true,
+    "transport_only_preflight_receipt_sha256": "3ab928d77b0fe1fbb1592172bc60272ff4c226386e723ba1e2156bb271a9175d",
+    "shared_heavy_guard_used": true
+  },
+  "private_original_receipts": [
+    {
+      "name": "telemetry-dispatch4.json",
+      "length": 170,
+      "sha256": "9610ce402f80ebf5fdf9079f36c40c5688601096ecc15213d20aa4f1834448fe"
+    },
+    {
+      "name": "telemetry-intent.json",
+      "length": 358,
+      "sha256": "c880416a033b722076e8cc17d026c843223132c46a1ebfa461b26809fd6a7917"
+    },
+    {
+      "name": "telemetry-samples.out",
+      "length": 4520,
+      "sha256": "54dc132883739333190aae1d98d31d5b2c34c9a6b03ec25bcf63bc10ad7ee2dc"
+    },
+    {
+      "name": "telemetry-child.err",
+      "length": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "telemetry-final.json",
+      "length": 1228,
+      "sha256": "adab95c170a86b9a9f0a86a6967ea3fba20c7f859bac35e57058f80a99caa1f5"
+    },
+    {
+      "name": "telemetry-acpi-before-private.json",
+      "length": 180,
+      "sha256": "87f1aa0111cd0f9382d1ede1adb53cb2c1ceb6bba53c2ec533207e0d59687a6d"
+    },
+    {
+      "name": "telemetry-acpi-after-private.json",
+      "length": 179,
+      "sha256": "86bdfff938055c5bd4e064481294a2cd959c2bd09eeb389d4881886032fac284"
+    },
+    {
+      "name": "temperature-dispatch4.json",
+      "length": 170,
+      "sha256": "e0a1c20425933b78aa011d5dbb9752871e07bc7f1d26673716d1a807ebfd9f50"
+    },
+    {
+      "name": "temperature-intent.json",
+      "length": 363,
+      "sha256": "69e4a4a7d73a573f245906a62295e1fd0412f3b262d972eabca5b8de6dd35478"
+    },
+    {
+      "name": "temperature-samples.out",
+      "length": 828,
+      "sha256": "0fe2eb2f8455bc9f9434e6a78d8724a9438fd2c450ac9b1b103c0700237e640d"
+    },
+    {
+      "name": "temperature-child.err",
+      "length": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "temperature-final.json",
+      "length": 1216,
+      "sha256": "26e3f4930ed63b303a8c2677f77fefbd20635dec47f9bbd7a7ae745109b29c1c"
+    },
+    {
+      "name": "temperature-acpi-before-private.json",
+      "length": 180,
+      "sha256": "43c2ffc7f92933c565009a630637acca85826cb1ecf1b368c8b4502fab8723eb"
+    },
+    {
+      "name": "temperature-acpi-after-private.json",
+      "length": 179,
+      "sha256": "4c897f4195364705850f714c0b1b1015d3d9edb320ad04714540b8eebd3d4c1b"
+    }
+  ],
+  "hardware_writes_requested": false,
+  "daemon_started": false,
+  "official_service_stop_or_disable_requested": false,
+  "limits": [
+    "Console interruption was generated with GenerateConsoleCtrlEvent in an owned SSH console, not a physical keyboard observation.",
+    "Two samples per command prove the finite exercised interval/output path, not long-running memory stability or all console hosts.",
+    "Independent Get-CimInstance calls used the same ACPI provider before and after; the observations are not atomic.",
+    "Stable ACPI zone identities and deci-Kelvin conversion matched privately; the physical sensor location remains unknown, not CPU/GPU.",
+    "The Windows battery-class temperature was unavailable and remained null, not zero.",
+    "No CPU/GPU package-power or frequency measurement, fan write, performance-mode write, crash recovery, or complete replacement acceptance.",
+    "Earlier empty-SSH dispatch attempts had no target intent/stream receipts and are not counted as product executions or passes."
+  ]
+}

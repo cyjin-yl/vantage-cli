@@ -529,3 +529,44 @@ WMI 状态的实际变化和正常恢复，不单独证明物理亮度、故障�
 读取不是原子快照，也不证明 CPU 实际频率、磁盘停转或显示器实际行为。外部并发写入、
 迟到效果与崩溃恢复未验收。完整脱敏回执见
 `evidence/target-power-setting-read-20261029.json`;#39 的电源域仍未全部完成。
+
+## C19 · 只读遥测与温度流的有限运行验收
+
+原先 Linux 实际命令 `--json tune telemetry --interval 1` 在约 0.071 秒后只输出一行
+便退出 0,没有实现请求的持续采样。修复后,立即采样并在每次完成后等待指定正整数秒数;
+`perf temp watch` 也采用串行采样,默认间隔 1 秒。每行 JSON 独立完整并刷新输出,
+不启动 daemon、不积累历史。单结果库 API 拒绝流式请求,不能静默降为一次读取。
+
+140 个 Rust 构建输入在 Windows 原生构建前后逐项核对;源 manifest SHA-256
+`d7630bd6164e3d72abc2fb209fc54a84b20465f0b5bc2488510c191325774cdf`,二进制 SHA-256
+`aa4eecd3eaf70dbf360895b7cf286d2869c66a52db38cabbf0b1c44edef0b9e7`。
+原生 release build 及 13 项 capability、43 项 CLI 模拟契约测试均退出 0。
+构建和 Linux 实际流、零间隔拒绝、断开消费者的证据单列于
+`evidence/telemetry-stream-build-linux-20261029.json`,不以该文件代替 Windows 验收。
+
+Windows 实际观察时间为 2026-10-29 UTC。两个命令均使用 `--json`,在独立拥有的
+SSH 控制台中运行,捕获原始 stdout 后再解析样本:
+
+| 命令 | 完整样本数 | 前两行接收时间差(ms) | 原生中断退出码 | 强制终止 |
+|---|---:|---:|---|---|
+| `tune telemetry --interval 1` | 2 | 1258.635 | `C000013A` | 否 |
+| `perf temp watch --interval 1` | 2 | 997.710 | `C000013A` | 否 |
+
+父子进程同属对应控制台。观察器在子进程启动后才忽略自己的 Ctrl+C,随后通过
+`GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0)` 生成事件;不是物理键盘输入测试。
+两次原生子进程均退出且 stderr 为空。外层 SSH 退出状态没有被当作子进程退出码。
+这些接收时间差含提供者读取与观察器调度,不代表精确周期或单次 WMI 调用截止时间。
+
+各次前后由独立 `Get-CimInstance` 查询 ACPI 热区,私下核对身份集合;对应单个热区的
+原始十分之一开尔文值在该次前后稳定,每个 CLI 样本均符合摄氏转换及 f32 舍入。
+该热区继续标为 `location: unknown`,没有冒充 CPU/GPU。另一个 Windows 电池类温度
+来源为 unavailable/null,没有填零。原始设备身份不随脱敏回执发布。
+
+14 份目标机原始回执经长度与 SHA-256 完整复制核对,摘要见
+`evidence/target-telemetry-stream-20261029.json`。早先数次 SSH 分派没有产生目标 intent
+或样本回执,未计为产品执行或通过;保留失败证据后,持有 SSH 输入管道的有界观察器
+才完成本次验收。所有实际采样均遵守共享 heavy 锁,没有请求硬件写入或停用官方服务。
+
+此次仅证明有限只读采样、该 ACPI 来源及所测控制台中断路径。长期内存稳定性、其他
+终端宿主、物理传感器位置、CPU/GPU 包功耗与频率、风扇/模式控制、崩溃恢复及完整
+替代仍未完成;#12 和 #39 保持开放。

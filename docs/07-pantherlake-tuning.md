@@ -5,7 +5,7 @@
 > 交叉引用:性能模式三态与风扇见 `03-thermal-performance.md`;DPTF 硬件通道见
 > `01-hal-interfaces.md` §6;Linux 映射见 `09-linux-backend.md` §5;DSL 语法见 `10-config-schema.md`。
 
-> **交付边界(2026-10-29)**:以下保留历史记录与候选设计,不表示 PL/ESIF/EC 等写入已经实现或获准测试。本次 `tune telemetry` 变更仅提供顺序只读采样、来源和错误信息,不以 OS 策略值冒充物理功耗或频率。不得据历史 RPC/二进制名称猜测控制调用、检查厂商二进制或绕过 VBS/HVCI;官方服务保持运行。构建与 Linux 运行证据见 [实时流证据](evidence/telemetry-stream-build-linux-20261029.json),其中不包含 Windows 运行验收。
+> **交付边界(2026-10-30)**:以下保留历史记录与候选设计,不表示 PL/ESIF/EC 等写入已经实现或获准测试。本次 `tune telemetry` 变更仅提供顺序只读采样、来源和错误信息,不以 OS 策略值冒充物理功耗或频率。不得据历史 RPC/二进制名称猜测控制调用、检查厂商二进制或绕过 VBS/HVCI;不停止或禁用官方服务。构建与 Linux 运行见 [构建证据](evidence/telemetry-stream-build-linux-20261029.json);Windows 有限采样及中断验收见 [C19](C-acceptance.md#c19--只读遥测与温度流的有限运行验收)。
 
 ## 1. 功耗控制栈全貌(分层职责)
 
@@ -165,6 +165,11 @@ BIOS 收到后重算 DPTF 参与者。**本工具的两条路线**:
 package power。上述指标表列出接口方向，不表示所有目标指标已实现。多来源读取非原子，
 WMI/OS 调用可能阻塞，间隔不是读取截止时间。未接入的 CPU/GPU 功率、频率和物理位置
 仍须单独验证，不能由流式输出推断已完成。
+
+Windows 真机分别捕获 `tune telemetry --interval 1` 与 `perf temp watch --interval 1`
+的两个完整 JSON 样本,再向各自隔离控制台生成 Ctrl+C 事件;原生子进程正常响应中断,
+没有使用强制终止。独立 ACPI 查询只验证身份、数值及单位换算,不证明热区物理位置。
+限定验收和原始回执摘要见 [C19](C-acceptance.md#c19--只读遥测与温度流的有限运行验收)。
 
 ## 5. 调优配方(profile 集)
 
