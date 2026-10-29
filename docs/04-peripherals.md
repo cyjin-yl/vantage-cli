@@ -116,6 +116,11 @@ bit0=Fn/Ctrl swap,bit1=F1-F12 primary,bit2=Win 锁,bit3=触控板禁用,bit4+=�
 (0=无/1=单色/2=RGB/3=RGB 多区 [推断])、`State_Type_Num`(亮度档位数)、
 `Default_Brightness_Level`、`Brightness_Level`(当前)。
 
+**目标机实测(2026-10-30)**:TB14P-EZRA 上 `LENOVO_LIGHTING_DATA` 与
+`LENOVO_LIGHTING_METHOD` 实例枚举均返回 WMI HRESULT 0x8004100C(Not
+supported),能力矩阵为 `kbd.backlight=unsupported`,未尝试任何写入;该机型
+无此 WMI 背光通道。GAMEZONE 复合通道同样未在目标机验证,不作为替代。
+
 档位:`0`=关,`1..State_Type_Num-1`=逐级亮度(ThinkBook 单色背光为 3 档)。
 灯效 `Current_State_Type`:0=静态,1=呼吸,2=波浪,3=反应,4=闪烁(单色机型仅 0 有效)。
 
@@ -270,6 +275,13 @@ Vantage 的 Privacy Guard 是独立运行时层:`SetPrivacyGuardEnabled(bool)` /
 实现建议:`privacy cam|mic off --runtime` 用实例调用 `SetFeatureEx(IDs,Value,Ret)`
 先以小范围 IDs 探测(`GetIfSupportOrVersion` 返回非 0 的 datatype 即合法特性域);
 `--persistent` 走 §4.1 BIOS 层。
+
+**目标机实测(2026-10-30)**:`privacy cam off|on --runtime` 已在本机完成真实
+验收:dry-run 无副作用;提交后独立 `Get-PnpDevice -Class Camera` 观察到两个
+USB 摄像头接口由 OK 变为 Error(禁用);恢复后回到 OK。`privacy status` 回读
+runtime_camera=enabled、BIOS 三项均为 Enable。运行时麦克风布线未接入;
+SmartSense 与 Dolby/降噪为保留的官方厂商通道(见 §5/§6 边界)。回执见
+`evidence/target-input-privacy-sensing-20261030.json`。
 
 ### 4.3 指纹/人脸凭据
 
