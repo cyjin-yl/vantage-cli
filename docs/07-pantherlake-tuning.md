@@ -5,6 +5,8 @@
 > 交叉引用:性能模式三态与风扇见 `03-thermal-performance.md`;DPTF 硬件通道见
 > `01-hal-interfaces.md` §6;Linux 映射见 `09-linux-backend.md` §5;DSL 语法见 `10-config-schema.md`。
 
+> **交付边界(2026-10-29)**:以下保留历史记录与候选设计,不表示 PL/ESIF/EC 等写入已经实现或获准测试。本次 `tune telemetry` 变更仅提供顺序只读采样、来源和错误信息,不以 OS 策略值冒充物理功耗或频率。不得据历史 RPC/二进制名称猜测控制调用、检查厂商二进制或绕过 VBS/HVCI;官方服务保持运行。构建与 Linux 运行证据见 [实时流证据](evidence/telemetry-stream-build-linux-20261029.json),其中不包含 Windows 运行验收。
+
 ## 1. 功耗控制栈全貌(分层职责)
 
 ```
@@ -60,7 +62,7 @@
 ### 2.3 独占与冲突
 
 - 进程级调度(亲和性/优先级/工作集)为 PCManager 独有(ResScheduler,03 文档 §6)。
-- Vantage 与 PCManager 写同一 EC 寄存器会互相覆盖——本工具取而代之,不存在该冲突。
+- 多个写入方可能互相覆盖;不能因计划替代官方应用就宣称并发冲突已消失。本次只读流不接管 EC 或停用官方服务。
 - DBDC(电池直充限流):WMI `LENOVO_REPORT_DBDC_DATA` 实例实测
   `CurrentLimit=[7500,5000,4500]`、`Threshold=[100,40,20]`(目标机 WMI 实例实机采集)——
   三档:电量 >40% 限 7500 mA,20-40% 限 5000 mA,<20% 限 4500 mA [推断语义]。

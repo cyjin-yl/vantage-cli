@@ -2,6 +2,8 @@
 
 > 本文档面向 **实现者**,规定 `vantage perf` 命令子树在 Lenovo 21VG (ThinkBook 14+ 2026, Panther Lake) 上实现时的全部行为契约:性能模式状态机、风扇控制、温度读取、功耗墙 (PL1/PL2/DBDC) 与超频、智能调度、PCManager 省电策略、WMI 事件订阅。
 
+> **交付边界(2026-10-29)**:本文包含历史接口记录和未完成的设计,不是上述功能的真机验收声明。本次实时流变更仅覆盖只读温度观测及定时输出;来源不明的 ACPI thermal zone 不标为 CPU/GPU,风扇 min/max 不当作实时 RPM。构建与 Linux 运行证据见 [实时流证据](evidence/telemetry-stream-build-linux-20261029.json);该文件明确不包含 Windows 运行验收。
+
 依赖:
 - 通道与设备节点详见 01 (`01-hal-interfaces.md`)。
 - 电池/充电阈值详见 02 (`02-power-battery.md`)。
@@ -24,7 +26,7 @@
 
 **关键约束**:所有"下发型"命令在 Windows 上均要求以管理员权限执行,且 `AcpiVpc.sys` (EnergyVpc) 与 `ipf_acpi` 驱动必须已加载;Linux 后端仅通过 `ideapad_laptop` / sysfs / ACPI 暴露能力,若缺失应返回 `ENOTSUP`。
 
-**与 PCManager / Vantage 互斥**:同一时刻只能有一方控制 `LENOVO_GAMEZONE_DATA` 与 `LenovoProcessManagement` 服务;`vantage` 应主动检测二者是否运行 (`QueryServiceStatus` / `GetNamedSecurityInfo` 命名管道),并提示用户先停止官方软件。
+**与 PCManager / Vantage 共存**:本次只读温度/遥测流不要求停止或禁用任何官方服务。后续写入需要已验证的接口、独立回读和并发冲突/恢复验收,不能通过停用官方软件来绕过尚未完成的写入准入。
 
 ---
 
@@ -32,7 +34,7 @@
 
 ### 2.1 模式枚举
 
-Windows 上的 ITS/Dispatcher 服务(`LenovoProcessManagement`)和 WMI `LENOVO_GAMEZONE_DATA` 各有一套独立的模式编号体系。`vantage` 必须对二者同时写入,语义才能一致。
+Windows 上的 ITS/Dispatcher 服务(`LenovoProcessManagement`)和 WMI `LENOVO_GAMEZONE_DATA` 在历史记录中有独立的模式编号体系。以下编号不是目标机双通道写入的准入证明,不能据此同时试写。
 
 **A) ITS/Dispatcher 服务枚举 (`ItsModeType`)**
 
