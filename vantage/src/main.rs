@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command as ProcessCommand, Stdio};
 use std::thread;
@@ -5,8 +6,8 @@ use std::time::Duration;
 
 use clap::error::ErrorKind;
 use vantage_cli::{
-    Cli, Command as CliCommand, CommandOutput, CommandResult, DaemonCommand, execute_with_services,
-    render_error, render_success,
+    Cli, Command as CliCommand, CommandOutput, CommandResult, CommandServices, DaemonCommand,
+    StreamSpec, execute_with_services, render_error, render_success, sample_stream, stream_spec,
 };
 
 fn finish(result: CommandResult, json: bool) {
@@ -16,6 +17,50 @@ fn finish(result: CommandResult, json: bool) {
             eprintln!("{}", render_error(&error, json));
             std::process::exit(i32::from(error.exit_code()));
         }
+    }
+}
+
+fn write_output(output: &CommandOutput, json: bool) -> lctrl_core::Result<()> {
+    let mut stdout = std::io::stdout().lock();
+    writeln!(stdout, "{}", render_success(output, json))?;
+    stdout.flush()?;
+    Ok(())
+}
+
+fn finish_io(result: lctrl_core::Result<()>, json: bool) {
+    if let Err(error) = result {
+        // Preserve the original failure's exit code even if stderr is closed.
+        let _ = writeln!(std::io::stderr().lock(), "{}", render_error(&error, json));
+        std::process::exit(i32::from(error.exit_code()));
+    }
+}
+
+fn run(cli: Cli, services: CommandServices<'_>) {
+    let json = cli.json;
+    match stream_spec(&cli) {
+        Ok(Some(spec)) => finish_io(run_stream(spec, &services, json), json),
+        Ok(None) => finish(execute_with_services(cli, services), json),
+        Err(error) => finish(Err(error), json),
+    }
+}
+
+fn run_stream(
+    spec: StreamSpec,
+    services: &CommandServices<'_>,
+    json: bool,
+) -> lctrl_core::Result<()> {
+    loop {
+        write_output(&sample_stream(spec.kind, services)?, json)?;
+
+        // Bound each OS sleep so even very large valid intervals do not overflow
+        // platform-specific sleep representations.
+        const MAX_SLEEP: Duration = Duration::from_secs(24 * 60 * 60);
+        let mut remaining = spec.interval;
+        while remaining > MAX_SLEEP {
+            thread::sleep(MAX_SLEEP);
+            remaining -= MAX_SLEEP;
+        }
+        thread::sleep(remaining);
     }
 }
 
@@ -318,7 +363,7 @@ fn main() {
         .with_tuning(&hal)
         .with_temperature(&hal)
         .with_update(&hal);
-    finish(execute_with_services(cli, services), json);
+    run(cli, services);
 }
 
 #[cfg(windows)]
@@ -376,7 +421,7 @@ fn main() {
         .with_temperature(&thermal)
         .with_fan(&thermal)
         .with_update(&system_inventory);
-    finish(execute_with_services(cli, services), json);
+    run(cli, services);
 }
 
 #[cfg(not(any(target_os = "linux", windows)))]
@@ -410,5 +455,6 @@ fn main() {
     if handle_daemon_command(&cli, json) {
         return;
     }
-    finish(vantage_cli::execute(cli, &UnavailableHal), json);
+    let hal = UnavailableHal;
+    run(cli, CommandServices::new(&hal));
 }
