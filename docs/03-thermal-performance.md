@@ -406,22 +406,33 @@ Linux 上应优先使用 `/sys/class/thermal/` 下的内核热区:
 ### 4.4 `vantage` CLI 契约
 
 ```
-vantage perf temp list          # 列出所有传感器: id, name, source, location
+vantage perf temp               # 列出所有传感器: id, name, source, location
 vantage perf temp read <id>     # 读取单一传感器 (°C)
-vantage perf temp watch         # 持续轮询 (默认 1s 间隔)
+vantage perf temp watch [--interval S]  # 持续轮询，默认 1 秒
 ```
 
-返回 JSON:
+`watch` 立即读取一次，此后每次读取完成后等待 S 秒;S 为正整数。无需 daemon，串行读取，
+不积累采样历史。`--json` 每行输出一个完整 JSON 数组并刷新输出;普通输出包含实测值和
+来源。Ctrl+C 终止只读进程，输出管道断开则报告 I/O 错误。间隔不是 OS/WMI 单次调用
+的超时保证，读取本身可能阻塞。库调用方使用 `stream_spec` / `sample_stream`;
+单结果的 `execute_with_services` 不会静默将 `watch` 降为一次读取。
+
+单个传感器的 JSON 示例（列表及 watch 返回此类对象的数组）:
 ```json
 {
-  "id": "cpu0",
-  "name": "CPU Package",
-  "source": "wmi|sysfs|acpi",
-  "value_c": 62.0,
-  "max_c": 100.0,
-  "critical_c": 105.0
+  "metadata": {
+    "id": "windows-battery-class/temperature",
+    "name": "Windows battery class temperature (unassociated)",
+    "source": "windows_battery_class",
+    "location": "battery",
+    "availability": "unavailable"
+  },
+  "value_c": null
 }
 ```
+
+`null` 与不可用状态不等于 0°C。ACPI 热区保留 `location=unknown`，不因名称或数值
+相似就标为 CPU/GPU。观察到传感器读数也不证明其他未接入的功耗或频率指标已可用。
 
 ---
 
