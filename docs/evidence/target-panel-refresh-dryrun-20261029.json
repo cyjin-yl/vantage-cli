@@ -1,0 +1,82 @@
+{
+  "scope": "Native Windows source-bound build, fake display safety regressions, and one actual interactive-console dry-run of a different refresh rate. No actual refresh-rate commit is claimed.",
+  "machine": "TB14P-EZRA",
+  "source_code_commit": "6f0c6315be365265a543447377f5e80301dbf523",
+  "source_manifest_sha256": "8937c1cdc62473c68f4dd10c9499a45fa34831cf1bbe7e109e41d96568a09fb9",
+  "source_archive_sha256": "d9e7c9c65354f093685de6f819b410e97cf93b80813545f2eee165dccb904807",
+  "source_file_count": 140,
+  "native_binary_sha256": "666c79ede131925204cbbfcfca6f4b849cd9e7b8c3d807215f9e265b6c8804ad",
+  "native_library_tests": 24,
+  "native_fake_display_tests": 21,
+  "native_build_exit": 0,
+  "linux_display_fake_tests": 21,
+  "linux_and_windows_clippy_exit": 0,
+  "actual_cli_dry_run": {
+    "command": [
+      "vantage",
+      "--json",
+      "--dry-run",
+      "panel",
+      "rate",
+      "60"
+    ],
+    "previous_refresh_hz": 120,
+    "requested_refresh_hz": 60,
+    "native_exit_code": 0,
+    "report_mode": "dry_run",
+    "report_has_actual": false,
+    "independent_active_target_and_mode_match": true,
+    "independent_all_active_and_registry_modes_unchanged": true,
+    "active_path_count": 1,
+    "observer_and_child_in_active_console": true,
+    "outer_ssh_exit": 255,
+    "scheduled_task_exit": 0,
+    "scheduled_task_removed": true,
+    "forced_termination": false,
+    "hardware_writes_requested": false
+  },
+  "private_original_receipts": [
+    {
+      "name": "readonly-intent.json",
+      "length": 310,
+      "sha256": "b46444afae420f3d4cee4d579a65c939c6fbc6f0239370bac86066e483592c57"
+    },
+    {
+      "name": "readonly-before-private.json",
+      "length": 674,
+      "sha256": "da15c27a9ad7902889aa12a4c37b557cc47b814464c3303953009e198cc58119"
+    },
+    {
+      "name": "readonly-after-private.json",
+      "length": 674,
+      "sha256": "da15c27a9ad7902889aa12a4c37b557cc47b814464c3303953009e198cc58119"
+    },
+    {
+      "name": "readonly-native.out",
+      "length": 529,
+      "sha256": "350057eec37fa645e386d1406db5809884d0943c7de19681fa8063f7b2c1ab6f"
+    },
+    {
+      "name": "readonly-native.err",
+      "length": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "readonly-final.json",
+      "length": 835,
+      "sha256": "eb9c63ff16e939333e721691738ac3d4cb42698da478f14eefa88e4b34de3724"
+    },
+    {
+      "name": "readonly-dispatch-final.json",
+      "length": 444,
+      "sha256": "9189d955a3abec548e4abb42519789610b421249ef2f0d4a32f6d5df5b7aef01"
+    }
+  ],
+  "limits": [
+    "Read-only Windows API snapshot and CLI use related system APIs but independent processes; observations are not atomic.",
+    "The mode stayed unchanged during the observed dry-run; this does not prove physical display transition or that the driver performed no transient change between snapshots.",
+    "Actual commit, guarded recovery, cloned monitor topology, external controller race and crash recovery were not exercised on the target.",
+    "auto still resolves to a firmware default; dynamic AC/session adaptive behavior is not implemented or accepted.",
+    "Official services were not stopped. No vendor binaries, undocumented IOCTL or BIOS writes were used."
+  ]
+}
