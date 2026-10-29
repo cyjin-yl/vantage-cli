@@ -14,6 +14,8 @@ const PANEL_REFRESH_DATA: &str = "LENOVO_INTERNAL_PANEL_REFRESH_RATE_DATA";
 /// Public-display-API operations needed by the panel controller. Implementations
 /// must return the active (not registry-stored) current mode and modes compatible
 /// with the currently connected monitor, without raw/rotated-mode expansion.
+/// Mode reads and writes must revalidate the active path, not trust a reusable
+/// GDI name. Applying a mode changes the current desktop, not persisted settings.
 pub trait DisplayApi: Send + Sync {
     fn connected_targets(&self) -> Result<Vec<PanelTarget>>;
     fn current_mode(&self, target: &PanelTarget) -> Result<PanelMode>;
@@ -51,26 +53,7 @@ where
     W: WmiTransport,
 {
     fn selected_target(&self) -> Result<PanelTarget> {
-        let mut internal = self
-            .display
-            .connected_targets()?
-            .into_iter()
-            .filter(|target| target.internal);
-        let target = internal.next().ok_or_else(|| LctrlError::Unsupported {
-            feature: "panel.internal.connected".into(),
-        })?;
-        if internal.next().is_some() {
-            return Err(LctrlError::ChannelUnavailable {
-                channel: "native panel selection is ambiguous: multiple active internal panels"
-                    .into(),
-            });
-        }
-        if target.device_name.is_empty() || target.device_name.contains('\0') {
-            return Err(LctrlError::ChannelUnavailable {
-                channel: "native panel returned an invalid GDI device name".into(),
-            });
-        }
-        Ok(target)
+        select_internal_target(self.display.connected_targets()?)
     }
 
     fn current_on(&self, target: &PanelTarget) -> Result<PanelMode> {
@@ -161,19 +144,24 @@ where
             })
     }
 
-    fn rollback_mode(&self, previous: &PanelMode, error: LctrlError) -> LctrlError {
+    fn recover(&self, previous: &PanelMode, requested: &PanelMode) -> Result<()> {
         let target = &previous.target;
-        let rollback = self.display.apply_mode(previous).and_then(|()| {
-            poll_readback(previous, 1, Duration::ZERO, || self.current_on(target)).map(|_| ())
-        });
-        match rollback {
-            Ok(()) => error,
-            Err(rollback) => LctrlError::FirmwareRejected {
-                detail: format!(
-                    "panel refresh transition failed ({error}); rollback also failed ({rollback})"
-                ),
-            },
+        if self.selected_target()? != *target {
+            return Err(LctrlError::ChannelUnavailable {
+                channel: "panel refresh recovery refused: active display path changed".into(),
+            });
         }
+        let current = self.current_on(target)?;
+        if current == *previous {
+            return Ok(());
+        }
+        if current != *requested {
+            return Err(LctrlError::ChannelUnavailable {
+                channel: "panel refresh recovery refused: another display mode was observed".into(),
+            });
+        }
+        self.display.apply_mode(previous)?;
+        poll_readback(previous, 1, Duration::ZERO, || self.current_on(target)).map(|_| ())
     }
 }
 
@@ -218,6 +206,13 @@ where
         if apply == ApplyMode::DryRun {
             return Ok(ChangeReport::dry_run(previous, requested));
         }
+        // Validation can race another controller or a display-topology change.
+        // These observations narrow that window; they are not an atomic CAS.
+        if self.selected_target()? != target || self.current_on(&target)? != previous {
+            return Err(LctrlError::ChannelUnavailable {
+                channel: "panel refresh state changed before commit; no write attempted".into(),
+            });
+        }
         if previous == requested {
             let actual = previous.clone();
             return Ok(ChangeReport::committed(previous, requested, actual));
@@ -228,9 +223,46 @@ where
         });
         match result {
             Ok(actual) => Ok(ChangeReport::committed(previous, requested, actual)),
-            Err(error) => Err(self.rollback_mode(&previous, error)),
+            Err(primary) => match self.recover(&previous, &requested) {
+                Ok(()) => Err(primary),
+                Err(recovery) => Err(LctrlError::FirmwareRejected {
+                    detail: format!(
+                        "panel refresh transition failed ({primary}); recovery failed ({recovery}); state is unverified"
+                    ),
+                }),
+            },
         }
     }
+}
+
+fn select_internal_target(mut targets: Vec<PanelTarget>) -> Result<PanelTarget> {
+    let mut internal = targets
+        .iter()
+        .enumerate()
+        .filter(|(_, target)| target.internal);
+    let (index, target) = internal.next().ok_or_else(|| LctrlError::Unsupported {
+        feature: "panel.internal.connected".into(),
+    })?;
+    if internal.next().is_some() {
+        return Err(LctrlError::ChannelUnavailable {
+            channel: "native panel selection is ambiguous: multiple active internal panels".into(),
+        });
+    }
+    if target.device_name.is_empty() || target.device_name.contains('\0') {
+        return Err(LctrlError::ChannelUnavailable {
+            channel: "native panel returned an invalid GDI device name".into(),
+        });
+    }
+    if targets.iter().enumerate().any(|(other_index, other)| {
+        other_index != index
+            && (other.device_name.eq_ignore_ascii_case(&target.device_name)
+                || (other.adapter == target.adapter && other.source_id == target.source_id))
+    }) {
+        return Err(LctrlError::ChannelUnavailable {
+            channel: "internal panel shares a display source with another active output".into(),
+        });
+    }
+    Ok(targets.swap_remove(index))
 }
 
 fn validate_capability(capability: &PanelRefreshCapability) -> Result<()> {
@@ -298,12 +330,12 @@ mod native {
         },
         Foundation::{ERROR_ACCESS_DENIED, ERROR_INSUFFICIENT_BUFFER, LUID},
         Graphics::Gdi::{
-            CDS_TEST, CDS_UPDATEREGISTRY, ChangeDisplaySettingsExW, DEVMODEW,
-            DISP_CHANGE_BADDUALVIEW, DISP_CHANGE_BADFLAGS, DISP_CHANGE_BADMODE,
-            DISP_CHANGE_BADPARAM, DISP_CHANGE_FAILED, DISP_CHANGE_NOTUPDATED, DISP_CHANGE_RESTART,
-            DISP_CHANGE_SUCCESSFUL, DISPLAYCONFIG_PATH_ACTIVE, DM_BITSPERPEL, DM_DISPLAYFREQUENCY,
-            DM_DISPLAYORIENTATION, DM_PELSHEIGHT, DM_PELSWIDTH, DM_POSITION, EDS_ROTATEDMODE,
-            ENUM_CURRENT_SETTINGS, EnumDisplaySettingsExW,
+            CDS_TEST, ChangeDisplaySettingsExW, DEVMODEW, DISP_CHANGE_BADDUALVIEW,
+            DISP_CHANGE_BADFLAGS, DISP_CHANGE_BADMODE, DISP_CHANGE_BADPARAM, DISP_CHANGE_FAILED,
+            DISP_CHANGE_NOTUPDATED, DISP_CHANGE_RESTART, DISP_CHANGE_SUCCESSFUL,
+            DISPLAYCONFIG_PATH_ACTIVE, DM_BITSPERPEL, DM_DISPLAYFREQUENCY, DM_DISPLAYORIENTATION,
+            DM_PELSHEIGHT, DM_PELSWIDTH, DM_POSITION, EDS_ROTATEDMODE, ENUM_CURRENT_SETTINGS,
+            EnumDisplaySettingsExW,
         },
     };
 
@@ -443,6 +475,7 @@ mod native {
                     target.device_name
                 ),
             })?;
+            self.require_current_target(target)?;
             Ok(fields.into_mode(target))
         }
 
@@ -485,11 +518,22 @@ mod native {
         }
 
         fn apply_mode(&self, mode: &PanelMode) -> Result<()> {
-            self.change_mode(mode, CDS_UPDATEREGISTRY)
+            // A failed dynamic change must not leave a deferred registry mode.
+            self.change_mode(mode, 0)
         }
     }
 
     impl NativeDisplayApi {
+        fn require_current_target(&self, expected: &PanelTarget) -> Result<()> {
+            let current = super::select_internal_target(self.connected_targets()?)?;
+            if current != *expected {
+                return Err(LctrlError::ChannelUnavailable {
+                    channel: "native panel display path changed".into(),
+                });
+            }
+            Ok(())
+        }
+
         fn change_mode(&self, mode: &PanelMode, flags: u32) -> Result<()> {
             if !mode.target.internal {
                 return Err(LctrlError::Unsupported {
@@ -503,6 +547,7 @@ mod native {
             // Admit exactly the documented display fields needed for a
             // refresh-only transition. Private/printer fields are never set.
             raw.dmFields = REQUIRED_MODE_FIELDS;
+            self.require_current_target(&mode.target)?;
             let status = unsafe {
                 ChangeDisplaySettingsExW(device.as_ptr(), &raw, ptr::null_mut(), flags, ptr::null())
             };

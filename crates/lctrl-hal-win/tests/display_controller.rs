@@ -24,6 +24,8 @@ struct FakeDisplay {
     calls: Mutex<Vec<Call>>,
     apply_results: Mutex<VecDeque<Result<()>>>,
     readbacks: Mutex<VecDeque<PanelMode>>,
+    apply_effects: Mutex<VecDeque<PanelMode>>,
+    test_effect: Option<PanelMode>,
 }
 
 impl FakeDisplay {
@@ -69,6 +71,8 @@ impl FakeDisplay {
             calls: Mutex::new(Vec::new()),
             apply_results: Mutex::new(VecDeque::new()),
             readbacks: Mutex::new(VecDeque::new()),
+            apply_effects: Mutex::new(VecDeque::new()),
+            test_effect: None,
         }
     }
 
@@ -79,6 +83,11 @@ impl FakeDisplay {
 
     fn with_readbacks(mut self, modes: impl IntoIterator<Item = PanelMode>) -> Self {
         self.readbacks = Mutex::new(modes.into_iter().collect());
+        self
+    }
+
+    fn with_apply_effects(mut self, modes: impl IntoIterator<Item = PanelMode>) -> Self {
+        self.apply_effects = Mutex::new(modes.into_iter().collect());
         self
     }
 }
@@ -117,13 +126,18 @@ impl DisplayApi for FakeDisplay {
 
     fn test_mode(&self, mode: &PanelMode) -> Result<()> {
         self.calls.lock().push(Call::Test(mode.clone()));
+        if let Some(changed) = &self.test_effect {
+            *self.current.lock() = changed.clone();
+        }
         Ok(())
     }
 
     fn apply_mode(&self, mode: &PanelMode) -> Result<()> {
         self.calls.lock().push(Call::Apply(mode.clone()));
         let result = self.apply_results.lock().pop_front().unwrap_or(Ok(()));
-        if result.is_ok() {
+        if let Some(changed) = self.apply_effects.lock().pop_front() {
+            *self.current.lock() = changed;
+        } else if result.is_ok() {
             *self.current.lock() = mode.clone();
         }
         result
@@ -369,7 +383,87 @@ fn panel_mode_reads_the_actual_native_current_mode() {
 }
 
 #[test]
-fn readback_mismatch_rolls_back_the_complete_previous_mode() {
+fn concurrent_mode_is_preserved_after_a_failed_transition() {
+    let foreign = mode(&target(r"\\.\DISPLAY1", 1, true), 90);
+    let display = FakeDisplay::fixture().with_apply_effects([foreign.clone()]);
+    let controller = controller(display);
+
+    assert!(
+        controller
+            .set_refresh_rate(PanelRefreshRequest::Fixed(120), ApplyMode::Commit)
+            .is_err()
+    );
+    assert_eq!(&*controller.display().current.lock(), &foreign);
+    assert_eq!(apply_rates(controller.display()), vec![120]);
+}
+
+#[test]
+fn failed_write_with_unchanged_state_does_not_write_again() {
+    let display = FakeDisplay::fixture().with_apply_results([Err(LctrlError::Io(
+        std::io::Error::other("injected pre-effect failure"),
+    ))]);
+    let controller = controller(display);
+
+    assert!(matches!(
+        controller.set_refresh_rate(PanelRefreshRequest::Fixed(120), ApplyMode::Commit),
+        Err(LctrlError::Io(_))
+    ));
+    assert_eq!(controller.display().current.lock().refresh_hz, 60);
+    assert_eq!(apply_rates(controller.display()), vec![120]);
+}
+
+#[test]
+fn precommit_rejects_a_mode_changed_during_validation() {
+    let foreign = mode(&target(r"\\.\DISPLAY1", 1, true), 90);
+    let mut display = FakeDisplay::fixture();
+    display.test_effect = Some(foreign.clone());
+    let controller = controller(display);
+
+    assert!(
+        controller
+            .set_refresh_rate(PanelRefreshRequest::Fixed(120), ApplyMode::Commit)
+            .is_err()
+    );
+    assert_eq!(&*controller.display().current.lock(), &foreign);
+    assert!(apply_rates(controller.display()).is_empty());
+}
+
+#[test]
+fn precommit_rejects_reused_device_name_on_a_different_path() {
+    let replacement = mode(&target(r"\\.\DISPLAY1", 9, true), 60);
+    let mut display = FakeDisplay::fixture();
+    display.test_effect = Some(replacement.clone());
+    let controller = controller(display);
+
+    assert!(
+        controller
+            .set_refresh_rate(PanelRefreshRequest::Fixed(120), ApplyMode::Commit)
+            .is_err()
+    );
+    assert_eq!(&*controller.display().current.lock(), &replacement);
+    assert!(apply_rates(controller.display()).is_empty());
+}
+
+#[test]
+fn mirrored_external_output_is_not_modified_through_internal_source() {
+    let mut display = FakeDisplay::fixture();
+    let mut external = display.targets[0].clone();
+    external.internal = false;
+    external.target_id += 1;
+    display.targets.push(external);
+    let controller = controller(display);
+
+    assert!(
+        controller
+            .set_refresh_rate(PanelRefreshRequest::Fixed(120), ApplyMode::Commit)
+            .is_err()
+    );
+    assert_eq!(controller.display().current.lock().refresh_hz, 60);
+    assert!(apply_rates(controller.display()).is_empty());
+}
+
+#[test]
+fn recovery_restores_layout_after_state_returns_to_requested_mode() {
     let previous = mode(&target(r"\\.\DISPLAY1", 1, true), 60);
     let unexpected = previous.with_refresh_hz(90);
     let display = FakeDisplay::fixture().with_readbacks([unexpected]);
@@ -385,35 +479,41 @@ fn readback_mismatch_rolls_back_the_complete_previous_mode() {
 }
 
 #[test]
-fn apply_failure_rolls_back_and_preserves_the_primary_error() {
-    let display = FakeDisplay::fixture().with_apply_results([
-        Err(LctrlError::FirmwareRejected {
-            detail: "injected apply failure".into(),
-        }),
-        Ok(()),
-    ]);
+fn failed_write_that_took_effect_recovers_and_preserves_the_primary_error() {
+    let requested = mode(&target(r"\\.\DISPLAY1", 1, true), 120);
+    let display = FakeDisplay::fixture()
+        .with_apply_effects([requested])
+        .with_apply_results([
+            Err(LctrlError::Io(std::io::Error::other(
+                "injected primary failure",
+            ))),
+            Ok(()),
+        ]);
     let controller = controller(display);
 
     let error = controller
         .set_refresh_rate(PanelRefreshRequest::Fixed(120), ApplyMode::Commit)
         .unwrap_err();
 
-    assert!(matches!(
-        error,
-        LctrlError::FirmwareRejected { ref detail } if detail == "injected apply failure"
-    ));
+    let LctrlError::Io(primary) = error else {
+        panic!("successful recovery must preserve the primary I/O error");
+    };
+    assert_eq!(primary.to_string(), "injected primary failure");
     assert_eq!(apply_rates(controller.display()), vec![120, 60]);
     assert_eq!(controller.display().current.lock().refresh_hz, 60);
 }
 
 #[test]
-fn rollback_failure_is_not_hidden() {
+fn failed_recovery_preserves_both_errors_and_unrestored_state() {
+    let requested = mode(&target(r"\\.\DISPLAY1", 1, true), 120);
     let display = FakeDisplay::fixture()
-        .with_readbacks([mode(&target(r"\\.\DISPLAY1", 1, true), 90)])
+        .with_apply_effects([requested.clone()])
         .with_apply_results([
-            Ok(()),
+            Err(LctrlError::Io(std::io::Error::other(
+                "injected primary failure",
+            ))),
             Err(LctrlError::ChannelUnavailable {
-                channel: "injected rollback failure".into(),
+                channel: "injected recovery failure".into(),
             }),
         ]);
     let controller = controller(display);
@@ -422,12 +522,44 @@ fn rollback_failure_is_not_hidden() {
         .set_refresh_rate(PanelRefreshRequest::Fixed(120), ApplyMode::Commit)
         .unwrap_err();
 
-    assert!(matches!(
-        error,
-        LctrlError::FirmwareRejected { ref detail }
-            if detail.contains("rollback also failed") && detail.contains("injected rollback failure")
-    ));
+    let LctrlError::FirmwareRejected { detail } = error else {
+        panic!("failed recovery must report the compound failure");
+    };
+    assert!(detail.contains("injected primary failure"));
+    assert!(detail.contains("injected recovery failure"));
     assert_eq!(apply_rates(controller.display()), vec![120, 60]);
+    assert_eq!(&*controller.display().current.lock(), &requested);
+}
+
+#[test]
+fn recovery_does_not_write_to_a_replacement_path() {
+    let replacement = mode(&target(r"\\.\DISPLAY1", 9, true), 120);
+    let display = FakeDisplay::fixture().with_apply_effects([replacement.clone()]);
+    let controller = controller(display);
+
+    assert!(
+        controller
+            .set_refresh_rate(PanelRefreshRequest::Fixed(120), ApplyMode::Commit)
+            .is_err()
+    );
+    assert_eq!(&*controller.display().current.lock(), &replacement);
+    assert_eq!(apply_rates(controller.display()), vec![120]);
+}
+
+#[test]
+fn unchanged_request_still_checks_for_concurrent_mode_change() {
+    let foreign = mode(&target(r"\\.\DISPLAY1", 1, true), 90);
+    let mut display = FakeDisplay::fixture();
+    display.test_effect = Some(foreign.clone());
+    let controller = controller(display);
+
+    assert!(
+        controller
+            .set_refresh_rate(PanelRefreshRequest::Fixed(60), ApplyMode::Commit)
+            .is_err()
+    );
+    assert_eq!(&*controller.display().current.lock(), &foreign);
+    assert!(apply_rates(controller.display()).is_empty());
 }
 
 #[test]
