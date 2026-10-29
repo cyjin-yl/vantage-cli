@@ -174,6 +174,14 @@ Windows 全局命名互斥量只串行化合作的本程序写入，不能阻止
 `evidence/target-panel-refresh-dryrun-20261029.json`。#22 的真实切换、自适应行为和
 完整替代仍未验收。
 
+目标机随后在交互控制台完成一次真实 120→60 Hz 提交:退出 0,独立 Win32 快照
+证实同一显示路径的活动模式只有 refresh 字段变化(120→60),分辨率、位深、
+旋转、偏移和注册表模式不变;随后守卫式恢复执行 60→120 Hz,独立快照证实
+回到 120 Hz 且同样仅 refresh 变化。全程不修改注册表持久模式,官方服务保持
+运行。脱敏回执见 `evidence/target-panel-refresh-commit-20261030.json`;
+多显示器拓扑、外部控制者并发竞争和进程崩溃中途恢复仍未验收,#22 的自适应
+行为与完整替代仍未验收。
+
 `LENOVO_INTERNAL_PANEL_REFRESH_RATE_DATA`(实例 `GMZN_0..GMZN_11`,每 GPU/输出一路,
 `Active=true` 为主屏):
 
