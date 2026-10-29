@@ -1,0 +1,188 @@
+{
+ "scope": "Actual interactive-console refresh transition on the single internal panel: dry-run, one verified 120->60 Hz commit, independent Win32 readback, and guarded restore to 120 Hz. Only the refresh field changed; registry mode stayed untouched.",
+ "machine": "TB14P-EZRA",
+ "source_code_commit": "6f0c6315be365265a543447377f5e80301dbf523",
+ "source_manifest_sha256": "8937c1cdc62473c68f4dd10c9499a45fa34831cf1bbe7e109e41d96568a09fb9",
+ "source_archive_sha256": "d9e7c9c65354f093685de6f819b410e97cf93b80813545f2eee165dccb904807",
+ "source_file_count": 140,
+ "native_binary_sha256": "666c79ede131925204cbbfcfca6f4b849cd9e7b8c3d807215f9e265b6c8804ad",
+ "merged_main_commit": "12feb1e2e4fdfa6badaf580963692fbd780b698d",
+ "observer_sha256": "af5b5d59e88db17dc77d1edd64eb688bdb6d7636fb72ff5d4bdfe1f6096414f6",
+ "commit_observer_sha256": "3acf0d6f1e92c1b3705159d2e7cbde42570d9fe598a3750b82c854be34f2c498",
+ "actual_cli_dry_run": {
+  "command": [
+   "vantage",
+   "--json",
+   "--dry-run",
+   "panel",
+   "rate",
+   "60"
+  ],
+  "previous_refresh_hz": 120,
+  "requested_refresh_hz": 60,
+  "native_exit_code": 0,
+  "report_mode": "dry_run",
+  "report_has_actual": false,
+  "independent_active_and_registry_modes_unchanged": true
+ },
+ "actual_cli_commit": {
+  "command": [
+   "vantage",
+   "--json",
+   "--yes",
+   "panel",
+   "rate",
+   "60"
+  ],
+  "previous_refresh_hz": 120,
+  "requested_refresh_hz": 60,
+  "actual_refresh_hz": 60,
+  "native_exit_code": 0,
+  "report_mode": "commit",
+  "independent_active_mode_after_commit": {
+   "width": 3072,
+   "height": 1920,
+   "bits": 32,
+   "refresh_hz": 60,
+   "rotation": 0,
+   "flags": 0,
+   "position_x": 0,
+   "position_y": 0
+  },
+  "only_refresh_field_changed": true,
+  "registry_mode_unchanged": true,
+  "same_display_path_identity": true,
+  "active_path_count": 1
+ },
+ "guarded_restore": {
+  "command": [
+   "vantage",
+   "--json",
+   "--yes",
+   "panel",
+   "rate",
+   "120"
+  ],
+  "expect_refresh_hz": 60,
+  "actual_refresh_hz": 120,
+  "native_exit_code": 0,
+  "report_mode": "commit",
+  "independent_active_mode_after_restore": {
+   "width": 3072,
+   "height": 1920,
+   "bits": 32,
+   "refresh_hz": 120,
+   "rotation": 0,
+   "flags": 0,
+   "position_x": 0,
+   "position_y": 0
+  },
+  "recovery_state": "verified_previous",
+  "same_display_path_identity": true,
+  "registry_mode_unchanged": true
+ },
+ "compatible_rates_hz": [
+  30,
+  48,
+  60,
+  75,
+  100,
+  120
+ ],
+ "observer_and_child_in_active_console": true,
+ "scheduled_task_exit": 0,
+ "scheduled_task_removed": true,
+ "forced_termination": false,
+ "official_services_running": true,
+ "vendor_processes_touched": false,
+ "private_original_receipts": [
+  {
+   "name": "progress.txt",
+   "length": 155,
+   "sha256": "a90c233c16a18313681c09ada37421c513fdece6c79d482d3bb64bb73a9b985b"
+  },
+  {
+   "name": "intent.json",
+   "length": 322,
+   "sha256": "f7e6b4c4277aa3b9351a901a48dcf47f904dde846949230e3415c0074d55c797"
+  },
+  {
+   "name": "before-private.json",
+   "length": 673,
+   "sha256": "d94d6045bdbe405d0fd40402469813ef476c2fc4f5d3756ab990022c3a247765"
+  },
+  {
+   "name": "after-dryrun-private.json",
+   "length": 673,
+   "sha256": "d94d6045bdbe405d0fd40402469813ef476c2fc4f5d3756ab990022c3a247765"
+  },
+  {
+   "name": "dryrun-native.out",
+   "length": 527,
+   "sha256": "ae7c8069e49facbc22ed3edb920aab26b40bb235b341e731a0473ab70b43292c"
+  },
+  {
+   "name": "dryrun-native.err",
+   "length": 0,
+   "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "name": "commit-intent.json",
+   "length": 91,
+   "sha256": "90f0970206d3404b9d56acd4fd27f5800b4a66f8bede4ab1678cebd569c25510"
+  },
+  {
+   "name": "commit-native.out",
+   "length": 777,
+   "sha256": "6e78ce8ecc2d674c87e003ddbb029f3907f6949f229af4395018230bc2a2ad72"
+  },
+  {
+   "name": "commit-native.err",
+   "length": 0,
+   "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "name": "after-commit-private.json",
+   "length": 672,
+   "sha256": "c848dd8393bbd1d9dbe2d29763f6b2db3f83a6c5ea256c5306592f4dd414cf06"
+  },
+  {
+   "name": "restore-intent.json",
+   "length": 80,
+   "sha256": "fc10224bf19290caf9fe3af15d7e40313bcce9597debeffdbc76e2cb0e8d1d82"
+  },
+  {
+   "name": "restore-native.out",
+   "length": 778,
+   "sha256": "5bd8044fecfe06879917e0a63c93512256cdcbe13a0cd02357270915e2378e53"
+  },
+  {
+   "name": "restore-native.err",
+   "length": 0,
+   "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "name": "final-private.json",
+   "length": 673,
+   "sha256": "d94d6045bdbe405d0fd40402469813ef476c2fc4f5d3756ab990022c3a247765"
+  },
+  {
+   "name": "final.json",
+   "length": 3019,
+   "sha256": "af8b80bba00e81bd015946e2db53f7fce1124342ed20fa93cde2d93fae105bcf"
+  },
+  {
+   "name": "dispatch-final.json",
+   "length": 524,
+   "sha256": "21c1845054cdf040fe984451983b34bb54fa8cd6ef6f73c82325eb2a3164016e"
+  }
+ ],
+ "limits": [
+  "Independent Win32 observation and the CLI both use related system APIs in separate processes; snapshots are not atomic.",
+  "One 120->60->120 transition on the single active internal path was verified; concurrent external controllers, other topologies and multi-monitor cases remain unexercised.",
+  "Process-crash mid-transition recovery was not exercised; the CLI-internal apply-failure recovery path is covered by fake-display tests only.",
+  "auto still resolves to the firmware default; dynamic adaptive behavior is not implemented or accepted.",
+  "Physical panel timing beyond the driver-observed active mode is not separately instrumented.",
+  "Official services were left running; no vendor process was stopped."
+ ]
+}
