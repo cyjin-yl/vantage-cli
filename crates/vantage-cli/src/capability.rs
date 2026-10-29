@@ -350,7 +350,7 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
         Command::Perf {
             command:
                 Some(PerfCommand::Temp {
-                    command: Some(TempCommand::Watch),
+                    command: Some(TempCommand::Watch { .. }),
                 }),
         } => CommandId::PERF_TEMP_WATCH,
         Command::Perf {
