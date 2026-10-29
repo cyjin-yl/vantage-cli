@@ -7,9 +7,12 @@
 
 use std::{
     collections::BTreeMap,
-    env, fs,
+    env,
+    fmt::Write as _,
+    fs,
     io::{self, IsTerminal, Write},
     path::{Path, PathBuf},
+    time::Duration,
 };
 
 use clap::{Parser, Subcommand, ValueEnum};
@@ -33,6 +36,20 @@ use serde_json::Value;
 
 /// Result returned by [`execute`].
 pub type CommandResult = lctrl_core::Result<CommandOutput>;
+
+/// The read-only observation produced by each streaming sample.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum StreamKind {
+    Telemetry,
+    Temperatures,
+}
+
+/// A streaming command and the minimum delay between completed samples.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct StreamSpec {
+    pub kind: StreamKind,
+    pub interval: Duration,
+}
 
 /// The explicit set of hardware services available to one CLI invocation.
 ///
@@ -264,6 +281,55 @@ impl Cli {
     }
 }
 
+/// Identify a streaming command and validate its sampling interval.
+///
+/// Telemetry without an interval is a single-result command. Temperature
+/// watch always streams, including when its default interval is used.
+pub fn stream_spec(cli: &Cli) -> lctrl_core::Result<Option<StreamSpec>> {
+    let (kind, seconds) = match &cli.command {
+        Command::Tune {
+            command:
+                Some(TuneCommand::Telemetry {
+                    interval: Some(seconds),
+                }),
+        } => (StreamKind::Telemetry, *seconds),
+        Command::Perf {
+            command:
+                Some(PerfCommand::Temp {
+                    command: Some(TempCommand::Watch { interval }),
+                }),
+        } => (StreamKind::Temperatures, *interval),
+        _ => return Ok(None),
+    };
+    if seconds == 0 {
+        return Err(LctrlError::InvalidArgument {
+            detail: "sampling interval must be at least one second".into(),
+        });
+    }
+    Ok(Some(StreamSpec {
+        kind,
+        interval: Duration::from_secs(seconds),
+    }))
+}
+
+/// Take one read-only sample; callers decide when to take the next sample.
+pub fn sample_stream(kind: StreamKind, services: &CommandServices<'_>) -> CommandResult {
+    match kind {
+        StreamKind::Telemetry => execute_tune_telemetry(services),
+        StreamKind::Temperatures => execute_temperature_list(services.temperature),
+    }
+}
+
+fn streaming_command_error(kind: StreamKind) -> LctrlError {
+    let command = match kind {
+        StreamKind::Telemetry => "tune.telemetry",
+        StreamKind::Temperatures => "perf.temp.watch",
+    };
+    LctrlError::Unsupported {
+        feature: format!("{command} requires the streaming API"),
+    }
+}
+
 /// Top-level `vantage` commands.
 #[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
 pub enum Command {
@@ -469,8 +535,14 @@ pub enum FanCommand {
 
 #[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
 pub enum TempCommand {
-    Read { id: String },
-    Watch,
+    Read {
+        id: String,
+    },
+    Watch {
+        /// Minimum delay between samples, in seconds.
+        #[arg(long, default_value_t = 1, value_parser = clap::value_parser!(u64).range(1..))]
+        interval: u64,
+    },
 }
 
 /// Tuning command tree.
@@ -496,7 +568,8 @@ pub enum TuneCommand {
     },
     Restore,
     Telemetry {
-        #[arg(long)]
+        /// Continuously sample with this minimum delay, in seconds.
+        #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
         interval: Option<u64>,
     },
     Watch,
@@ -989,6 +1062,9 @@ pub use lctrl_hal::{
 };
 
 pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> CommandResult {
+    if let Some(spec) = stream_spec(&cli)? {
+        return Err(streaming_command_error(spec.kind));
+    }
     let invalid_brightness = match &cli.command {
         Command::Panel {
             command:
@@ -1632,45 +1708,71 @@ fn execute_tune_turbo(
 }
 
 fn execute_tune_telemetry(services: &CommandServices<'_>) -> CommandResult {
-    let mut telemetry = BTreeMap::new();
+    let mut telemetry = serde_json::Map::new();
     if let Some(tuning) = services.tuning {
-        telemetry.insert("epp", serialize_change(&capture_optional(tuning.epp()))?);
+        telemetry.insert(
+            "epp".into(),
+            serialize_change(&capture_optional(tuning.epp()))?,
+        );
         for (name, kind) in [
             ("pl1_uw", PowerLimitKind::Pl1),
             ("pl2_uw", PowerLimitKind::Pl2),
             ("tau_us", PowerLimitKind::Tau),
         ] {
             telemetry.insert(
-                name,
+                name.into(),
                 serialize_change(&capture_optional(tuning.power_limit(kind)))?,
             );
         }
     }
     if let Some(battery) = services.battery {
         telemetry.insert(
-            "device_battery",
+            "device_battery".into(),
             serialize_change(&capture_optional(battery.battery_telemetry(0)))?,
         );
         telemetry.insert(
-            "os_battery",
+            "os_battery".into(),
             serialize_change(&capture_optional(battery.os_battery_snapshot()))?,
         );
         telemetry.insert(
-            "battery_electrical",
+            "battery_electrical".into(),
             serialize_change(&capture_optional(battery.battery_electrical()))?,
         );
         telemetry.insert(
-            "system_power",
+            "system_power".into(),
             serialize_change(&capture_optional(battery.system_power_status()))?,
         );
     }
     if let Some(performance) = services.performance {
         telemetry.insert(
-            "performance",
+            "performance".into(),
             serialize_change(&capture_optional(performance.performance_state()))?,
         );
     }
-    structured_output(&telemetry, "tuning telemetry collected\n".into())
+    let temperatures = match services.temperature {
+        Some(temperature) => temperature.temperature_sensors(),
+        None => Err(LctrlError::Unsupported {
+            feature: "perf.temp".into(),
+        }),
+    };
+    telemetry.insert(
+        "temperatures".into(),
+        serialize_change(&capture_optional(temperatures))?,
+    );
+
+    let mut human = String::from("tuning telemetry:\n");
+    for (name, observation) in &telemetry {
+        if let Some(error) = observation.get(1).filter(|value| !value.is_null()) {
+            writeln!(&mut human, "  {name}: unavailable ({error})")
+                .expect("writing to a string cannot fail");
+        } else if let Some(value) = observation.get(0) {
+            writeln!(&mut human, "  {name}: {value}").expect("writing to a string cannot fail");
+        }
+    }
+    Ok(CommandOutput {
+        human,
+        json: Value::Object(telemetry),
+    })
 }
 
 fn execute_temperature_list(temperature: Option<&dyn TemperatureControl>) -> CommandResult {
@@ -1678,10 +1780,29 @@ fn execute_temperature_list(temperature: Option<&dyn TemperatureControl>) -> Com
         feature: "perf.temp".into(),
     })?;
     let sensors = temperature.temperature_sensors()?;
-    structured_output(
-        &sensors,
-        format!("{} temperature sensor(s)\n", sensors.len()),
-    )
+    let mut human = String::new();
+    if sensors.is_empty() {
+        human.push_str("no temperature sensors reported\n");
+    }
+    for sensor in &sensors {
+        if let Some(value) = sensor.value_c {
+            write!(&mut human, "{}: {value:.1}°C", sensor.metadata.name)
+                .expect("writing to a string cannot fail");
+        } else {
+            write!(&mut human, "{}: unavailable", sensor.metadata.name)
+                .expect("writing to a string cannot fail");
+        }
+        writeln!(
+            &mut human,
+            " (id: {}; source: {:?}; location: {:?}; availability: {})",
+            sensor.metadata.id,
+            sensor.metadata.source,
+            sensor.metadata.location,
+            availability_label(sensor.metadata.availability),
+        )
+        .expect("writing to a string cannot fail");
+    }
+    structured_output(&sensors, human)
 }
 
 fn execute_fan_status(fan: Option<&dyn FanControl>) -> CommandResult {
@@ -1703,11 +1824,11 @@ fn execute_temperature(
     temperature: Option<&dyn TemperatureControl>,
     command: TempCommand,
 ) -> CommandResult {
-    let temperature = temperature.ok_or_else(|| LctrlError::Unsupported {
-        feature: "perf.temp".into(),
-    })?;
     match command {
         TempCommand::Read { id } => {
+            let temperature = temperature.ok_or_else(|| LctrlError::Unsupported {
+                feature: "perf.temp".into(),
+            })?;
             let sensor = temperature.temperature(&id)?;
             structured_output(
                 &sensor,
@@ -1720,9 +1841,7 @@ fn execute_temperature(
                 ),
             )
         }
-        TempCommand::Watch => Err(LctrlError::Unsupported {
-            feature: "perf.temp.watch.daemon-events".into(),
-        }),
+        TempCommand::Watch { .. } => Err(streaming_command_error(StreamKind::Temperatures)),
     }
 }
 

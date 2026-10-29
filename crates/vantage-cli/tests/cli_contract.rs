@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
 
 use parking_lot::Mutex;
 
@@ -9,10 +10,11 @@ use lctrl_core::{
 };
 use lctrl_hal::{
     BatteryControl, BiosControl, ControlConflictDetection, Hal, PanelBrightnessControl,
-    PerformanceControl, PowerControl, PrivacyControl,
+    PerformanceControl, PowerControl, PrivacyControl, TemperatureControl,
 };
 use vantage_cli::{
-    Cli, CommandResult, CommandServices, execute, execute_with_services, render_error,
+    Cli, Command, CommandResult, CommandServices, PerfCommand, StreamKind, StreamSpec, TempCommand,
+    TuneCommand, execute, execute_with_services, render_error, sample_stream, stream_spec,
 };
 
 struct FakeHal {
@@ -159,6 +161,423 @@ fn representative_command_paths_parse() {
             panic!("failed to parse {args:?}: {error}");
         });
     }
+}
+
+struct ChangingTemperatures {
+    reads: AtomicUsize,
+    fail: bool,
+}
+
+impl ChangingTemperatures {
+    fn new(fail: bool) -> Self {
+        Self {
+            reads: AtomicUsize::new(0),
+            fail,
+        }
+    }
+}
+
+impl TemperatureControl for ChangingTemperatures {
+    fn temperature_sensors(&self) -> lctrl_core::Result<Vec<lctrl_core::TemperatureSensor>> {
+        let sample = self.reads.fetch_add(1, Ordering::SeqCst);
+        if self.fail {
+            return Err(LctrlError::ChannelUnavailable {
+                channel: "fixture thermal source".into(),
+            });
+        }
+        let value_c = match sample {
+            0 => 42.5,
+            1 => 43.5,
+            2 => 44.5,
+            _ => 45.5,
+        };
+        Ok(vec![
+            lctrl_core::TemperatureSensor {
+                metadata: lctrl_core::TemperatureSensorMetadata {
+                    id: "cpu0".into(),
+                    name: "CPU package".into(),
+                    source: lctrl_core::TemperatureSource::Sysfs,
+                    location: lctrl_core::TemperatureLocation::Cpu,
+                    availability: Availability::Available,
+                },
+                value_c: Some(value_c),
+            },
+            lctrl_core::TemperatureSensor {
+                metadata: lctrl_core::TemperatureSensorMetadata {
+                    id: "gpu0".into(),
+                    name: "GPU".into(),
+                    source: lctrl_core::TemperatureSource::Sysfs,
+                    location: lctrl_core::TemperatureLocation::Gpu,
+                    availability: Availability::Unavailable,
+                },
+                value_c: None,
+            },
+        ])
+    }
+
+    fn temperature(&self, id: &str) -> lctrl_core::Result<lctrl_core::TemperatureSensor> {
+        self.temperature_sensors()?
+            .into_iter()
+            .find(|sensor| sensor.metadata.id == id)
+            .ok_or_else(|| LctrlError::InvalidArgument {
+                detail: format!("unknown sensor {id}"),
+            })
+    }
+}
+
+#[derive(Default)]
+struct TelemetryBattery {
+    writes: AtomicUsize,
+}
+
+impl BatteryControl for TelemetryBattery {
+    fn battery_telemetry(&self, _: u32) -> lctrl_core::Result<lctrl_core::BatteryTelemetry> {
+        Err(LctrlError::ChannelUnavailable {
+            channel: "fixture battery".into(),
+        })
+    }
+
+    fn adapter_info(&self) -> lctrl_core::Result<AdapterInfo> {
+        Err(LctrlError::Unsupported {
+            feature: "fixture adapter".into(),
+        })
+    }
+
+    fn charge_mode(&self) -> lctrl_core::Result<ChargeModeActual> {
+        Err(LctrlError::Unsupported {
+            feature: "fixture charge mode".into(),
+        })
+    }
+
+    fn set_charge_mode(
+        &self,
+        _: ChargeMode,
+        _: ApplyMode,
+    ) -> lctrl_core::Result<ChangeReport<ChargeMode>> {
+        self.writes.fetch_add(1, Ordering::SeqCst);
+        Err(LctrlError::Unsupported {
+            feature: "fixture charge mode".into(),
+        })
+    }
+}
+
+#[derive(Default)]
+struct TelemetryPerformance {
+    writes: AtomicUsize,
+}
+
+impl PerformanceControl for TelemetryPerformance {
+    fn performance_state(&self) -> lctrl_core::Result<lctrl_core::PerformanceState> {
+        Err(LctrlError::ChannelUnavailable {
+            channel: "fixture performance".into(),
+        })
+    }
+
+    fn set_performance_mode(
+        &self,
+        _: lctrl_core::PerformanceMode,
+        _: ApplyMode,
+    ) -> lctrl_core::Result<ChangeReport<lctrl_core::PerformanceMode>> {
+        self.writes.fetch_add(1, Ordering::SeqCst);
+        Err(LctrlError::Unsupported {
+            feature: "fixture performance".into(),
+        })
+    }
+}
+
+#[test]
+fn stream_intervals_are_positive_and_specified_in_seconds() {
+    let invalid_args: &[&[&str]] = &[
+        &["vantage", "tune", "telemetry", "--interval", "0"],
+        &["vantage", "perf", "temp", "watch", "--interval", "0"],
+        &["vantage", "tune", "telemetry", "--interval", "1.5"],
+        &["vantage", "perf", "temp", "watch", "--interval", "-1"],
+    ];
+    for args in invalid_args {
+        assert!(Cli::try_parse_from(*args).is_err());
+    }
+
+    let valid: &[(&[&str], StreamKind, u64)] = &[
+        (
+            &["vantage", "tune", "telemetry", "--interval", "3"],
+            StreamKind::Telemetry,
+            3,
+        ),
+        (
+            &["vantage", "perf", "temp", "watch"],
+            StreamKind::Temperatures,
+            1,
+        ),
+        (
+            &["vantage", "perf", "temp", "watch", "--interval", "2"],
+            StreamKind::Temperatures,
+            2,
+        ),
+    ];
+    for (args, kind, seconds) in valid {
+        let cli = Cli::try_parse_from(*args).unwrap();
+        assert_eq!(
+            stream_spec(&cli).unwrap(),
+            Some(StreamSpec {
+                kind: *kind,
+                interval: Duration::from_secs(*seconds),
+            })
+        );
+    }
+
+    let zero_commands = [
+        Command::Tune {
+            command: Some(TuneCommand::Telemetry { interval: Some(0) }),
+        },
+        Command::Perf {
+            command: Some(PerfCommand::Temp {
+                command: Some(TempCommand::Watch { interval: 0 }),
+            }),
+        },
+    ];
+    let hal = FakeHal::new("unused");
+    let temperatures = ChangingTemperatures::new(false);
+    for command in zero_commands {
+        let cli = Cli {
+            json: false,
+            dry_run: false,
+            yes: false,
+            command,
+        };
+        assert!(matches!(
+            stream_spec(&cli),
+            Err(LctrlError::InvalidArgument { .. })
+        ));
+        assert!(matches!(
+            execute_with_services(
+                cli,
+                CommandServices::new(&hal).with_temperature(&temperatures)
+            ),
+            Err(LctrlError::InvalidArgument { .. })
+        ));
+    }
+    assert_eq!(temperatures.reads.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn telemetry_without_interval_is_one_read_only_sample() {
+    let cli = Cli::try_parse_from(["vantage", "tune", "telemetry"]).unwrap();
+    assert_eq!(stream_spec(&cli).unwrap(), None);
+    let hal = FakeHal::new("unused");
+    let temperatures = ChangingTemperatures::new(false);
+    let tuning = FakeTune {
+        epp_calls: Mutex::new(Vec::new()),
+    };
+
+    let output = execute_with_services(
+        cli,
+        CommandServices::new(&hal)
+            .with_temperature(&temperatures)
+            .with_tuning(&tuning),
+    )
+    .unwrap();
+
+    assert_eq!(temperatures.reads.load(Ordering::SeqCst), 1);
+    assert_eq!(output.json["temperatures"][0][0]["value_c"], 42.5);
+    assert_eq!(
+        output.json["temperatures"][0][0]["metadata"]["source"],
+        "sysfs"
+    );
+    assert!(output.json["temperatures"][0][1]["value_c"].is_null());
+    assert_eq!(output.json["epp"][0], 128);
+    assert_eq!(output.json["pl1_uw"][1]["error"]["kind"], "unsupported");
+    assert!(output.human.contains("42.5"));
+    assert!(output.human.contains("sysfs"));
+    assert!(output.human.contains("128"));
+    assert!(output.human.contains("unavailable"));
+    assert!(tuning.epp_calls.lock().is_empty());
+}
+
+#[test]
+fn single_result_execution_rejects_streams_before_sampling() {
+    let commands: &[&[&str]] = &[
+        &["vantage", "tune", "telemetry", "--interval", "1"],
+        &["vantage", "perf", "temp", "watch"],
+    ];
+    let hal = FakeHal::new("unused");
+    let temperatures = ChangingTemperatures::new(false);
+    let tuning = FakeTune {
+        epp_calls: Mutex::new(Vec::new()),
+    };
+    for args in commands {
+        let cli = Cli::try_parse_from(*args).unwrap();
+        assert!(matches!(
+            execute(cli.clone(), &hal),
+            Err(LctrlError::Unsupported { .. })
+        ));
+        assert!(matches!(
+            execute_with_services(
+                cli,
+                CommandServices::new(&hal)
+                    .with_temperature(&temperatures)
+                    .with_tuning(&tuning),
+            ),
+            Err(LctrlError::Unsupported { .. })
+        ));
+    }
+    assert_eq!(temperatures.reads.load(Ordering::SeqCst), 0);
+    assert!(tuning.epp_calls.lock().is_empty());
+}
+
+#[test]
+fn successive_stream_samples_observe_changing_sensors_without_writes() {
+    let hal = FakeHal::new("unused");
+    let temperatures = ChangingTemperatures::new(false);
+    let battery = TelemetryBattery::default();
+    let performance = TelemetryPerformance::default();
+    let tuning = FakeTune {
+        epp_calls: Mutex::new(Vec::new()),
+    };
+    let services = CommandServices::new(&hal)
+        .with_temperature(&temperatures)
+        .with_battery(&battery)
+        .with_performance(&performance)
+        .with_tuning(&tuning);
+
+    let first = sample_stream(StreamKind::Telemetry, &services).unwrap();
+    let second = sample_stream(StreamKind::Telemetry, &services).unwrap();
+    let third = sample_stream(StreamKind::Temperatures, &services).unwrap();
+    let fourth = sample_stream(StreamKind::Temperatures, &services).unwrap();
+
+    assert_eq!(first.json["temperatures"][0][0]["value_c"], 42.5);
+    assert_eq!(second.json["temperatures"][0][0]["value_c"], 43.5);
+    assert_eq!(first.json["epp"][0], 128);
+    for field in ["pl1_uw", "pl2_uw", "tau_us"] {
+        assert_eq!(first.json[field][1]["error"]["kind"], "unsupported");
+    }
+    assert_eq!(
+        first.json["device_battery"][1]["error"]["channel"],
+        "fixture battery"
+    );
+    assert_eq!(
+        first.json["performance"][1]["error"]["channel"],
+        "fixture performance"
+    );
+    assert_eq!(first.json["os_battery"][1]["error"]["kind"], "unsupported");
+    assert_eq!(
+        first.json["battery_electrical"][1]["error"]["kind"],
+        "unsupported"
+    );
+    assert_eq!(
+        first.json["system_power"][1]["error"]["kind"],
+        "unsupported"
+    );
+    assert_eq!(third.json[0]["value_c"], 44.5);
+    assert_eq!(fourth.json[0]["value_c"], 45.5);
+    assert_eq!(fourth.json[0]["metadata"]["id"], "cpu0");
+    assert_eq!(fourth.json[0]["metadata"]["source"], "sysfs");
+    assert!(fourth.json[1]["value_c"].is_null());
+    assert!(fourth.human.contains("45.5"));
+    assert!(fourth.human.contains("Sysfs"));
+    assert!(fourth.human.contains("unavailable"));
+    assert_eq!(temperatures.reads.load(Ordering::SeqCst), 4);
+    assert_eq!(battery.writes.load(Ordering::SeqCst), 0);
+    assert_eq!(performance.writes.load(Ordering::SeqCst), 0);
+    assert!(tuning.epp_calls.lock().is_empty());
+}
+
+#[test]
+fn temperature_observations_preserve_missing_and_read_error_provenance() {
+    let hal = FakeHal::new("unused");
+    let missing = CommandServices::new(&hal);
+    let missing_output = execute(
+        Cli::try_parse_from(["vantage", "tune", "telemetry"]).unwrap(),
+        &hal,
+    )
+    .unwrap();
+    assert!(missing_output.json["temperatures"][0].is_null());
+    assert_eq!(
+        missing_output.json["temperatures"][1]["error"]["kind"],
+        "unsupported"
+    );
+    assert_eq!(
+        missing_output.json["temperatures"][1]["error"]["feature"],
+        "perf.temp"
+    );
+    assert!(missing_output.human.contains("unavailable"));
+    assert!(matches!(
+        sample_stream(StreamKind::Temperatures, &missing),
+        Err(LctrlError::Unsupported { .. })
+    ));
+
+    let temperatures = ChangingTemperatures::new(true);
+    let failing = CommandServices::new(&hal).with_temperature(&temperatures);
+    let failed_output = execute_with_services(
+        Cli::try_parse_from(["vantage", "tune", "telemetry"]).unwrap(),
+        CommandServices::new(&hal).with_temperature(&temperatures),
+    )
+    .unwrap();
+    assert!(failed_output.json["temperatures"][0].is_null());
+    assert_eq!(
+        failed_output.json["temperatures"][1]["error"]["kind"],
+        "channel_unavailable"
+    );
+    assert_eq!(
+        failed_output.json["temperatures"][1]["error"]["channel"],
+        "fixture thermal source"
+    );
+    assert!(failed_output.human.contains("fixture thermal source"));
+    let failed_sample = sample_stream(StreamKind::Telemetry, &failing).unwrap();
+    assert_eq!(
+        failed_sample.json["temperatures"],
+        failed_output.json["temperatures"]
+    );
+    assert!(matches!(
+        sample_stream(StreamKind::Temperatures, &failing),
+        Err(LctrlError::ChannelUnavailable { channel }) if channel == "fixture thermal source"
+    ));
+}
+
+#[test]
+fn capability_output_describes_temperature_streams_as_read_only_polling() {
+    let hal = FakeHal::new("unused");
+    let output = execute(
+        Cli::try_parse_from(["vantage", "capability"]).unwrap(),
+        &hal,
+    )
+    .unwrap();
+    let rows = output.json.as_array().unwrap();
+    let watch = rows
+        .iter()
+        .find(|row| row["command"] == "perf.temp.watch")
+        .unwrap();
+    assert_eq!(watch["axes"]["read"], true);
+    assert_eq!(watch["axes"]["write"], false);
+    assert_ne!(watch["status"], "unsupported");
+    assert!(
+        watch["feature_ids"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|id| id == "perf.temp")
+    );
+    assert_eq!(watch["service_roles"], serde_json::json!(["temperature"]));
+
+    let telemetry = rows
+        .iter()
+        .find(|row| row["command"] == "tune.telemetry")
+        .unwrap();
+    assert_eq!(telemetry["axes"]["read"], true);
+    assert_eq!(telemetry["axes"]["write"], false);
+    assert!(
+        telemetry["feature_ids"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|id| id == "perf.temp")
+    );
+    assert!(
+        telemetry["service_roles"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|role| role == "temperature")
+    );
 }
 
 #[test]

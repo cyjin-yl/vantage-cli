@@ -611,10 +611,14 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
     CommandCapability::new(
         CommandId::PERF_TEMP_WATCH,
         CommandAxes::read_only(StateLayer::Runtime),
-        FeatureBinding::ServiceOnly,
-        ServiceBinding::One(ServiceRole::Events),
-        &[],
-        DispatchSupport::Unsupported("no documented temperature-sample event class exists"),
+        FeatureBinding::Capability("perf.temp"),
+        ServiceBinding::One(ServiceRole::Temperature),
+        &[
+            lctrl_core::required(Dependency::PublicWin32Cim),
+            lctrl_core::optional(Dependency::EnergyDriver),
+            lctrl_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
     ),
     CommandCapability::new(
         CommandId::PERF_PL1,
@@ -806,11 +810,13 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             "tune.tau",
             "battery.status",
             "perf.mode",
+            "perf.temp",
         ]),
         ServiceBinding::Composite(&[
             ServiceRole::Tuning,
             ServiceRole::Battery,
             ServiceRole::Performance,
+            ServiceRole::Temperature,
         ]),
         &[],
         DispatchSupport::Implemented,
