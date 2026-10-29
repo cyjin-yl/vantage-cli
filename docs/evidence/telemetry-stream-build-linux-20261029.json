@@ -1,0 +1,157 @@
+{
+  "scope": "Exact Windows native build/fake contracts and actual Linux telemetry-stream smoke. This receipt does not claim the pending Windows stream/interrupt runtime proof.",
+  "tested_code_commit": "699bda95989a22e1909e538e44f6d1439b5414bd",
+  "source": {
+    "manifest_sha256": "d7630bd6164e3d72abc2fb209fc54a84b20465f0b5bc2488510c191325774cdf",
+    "archive_sha256": "a15ba38e493a5918cf54c4ec0b255820891b9c2694bdc3c5304791438a0dc105",
+    "build_file_count": 140,
+    "membership_equal": true,
+    "bytes_equal_before_and_after_native_build": true,
+    "dependency_binding_sha256": "08516a7de379e8694e94db99fd4e62039ac14e8657155affb796eff2bb67e2bc"
+  },
+  "code_head_ci": {
+    "run": 633,
+    "head": "699bda95989a22e1909e538e44f6d1439b5414bd",
+    "conclusion": "success"
+  },
+  "windows_build": {
+    "machine": "TB14P-EZRA",
+    "binary_sha256": "aa4eecd3eaf70dbf360895b7cf286d2869c66a52db38cabbf0b1c44edef0b9e7",
+    "binary_bytes": 3859456,
+    "build_exit": 0,
+    "capability_test_exit": 0,
+    "cli_test_exit": 0,
+    "native_capability_fake_tests": 13,
+    "native_cli_fake_tests": 43,
+    "build_receipt_sha256": "24a17168d3cc120f8eb66758e4781c9a9d8befa33267a6ac4ec16f8b85f9eccc",
+    "logs": [
+      {
+        "role": "build.out",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "length": 0
+      },
+      {
+        "role": "build.err",
+        "sha256": "831f55f07d5c4aa795a32d3225227b533cf8208a2c70ed4807da4057658b7f88",
+        "length": 3262
+      },
+      {
+        "role": "native-test.out",
+        "sha256": "f23efe0a9c0fd4c34b17f15b3a5da2185cbc0a356bc79ef970d19343f7405a71",
+        "length": 1006
+      },
+      {
+        "role": "native-test.err",
+        "sha256": "91fbe607e18e085cd7cae0b8ac99b76c6598ff1d74f777f0ded312589cd3bc64",
+        "length": 1165
+      },
+      {
+        "role": "contract-test.out",
+        "sha256": "f83c640255cba22c7383491b7ce936ffcda676e0993867e99a342b1428f0b943",
+        "length": 3043
+      },
+      {
+        "role": "contract-test.err",
+        "sha256": "83909e3181c43544cf4fd92ec081890e30c4f50a756e65b3b989c4e297c53bcc",
+        "length": 312
+      }
+    ],
+    "receipt_files": [
+      {
+        "name": "vantage-telemetry-source-readback-d7630bd6164e3d72.json",
+        "length": 19838,
+        "sha256": "5f09a8fd217238df8ba5146ec00707e3a2f8bef4f282049748b646f7e9a4930b"
+      },
+      {
+        "name": "vantage-telemetry-dependency-binding-d7630bd6164e3d72.json",
+        "length": 303,
+        "sha256": "95a531d160a0cc202dbc82f5343befdaa5e7e3d35416b238a9551946247e5edd"
+      },
+      {
+        "name": "vantage-telemetry-native-d7630bd6164e3d72-directwait1.json",
+        "length": 976,
+        "sha256": "24a17168d3cc120f8eb66758e4781c9a9d8befa33267a6ac4ec16f8b85f9eccc"
+      },
+      {
+        "name": "vantage-telemetry-postbuild-readback-d7630bd6164e3d72.json",
+        "length": 2351,
+        "sha256": "1ed5c816f65dedb5aeec191f8746983b004ffe36c11b4d0fb15add7eeb9dd4fe"
+      }
+    ]
+  },
+  "linux_runtime": {
+    "telemetry": {
+      "command": "vantage --json tune telemetry --interval 1",
+      "binary_sha256": "db3f8a0b93d0664f71053ce849f28dd2560092bd2ed6e0c782adfb4a2eb89099",
+      "samples_observed": 2,
+      "first_gap_seconds": 1.006,
+      "interrupt": "SIGINT to owned process group",
+      "exit_code": -2,
+      "forced_kill": false,
+      "stdout_sha256": "4e906075fb5ceb9b669b87913bfef95aee0f65e2e24330affda41e9d5d2d7265",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "temperature_field_present": true,
+      "daemon_requested": false,
+      "hardware_writes_requested": false
+    },
+    "temperature_watch": {
+      "samples": 2,
+      "exit_code": -2,
+      "sigint_sent": true,
+      "forced_kill": false,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "hardware_writes_requested": false,
+      "sample_gap_seconds": 1.0048
+    },
+    "boundaries": {
+      "binary_sha256": "db3f8a0b93d0664f71053ce849f28dd2560092bd2ed6e0c782adfb4a2eb89099",
+      "zero_interval": {
+        "exit_code": 2,
+        "stdout_empty": true,
+        "error_kind": "invalid_argument"
+      },
+      "consumer_disconnect": {
+        "exit_code": 1,
+        "error_kind": "io",
+        "first_complete_json_line_observed": true
+      },
+      "verification_source": "Actual CLI subprocess observations in this session; supporting transcripts retained, no replay.",
+      "daemon_requested": false,
+      "hardware_writes_requested": false
+    },
+    "private_receipt_hashes": [
+      {
+        "name": "telemetry.out",
+        "length": 4122,
+        "sha256": "4e906075fb5ceb9b669b87913bfef95aee0f65e2e24330affda41e9d5d2d7265"
+      },
+      {
+        "name": "telemetry.err",
+        "length": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "result.json",
+        "length": 573,
+        "sha256": "dfb80d8652535bbaae8106762a1bf5f996bc9f463d8af61144e266828613901a"
+      },
+      {
+        "name": "temperature-watch.json",
+        "length": 242,
+        "sha256": "4edbd8c0875c9019c520b5688f371702090826fed1c9aaf143fd00f23cf1f29a"
+      },
+      {
+        "name": "edge-cases.json",
+        "length": 512,
+        "sha256": "252d01042926fd838a740b1fb648d6363bc125004cbdeb4c96f72b521a558fff"
+      }
+    ]
+  },
+  "limits": [
+    "Windows sampling/interrupt runtime has not yet been verified in this receipt.",
+    "Linux SIGINT exit and native fake contracts do not prove Windows console interruption.",
+    "Two Linux samples demonstrate the exercised finite interval path, not a long-running leak test.",
+    "Reads are non-atomic and native WMI calls may block independently of sample interval.",
+    "No hardware writes, daemon startup, CPU/GPU package-power measurement or full replacement acceptance."
+  ]
+}

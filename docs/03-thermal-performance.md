@@ -2,6 +2,8 @@
 
 > 本文档面向 **实现者**,规定 `vantage perf` 命令子树在 Lenovo 21VG (ThinkBook 14+ 2026, Panther Lake) 上实现时的全部行为契约:性能模式状态机、风扇控制、温度读取、功耗墙 (PL1/PL2/DBDC) 与超频、智能调度、PCManager 省电策略、WMI 事件订阅。
 
+> **交付边界(2026-10-30)**:本文包含历史接口记录和未完成的设计,不是上述功能的真机验收声明。本次实时流变更仅覆盖只读温度观测及定时输出;来源不明的 ACPI thermal zone 不标为 CPU/GPU,风扇 min/max 不当作实时 RPM。构建与 Linux 运行见 [构建证据](evidence/telemetry-stream-build-linux-20261029.json);Windows 有限采样、独立热区对照及控制台中断见 [C19](C-acceptance.md#c19--只读遥测与温度流的有限运行验收)。
+
 依赖:
 - 通道与设备节点详见 01 (`01-hal-interfaces.md`)。
 - 电池/充电阈值详见 02 (`02-power-battery.md`)。
@@ -24,7 +26,7 @@
 
 **关键约束**:所有"下发型"命令在 Windows 上均要求以管理员权限执行,且 `AcpiVpc.sys` (EnergyVpc) 与 `ipf_acpi` 驱动必须已加载;Linux 后端仅通过 `ideapad_laptop` / sysfs / ACPI 暴露能力,若缺失应返回 `ENOTSUP`。
 
-**与 PCManager / Vantage 互斥**:同一时刻只能有一方控制 `LENOVO_GAMEZONE_DATA` 与 `LenovoProcessManagement` 服务;`vantage` 应主动检测二者是否运行 (`QueryServiceStatus` / `GetNamedSecurityInfo` 命名管道),并提示用户先停止官方软件。
+**与 PCManager / Vantage 共存**:本次只读温度/遥测流不要求停止或禁用任何官方服务。后续写入需要已验证的接口、独立回读和并发冲突/恢复验收,不能通过停用官方软件来绕过尚未完成的写入准入。
 
 ---
 
@@ -32,7 +34,7 @@
 
 ### 2.1 模式枚举
 
-Windows 上的 ITS/Dispatcher 服务(`LenovoProcessManagement`)和 WMI `LENOVO_GAMEZONE_DATA` 各有一套独立的模式编号体系。`vantage` 必须对二者同时写入,语义才能一致。
+Windows 上的 ITS/Dispatcher 服务(`LenovoProcessManagement`)和 WMI `LENOVO_GAMEZONE_DATA` 在历史记录中有独立的模式编号体系。以下编号不是目标机双通道写入的准入证明,不能据此同时试写。
 
 **A) ITS/Dispatcher 服务枚举 (`ItsModeType`)**
 
@@ -293,25 +295,18 @@ RPM 单位在 `Fan_Flag = 0` 时直接使用;`Fan_Flag = 1` 时需要乘以 `(Fa
 
 ### 3.4 直读通道 (`\\.\SIO8786`)
 
-PCManager `GameSettingsPlugin.dll` 通过 `DeviceIoControl` 打开 `\\.\SIO8786` (Intel Super I/O 芯片, 挂载在 EC 上), 用自定义命令字 `SIO8786GetFan` 实时读取当前风扇实际转速,绕过 WMI 缓存。
-
-- **设备路径**:`\\.\SIO8786`。
-- **方法**:`CreateFile` 打开, `DeviceIoControl` 发送 IO 控制码;具体的 `IOCTL_CODE` 数值在 `GameSettingsPlugin.dll` 内部,随驱动版本变动;实现者应:
-  1. 优先使用 WMI 回读 (`GetFanCoolingStatus` / `Fan_Get_Table` 中的当前阶段) 获取"目标"转速。
-  2. 若设备节点存在,尝试直读作为"实际"转速;若失败降级为 WMI 目标值。
-- **Linux 后端**:无等效 `SIO8786` 设备。通过 `/sys/devices/platform/lenovo_*` 或 ACPI `THRF` 暴露实际转速,若缺失则回退 WMI (Windows 通过 SMBIOS 或 /proc/acpi/thermal_zone)。
+历史记录提及此私有设备与 `SIO8786GetFan` 名称,但没有已准入的公开 IOCTL 契约或本机
+实时转速证据。设备节点存在不能授权猜测调用,也不得检查厂商二进制来补齐控制码。
+目标转速、曲线阶段和 min/max 元数据不能替代实际 RPM;缺少实时来源时应明确不可用。
 
 ### 3.4b 备选写入通道 (`LnCoolit.sys`,未决)
 
-PCManager 另捆绑自有散热驱动 `Modules/drivers/LnCoolit/x64/LnCoolit.sys`(由 `IdeaFanPlugin.dll` 装载使用,
-推测用于下发自定义风扇曲线)。**其 IOCTL 码表未完成解析**——净室实现不需要它:
-WMI `LENOVO_FAN_METHOD`(§3.3 `Fan_Set_Table`)已覆盖风扇曲线写入,`LnCoolit` 仅为官方的冗余私有路径。
-标注 [推断];若实测发现 `Fan_Set_Table` 在目标机不可用,再回到 LnCoolit 组件分析。
-证据:`电脑管家组件内部结构说明。
+此名称仅保留为历史候选,不是实现依赖或允许逆向的路径。WMI 方法名称本身也不能证明
+目标机风扇曲线写入可用;缺少公开契约、能力准入和独立实际回读时保持写入门禁。
 
 ### 3.5 手动 / 自动 / 全速模式
 
-`vantage` 应暴露三种风扇控制"档位",各自对应 WMI 层不同组合:
+以下是尚未通过目标机验收的历史模式候选,不是可直接执行的调用配方:
 
 | `vantage` 档 | WMI 组合 |
 |---|---|
@@ -406,22 +401,33 @@ Linux 上应优先使用 `/sys/class/thermal/` 下的内核热区:
 ### 4.4 `vantage` CLI 契约
 
 ```
-vantage perf temp list          # 列出所有传感器: id, name, source, location
+vantage perf temp               # 列出所有传感器: id, name, source, location
 vantage perf temp read <id>     # 读取单一传感器 (°C)
-vantage perf temp watch         # 持续轮询 (默认 1s 间隔)
+vantage perf temp watch [--interval S]  # 持续轮询，默认 1 秒
 ```
 
-返回 JSON:
+`watch` 立即读取一次，此后每次读取完成后等待 S 秒;S 为正整数。无需 daemon，串行读取，
+不积累采样历史。`--json` 每行输出一个完整 JSON 数组并刷新输出;普通输出包含实测值和
+来源。Ctrl+C 终止只读进程，输出管道断开则报告 I/O 错误。间隔不是 OS/WMI 单次调用
+的超时保证，读取本身可能阻塞。库调用方使用 `stream_spec` / `sample_stream`;
+单结果的 `execute_with_services` 不会静默将 `watch` 降为一次读取。
+
+单个传感器的 JSON 示例（列表及 watch 返回此类对象的数组）:
 ```json
 {
-  "id": "cpu0",
-  "name": "CPU Package",
-  "source": "wmi|sysfs|acpi",
-  "value_c": 62.0,
-  "max_c": 100.0,
-  "critical_c": 105.0
+  "metadata": {
+    "id": "windows-battery-class/temperature",
+    "name": "Windows battery class temperature (unassociated)",
+    "source": "windows_battery_class",
+    "location": "battery",
+    "availability": "unavailable"
+  },
+  "value_c": null
 }
 ```
+
+`null` 与不可用状态不等于 0°C。ACPI 热区保留 `location=unknown`，不因名称或数值
+相似就标为 CPU/GPU。观察到传感器读数也不证明其他未接入的功耗或频率指标已可用。
 
 ---
 

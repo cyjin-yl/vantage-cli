@@ -5,6 +5,8 @@
 > 交叉引用:性能模式三态与风扇见 `03-thermal-performance.md`;DPTF 硬件通道见
 > `01-hal-interfaces.md` §6;Linux 映射见 `09-linux-backend.md` §5;DSL 语法见 `10-config-schema.md`。
 
+> **交付边界(2026-10-30)**:以下保留历史记录与候选设计,不表示 PL/ESIF/EC 等写入已经实现或获准测试。本次 `tune telemetry` 变更仅提供顺序只读采样、来源和错误信息,不以 OS 策略值冒充物理功耗或频率。不得据历史 RPC/二进制名称猜测控制调用、检查厂商二进制或绕过 VBS/HVCI;不停止或禁用官方服务。构建与 Linux 运行见 [构建证据](evidence/telemetry-stream-build-linux-20261029.json);Windows 有限采样及中断验收见 [C19](C-acceptance.md#c19--只读遥测与温度流的有限运行验收)。
+
 ## 1. 功耗控制栈全貌(分层职责)
 
 ```
@@ -60,7 +62,7 @@
 ### 2.3 独占与冲突
 
 - 进程级调度(亲和性/优先级/工作集)为 PCManager 独有(ResScheduler,03 文档 §6)。
-- Vantage 与 PCManager 写同一 EC 寄存器会互相覆盖——本工具取而代之,不存在该冲突。
+- 多个写入方可能互相覆盖;不能因计划替代官方应用就宣称并发冲突已消失。本次只读流不接管 EC 或停用官方服务。
 - DBDC(电池直充限流):WMI `LENOVO_REPORT_DBDC_DATA` 实例实测
   `CurrentLimit=[7500,5000,4500]`、`Threshold=[100,40,20]`(目标机 WMI 实例实机采集)——
   三档:电量 >40% 限 7500 mA,20-40% 限 5000 mA,<20% 限 4500 mA [推断语义]。
@@ -152,6 +154,22 @@ BIOS 收到后重算 DPTF 参与者。**本工具的两条路线**:
 | 充电节流状态 | DTT CHRG 参与者;DBDC 实例 | power_supply `charge_control_*`[若内核支持] |
 
 事件:模式切换经 `LENOVO_DISPATCHER_EVENT`(PowerLevel);AC 切换 `LENOVO_AC_PD_EVENT`(02 文档 §11)。
+
+实际 CLI `tune telemetry` 不带 `--interval` 时只读取一次;指定正整数秒数时，立即输出
+一个样本，此后在每个样本完成后等待该间隔。无需 daemon，读取不会重叠，也不在内存中
+积累历史。`--json` 输出逐行完整 JSON，其他模式输出测量值、来源和不可用原因;Ctrl+C
+终止只读进程，输出管道断开则退出并报告 I/O 错误。库调用方用 `stream_spec` 和
+`sample_stream` 调度;单结果 API 会拒绝流式请求，不会忽略间隔。
+
+样本包含温度来源及缺失/错误，不把不可用填为零;电池带符号 mW 不能冒充 CPU/GPU
+package power。上述指标表列出接口方向，不表示所有目标指标已实现。多来源读取非原子，
+WMI/OS 调用可能阻塞，间隔不是读取截止时间。未接入的 CPU/GPU 功率、频率和物理位置
+仍须单独验证，不能由流式输出推断已完成。
+
+Windows 真机分别捕获 `tune telemetry --interval 1` 与 `perf temp watch --interval 1`
+的两个完整 JSON 样本,再向各自隔离控制台生成 Ctrl+C 事件;原生子进程正常响应中断,
+没有使用强制终止。独立 ACPI 查询只验证身份、数值及单位换算,不证明热区物理位置。
+限定验收和原始回执摘要见 [C19](C-acceptance.md#c19--只读遥测与温度流的有限运行验收)。
 
 ## 5. 调优配方(profile 集)
 
