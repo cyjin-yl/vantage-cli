@@ -2,7 +2,7 @@
 
 Cross-platform hardware control for Lenovo ThinkBook systems, with truthful capability reporting and verified readback for every supported write path.
 
-Repository: [vantage-oss/vantage-cli](https://github.com/vantage-oss/vantage-cli)
+Repository: [cyjin-yl/vantage-cli](https://github.com/cyjin-yl/vantage-cli)
 
 ## Scope
 
