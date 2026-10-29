@@ -50,16 +50,20 @@
 
 ### 3.1 语义
 
-三态**互斥**,由 EC 固件执行:
+历史组件资料以 `BatteryChargeModeType` 描述三态互斥;其名称、命令与目标 21VG
+实际固件状态的映射尚未独立验证:
 
-| 模式 | 枚举值(`BatteryChargeModeType`) | EC 行为 | 适用场景 |
-|---|---|---|---|
-| Normal | 0 | 充电至 100%,常规电流 | 默认 |
-| Storage(养护/Conservation) | 1 | 充电截止电压由 ~4.2V 降至 ~4.0V,上限约 55%(官方文档口径 55–60%) | 长期插电使用,延长电池寿命 |
-| Quick(快充/Rapid/Express) | 2 | 进入快充电流档(约 20W 上限提升),30 分钟级快速补电 | 临时应急 |
+| 模式 | 枚举值 | 历史语义及目标边界 |
+|---|---|---|
+| Normal | 0 | 充电至 100%,常规电流 |
+| Storage(养护/Conservation) | 1 | 旧资料将其描述为限制充电上限;目标机实际门限和电压未验收 |
+| Quick(快充/Rapid/Express) | 2 | 旧资料描述较快充电;目标机具体电流和效果未验收 |
 
-> Storage80 变体:固件 EM Spec 版本 ≥ `EM_SPEC_VERSION_STORAGE_80` 阈值时,合约层会额外置位
-> `ChargeModeStorage80`(上限 80%)。**目标机 21VG 该能力位为 0**,实现时按能力探测结果决定是否暴露。
+联想 [ThinkBook 14/16 Gen 8+ 官方用户指南](https://iknow.lenovo.com.cn/detail/431592)
+列出 21VG / ThinkBook 14 G8+ IPH，并将用户可见的“节能模式”描述为保持 75%–80%。
+旧资料中的约 50%–60% Storage 阈值与此不同;两种名称是否对应同一底层模式、目标机
+`ChargeModeStorage80` 位的语义和实际停充点均未独立验证，不能据此推断本机阈值。
+现有充电写入门禁不变。
 
 ### 3.2 底层下发:GBMD 历史子命令资料(非目标机写入许可)
 
@@ -163,8 +167,8 @@ PCManager `BatterySetting.exe` 提供四种充电策略(Vantage 仅有前三态�
 |---|---|---|
 | 快速充电 | `CQuickChargingMode`/`CQuickChargingHelper` | 无上限,最大电流(= §3 的 Quick) |
 | 常规(自定义阈值) | `CRegularValuePowerSetting`/`CRegularValueItem` | 用户设定 (start%, stop%),低于 start 起充、到达 stop 停充 |
-| 养护 | `CStorageMode`/`CStorageChargingHelper` | 停充约 50%±5%(= §3 的 Storage) |
-| 极限续航 | `CExtremeBatteryLife`/`Group`/`Item` | 停充约 60%,同时打包 CPU 节流等省电动作 |
+| 养护 | `CStorageMode`/`CStorageChargingHelper` | 旧资料描述约 50%±5%;与目标机用户可见“节能模式”是否等价未证实 |
+| 极限续航 | `CExtremeBatteryLife`/`Group`/`Item` | 旧资料描述约 60% 停充及 CPU 节流;目标机通道和效果未证实 |
 
 ### 4.2 阈值读写(2026-08-27 实机验证更新)
 
@@ -214,19 +218,26 @@ PCManager `BatterySetting.exe` 提供四种充电策略(Vantage 仅有前三态�
 
 ## 6. AlwaysOnUSB / USB 对外供电
 
-两组独立开关,均为「运行时覆盖层」,重启后回归 BIOS 默认值:
+历史组件资料描述两组运行时覆盖开关及重启后回归 BIOS 设置;该分层和实际效果尚未在
+目标 21VG 上验收:
 
 | 开关 | 合约枚举 | 取值 |
 |---|---|---|
 | AC 下 USB 供电(`CUSBCharger`) | `SupportedUsbChargingModeStatusType` | 1=AlwaysOnEnabled, 2=AlwaysOnDisabled |
 | 电池下 USB 供电(`CUSBBatteryCharger`) | `SupportedUsbChargingInBatteryModeStatusType` | 1=ChargingInBatteryModeEnabled, 2=Disabled |
 
-- 下发:`CUSBBatteryCharger::OpenOrClose` → **IOCTL `0x831020e8`**(已验证);
+- 历史下发路径:`CUSBBatteryCharger::OpenOrClose` → **IOCTL `0x831020e8`**;
   `CUSBCharger` 走同族命令字(确切值 [推断],同 01 文档 IOCTL 表)。
 - 回读:组件接口表偏移 `+0x32` 的 `GetStatus`,返回 1=开 / 2=关 / 其他=未知。
-- BIOS 层默认:`Lenovo_BiosSetting` 中 `AlwaysOnUSB,Enable` / `ChargeInBatteryMode,Disable`
-  (见 05 文档)。`SetUSBChargingMode` 语义:两个参数分别映射两组开关,两者同时为 null 视为非法请求。
+- BIOS 保存设置示例:`Lenovo_BiosSetting` 中 `AlwaysOnUSB` / `ChargeInBatteryMode`
+  (见 05 文档);本机只读镜像两项均为 `Enable`，不证明出厂默认或运行时供电。历史
+  `SetUSBChargingMode` 资料描述两个参数分别映射两组开关,两者同时为 null 视为非法请求。
 - 能力探测:`CUSBCharger::IsSupport()` / `CUSBBatteryCharger::IsSupport()`,不支持时隐藏对应选项。
+
+联想上述 21VG 机型族用户指南称带电池图标的 USB 接口支持关机/睡眠/休眠供电，额定
+最大输出 5 V、2 A，并列出固件设置和电脑管家/百应作为开关入口。这是机型族手册，
+不是本机端口实际供电测量，也没有提供可验证的 Windows 运行态读写契约。未验证的
+运行时控制与 BIOS 写入不得因该手册而开放。
 
 ---
 
