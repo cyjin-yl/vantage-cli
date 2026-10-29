@@ -1,0 +1,65 @@
+{
+ "scope": "Keyboard/display/privacy/sensing/audio domain audit on TB14P-EZRA with actual Windows effects where a verified channel exists; per-feature acceptance boundary. Runtime camera disable/enable verified end-to-end; keyboard backlight channel absent; SmartSense and licensed audio remain on retained official vendor channels.",
+ "machine": "TB14P-EZRA",
+ "source_code_commit": "6f0c6315be365265a543447377f5e80301dbf523",
+ "source_manifest_sha256": "8937c1cdc62473c68f4dd10c9499a45fa34831cf1bbe7e109e41d96568a09fb9",
+ "native_binary_sha256": "666c79ede131925204cbbfcfca6f4b849cd9e7b8c3d807215f9e265b6c8804ad",
+ "verified": [
+  {
+   "feature": "privacy.cam.runtime",
+   "proof": "--dry-run privacy cam off --runtime reported dry_run previous=enabled; independent Get-PnpDevice showed both USB camera interfaces unchanged (OK). --yes privacy cam off --runtime committed actual=disabled; independent Get-PnpDevice showed both interfaces Status=Error (disabled). --yes privacy cam on --runtime restored actual=enabled; both interfaces back to OK. privacy status readback: runtime_camera=enabled, BIOS IntegratedCamera/Microphone/FingerprintReader=Enable."
+  },
+  {
+   "feature": "panel.refresh",
+   "proof": "see docs/evidence/target-panel-refresh-commit-20261030.json (120->60 commit, guarded restore 60->120, independent Win32 readback)"
+  },
+  {
+   "feature": "panel.brightness",
+   "proof": "see C17 (1% adjacent commit + synthetic-fault recovery + independent WMI readback)"
+  }
+ ],
+ "not_applicable_or_missing_contract": [
+  {
+   "feature": "kbd.backlight",
+   "boundary": "LENOVO_LIGHTING_DATA and LENOVO_LIGHTING_METHOD enumeration both return WMI HRESULT 0x8004100C (Not supported); CLI capability=unsupported. No keyboard-backlight channel exists on this 21VG target; no write attempted."
+  },
+  {
+   "feature": "kbd.winlock",
+   "boundary": "GAMEZONE Win-key methods not verified on target; unsupported."
+  },
+  {
+   "feature": "privacy.mic.runtime",
+   "boundary": "runtime microphone HAL/CLI wiring not attached; persistent path is BIOS staging (staging-buffer ownership unverified -> BIOS domain)."
+  },
+  {
+   "feature": "kbd.fnlock / kbd.fn-ctrl-swap / privacy.*.persistent",
+   "boundary": "BIOS staging-buffer ownership and isolation unverified; gated, no BIOS write (BIOS domain task)."
+  },
+  {
+   "feature": "sense.* (SmartSense: lock-on-leave, wake-on-approach, pause-video, attention-tracking, kbd-light-auto, status)",
+   "boundary": "requires the official SmartSense vendor RPC channel; retained official dependency, not reimplemented and not probed by reverse engineering."
+  },
+  {
+   "feature": "audio.dolby / audio.noise-cancel",
+   "boundary": "requires licensed/vendor audio channel (Dolby/Lenovo audio service); retained official dependency."
+  },
+  {
+   "feature": "panel.color / super-resolution / overdrive / eye-care",
+   "boundary": "no verified writer attached; unsupported."
+  }
+ ],
+ "commands_run": [
+  "vantage --json privacy status",
+  "vantage --json --dry-run privacy cam off --runtime",
+  "vantage --json --yes privacy cam off --runtime",
+  "vantage --json --yes privacy cam on --runtime",
+  "Get-CimInstance root/WMI LENOVO_LIGHTING_DATA / LENOVO_LIGHTING_METHOD (0x8004100C)",
+  "Get-PnpDevice -Class Camera (independent readback: OK -> Error -> OK)"
+ ],
+ "official_services_running": true,
+ "limits": [
+  "Camera runtime disable covers both USB interfaces of the integrated camera; BIOS-persistent IntegratedCamera requires reboot and is gated by staging-buffer verification.",
+  "SmartSense and Dolby/noise-cancel remain vendor-channel features; keeping official services running is the declared minimal-dependency choice, not a vantage-cli replacement.",
+  "Keyboard backlight absence is a target-hardware/channel fact (WMI 0x8004100C), not an implementation gap."
+ ]
+}
