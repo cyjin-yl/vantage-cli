@@ -189,10 +189,9 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
     use crate::Command;
     use crate::{
         AudioCommand, BatteryCommand, BiosCommand, DaemonCommand, LteCommand, MagicbayCommand,
-        OsdCommand, PanelCommand, PasswordCommand, PerfCommand, PrivacyCommand, ProfileCommand,
-        SchemeCommand, SenseCommand, SnapshotCommand, TempCommand, TuneCommand, UpdateCommand,
-        UsbCommand,
-        WifiCommand,
+        LocalDriverCommand, OsdCommand, PanelCommand, PasswordCommand, PerfCommand,
+        PrivacyCommand, ProfileCommand, SchemeCommand, SenseCommand, SnapshotCommand,
+        TempCommand, TuneCommand, UpdateCommand, UsbCommand, WifiCommand,
     };
     use lctrl_core::CommandId;
 
@@ -606,6 +605,16 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
         Command::Update {
             command: Some(UpdateCommand::Schedule { .. }),
         } => CommandId::UPDATE_SCHEDULE,
+        Command::Update {
+            command: Some(UpdateCommand::LocalDriver {
+                command: LocalDriverCommand::Apply { .. },
+            }),
+        } => CommandId::UPDATE_LOCAL_INSTALL,
+        Command::Update {
+            command: Some(UpdateCommand::LocalDriver {
+                command: LocalDriverCommand::Rollback { .. },
+            }),
+        } => CommandId::UPDATE_LOCAL_ROLLBACK,
         Command::Update { command: None } => return None,
         Command::Scan {
             command: Some(crate::ScanCommand::List),
