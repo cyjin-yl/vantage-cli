@@ -18,16 +18,16 @@ use std::{
 use clap::{Parser, Subcommand, ValueEnum};
 use lctrl_core::{
     ApplyMode, Availability, BacklightState, BiosChange, Capability, CapabilitySet, ChargeMode,
-    ChargeModeActual, DeviceState, DiagnosticKind, FanMode, HardwareInfo, LctrlError,
+    ChargeModeActual, DeviceState, DiagnosticKind, DriverIdentity, DriverVersion, FanMode,
+    HardwareInfo, LctrlError, LocalDriverRollbackRequest, LocalDriverUpdateRequest,
     PerformanceMode, Platform, PowerGuid, PowerMutation, PowerRangeObservation, PowerSchemeId,
     PowerSettingKey, PowerSettingValue, PowerSource, UpdateCapability,
 };
 use lctrl_hal::{
     BatteryControl, BiosControl, ControlConflictDetection, DiagnosticsControl, FanControl, Hal,
     KeyboardControl, MagicBayControl, PanelBrightnessControl, PanelControl, PerformanceControl,
-    PowerControl, PowerLimitKind, PrivacyControl, ProcessorPowerControl, TemperatureControl,
-    TouchpadControl, TuningControl, UpdateControl,
-    WifiSecurityControl,
+    LocalUpdateControl, PowerControl, PowerLimitKind, PrivacyControl, ProcessorPowerControl,
+    TemperatureControl, TouchpadControl, TuningControl, UpdateControl, WifiSecurityControl,
 };
 use serde::{Deserialize, Serialize};
 
@@ -75,6 +75,7 @@ pub struct CommandServices<'a> {
     tuning: Option<&'a dyn TuningControl>,
     processor_power: Option<&'a dyn ProcessorPowerControl>,
     update: Option<&'a dyn UpdateControl>,
+    local_update: Option<&'a dyn LocalUpdateControl>,
     wifi: Option<&'a dyn WifiSecurityControl>,
 }
 
@@ -99,6 +100,7 @@ impl<'a> CommandServices<'a> {
             tuning: None,
             processor_power: None,
             update: None,
+            local_update: None,
             wifi: None,
         }
     }
@@ -200,6 +202,12 @@ impl<'a> CommandServices<'a> {
     #[must_use]
     pub fn with_update(mut self, update: &'a dyn UpdateControl) -> Self {
         self.update = Some(update);
+        self
+    }
+
+    #[must_use]
+    pub fn with_local_update(mut self, local_update: &'a dyn LocalUpdateControl) -> Self {
+        self.local_update = Some(local_update);
         self
     }
 
@@ -809,6 +817,10 @@ pub enum UpdateCommand {
         #[arg(long, value_enum)]
         severity: Option<UpdateSeverity>,
     },
+    LocalDriver {
+        #[command(subcommand)]
+        command: LocalDriverCommand,
+    },
     Download {
         #[arg(required = true, num_args = 1..)]
         packages: Vec<String>,
@@ -845,6 +857,58 @@ pub enum UpdateSchedule {
     Daily,
     Weekly,
     Off,
+}
+
+/// Local (vendored `.inf`) driver update and rollback. The hardware ID binds to
+/// exactly one present PnP device; firmware classes are refused; the package
+/// signature is verified before install; dry-run performs no write.
+#[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
+pub enum LocalDriverCommand {
+    /// Install a locally admitted driver `.inf` bound to one hardware ID.
+    Apply {
+        /// Path to the local driver `.inf` file.
+        inf: PathBuf,
+        /// Hardware ID the package must bind to (e.g. `PCI\VEN_8086&DEV_1234`).
+        hardware_id: String,
+        /// Validate and report without installing.
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Roll a present device's driver back to a previously admitted identity.
+    Rollback {
+        device_instance_id: String,
+        /// Device class GUID (must bind both the current and restore identities).
+        #[arg(long)]
+        class_guid: String,
+        /// Hardware ID (must bind both the current and restore identities).
+        #[arg(long)]
+        matching_device_id: String,
+        #[arg(long = "expected-provider")]
+        expected_provider: String,
+        #[arg(long = "expected-description")]
+        expected_description: String,
+        /// Current driver version, `major.minor.build.revision`.
+        #[arg(long = "expected-version")]
+        expected_version: String,
+        #[arg(long = "expected-date")]
+        expected_date: String,
+        #[arg(long = "expected-section")]
+        expected_section: String,
+        #[arg(long = "restore-provider")]
+        restore_provider: String,
+        #[arg(long = "restore-description")]
+        restore_description: String,
+        /// Driver version to restore, `major.minor.build.revision`.
+        #[arg(long = "restore-version")]
+        restore_version: String,
+        #[arg(long = "restore-date")]
+        restore_date: String,
+        #[arg(long = "restore-section")]
+        restore_section: String,
+        /// Report the planned restore without performing it.
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
 #[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
@@ -1215,7 +1279,7 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
         } => execute_magicbay_detect(services.magicbay),
         Command::Update {
             command: Some(command),
-        } => execute_update(services.update, command),
+        } => execute_update(services.update, services.local_update, command),
         Command::Scan {
             command: Some(command),
         } => execute_scan(services.diagnostics, command),
@@ -3562,7 +3626,11 @@ fn rollback_tune_changes(
     original
 }
 
-fn execute_update(update: Option<&dyn UpdateControl>, command: UpdateCommand) -> CommandResult {
+fn execute_update(
+    update: Option<&dyn UpdateControl>,
+    local_update: Option<&dyn LocalUpdateControl>,
+    command: UpdateCommand,
+) -> CommandResult {
     let update = update.ok_or_else(|| LctrlError::Unsupported {
         feature: "update".into(),
     })?;
@@ -3575,6 +3643,9 @@ fn execute_update(update: Option<&dyn UpdateControl>, command: UpdateCommand) ->
                 channel: format!("update catalog: {reason}"),
             }),
         },
+        UpdateCommand::LocalDriver { command } => {
+            execute_local_driver(local_update, command)
+        }
         UpdateCommand::Download { .. } => Err(LctrlError::Unsupported {
             feature: "update.download.without-authenticated-manifest".into(),
         }),
@@ -3594,6 +3665,125 @@ fn execute_update(update: Option<&dyn UpdateControl>, command: UpdateCommand) ->
             feature: "update.schedule.without-catalog".into(),
         }),
     }
+}
+
+fn execute_local_driver(
+    local_update: Option<&dyn LocalUpdateControl>,
+    command: LocalDriverCommand,
+) -> CommandResult {
+    let local_update = local_update.ok_or_else(|| LctrlError::Unsupported {
+        feature: "update.local".into(),
+    })?;
+    match command {
+        LocalDriverCommand::Apply {
+            inf,
+            hardware_id,
+            dry_run,
+        } => {
+            let request = LocalDriverUpdateRequest::new(inf, hardware_id)?;
+            let mode = if dry_run {
+                ApplyMode::DryRun
+            } else {
+                ApplyMode::Commit
+            };
+            let report = local_update.apply_local_driver_update(&request, mode)?;
+            structured_output(&report, local_driver_apply_message(&report))
+        }
+        LocalDriverCommand::Rollback {
+            device_instance_id,
+            class_guid,
+            matching_device_id,
+            expected_provider,
+            expected_description,
+            expected_version,
+            expected_date,
+            expected_section,
+            restore_provider,
+            restore_description,
+            restore_version,
+            restore_date,
+            restore_section,
+            dry_run,
+        } => {
+            let expected = DriverIdentity {
+                provider: expected_provider,
+                description: expected_description,
+                class_guid: class_guid.clone(),
+                driver_version: parse_driver_version(&expected_version)?,
+                driver_date: expected_date,
+                matching_device_id: matching_device_id.clone(),
+                inf_section: expected_section,
+            };
+            let restore = DriverIdentity {
+                provider: restore_provider,
+                description: restore_description,
+                class_guid,
+                driver_version: parse_driver_version(&restore_version)?,
+                driver_date: restore_date,
+                matching_device_id,
+                inf_section: restore_section,
+            };
+            let request =
+                LocalDriverRollbackRequest::new(device_instance_id, expected, restore)?;
+            let mode = if dry_run {
+                ApplyMode::DryRun
+            } else {
+                ApplyMode::Commit
+            };
+            let report = local_update.rollback_local_driver(&request, mode)?;
+            structured_output(&report, local_driver_rollback_message(&report))
+        }
+    }
+}
+
+fn local_driver_apply_message(report: &lctrl_core::DriverUpdateReport) -> String {
+    match (&report.actual, &report.reboot_required) {
+        (Some(actual), Some(true)) => format!(
+            "local driver installed for {} ({}); reboot required",
+            report.device_instance_id, actual.published_inf
+        ),
+        (Some(actual), _) => format!(
+            "local driver installed for {} ({})",
+            report.device_instance_id, actual.published_inf
+        ),
+        (None, _) => format!(
+            "local driver dry-run for {}; no installation performed",
+            report.device_instance_id
+        ),
+    }
+}
+
+fn local_driver_rollback_message(report: &lctrl_core::DriverRollbackReport) -> String {
+    match &report.actual {
+        Some(actual) => format!(
+            "local driver rollback for {} restored {}",
+            report.device_instance_id, actual.published_inf
+        ),
+        None => format!(
+            "local driver rollback dry-run for {}; backup identity unverified, no restore performed",
+            report.device_instance_id
+        ),
+    }
+}
+
+fn parse_driver_version(text: &str) -> lctrl_core::Result<DriverVersion> {
+    let parts = text
+        .split('.')
+        .map(str::trim)
+        .collect::<Vec<_>>();
+    if parts.len() != 4 {
+        return Err(LctrlError::InvalidArgument {
+            detail: format!("driver version must be major.minor.build.revision, got {text}"),
+        });
+    }
+    let mut numbers = [0u16; 4];
+    for (slot, part) in numbers.iter_mut().zip(parts.iter()) {
+        let value = part.parse::<u16>().map_err(|_| LctrlError::InvalidArgument {
+            detail: format!("driver version component must be an unsigned 16-bit integer, got {part}"),
+        })?;
+        *slot = value;
+    }
+    Ok(DriverVersion::new(numbers))
 }
 
 fn execute_scan(
@@ -4687,12 +4877,22 @@ impl UpdateCommand {
     const fn feature(&self) -> &'static str {
         match self {
             Self::Check { .. } => "check",
+            Self::LocalDriver { command } => LocalDriverCommand::feature(command),
             Self::Download { .. } => "download",
             Self::Install { .. } => "install",
             Self::History => "history",
             Self::Ignore { .. } => "ignore",
             Self::Rollback { .. } => "rollback",
             Self::Schedule { .. } => "schedule",
+        }
+    }
+}
+
+impl LocalDriverCommand {
+    const fn feature(command: &Self) -> &'static str {
+        match command {
+            Self::Apply { .. } => "local-driver.apply",
+            Self::Rollback { .. } => "local-driver.rollback",
         }
     }
 }
