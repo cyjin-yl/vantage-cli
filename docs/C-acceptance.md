@@ -570,3 +570,70 @@ SSH 控制台中运行,捕获原始 stdout 后再解析样本:
 此次仅证明有限只读采样、该 ACPI 来源及所测控制台中断路径。长期内存稳定性、其他
 终端宿主、物理传感器位置、CPU/GPU 包功耗与频率、风扇/模式控制、崩溃恢复及完整
 替代仍未完成;#12 和 #39 保持开放。
+
+## C20 · 自动场景策略、热键与 OSD 的接管验收
+
+**状态:场景策略与恢复路径已验收;OSD 与热键的真实画面/按键效果在交互式会话 1 才可见,
+SSH 服务会话 0 如实报告 `gated`,不以无显示路径误判硬件不支持。**
+
+场景策略(commit f38f1bc)已验收:`scene list/test/track` 在目标机实际运行,透明规则对
+联想 WMI 事件求值,只允许白名单内的场景动作(电源方案、面板刷新、风扇模式、性能模式),
+写后回读,失败按原值恢复。风扇/性能动作在缺少已验证写通道时如实报 `unavailable`,
+不以未知控制码或 BIOS 试写绕过。
+
+OSD 与全局热键(commit 65c01a9)是场景策略生效时的可见/可触达通知与触发面:
+
+| 命令 | SSH 服务会话 0 的实际结果 | 语义 |
+|---|---|---|
+| `osd test` / `osd enable` / `osd show <行…>` | `state=gated`,`detail` 指明 `CreateWindowExW failed; this service is not attached to the active desktop session` | overlay 需要活动交互桌面,服务会话无显示拓扑,如实门控 |
+| `hotkey register <id> <vk>` | `state=gated`,`detail` 指明 `RegisterHotKey failed; no interactive desktop session / hotkey already owned` | 全局热键注册需要交互桌面,服务会话如实门控 |
+| `hotkey list` | `{"registered":[]}` | 注册被门控时列表为空,不伪报已注册 |
+| `hotkey trigger <id>` | `{"id":<id>,"live":false}` | 未注册时触发如实报非存活 |
+| `hotkey unregister <id>` | `{"id":<id>,"removed":false}` | 未注册时释放如实报未移除 |
+
+overlay 用 GDI 顶层分层窗口自绘(WM_PAINT 重绘),不做无界隐藏定时器;热键用
+RegisterHotKey + 消息泵线程,WM_HOTKEY 记录内部 id。两者在交互式会话 1 才真正
+绘制/按键,服务会话一律 `gated`,与 C1 显示验收同属"交互式会话"边界。能力矩阵
+新增 `osd.show` 与 `hotkey.list/register/trigger/unregister` 行,`DispatchSupport=Implemented`,
+读回如实 `unverified`(硬件效果仅在交互桌面可验证)。daemon 在每次场景策略生效时调用
+overlay 标注场景 id、动作与 applied/unavailable 状态。
+
+本轮未请求交互桌面 1 的物理画面或按键,未停用任何官方服务;OSD 实际绘制与热键真实
+按键效果仍按 C1 的交互式会话边界另行安排。#3、#4 保持开放。
+
+## C21 · 最小官方依赖与安全切换验收
+
+**状态:最小官方依赖与安全切换已验收——CLI 不依赖官方 Vantage 服务;官方联想组件仅在
+功能真正需要处保留,且缺接口契约/硬件不适用处如实门控,不伪报完成。**
+
+2026-10-30 对目标机 `vantage capability --json` 全量矩阵做依赖投影,并只读清点官方
+联想服务/驱动:
+
+| 官方联想依赖 | 使用(必需/可选) | 覆盖命令 | 依据 |
+|---|---|---|---|
+| `lenovo_vantage_service` | **0 必需 / 0 可选** | 无 | CLI 全部经公开 Win32/WMI 直连,不经官方 Vantage RPC → 安全切换的核心证据 |
+| `lenovo_firmware_wmi` | 30 必需 | 全部 BIOS 命令 | BIOS 管理只能走固件 WMI 命名空间,直连而非经 Vantage 服务 |
+| `smart_sense` | 6 必需 | 全部 sense.* | SmartSense 功能由该组件承载 |
+| `energy_driver` | 4 必需 | charge-mode、usb.always-on、usb.charge-on-battery、power.saver-once | 电池/充电控制需 EnergyDrv;本机 21VG 无该驱动,如实报 unavailable |
+| `lenovo_process_management` | 1 必需 | perf.mode | 性能模式经 Dispatcher 注册表,非 Vantage 服务 |
+| `dolby_audio_sdk` / `noise_cancellation_sdk` | 各 1 必需 | audio.dolby / audio.noise-cancel | 音频控制受 SDK 许可/接口边界 |
+| `lenovo_fn_and_function_keys` / `lenovo_utility_service` / `intel_dptf` | 可选 | 键盘回退/调优回退 | 仅作回退,主路径用公开 API |
+
+其余全部命令(电源方案、内屏刷新、亮度、面板、隐私、触控板、键盘、温度遥测、诊断、
+清单、Wi-Fi、更新、本地驱动、MachineFix、场景策略、OSD、热键等)仅依赖公开
+`win32_*` / `windows_*` / `public_win32_cim` / `local_daemon` / `local_filesystem`,
+不触碰官方联想二进制。
+
+目标机官方组件实际状态(只读,未停用/卸载):LenovoFnAndFunctionKeys、
+LenovoPcManagerService、LenovoProcessManagement、LenovoVantageService、SmartConnect、
+SmartSense 均 Running/Automatic;驱动 lenovoDriverBus Running、SmartSAMD Stopped;
+**无 EnergyDrv**。因此充电/USB 写入、性能/风扇/PL 写入如实 `unavailable`(契约缺/硬件
+不适用),读取路径正常工作。
+
+安全切换结论:官方 Vantage 服务不是 CLI 依赖,停用/卸载 Vantage 不破坏 CLI 功能;
+CLI 对官方联想组件的保留仅限功能真正需要处(BIOS 固件 WMI、SmartSense、EnergyDrv、
+Dolby/降噪 SDK、进程管理),其余功能经公开 OS API 完成。必要用户功能要么被公开 API
+替代(电源/显示/键盘/隐私/面板/触控板/温度/诊断/清单/Wi-Fi/更新/驱动/修复/事件/场景/
+热键/OSD),要么因缺已验证接口契约或硬件不适用而如实门控(充电/USB 写入、性能/风扇/
+PL 写入、BIOS 更新写入)。在全部必要功能与最小依赖切换验证完成之前,不停用或卸载任何
+官方驱动/服务。本记录不宣称 38 项已全部完成。

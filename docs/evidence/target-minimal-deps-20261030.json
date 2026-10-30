@@ -1,0 +1,40 @@
+{
+  "title": "最小官方依赖与安全切换依赖投影",
+  "date_utc": "2026-10-30",
+  "target": "Lenovo 21VG / ThinkBook 14 G8+ IPH (TB14P-EZRA)",
+  "source": "vantage capability --json (release 二进制) 全量矩阵依赖投影 + 官方组件只读清点",
+  "note": "只读投影,未停用/卸载任何官方驱动或服务;不写入硬件。",
+  "distinct_dependencies": [
+    "authenticated_update_catalog", "dolby_audio_sdk", "energy_driver", "intel_dptf",
+    "lenovo_firmware_wmi", "lenovo_fn_and_function_keys", "lenovo_process_management",
+    "lenovo_utility_service", "local_daemon", "local_filesystem", "noise_cancellation_sdk",
+    "public_win32_cim", "smart_sense", "win32_device_management", "win32_device_notifications",
+    "win32_display_api", "win32_media_foundation", "win32_mobile_broadband", "win32_power_api",
+    "win32_process_api", "win32_registry", "win32_scm", "win32_setup_api", "win32_task_scheduler",
+    "win32_win_trust", "windows_audio", "windows_hpd", "windows_wmi_events"
+  ],
+  "official_lenovo_dependency_usage": {
+    "lenovo_vantage_service": { "required": 0, "optional": 0, "commands": [] },
+    "lenovo_firmware_wmi": { "required": 30, "optional": 0, "commands": "全部 BIOS 命令" },
+    "smart_sense": { "required": 6, "optional": 0, "commands": "sense.status, sense.lock-on-leave, sense.wake-on-approach, sense.pause-video, sense.attention-tracking, sense.kbd-light-auto" },
+    "energy_driver": { "required": 4, "optional": 5, "commands_required": ["battery.charge-mode", "usb.always-on", "usb.charge-on-battery", "power.saver-once"] },
+    "lenovo_process_management": { "required": 1, "optional": 0, "commands": "perf.mode" },
+    "dolby_audio_sdk": { "required": 1, "optional": 0, "commands": "audio.dolby" },
+    "noise_cancellation_sdk": { "required": 1, "optional": 0, "commands": "audio.noise-cancel" },
+    "lenovo_fn_and_function_keys": { "required": 0, "optional": 4, "commands": "键盘回退路径" },
+    "lenovo_utility_service": { "required": 0, "optional": 4, "commands": "回退路径" },
+    "intel_dptf": { "required": 0, "optional": 3, "commands": "调优回退路径" }
+  },
+  "official_components_on_target_readonly": {
+    "services_running_automatic": [
+      "LenovoFnAndFunctionKeys", "LenovoPcManagerService", "LenovoProcessManagement",
+      "LenovoVantageService", "SmartConnect", "SmartSense"
+    ],
+    "drivers": { "lenovoDriverBus": "Running/Manual", "SmartSAMD": "Stopped/Manual", "EnergyDrv": "absent" }
+  },
+  "conclusion": {
+    "safe_cutover": "lenovo_vantage_service 为 0 行依赖,CLI 不经官方 Vantage RPC,全部经公开 Win32/WMI 直连",
+    "minimal_deps": "官方联想组件仅在功能真正需要处保留(BIOS 固件 WMI、SmartSense、EnergyDrv、Dolby/降噪 SDK、进程管理),其余功能用公开 OS API",
+    "honest_gating": "EnergyDrv 缺失 → 充电/USB 写入如实 unavailable;性能/风扇/PL 写入缺已验证写通道 → 如实 unavailable;BIOS 更新写入缺安全闪写契约 → unavailable。不伪报完成。"
+  }
+}
