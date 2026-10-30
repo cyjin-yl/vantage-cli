@@ -86,11 +86,20 @@ fn parse_accepts_void_lenovo_bios_business_result() {
 }
 
 #[test]
-fn parse_still_rejects_output_without_any_business_marker() {
-    assert!(matches!(
-        WmiMethodResult::parse(BTreeMap::from([("Data".into(), WmiValue::U32(0))])),
-        Err(LctrlError::ChannelUnavailable { .. })
-    ));
+fn parse_accepts_declared_out_params_without_return_marker() {
+    // On 21VG the raw `ExecMethod` out-params object for
+    // `Lenovo_GetBiosSelections` carries only `Selections`; Invoke-CimMethod
+    // synthesizes `ReturnValue` but `IWbemServices::ExecMethod` does not.
+    let output = BTreeMap::from([(
+        "Selections".into(),
+        WmiValue::String("Enable,Disable".into()),
+    )]);
+    let result = WmiMethodResult::parse(output).unwrap();
+    result.require_accepted("bios.selections").unwrap();
+    assert_eq!(
+        result.output().get("Selections"),
+        Some(&WmiValue::String("Enable,Disable".into()))
+    );
 }
 
 #[test]
