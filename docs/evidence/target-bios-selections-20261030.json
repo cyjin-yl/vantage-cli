@@ -1,0 +1,69 @@
+{
+ "scope": "BIOS setting enumeration and dry-run selection validation on the 21VG target: `bios list` returns all 34 CurrentSetting items each carrying the real `GetBiosSelections` domain; `bios set --dry-run` validates a requested value against the firmware-returned selections and reports the change without writing.",
+ "machine": "TB14P-EZRA",
+ "source_code_commit": "454fdafe1d24e640ba6dfa7331d1e50ccbfe8591",
+ "merged_main_commit": "454fdafe1d24e640ba6dfa7331d1e50ccbfe8591",
+ "native_binary_sha256": "9877f98d6349f4f6432112ae401eb8d60cc8ab6c12e91b548717c552b7e80ebb",
+ "target_build": {
+  "host": "TB14P-EZRA",
+  "toolchain": "rustup stable 1.96.1 (stable-x86_64-pc-windows-msvc) + VS2022 BuildTools MSVC 14.44.35207 + Windows Kits 10 SDK",
+  "profile": "release",
+  "note": "Built on-target from the exact main archive after cross-compile on Linux was blocked by missing MSVC import libraries (ws2_32.lib/dbghelp.lib) and the earlier staged exe predated PR60."
+ },
+ "actual_cli_observations": [
+  {
+   "command": ["vantage", "--json", "bios", "list"],
+   "items_returned": 34,
+   "items_with_selections": 34,
+   "native_exit_code": 0,
+   "samples": [
+    {"name": "HotkeyMode", "value": "Disable", "selections": ["Enable", "Disable"]},
+    {"name": "WakeOnLan", "value": "Disabled", "selections": ["Disabled", "AC Only", "AC and Battery"]},
+    {"name": "AlwaysOnUSB", "value": "Enable", "selections": ["Enable", "Disable"]},
+    {"name": "EFI-BootOrder", "value": "01:02", "selections": ["01[Windows Boot Manager]", "02[EFI PXE Network]"]}
+   ]
+  },
+  {
+   "command": ["vantage", "--json", "--dry-run", "bios", "set", "HotkeyMode", "Enable"],
+   "native_exit_code": 0,
+   "report_mode": "dry_run",
+   "previous": {"name": "HotkeyMode", "value": "Disable"},
+   "requested": {"name": "HotkeyMode", "value": "Enable"},
+   "hardware_write": false
+  },
+  {
+   "command": ["vantage", "--json", "--dry-run", "bios", "set", "HotkeyMode", "InvalidValue"],
+   "native_exit_code": 0,
+   "error_kind": "invalid_argument",
+   "error_detail": "BIOS value \"InvalidValue\" is not one of the exact selections for HotkeyMode: Enable, Disable",
+   "hardware_write": false
+  },
+  {
+   "command": ["vantage", "--json", "bios", "password", "status"],
+   "native_exit_code": 0,
+   "result": {"min_length": 1, "max_length": 128, "password_mode": 1, "password_state": 0, "supervisor_set": false, "supported_encodings": 1, "supported_keyboard": 1}
+  }
+ ],
+ "protocol_correction": {
+  "claim": "The `ReturnValue` property synthesized by Invoke-CimMethod is not part of the raw `IWbemServices::ExecMethod` out-params object on this firmware.",
+  "method_class_shape": {
+   "Lenovo_GetBiosSelections.GetBiosSelections": {"out_params": ["Selections"], "return_value_property": false},
+   "Lenovo_SetBiosSetting.SetBiosSetting": {"out_params": ["return"], "return_value_property": false},
+   "Lenovo_SaveBiosSettings.SaveBiosSettings": {"out_params": ["return"], "return_value_property": false},
+   "Lenovo_DiscardBiosSettings.DiscardBiosSettings": {"out_params": ["return"], "return_value_property": false}
+  },
+  "acceptance_rule": "A successfully unmarshalled non-empty out-params object is the transport-success signal; business success is still judged by the declared out-parameter value (Selections / return / Data).",
+  "fixed_in": "PR60 (Void `return` marker) + PR61 (declared out-params only)",
+  "independent_powershell_check": "Invoke-CimMethod on the same class/instance returns ReturnValue=True plus Selections='Enable,Disable'; this confirms the firmware shape while also showing the synthesized ReturnValue that does not appear in the ExecMethod output."
+ },
+ "magicbay_boundary": {
+  "claim": "MagicBay docking module is not physically attached on TB14P-EZRA.",
+  "evidence": "USB\\VID_17EF&PID_7005&MI_00 shows PnP status CM_PROB_PHANTOM (the LTE2 module's USB function stack is enumerated by the BIOS but no physical device responds); no MagicBay service or downstream node is running. Hardware-absent, not implementable on this target."
+ },
+ "limits": [
+  "BIOS writes remain gated on `require_owned_staging` (staging-buffer ownership and isolation unverified by this PR's contract); no BIOS set/save/discard was exercised.",
+  "SetBiosPassword remains under --experimental and was not touched; PasswordState=0 confirms no supervisor password is installed on this machine.",
+  "MagicBay is hardware-absent on this target; no MagicBay code paths were exercised beyond enumeration.",
+  "Only dry-run validation was performed for `bios set`; actual staging and commit are still blocked behind the staging isolation contract."
+ ]
+}
