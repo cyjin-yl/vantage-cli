@@ -147,6 +147,7 @@ pub fn command_layer(command: &crate::Command) -> lctrl_core::StateLayer {
         Command::Scan { .. } => StateLayer::NotApplicable,
         Command::Wifi { .. } => StateLayer::NotApplicable,
         Command::Fix { .. } => StateLayer::LocalPersistent,
+        Command::Scene { .. } => StateLayer::LocalPersistent,
         Command::Touchpad {
             state: crate::TouchpadAction::Status | crate::TouchpadAction::Recover,
         } => StateLayer::Runtime,
@@ -638,6 +639,16 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
         Command::Fix {
             command: Some(FixCommand::Track),
         } => CommandId::FIX_TRACK,
+        Command::Scene { command: None } => CommandId::SCENE_LIST,
+        Command::Scene {
+            command: Some(crate::SceneCommand::List),
+        } => CommandId::SCENE_LIST,
+        Command::Scene {
+            command: Some(crate::SceneCommand::Test { .. }),
+        } => CommandId::SCENE_TEST,
+        Command::Scene {
+            command: Some(crate::SceneCommand::Track),
+        } => CommandId::SCENE_TRACK,
         Command::Snapshot {
             command: Some(SnapshotCommand::Capture),
         } => CommandId::SNAPSHOT_CAPTURE,

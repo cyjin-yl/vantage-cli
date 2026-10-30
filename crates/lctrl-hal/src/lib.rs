@@ -7,6 +7,7 @@ mod diagnostics;
 mod events;
 mod magicbay;
 mod machine_fix;
+mod scene_policy;
 mod network;
 mod performance;
 mod peripherals;
@@ -29,6 +30,7 @@ pub use diagnostics::{DiagnosticsControl, UpdateControl};
 pub use events::{EventCancellation, EventSource, EventValue, RawEvent, RawEventReader};
 pub use magicbay::MagicBayControl;
 pub use machine_fix::MachineFixControl;
+pub use scene_policy::ScenePolicyControl;
 pub use network::{
     MAX_WIFI_HISTORY_ENTRIES, WifiConnectionState, WifiHistoryPersistence, WifiHistoryPolicy,
     WifiHistorySnapshot, WifiInterfaceSnapshot, WifiLiveNetwork, WifiSavedProfile,

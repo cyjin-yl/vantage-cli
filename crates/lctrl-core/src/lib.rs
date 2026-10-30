@@ -10,6 +10,7 @@ mod inventory;
 mod keyboard;
 mod machine_fix;
 mod magicbay;
+mod scene_policy;
 mod panel;
 mod performance;
 mod power;
@@ -56,6 +57,10 @@ pub use keyboard::{
 };
 pub use machine_fix::{
     FixIssue, FixLedger, FixLedgerEntry, FixObservation, FixRepairKind, FixReport, FixRule,
+};
+pub use scene_policy::{
+    SceneAction, ScenePolicyLedger, ScenePolicyLedgerEntry, ScenePolicyMatch, ScenePolicyReport,
+    ScenePolicyRule,
 };
 pub use magicbay::{
     KNOWN_MAGICBAY_DEVICES, KnownMagicBayDevice, MAGICBAY_VENDOR_ID, MagicBayDevice,

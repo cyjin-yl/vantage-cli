@@ -40,6 +40,7 @@ pub enum ServiceRole {
     Osd,
     Wifi,
     MachineFix,
+    ScenePolicy,
 }
 
 impl ServiceRole {
@@ -74,6 +75,7 @@ impl ServiceRole {
             Self::Osd => "osd",
             Self::Wifi => "wifi",
             Self::MachineFix => "machine_fix",
+            Self::ScenePolicy => "scene_policy",
         }
     }
 }
@@ -1684,6 +1686,37 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandAxes::read_only(StateLayer::LocalPersistent),
         FeatureBinding::Unprobed("machinefix.track"),
         ServiceBinding::One(ServiceRole::MachineFix),
+        &[lctrl_core::required(Dependency::LocalFilesystem)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::SCENE_LIST,
+        CommandAxes::read_only(StateLayer::NotApplicable),
+        FeatureBinding::LocalOnly,
+        ServiceBinding::Local,
+        &[],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::SCENE_TEST,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Unprobed("scene.test"),
+        ServiceBinding::One(ServiceRole::ScenePolicy),
+        &[
+            lctrl_core::required(Dependency::Win32Scm),
+            lctrl_core::required(Dependency::LocalFilesystem),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::SCENE_TRACK,
+        CommandAxes::read_only(StateLayer::LocalPersistent),
+        FeatureBinding::Unprobed("scene.track"),
+        ServiceBinding::One(ServiceRole::ScenePolicy),
         &[lctrl_core::required(Dependency::LocalFilesystem)],
         DispatchSupport::Implemented,
     ),

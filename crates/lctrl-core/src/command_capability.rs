@@ -138,6 +138,10 @@ impl CommandId {
     pub const FIX_RUN: Self = Self("fix.run");
     pub const FIX_TRACK: Self = Self("fix.track");
 
+    pub const SCENE_LIST: Self = Self("scene.list");
+    pub const SCENE_TEST: Self = Self("scene.test");
+    pub const SCENE_TRACK: Self = Self("scene.track");
+
     pub const SNAPSHOT_CAPTURE: Self = Self("snapshot.capture");
     pub const SNAPSHOT_DIFF: Self = Self("snapshot.diff");
     pub const SNAPSHOT_RESTORE: Self = Self("snapshot.restore");
@@ -259,6 +263,9 @@ impl CommandId {
         Self::FIX_SCAN,
         Self::FIX_RUN,
         Self::FIX_TRACK,
+        Self::SCENE_LIST,
+        Self::SCENE_TEST,
+        Self::SCENE_TRACK,
         Self::SNAPSHOT_CAPTURE,
         Self::SNAPSHOT_DIFF,
         Self::SNAPSHOT_RESTORE,

@@ -7,6 +7,7 @@ use std::thread;
 use std::time::Duration;
 
 use lctrl_core::{LctrlError, Result};
+use lctrl_hal::ScenePolicyControl;
 use parking_lot::Mutex;
 use windows_sys::Win32::{
     Foundation::{
@@ -45,10 +46,12 @@ pub fn run(events: Receiver<DaemonEvent>) -> Result<()> {
     let clients = Arc::new(AtomicUsize::new(0));
     let last_events = Arc::new(Mutex::new(VecDeque::with_capacity(MAX_EVENTS)));
     let subscribers = Arc::new(Mutex::new(Vec::<SyncSender<DaemonEvent>>::new()));
+    let scene_policy = lctrl_hal_win::NativeScenePolicy::new();
     let event_thread = {
         let stop = Arc::clone(&stop);
         let last_events = Arc::clone(&last_events);
         let subscribers = Arc::clone(&subscribers);
+        let scene_policy = scene_policy;
         thread::spawn(move || {
             while !stop.load(Ordering::Acquire) {
                 match events.recv_timeout(Duration::from_millis(100)) {
@@ -59,7 +62,27 @@ pub fn run(events: Receiver<DaemonEvent>) -> Result<()> {
                         }
                         history.push_back(event.clone());
                         drop(history);
+                        let scene_class = if event.kind == crate::VENDOR_EVENT_KIND {
+                            event
+                                .payload
+                                .get("source_class")
+                                .and_then(serde_json::Value::as_str)
+                                .map(str::to_string)
+                        } else {
+                            None
+                        };
                         broadcast(&subscribers, event);
+                        if let Some(class) = scene_class {
+                            for match_ in scene_policy.match_event(&class) {
+                                if match_.matched {
+                                    let _ = scene_policy.apply(
+                                        &match_.rule.id,
+                                        &class,
+                                        lctrl_core::ApplyMode::Commit,
+                                    );
+                                }
+                            }
+                        }
                     }
                     Err(RecvTimeoutError::Timeout) => {}
                     Err(RecvTimeoutError::Disconnected) => break,

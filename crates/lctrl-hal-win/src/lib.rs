@@ -60,6 +60,8 @@ pub use local_updates::{LocalDriverUpdateApi, WindowsLocalUpdateController};
 pub use magicbay::NativeMagicBay;
 pub use magicbay::{coalesce_magicbay_devices, parse_magicbay_instance_id};
 pub use machine_fix::WindowsMachineFix;
+mod scene_policy;
+pub use scene_policy::NativeScenePolicy;
 pub use native_battery_electrical::NativeBatteryElectrical;
 #[cfg(windows)]
 pub use native_ioctl::NativeIoctl;

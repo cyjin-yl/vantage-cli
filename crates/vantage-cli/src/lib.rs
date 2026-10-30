@@ -22,6 +22,7 @@ use lctrl_core::{
     HardwareInfo, LctrlError, LocalDriverRollbackRequest, LocalDriverUpdateRequest,
     PerformanceMode, Platform, PowerGuid, PowerMutation, PowerRangeObservation, PowerSchemeId,
     PowerSettingKey, PowerSettingValue, PowerSource, UpdateCapability,
+    SceneAction,
 };
 use lctrl_hal::{
     BatteryControl, BiosControl, ControlConflictDetection, DiagnosticsControl, FanControl, Hal,
@@ -30,6 +31,7 @@ use lctrl_hal::{
     ProcessorPowerControl, TemperatureControl, TouchpadControl, TuningControl, UpdateControl,
     WifiSecurityControl,
 };
+use lctrl_hal::ScenePolicyControl;
 use serde::{Deserialize, Serialize};
 
 mod battery_observation;
@@ -79,6 +81,7 @@ pub struct CommandServices<'a> {
     local_update: Option<&'a dyn LocalUpdateControl>,
     wifi: Option<&'a dyn WifiSecurityControl>,
     machine_fix: Option<&'a dyn MachineFixControl>,
+    scene: Option<&'a dyn ScenePolicyControl>,
 }
 
 impl<'a> CommandServices<'a> {
@@ -105,6 +108,7 @@ impl<'a> CommandServices<'a> {
             local_update: None,
             wifi: None,
             machine_fix: None,
+            scene: None,
         }
     }
 
@@ -223,6 +227,12 @@ impl<'a> CommandServices<'a> {
     #[must_use]
     pub fn with_machine_fix(mut self, machine_fix: &'a dyn MachineFixControl) -> Self {
         self.machine_fix = Some(machine_fix);
+        self
+    }
+
+    #[must_use]
+    pub fn with_scene(mut self, scene: &'a dyn ScenePolicyControl) -> Self {
+    self.scene = Some(scene);
         self
     }
 }
@@ -441,6 +451,10 @@ pub enum Command {
         #[command(subcommand)]
         command: Option<FixCommand>,
     },
+    Scene {
+        #[command(subcommand)]
+        command: Option<SceneCommand>,
+    },
     Daemon {
         #[command(subcommand)]
         command: Option<DaemonCommand>,
@@ -463,6 +477,24 @@ pub enum FixCommand {
         dry_run: bool,
     },
     /// Show the local ledger of applied fixes and their rollbacks.
+    Track,
+}
+
+/// Scene-policy command tree.
+#[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
+pub enum SceneCommand {
+    /// List the transparent scene-policy ruleset.
+    List,
+    /// Match a documented event class against the ruleset; with --dry-run, plan the firing rule's action without writing.
+    Test {
+        event: String,
+        /// Test a specific rule by its id instead of the first rule that fires on the event.
+        #[arg(long)]
+        rule: Option<String>,
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Show the local ledger of applied scene actions and their rollbacks.
     Track,
 }
 
@@ -1348,6 +1380,16 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
         Command::Fix {
             command: Some(FixCommand::Track),
         } => execute_fix_track(services.machine_fix),
+        Command::Scene { command: None } => execute_scene_list(services.scene),
+        Command::Scene {
+            command: Some(SceneCommand::List),
+        } => execute_scene_list(services.scene),
+        Command::Scene {
+            command: Some(SceneCommand::Test { event, rule, dry_run }),
+        } => execute_scene_test(services.scene, &event, rule.as_deref(), dry_run),
+        Command::Scene {
+            command: Some(SceneCommand::Track),
+        } => execute_scene_track(services.scene),
         Command::Completions { shell } => execute_completions(shell),
         command => Err(unsupported(command)),
     }
@@ -3957,6 +3999,103 @@ fn execute_fix_track(machine_fix: Option<&dyn MachineFixControl>) -> CommandResu
     )
 }
 
+fn scene_action_kind(action: &SceneAction) -> String {
+    match action {
+        SceneAction::SetPerformanceMode { mode } => format!("set_performance_mode({mode})"),
+        SceneAction::SetFanMode { mode } => format!("set_fan_mode({mode})"),
+        SceneAction::SetPanelRefresh { hz } => format!("set_panel_refresh({hz} Hz)"),
+        SceneAction::SetPowerScheme { scheme } => format!("set_power_scheme({scheme})"),
+    }
+}
+
+fn execute_scene_list(scene: Option<&dyn ScenePolicyControl>) -> CommandResult {
+    let scene = scene.ok_or_else(|| LctrlError::Unsupported {
+        feature: "scene.list".into(),
+    })?;
+    let rules = scene.rules();
+    let rows = rules
+        .iter()
+        .map(|rule| {
+            serde_json::json!({
+                "id": rule.id,
+                "title": rule.title,
+                "event_class": rule.event_class,
+                "action": rule.action,
+                "rollback": rule.rollback,
+            })
+        })
+        .collect::<Vec<_>>();
+    structured_output(
+        &serde_json::json!({ "rules": rows }),
+        format!("{} declared scene rule(s)\n", rules.len()),
+    )
+}
+
+fn execute_scene_test(
+    scene: Option<&dyn ScenePolicyControl>,
+    event: &str,
+    rule: Option<&str>,
+    dry_run: bool,
+) -> CommandResult {
+    let scene = scene.ok_or_else(|| LctrlError::Unsupported {
+        feature: "scene.test".into(),
+    })?;
+    let mode = if dry_run {
+        ApplyMode::DryRun
+    } else {
+        ApplyMode::Commit
+    };
+    if let Some(rule_id) = rule {
+        // Test a specific rule by id: apply it directly against the named event class.
+        let report = scene.apply(rule_id, event, mode)?;
+        let human = format!("scene rule {rule_id} on {event}: {}", scene_action_kind(&report.requested));
+        return structured_output(&report, human);
+    }
+    let matches = scene.match_event(event);
+    let firing = matches.iter().filter(|m| m.matched).count();
+    if firing == 0 {
+        return structured_output(
+            &serde_json::json!({
+                "event": event,
+                "matched": 0,
+                "reason": "no declared scene rule fires on this event class",
+            }),
+            format!("no scene fires on {event}\n"),
+        );
+    }
+    let first = matches
+        .iter()
+        .find(|m| m.matched)
+        .expect("a firing rule exists when firing > 0");
+    let report = scene.apply(&first.rule.id, event, mode)?;
+    let verb = if dry_run { "plan" } else { "applied" };
+    structured_output(
+        &serde_json::json!({
+            "event": event,
+            "matched": firing,
+            "rule": first.rule.id,
+            "report": report,
+        }),
+        format!(
+            "scene {verb} for {event}: rule {} ({} of {} rule(s) fire)\n",
+            first.rule.id,
+            firing,
+            matches.len(),
+        ),
+    )
+}
+
+fn execute_scene_track(scene: Option<&dyn ScenePolicyControl>) -> CommandResult {
+    let scene = scene.ok_or_else(|| LctrlError::Unsupported {
+        feature: "scene.track".into(),
+    })?;
+    let ledger = scene.track();
+    structured_output(
+        &ledger,
+        format!("{} applied scene action(s) on record\n", ledger.entries.len()),
+    )
+}
+
 fn parse_diagnostic_kind(value: &str) -> lctrl_core::Result<DiagnosticKind> {
     match value.to_ascii_lowercase().as_str() {
         "battery" => Ok(DiagnosticKind::Battery),
@@ -4829,6 +4968,9 @@ fn command_feature(command: &Command) -> String {
         Command::Fix { command } => {
             prefixed("fix", command.as_ref().map(FixCommand::feature))
         }
+        Command::Scene { command } => {
+            prefixed("scene", command.as_ref().map(SceneCommand::feature))
+        }
         Command::Snapshot { command } => {
             prefixed("snapshot", command.as_ref().map(SnapshotCommand::feature))
         }
@@ -5000,6 +5142,16 @@ impl FixCommand {
         match self {
             Self::Scan => "scan",
             Self::Run { .. } => "run",
+            Self::Track => "track",
+        }
+    }
+}
+
+impl SceneCommand {
+    const fn feature(&self) -> &'static str {
+        match self {
+            Self::List => "list",
+            Self::Test { .. } => "test",
             Self::Track => "track",
         }
     }
