@@ -174,6 +174,15 @@ impl WmiMethodResult {
                 // Callers must still inspect the business `return` value.
                 true
             }
+            None if !output.is_empty() => {
+                // Other Lenovo method classes (e.g. `Lenovo_GetBiosSelections`
+                // on this firmware) surface their declared out-parameters only;
+                // `IWbemServices::ExecMethod` does not synthesize a ReturnValue
+                // property the way Invoke-CimMethod does. A non-empty out-params
+                // object that successfully unmarshalled is the transport-level
+                // success signal; callers must validate the declared fields.
+                true
+            }
             None => {
                 return Err(LctrlError::ChannelUnavailable {
                     channel: "WMI method omitted ReturnValue".into(),
