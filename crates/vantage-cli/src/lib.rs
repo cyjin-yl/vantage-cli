@@ -26,8 +26,9 @@ use lctrl_core::{
 use lctrl_hal::{
     BatteryControl, BiosControl, ControlConflictDetection, DiagnosticsControl, FanControl, Hal,
     KeyboardControl, MagicBayControl, PanelBrightnessControl, PanelControl, PerformanceControl,
-    LocalUpdateControl, PowerControl, PowerLimitKind, PrivacyControl, ProcessorPowerControl,
-    TemperatureControl, TouchpadControl, TuningControl, UpdateControl, WifiSecurityControl,
+    LocalUpdateControl, MachineFixControl, PowerControl, PowerLimitKind, PrivacyControl,
+    ProcessorPowerControl, TemperatureControl, TouchpadControl, TuningControl, UpdateControl,
+    WifiSecurityControl,
 };
 use serde::{Deserialize, Serialize};
 
@@ -77,6 +78,7 @@ pub struct CommandServices<'a> {
     update: Option<&'a dyn UpdateControl>,
     local_update: Option<&'a dyn LocalUpdateControl>,
     wifi: Option<&'a dyn WifiSecurityControl>,
+    machine_fix: Option<&'a dyn MachineFixControl>,
 }
 
 impl<'a> CommandServices<'a> {
@@ -102,6 +104,7 @@ impl<'a> CommandServices<'a> {
             update: None,
             local_update: None,
             wifi: None,
+            machine_fix: None,
         }
     }
 
@@ -214,6 +217,12 @@ impl<'a> CommandServices<'a> {
     #[must_use]
     pub fn with_wifi(mut self, wifi: &'a dyn WifiSecurityControl) -> Self {
         self.wifi = Some(wifi);
+        self
+    }
+
+    #[must_use]
+    pub fn with_machine_fix(mut self, machine_fix: &'a dyn MachineFixControl) -> Self {
+        self.machine_fix = Some(machine_fix);
         self
     }
 }
@@ -428,6 +437,10 @@ pub enum Command {
         #[command(subcommand)]
         command: Option<WifiCommand>,
     },
+    Fix {
+        #[command(subcommand)]
+        command: Option<FixCommand>,
+    },
     Daemon {
         #[command(subcommand)]
         command: Option<DaemonCommand>,
@@ -436,6 +449,21 @@ pub enum Command {
         #[arg(value_enum)]
         shell: Shell,
     },
+}
+
+/// MachineFix command tree.
+#[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
+pub enum FixCommand {
+    /// List the transparent ruleset and which issues are present.
+    Scan,
+    /// Apply the named rule's repair, or report the plan under --dry-run.
+    Run {
+        issue: String,
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Show the local ledger of applied fixes and their rollbacks.
+    Track,
 }
 
 /// Battery command tree.
@@ -1310,6 +1338,16 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
                     command: Some(profile),
                 }),
         } => execute_tune_profile(&services, profile, apply),
+        Command::Fix { command: None } => execute_fix_rules(services.machine_fix),
+        Command::Fix {
+            command: Some(FixCommand::Scan),
+        } => execute_fix_scan(services.machine_fix),
+        Command::Fix {
+            command: Some(FixCommand::Run { issue, dry_run }),
+        } => execute_fix_run(services.machine_fix, &issue, dry_run),
+        Command::Fix {
+            command: Some(FixCommand::Track),
+        } => execute_fix_track(services.machine_fix),
         Command::Completions { shell } => execute_completions(shell),
         command => Err(unsupported(command)),
     }
@@ -3853,6 +3891,72 @@ fn execute_wifi(wifi: Option<&dyn WifiSecurityControl>, command: WifiCommand) ->
     }
 }
 
+fn execute_fix_rules(machine_fix: Option<&dyn MachineFixControl>) -> CommandResult {
+    let machine_fix = machine_fix.ok_or_else(|| LctrlError::Unsupported {
+        feature: "fix.rules".into(),
+    })?;
+    let rules = machine_fix.rules();
+    let rows = rules
+        .iter()
+        .map(|rule| {
+            serde_json::json!({
+                "id": rule.issue.id,
+                "title": rule.issue.title,
+                "repair": rule.repair,
+                "rollback": rule.rollback,
+            })
+        })
+        .collect::<Vec<_>>();
+    structured_output(
+        &serde_json::json!({ "rules": rows }),
+        format!("{} declared rule(s)\n", rules.len()),
+    )
+}
+
+fn execute_fix_scan(machine_fix: Option<&dyn MachineFixControl>) -> CommandResult {
+    let machine_fix = machine_fix.ok_or_else(|| LctrlError::Unsupported {
+        feature: "fix.scan".into(),
+    })?;
+    let observations = machine_fix.scan()?;
+    let present = observations.iter().filter(|o| o.present).count();
+    structured_output(
+        &observations,
+        format!("{} rule(s), {} present\n", observations.len(), present),
+    )
+}
+
+fn execute_fix_run(
+    machine_fix: Option<&dyn MachineFixControl>,
+    issue: &str,
+    dry_run: bool,
+) -> CommandResult {
+    let machine_fix = machine_fix.ok_or_else(|| LctrlError::Unsupported {
+        feature: "fix.run".into(),
+    })?;
+    let mode = if dry_run {
+        lctrl_core::ApplyMode::DryRun
+    } else {
+        lctrl_core::ApplyMode::Commit
+    };
+    let report = machine_fix.fix(issue, mode)?;
+    let verb = if dry_run { "plan" } else { "applied" };
+    structured_output(
+        &report,
+        format!("fix {} for {}\n", verb, report.issue_id),
+    )
+}
+
+fn execute_fix_track(machine_fix: Option<&dyn MachineFixControl>) -> CommandResult {
+    let machine_fix = machine_fix.ok_or_else(|| LctrlError::Unsupported {
+        feature: "fix.track".into(),
+    })?;
+    let ledger = machine_fix.track();
+    structured_output(
+        &ledger,
+        format!("{} applied fix(es) on record\n", ledger.entries.len()),
+    )
+}
+
 fn parse_diagnostic_kind(value: &str) -> lctrl_core::Result<DiagnosticKind> {
     match value.to_ascii_lowercase().as_str() {
         "battery" => Ok(DiagnosticKind::Battery),
@@ -4722,6 +4826,9 @@ fn command_feature(command: &Command) -> String {
         Command::Wifi { command } => {
             prefixed("wifi", command.as_ref().map(WifiCommand::feature))
         }
+        Command::Fix { command } => {
+            prefixed("fix", command.as_ref().map(FixCommand::feature))
+        }
         Command::Snapshot { command } => {
             prefixed("snapshot", command.as_ref().map(SnapshotCommand::feature))
         }
@@ -4884,6 +4991,16 @@ impl UpdateCommand {
             Self::Ignore { .. } => "ignore",
             Self::Rollback { .. } => "rollback",
             Self::Schedule { .. } => "schedule",
+        }
+    }
+}
+
+impl FixCommand {
+    const fn feature(&self) -> &'static str {
+        match self {
+            Self::Scan => "scan",
+            Self::Run { .. } => "run",
+            Self::Track => "track",
         }
     }
 }

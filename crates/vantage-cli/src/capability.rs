@@ -146,6 +146,7 @@ pub fn command_layer(command: &crate::Command) -> lctrl_core::StateLayer {
         Command::Daemon { .. } => StateLayer::Runtime,
         Command::Scan { .. } => StateLayer::NotApplicable,
         Command::Wifi { .. } => StateLayer::NotApplicable,
+        Command::Fix { .. } => StateLayer::LocalPersistent,
         Command::Touchpad {
             state: crate::TouchpadAction::Status | crate::TouchpadAction::Recover,
         } => StateLayer::Runtime,
@@ -189,7 +190,7 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
     use crate::Command;
     use crate::{
         AudioCommand, BatteryCommand, BiosCommand, DaemonCommand, LteCommand, MagicbayCommand,
-        LocalDriverCommand, OsdCommand, PanelCommand, PasswordCommand, PerfCommand,
+        FixCommand, LocalDriverCommand, OsdCommand, PanelCommand, PasswordCommand, PerfCommand,
         PrivacyCommand, ProfileCommand, SchemeCommand, SenseCommand, SnapshotCommand,
         TempCommand, TuneCommand, UpdateCommand, UsbCommand, WifiCommand,
     };
@@ -627,6 +628,16 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
             command: Some(WifiCommand::Security),
         } => CommandId::WIFI_SECURITY,
         Command::Wifi { .. } => return None,
+        Command::Fix { command: None } => CommandId::FIX_RULES,
+        Command::Fix {
+            command: Some(FixCommand::Scan),
+        } => CommandId::FIX_SCAN,
+        Command::Fix {
+            command: Some(FixCommand::Run { .. }),
+        } => CommandId::FIX_RUN,
+        Command::Fix {
+            command: Some(FixCommand::Track),
+        } => CommandId::FIX_TRACK,
         Command::Snapshot {
             command: Some(SnapshotCommand::Capture),
         } => CommandId::SNAPSHOT_CAPTURE,

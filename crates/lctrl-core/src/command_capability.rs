@@ -133,6 +133,11 @@ impl CommandId {
 
     pub const WIFI_SECURITY: Self = Self("wifi.security");
 
+    pub const FIX_RULES: Self = Self("fix.rules");
+    pub const FIX_SCAN: Self = Self("fix.scan");
+    pub const FIX_RUN: Self = Self("fix.run");
+    pub const FIX_TRACK: Self = Self("fix.track");
+
     pub const SNAPSHOT_CAPTURE: Self = Self("snapshot.capture");
     pub const SNAPSHOT_DIFF: Self = Self("snapshot.diff");
     pub const SNAPSHOT_RESTORE: Self = Self("snapshot.restore");
@@ -250,6 +255,10 @@ impl CommandId {
         Self::UPDATE_SCHEDULE,
         Self::SCAN_LIST,
         Self::SCAN_RUN,
+        Self::FIX_RULES,
+        Self::FIX_SCAN,
+        Self::FIX_RUN,
+        Self::FIX_TRACK,
         Self::SNAPSHOT_CAPTURE,
         Self::SNAPSHOT_DIFF,
         Self::SNAPSHOT_RESTORE,

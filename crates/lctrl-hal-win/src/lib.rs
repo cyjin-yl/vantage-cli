@@ -10,6 +10,7 @@ mod events;
 mod ioctl_contract;
 mod local_updates;
 mod magicbay;
+mod machine_fix;
 mod native_battery_electrical;
 #[cfg(windows)]
 mod native_ioctl;
@@ -58,6 +59,7 @@ pub use local_updates::{LocalDriverUpdateApi, WindowsLocalUpdateController};
 #[cfg(windows)]
 pub use magicbay::NativeMagicBay;
 pub use magicbay::{coalesce_magicbay_devices, parse_magicbay_instance_id};
+pub use machine_fix::WindowsMachineFix;
 pub use native_battery_electrical::NativeBatteryElectrical;
 #[cfg(windows)]
 pub use native_ioctl::NativeIoctl;

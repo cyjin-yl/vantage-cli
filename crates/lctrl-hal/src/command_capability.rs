@@ -39,6 +39,7 @@ pub enum ServiceRole {
     MagicBayDisplay,
     Osd,
     Wifi,
+    MachineFix,
 }
 
 impl ServiceRole {
@@ -72,6 +73,7 @@ impl ServiceRole {
             Self::MagicBayDisplay => "magicbay_display",
             Self::Osd => "osd",
             Self::Wifi => "wifi",
+            Self::MachineFix => "machine_fix",
         }
     }
 }
@@ -1644,6 +1646,45 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         FeatureBinding::Unprobed("wifi.security"),
         ServiceBinding::One(ServiceRole::Wifi),
         &[lctrl_core::required(Dependency::Win32ProcessApi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::FIX_RULES,
+        CommandAxes::read_only(StateLayer::NotApplicable),
+        FeatureBinding::LocalOnly,
+        ServiceBinding::Local,
+        &[],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::FIX_SCAN,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Unprobed("machinefix.scan"),
+        ServiceBinding::One(ServiceRole::MachineFix),
+        &[lctrl_core::required(Dependency::Win32Scm)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::FIX_RUN,
+        CommandAxes::mutation(
+            StateLayer::LocalPersistent,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Unprobed("machinefix.run"),
+        ServiceBinding::One(ServiceRole::MachineFix),
+        &[
+            lctrl_core::required(Dependency::Win32Scm),
+            lctrl_core::required(Dependency::LocalFilesystem),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::FIX_TRACK,
+        CommandAxes::read_only(StateLayer::LocalPersistent),
+        FeatureBinding::Unprobed("machinefix.track"),
+        ServiceBinding::One(ServiceRole::MachineFix),
+        &[lctrl_core::required(Dependency::LocalFilesystem)],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(

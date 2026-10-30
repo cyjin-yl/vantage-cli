@@ -406,6 +406,7 @@ fn main() {
     let wifi_security = lctrl_hal_win::WindowsWifiSecurity::default();
     let local_update =
         lctrl_hal_win::WindowsLocalUpdateController::new(lctrl_hal_win::NativeLocalDriverUpdateApi);
+    let machine_fix = lctrl_hal_win::WindowsMachineFix::new();
     let services = vantage_cli::CommandServices::new(&hal)
         .with_battery(&battery)
         .with_conflict_detection(&conflicts)
@@ -425,7 +426,8 @@ fn main() {
         .with_fan(&thermal)
         .with_update(&system_inventory)
         .with_local_update(&local_update)
-        .with_wifi(&wifi_security);
+        .with_wifi(&wifi_security)
+        .with_machine_fix(&machine_fix);
     run(cli, services);
 }
 

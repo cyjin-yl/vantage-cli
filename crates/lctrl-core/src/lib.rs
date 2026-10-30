@@ -8,6 +8,7 @@ mod diagnostics;
 mod error;
 mod inventory;
 mod keyboard;
+mod machine_fix;
 mod magicbay;
 mod panel;
 mod performance;
@@ -52,6 +53,9 @@ pub use inventory::{
 pub use keyboard::{
     BacklightState, DeviceState, LightingEffect, LockState, TouchpadRecoveryLeaf,
     TouchpadRecoveryReport,
+};
+pub use machine_fix::{
+    FixIssue, FixLedger, FixLedgerEntry, FixObservation, FixRepairKind, FixReport, FixRule,
 };
 pub use magicbay::{
     KNOWN_MAGICBAY_DEVICES, KnownMagicBayDevice, MAGICBAY_VENDOR_ID, MagicBayDevice,
