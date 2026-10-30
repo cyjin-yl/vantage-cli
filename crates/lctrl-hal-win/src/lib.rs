@@ -26,6 +26,7 @@ mod os_battery;
 mod p0;
 mod performance_p0;
 mod peripherals;
+mod power_overlay;
 mod power_p0;
 mod power_tuning;
 mod process;
@@ -79,7 +80,10 @@ pub use native_power_status::NativeSystemPowerStatus;
 pub use native_wmi::NativeWmi;
 pub use os_battery::{OsBatteryChannel, SystemPowerStatusReader, WindowsOsBattery};
 pub use p0::{ChargeModeReader, UnverifiedChargeModeReader, WindowsBatteryP0};
-pub use performance_p0::{PerformanceRegistryReader, WindowsPerformanceP0};
+pub use performance_p0::{PerformanceRegistryReader, WindowsPerformanceP0, read_effective_mode};
+pub use power_overlay::{
+    NativePowerOverlay, OverlayGuid, PowerOverlayControl, mode_for_overlay, overlay_for_mode,
+};
 pub use peripherals::WindowsPeripheralController;
 pub use power_p0::{PowerApi, WindowsPowerP0};
 pub use power_tuning::{

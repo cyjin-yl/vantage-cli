@@ -645,3 +645,43 @@ PL 写入、BIOS 更新写入)。在全部必要功能与最小依赖切换验�
 release 二进制 `vantage.exe`(SHA-256 `8c299fd2d46c3a84c970a9c27ee06e8485223f812942b74eb4d24d8efad51482`,4627968 字节)随仓库发布于 `dist/windows/vantage.exe`,同目录 `vantage.exe.sha256` 提供核对值。Gitea 与 GitHub main 均已同步该二进制;GitHub release `v0.1.0-windows`(tag `v0.1.0-windows`)作为标签记录交付。
 
 目标机 Lenovo 21VG 上该二进制的实际效果与回读按 C1–C21 逐项验收;缺已验证接口契约或硬件不适用处(充电/USB 写入、性能/风扇/PL 写入、BIOS 更新写入)如实报告 `unavailable`,不以未知控制码、厂商二进制或停服务绕过。完整功能追踪见 tracker #39 的 38 个功能域。
+
+## C23 · 性能模式改由 Windows 原生 overlay 实现（真机验收）
+
+**状态:已消除 `perf.mode.set` 的 `Unsupported`;经 OS 原生 API 实现并真机验收,不经联想专有层。**
+
+实现:新建 `crates/lctrl-hal-win/src/power_overlay.rs`,运行时经 `GetProcAddress` 解析
+`powrprof.dll` 的 `PowerGetActualOverlayScheme` / `PowerGetEffectiveOverlayScheme` /
+`PowerSetActiveOverlayScheme`。三个方案映射:
+
+| 模式 | overlay GUID |
+|---|---|
+| balanced (`perf mode auto`) | `00000000-0000-0000-0000-000000000000` |
+| quiet (`perf mode cool`) | `961cc777-2547-4f9d-8174-7d86181b8a7a` |
+| performance (`perf mode performance`) | `ded574b5-45a0-4f42-8737-46345c09c238` |
+| geek / silent-high-performance / custom | 拒绝（无 OS 等价语义,不近似替代） |
+
+写路径:读 `PowerGetActualOverlayScheme` 作前值 → dry-run 不写 → 提交后读回校验 →
+不一致回滚到前值并报 `VerifyMismatch`;前值非本实现拥有的方案时在写之前拒绝。
+
+真机结果（2026-10-30,21VG,SSH 管理员身份,`--yes` 通过并发控制门禁）:
+
+| 步骤 | 程序输出 | 独立 `PowerGetActualOverlayScheme` |
+|---|---|---|
+| 初始 | — | `00000000-…`（balanced） |
+| `--dry-run perf mode performance` | `requested=performance actual=dry-run (previous=balanced)`,exit 0 | 不变 `00000000-…` |
+| `perf mode performance` | `requested=performance actual=performance (previous=balanced)`,exit 0 | **`ded574b5-45a0-4f42-8737-46345c09c238`** |
+| `perf mode auto` | `requested=balanced actual=balanced (previous=performance)`,exit 0 | 回到 `00000000-…` |
+| `perf mode geek` | `feature is unsupported: perf.mode.geek.overlay`,exit 3 | 不变 |
+
+Windows 目标机构建:`cargo build --locked --release -p vantage` 退出 0;
+`cargo test -p lctrl-hal-win --test windows_performance_p0` 8 项全过;
+`--test overlay_native` 2 项全过（真实 `powrprof.dll` 路径 + HAL 能力记录为 `Limited`）。
+
+能力矩阵:`perf.mode` 依赖改为 `win32_power_api:required`、`win32_registry`/`lenovo_process_management`
+降为可选,回读改为 `required`;`status` 为 `unverified`（服务角色在根 HAL 中不可见,与
+`tune.epp`/`power.scheme.set` 同口径）,不再为 `unsupported`。
+
+边界:overlay 只覆盖 OS 定义的三个方案;厂商专有的 geek/自定义模式不实现。
+PL1/PL2/tau 与风扇模式在 Windows 仍为不可用——唯一在册 MSR 通道是联想专有驱动,
+按"不经厂商专有层"的约束不采用（详见 `docs/RE-interfaces.md` §9.3）;Linux 侧同类能力由主线内核提供。

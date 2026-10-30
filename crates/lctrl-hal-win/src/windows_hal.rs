@@ -3,6 +3,7 @@ use lctrl_hal::{BatteryElectricalSource, Hal};
 
 use crate::{
     EnergyDriver, IoctlTransport, WmiObject, WmiTransport, WmiValue, active_instance,
+    power_overlay::NativePowerOverlay, power_overlay::PowerOverlayControl,
     wmi_contract::ROOT_WMI,
 };
 
@@ -104,6 +105,27 @@ where
                 false
             }
         };
+        // Performance mode is driven through the OS power overlay scheme, not
+        // through any vendor service. Only the three schemes Windows defines
+        // are portable, so the feature is reported as limited rather than
+        // fully available.
+        match NativePowerOverlay.effective() {
+            Ok(_) => capabilities.record(
+                "perf.mode",
+                Availability::Limited,
+                Some(
+                    "Windows power overlay covers balanced, quiet and performance; vendor-only \
+                     modes (geek, silent-high-performance, custom) have no OS equivalent"
+                        .into(),
+                ),
+            )?,
+            Err(error) => capabilities.record(
+                "perf.mode",
+                Availability::Unavailable,
+                Some(error.to_string()),
+            )?,
+        };
+
         let energy_available = match EnergyDriver::new(&self.ioctl).gbmd_status() {
             Ok(_) => {
                 capabilities.record("channel.energy_driver", Availability::Available, None)?;
@@ -373,11 +395,6 @@ where
             ),
         )?;
         for (feature, availability, detail) in [
-            (
-                "perf.mode",
-                Availability::Unavailable,
-                "target performance-mode write path is unavailable",
-            ),
             (
                 "perf.fan.mode",
                 Availability::Unavailable,
