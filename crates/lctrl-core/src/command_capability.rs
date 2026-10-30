@@ -114,6 +114,12 @@ impl CommandId {
     pub const OSD_ENABLE: Self = Self("osd.enable");
     pub const OSD_DISABLE: Self = Self("osd.disable");
     pub const OSD_TEST: Self = Self("osd.test");
+    pub const OSD_SHOW: Self = Self("osd.show");
+
+    pub const HOTKEY_LIST: Self = Self("hotkey.list");
+    pub const HOTKEY_REGISTER: Self = Self("hotkey.register");
+    pub const HOTKEY_TRIGGER: Self = Self("hotkey.trigger");
+    pub const HOTKEY_UNREGISTER: Self = Self("hotkey.unregister");
 
     pub const UPDATE_CHECK: Self = Self("update.check");
     pub const UPDATE_LOCAL_INSTALL: Self = Self("update.local.install");
@@ -245,6 +251,11 @@ impl CommandId {
         Self::OSD_ENABLE,
         Self::OSD_DISABLE,
         Self::OSD_TEST,
+        Self::OSD_SHOW,
+        Self::HOTKEY_LIST,
+        Self::HOTKEY_REGISTER,
+        Self::HOTKEY_TRIGGER,
+        Self::HOTKEY_UNREGISTER,
         Self::UPDATE_CHECK,
         Self::UPDATE_LOCAL_INSTALL,
         Self::UPDATE_LOCAL_ROLLBACK,

@@ -408,6 +408,8 @@ fn main() {
         lctrl_hal_win::WindowsLocalUpdateController::new(lctrl_hal_win::NativeLocalDriverUpdateApi);
     let machine_fix = lctrl_hal_win::WindowsMachineFix::new();
     let scene = lctrl_hal_win::NativeScenePolicy::new();
+    let osd = lctrl_hal_win::NativeOsd::new();
+    let hotkey = lctrl_hal_win::NativeHotkey::new();
     let services = vantage_cli::CommandServices::new(&hal)
         .with_battery(&battery)
         .with_conflict_detection(&conflicts)
@@ -429,7 +431,9 @@ fn main() {
         .with_local_update(&local_update)
         .with_wifi(&wifi_security)
         .with_machine_fix(&machine_fix)
-        .with_scene(&scene);
+        .with_scene(&scene)
+        .with_osd(&osd)
+        .with_hotkey(&hotkey);
     run(cli, services);
 }
 

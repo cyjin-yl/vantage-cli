@@ -7,7 +7,7 @@ use std::thread;
 use std::time::Duration;
 
 use lctrl_core::{LctrlError, Result};
-use lctrl_hal::ScenePolicyControl;
+use lctrl_hal::{OsdControl, ScenePolicyControl};
 use parking_lot::Mutex;
 use windows_sys::Win32::{
     Foundation::{
@@ -47,11 +47,13 @@ pub fn run(events: Receiver<DaemonEvent>) -> Result<()> {
     let last_events = Arc::new(Mutex::new(VecDeque::with_capacity(MAX_EVENTS)));
     let subscribers = Arc::new(Mutex::new(Vec::<SyncSender<DaemonEvent>>::new()));
     let scene_policy = lctrl_hal_win::NativeScenePolicy::new();
+    let osd = lctrl_hal_win::NativeOsd::new();
     let event_thread = {
         let stop = Arc::clone(&stop);
         let last_events = Arc::clone(&last_events);
         let subscribers = Arc::clone(&subscribers);
         let scene_policy = scene_policy;
+        let osd = osd;
         thread::spawn(move || {
             while !stop.load(Ordering::Acquire) {
                 match events.recv_timeout(Duration::from_millis(100)) {
@@ -75,11 +77,27 @@ pub fn run(events: Receiver<DaemonEvent>) -> Result<()> {
                         if let Some(class) = scene_class {
                             for match_ in scene_policy.match_event(&class) {
                                 if match_.matched {
-                                    let _ = scene_policy.apply(
+                                    if let Ok(report) = scene_policy.apply(
                                         &match_.rule.id,
                                         &class,
                                         lctrl_core::ApplyMode::Commit,
-                                    );
+                                    ) {
+                                        let action = match &report.requested {
+                                            lctrl_core::SceneAction::SetPowerScheme { scheme } => format!("scheme={scheme}"),
+                                            lctrl_core::SceneAction::SetPanelRefresh { hz } => format!("refresh={hz}Hz"),
+                                            lctrl_core::SceneAction::SetFanMode { mode } => format!("fan={mode:?}"),
+                                            lctrl_core::SceneAction::SetPerformanceMode { mode } => format!("perf={mode:?}"),
+                                        };
+                                        let status = if report.actual.is_some() { "applied" } else { "unavailable" };
+                                        let _ = osd.show(
+                                            &[
+                                                &format!("scene {}", match_.rule.id),
+                                                &action,
+                                                status,
+                                            ],
+                                            false,
+                                        );
+                                    }
                                 }
                             }
                         }

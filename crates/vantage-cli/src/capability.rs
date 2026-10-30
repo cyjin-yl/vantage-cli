@@ -131,7 +131,12 @@ pub fn command_layer(command: &crate::Command) -> lctrl_core::StateLayer {
         Command::Osd {
             command: Some(crate::OsdCommand::Test),
         } => StateLayer::Runtime,
+        Command::Osd {
+            command: Some(crate::OsdCommand::Show { .. }),
+        } => StateLayer::Runtime,
         Command::Osd { command: Some(_) } => StateLayer::OsPersistent,
+        Command::Hotkey { command: None } => StateLayer::Runtime,
+        Command::Hotkey { .. } => StateLayer::OsPersistent,
         Command::Update { .. } => StateLayer::LocalPersistent,
         Command::Snapshot {
             command: Some(crate::SnapshotCommand::Diff),
@@ -586,6 +591,22 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
         Command::Osd {
             command: Some(OsdCommand::Test),
         } => CommandId::OSD_TEST,
+        Command::Osd {
+            command: Some(OsdCommand::Show { .. }),
+        } => CommandId::OSD_SHOW,
+        Command::Hotkey { command: None } => CommandId::HOTKEY_LIST,
+        Command::Hotkey {
+            command: Some(crate::HotkeyCommand::List),
+        } => CommandId::HOTKEY_LIST,
+        Command::Hotkey {
+            command: Some(crate::HotkeyCommand::Register { .. }),
+        } => CommandId::HOTKEY_REGISTER,
+        Command::Hotkey {
+            command: Some(crate::HotkeyCommand::Trigger { .. }),
+        } => CommandId::HOTKEY_TRIGGER,
+        Command::Hotkey {
+            command: Some(crate::HotkeyCommand::Unregister { .. }),
+        } => CommandId::HOTKEY_UNREGISTER,
         Command::Update {
             command: Some(UpdateCommand::Check { .. }),
         } => CommandId::UPDATE_CHECK,

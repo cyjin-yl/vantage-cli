@@ -26,10 +26,10 @@ use lctrl_core::{
 };
 use lctrl_hal::{
     BatteryControl, BiosControl, ControlConflictDetection, DiagnosticsControl, FanControl, Hal,
-    KeyboardControl, MagicBayControl, PanelBrightnessControl, PanelControl, PerformanceControl,
-    LocalUpdateControl, MachineFixControl, PowerControl, PowerLimitKind, PrivacyControl,
-    ProcessorPowerControl, TemperatureControl, TouchpadControl, TuningControl, UpdateControl,
-    WifiSecurityControl,
+    HotkeyControl, KeyboardControl, MagicBayControl, OsdControl, PanelBrightnessControl,
+    PanelControl, PerformanceControl, LocalUpdateControl, MachineFixControl, PowerControl,
+    PowerLimitKind, PrivacyControl, ProcessorPowerControl, TemperatureControl, TouchpadControl,
+    TuningControl, UpdateControl, WifiSecurityControl,
 };
 use lctrl_hal::ScenePolicyControl;
 use serde::{Deserialize, Serialize};
@@ -82,6 +82,8 @@ pub struct CommandServices<'a> {
     wifi: Option<&'a dyn WifiSecurityControl>,
     machine_fix: Option<&'a dyn MachineFixControl>,
     scene: Option<&'a dyn ScenePolicyControl>,
+    osd: Option<&'a dyn OsdControl>,
+    hotkey: Option<&'a dyn HotkeyControl>,
 }
 
 impl<'a> CommandServices<'a> {
@@ -109,6 +111,8 @@ impl<'a> CommandServices<'a> {
             wifi: None,
             machine_fix: None,
             scene: None,
+            osd: None,
+            hotkey: None,
         }
     }
 
@@ -233,6 +237,18 @@ impl<'a> CommandServices<'a> {
     #[must_use]
     pub fn with_scene(mut self, scene: &'a dyn ScenePolicyControl) -> Self {
     self.scene = Some(scene);
+        self
+    }
+
+    #[must_use]
+    pub fn with_osd(mut self, osd: &'a dyn OsdControl) -> Self {
+        self.osd = Some(osd);
+        self
+    }
+
+    #[must_use]
+    pub fn with_hotkey(mut self, hotkey: &'a dyn HotkeyControl) -> Self {
+        self.hotkey = Some(hotkey);
         self
     }
 }
@@ -430,6 +446,10 @@ pub enum Command {
     Osd {
         #[command(subcommand)]
         command: Option<OsdCommand>,
+    },
+    Hotkey {
+        #[command(subcommand)]
+        command: Option<HotkeyCommand>,
     },
     Update {
         #[command(subcommand)]
@@ -1002,6 +1022,39 @@ pub enum OsdCommand {
     Enable,
     Disable,
     Test,
+    /// Show a custom on-screen overlay with the given lines.
+    Show {
+        /// The lines to display on the overlay.
+        #[arg(required = true)]
+        lines: Vec<String>,
+    },
+}
+
+#[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
+pub enum HotkeyCommand {
+    /// List the hotkeys this process has registered and made live.
+    List,
+    /// Register a global Alt-hotkey natively (id + virtual key code).
+    Register {
+        /// The internal hotkey identifier.
+        #[arg(default_value_t = 1)]
+        id: u32,
+        /// The virtual-key code (e.g. 0x47 for the G key).
+        #[arg(default_value_t = 0x47)]
+        vk: u32,
+    },
+    /// Simulate / report a hotkey press for the given id (dry observation).
+    Trigger {
+        /// The internal hotkey identifier.
+        #[arg(default_value_t = 1)]
+        id: u32,
+    },
+    /// Release a previously registered hotkey.
+    Unregister {
+        /// The internal hotkey identifier.
+        #[arg(default_value_t = 1)]
+        id: u32,
+    },
 }
 
 #[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
@@ -1390,6 +1443,8 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
         Command::Scene {
             command: Some(SceneCommand::Track),
         } => execute_scene_track(services.scene),
+        Command::Osd { command } => execute_osd(services.osd, command, apply),
+        Command::Hotkey { command } => execute_hotkey(services.hotkey, command, apply),
         Command::Completions { shell } => execute_completions(shell),
         command => Err(unsupported(command)),
     }
@@ -4096,6 +4151,103 @@ fn execute_scene_track(scene: Option<&dyn ScenePolicyControl>) -> CommandResult 
     )
 }
 
+/// Execute an on-screen-display command against the native overlay backend.
+fn execute_osd(
+    osd: Option<&dyn OsdControl>,
+    command: Option<OsdCommand>,
+    apply: ApplyMode,
+) -> CommandResult {
+    let osd = osd.ok_or_else(|| LctrlError::Unsupported {
+        feature: "osd".into(),
+    })?;
+    let dry_run = matches!(apply, ApplyMode::DryRun);
+    let command = command.unwrap_or(OsdCommand::Test);
+    match command {
+        OsdCommand::Enable => {
+            let outcome = osd.show(&["Vantage replacement OSD enabled"], dry_run)?;
+            structured_output(&outcome, format!("osd {}: {}\n", outcome.state, outcome.detail))
+        }
+        OsdCommand::Disable => {
+            let was_visible = osd.hide()?;
+            structured_output(
+                &serde_json::json!({ "hidden": was_visible }),
+                if was_visible {
+                    format!("osd hidden\n")
+                } else {
+                    format!("no active osd overlay to hide\n")
+                },
+            )
+        }
+        OsdCommand::Test => {
+            let outcome = osd.show(&["Vantage replacement", "osd test"], dry_run)?;
+            structured_output(&outcome, format!("osd test {}: {}\n", outcome.state, outcome.detail))
+        }
+        OsdCommand::Show { lines } => {
+            let refs: Vec<&str> = lines.iter().map(String::as_str).collect();
+            let outcome = osd.show(&refs, dry_run)?;
+            structured_output(
+                &outcome,
+                format!("osd show {}: {}\n", outcome.state, outcome.detail),
+            )
+        }
+    }
+}
+
+/// Execute a global-hotkey command against the native RegisterHotKey backend.
+fn execute_hotkey(
+    hotkey: Option<&dyn HotkeyControl>,
+    command: Option<HotkeyCommand>,
+    apply: ApplyMode,
+) -> CommandResult {
+    let hotkey = hotkey.ok_or_else(|| LctrlError::Unsupported {
+        feature: "hotkey".into(),
+    })?;
+    let dry_run = matches!(apply, ApplyMode::DryRun);
+    let command = command.unwrap_or(HotkeyCommand::List);
+    match command {
+        HotkeyCommand::List => {
+            let ids = hotkey.registered();
+            structured_output(
+                &serde_json::json!({ "registered": ids }),
+                format!("{} live global hotkey(s)\n", ids.len()),
+            )
+        }
+        HotkeyCommand::Register { id, vk } => {
+            let outcome = hotkey.register(id, vk, dry_run)?;
+            structured_output(
+                &outcome,
+                format!(
+                    "hotkey {id} (vk {vk:#x}) {}: {}\n",
+                    outcome.state, outcome.detail
+                ),
+            )
+        }
+        HotkeyCommand::Trigger { id } => {
+            // A trigger is a dry observation: report whether the id is live.
+            let live = hotkey.registered().contains(&id);
+            structured_output(
+                &serde_json::json!({ "id": id, "live": live }),
+                if live {
+                    format!("hotkey {id} is registered and live\n")
+                } else {
+                    format!("hotkey {id} is not registered; register it first\n")
+                },
+            )
+        }
+        HotkeyCommand::Unregister { id } => {
+            let removed = hotkey.unregister(id)?;
+            structured_output(
+                &serde_json::json!({ "id": id, "removed": removed }),
+                if removed {
+                    format!("hotkey {id} released\n")
+                } else {
+                    format!("hotkey {id} was not registered\n")
+                },
+            )
+        }
+    }
+}
+
 fn parse_diagnostic_kind(value: &str) -> lctrl_core::Result<DiagnosticKind> {
     match value.to_ascii_lowercase().as_str() {
         "battery" => Ok(DiagnosticKind::Battery),
@@ -4911,7 +5063,6 @@ fn unsupported_reason(command: &Command) -> &'static str {
             command: Some(MagicbayCommand::Detect),
         } => "MagicBay detection service is unavailable",
         Command::Magicbay { .. } => "standard MBIM/UVC/DRM control is not attached",
-        Command::Osd { .. } => "OSD is daemon-only and no OSD backend is attached",
         Command::Daemon { .. } => "daemon commands are handled by the platform binary",
         Command::Snapshot { command: None } => "a snapshot subcommand is required",
         Command::Wifi { command: None } => "a wifi subcommand is required",
@@ -4975,6 +5126,9 @@ fn command_feature(command: &Command) -> String {
             prefixed("snapshot", command.as_ref().map(SnapshotCommand::feature))
         }
         Command::Osd { command } => prefixed("osd", command.as_ref().map(OsdCommand::feature)),
+        Command::Hotkey { command } => {
+            prefixed("hotkey", command.as_ref().map(HotkeyCommand::feature))
+        }
         Command::Daemon { command } => {
             prefixed("daemon", command.as_ref().map(DaemonCommand::feature))
         }
@@ -5213,6 +5367,18 @@ impl OsdCommand {
             Self::Enable => "enable",
             Self::Disable => "disable",
             Self::Test => "test",
+            Self::Show { .. } => "show",
+        }
+    }
+}
+
+impl HotkeyCommand {
+    const fn feature(&self) -> &'static str {
+        match self {
+            Self::List => "list",
+            Self::Register { .. } => "register",
+            Self::Trigger { .. } => "trigger",
+            Self::Unregister { .. } => "unregister",
         }
     }
 }

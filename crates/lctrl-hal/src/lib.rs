@@ -8,6 +8,8 @@ mod events;
 mod magicbay;
 mod machine_fix;
 mod scene_policy;
+mod hotkey;
+mod osd;
 mod network;
 mod performance;
 mod peripherals;
@@ -31,6 +33,8 @@ pub use events::{EventCancellation, EventSource, EventValue, RawEvent, RawEventR
 pub use magicbay::MagicBayControl;
 pub use machine_fix::MachineFixControl;
 pub use scene_policy::ScenePolicyControl;
+pub use hotkey::{HotkeyControl, HotkeyOutcome};
+pub use osd::{OsdControl, OsdOutcome};
 pub use network::{
     MAX_WIFI_HISTORY_ENTRIES, WifiConnectionState, WifiHistoryPersistence, WifiHistoryPolicy,
     WifiHistorySnapshot, WifiInterfaceSnapshot, WifiLiveNetwork, WifiSavedProfile,

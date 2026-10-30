@@ -62,6 +62,10 @@ pub use magicbay::{coalesce_magicbay_devices, parse_magicbay_instance_id};
 pub use machine_fix::WindowsMachineFix;
 mod scene_policy;
 pub use scene_policy::NativeScenePolicy;
+mod osd;
+pub use osd::NativeOsd;
+mod hotkey;
+pub use hotkey::{NativeHotkey, take_last_hotkey};
 pub use native_battery_electrical::NativeBatteryElectrical;
 #[cfg(windows)]
 pub use native_ioctl::NativeIoctl;
