@@ -27,6 +27,7 @@ use lctrl_hal::{
     KeyboardControl, MagicBayControl, PanelBrightnessControl, PanelControl, PerformanceControl,
     PowerControl, PowerLimitKind, PrivacyControl, ProcessorPowerControl, TemperatureControl,
     TouchpadControl, TuningControl, UpdateControl,
+    WifiSecurityControl,
 };
 use serde::{Deserialize, Serialize};
 
@@ -74,6 +75,7 @@ pub struct CommandServices<'a> {
     tuning: Option<&'a dyn TuningControl>,
     processor_power: Option<&'a dyn ProcessorPowerControl>,
     update: Option<&'a dyn UpdateControl>,
+    wifi: Option<&'a dyn WifiSecurityControl>,
 }
 
 impl<'a> CommandServices<'a> {
@@ -97,6 +99,7 @@ impl<'a> CommandServices<'a> {
             tuning: None,
             processor_power: None,
             update: None,
+            wifi: None,
         }
     }
 
@@ -197,6 +200,12 @@ impl<'a> CommandServices<'a> {
     #[must_use]
     pub fn with_update(mut self, update: &'a dyn UpdateControl) -> Self {
         self.update = Some(update);
+        self
+    }
+
+    #[must_use]
+    pub fn with_wifi(mut self, wifi: &'a dyn WifiSecurityControl) -> Self {
+        self.wifi = Some(wifi);
         self
     }
 }
@@ -406,6 +415,10 @@ pub enum Command {
     Snapshot {
         #[command(subcommand)]
         command: Option<SnapshotCommand>,
+    },
+    Wifi {
+        #[command(subcommand)]
+        command: Option<WifiCommand>,
     },
     Daemon {
         #[command(subcommand)]
@@ -848,6 +861,19 @@ pub enum SnapshotCommand {
 }
 
 #[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
+pub enum WifiCommand {
+    /// Read the current live interfaces, saved profiles, and security
+    /// assessment (open/WEP/WPA/WPA2/WPA3/unknown) with evidence-based risk
+    /// reasons.
+    Security,
+    /// Show the bounded, memory-only history policy and observations.
+    History,
+    /// Clear this process's in-memory Wi-Fi observations. No persisted
+    /// history exists to delete.
+    ClearHistory,
+}
+
+#[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
 pub enum OsdCommand {
     Enable,
     Disable,
@@ -1196,6 +1222,9 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
         Command::Snapshot {
             command: Some(command),
         } => execute_snapshot(&services, command, apply),
+        Command::Wifi {
+            command: Some(command),
+        } => execute_wifi(services.wifi, command),
         Command::Tune {
             command: Some(TuneCommand::Pl1 { watts, pl2, tau }),
         } => execute_tune_power_limits(services.tuning, watts, pl2, tau, apply),
@@ -3598,6 +3627,42 @@ fn execute_scan(
     }
 }
 
+fn execute_wifi(wifi: Option<&dyn WifiSecurityControl>, command: WifiCommand) -> CommandResult {
+    let wifi = wifi.ok_or_else(|| LctrlError::Unsupported {
+        feature: "wifi.security".into(),
+    })?;
+    match command {
+        WifiCommand::Security => {
+            let report = wifi.wifi_security()?;
+            structured_output(
+                &report,
+                format!(
+                    "{} interface(s), {} saved profile(s)\n",
+                    report.interfaces.len(),
+                    report.saved_profiles.len(),
+                ),
+            )
+        }
+        WifiCommand::History => {
+            let snapshot = wifi.wifi_security_history()?;
+            structured_output(
+                &snapshot,
+                format!(
+                    "Wi-Fi history: capacity {}, retain_ssid {}, {} observation(s), memory-only\n",
+                    snapshot.policy.capacity, snapshot.policy.retain_ssid, snapshot.entries.len(),
+                ),
+            )
+        }
+        WifiCommand::ClearHistory => {
+            wifi.clear_wifi_security_history()?;
+            structured_output(
+                &serde_json::json!({ "cleared": true }),
+                "cleared in-memory Wi-Fi observations (no persisted history)\n".into(),
+            )
+        }
+    }
+}
+
 fn parse_diagnostic_kind(value: &str) -> lctrl_core::Result<DiagnosticKind> {
     match value.to_ascii_lowercase().as_str() {
         "battery" => Ok(DiagnosticKind::Battery),
@@ -4416,6 +4481,8 @@ fn unsupported_reason(command: &Command) -> &'static str {
         Command::Osd { .. } => "OSD is daemon-only and no OSD backend is attached",
         Command::Daemon { .. } => "daemon commands are handled by the platform binary",
         Command::Snapshot { command: None } => "a snapshot subcommand is required",
+        Command::Wifi { command: None } => "a wifi subcommand is required",
+        Command::Wifi { .. } => "no verified Wi-Fi security service is attached",
         _ => "no verified implementation is attached on this platform",
     }
 }
@@ -4462,6 +4529,9 @@ fn command_feature(command: &Command) -> String {
             prefixed("update", command.as_ref().map(UpdateCommand::feature))
         }
         Command::Scan { command } => prefixed("scan", command.as_ref().map(ScanCommand::feature)),
+        Command::Wifi { command } => {
+            prefixed("wifi", command.as_ref().map(WifiCommand::feature))
+        }
         Command::Snapshot { command } => {
             prefixed("snapshot", command.as_ref().map(SnapshotCommand::feature))
         }
@@ -4632,6 +4702,16 @@ impl ScanCommand {
         match self {
             Self::List => "list",
             Self::Run { .. } => "run",
+        }
+    }
+}
+
+impl WifiCommand {
+    const fn feature(&self) -> &'static str {
+        match self {
+            Self::Security => "security",
+            Self::History => "history",
+            Self::ClearHistory => "clear_history",
         }
     }
 }

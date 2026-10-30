@@ -38,6 +38,7 @@ pub enum ServiceRole {
     MagicBayCamera,
     MagicBayDisplay,
     Osd,
+    Wifi,
 }
 
 impl ServiceRole {
@@ -70,6 +71,7 @@ impl ServiceRole {
             Self::MagicBayCamera => "magicbay_camera",
             Self::MagicBayDisplay => "magicbay_display",
             Self::Osd => "osd",
+            Self::Wifi => "wifi",
         }
     }
 }
@@ -1634,6 +1636,14 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             lctrl_core::required(Dependency::PublicWin32Cim),
             lctrl_core::required(Dependency::LinuxDiagnosticTools),
         ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::WIFI_SECURITY,
+        CommandAxes::read_only(StateLayer::NotApplicable),
+        FeatureBinding::Unprobed("wifi.security"),
+        ServiceBinding::One(ServiceRole::Wifi),
+        &[lctrl_core::required(Dependency::Win32ProcessApi)],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(

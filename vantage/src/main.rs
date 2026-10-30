@@ -403,6 +403,7 @@ fn main() {
     let power = lctrl_hal_win::WindowsPowerP0::new(lctrl_hal_win::NativePowerApi);
     let thermal = lctrl_hal_win::WindowsThermal::new(lctrl_hal_win::NativeWmi, &battery);
     let runtime_devices = lctrl_hal_win::NativeWindowsRuntimeDevices::default();
+    let wifi_security = lctrl_hal_win::WindowsWifiSecurity::default();
     let services = vantage_cli::CommandServices::new(&hal)
         .with_battery(&battery)
         .with_conflict_detection(&conflicts)
@@ -420,7 +421,8 @@ fn main() {
         .with_panel_brightness(&panel_brightness)
         .with_temperature(&thermal)
         .with_fan(&thermal)
-        .with_update(&system_inventory);
+        .with_update(&system_inventory)
+        .with_wifi(&wifi_security);
     run(cli, services);
 }
 
