@@ -165,6 +165,15 @@ impl WmiMethodResult {
                     channel: format!("WMI method returned non-Boolean ReturnValue: {other:?}"),
                 });
             }
+            None if output.contains_key("return") => {
+                // Lenovo BIOS method classes (`Lenovo_SetBiosSetting`,
+                // `Lenovo_GetBiosSelections`, `Lenovo_SaveBiosSettings`,
+                // `Lenovo_DiscardBiosSettings`) return Void and carry their
+                // business result in a named out string `return`; transport
+                // success of the call itself is the only acceptance signal.
+                // Callers must still inspect the business `return` value.
+                true
+            }
             None => {
                 return Err(LctrlError::ChannelUnavailable {
                     channel: "WMI method omitted ReturnValue".into(),
