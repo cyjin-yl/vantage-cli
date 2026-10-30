@@ -102,6 +102,13 @@
     PARAM: [ID,in]  Item       : String              ← 设置项名, 如 "GraphicsDevice"
     PARAM: [ID,out] Selections : String              ← 逗号分隔的合法值列表
 
+  [实机勘误 2026-10-30] `IWbemServices::ExecMethod` 的 out-params 对象在本机
+  **不包含** `ReturnValue` 属性(Invoke-CimMethod 会合成 `ReturnValue: True`,但
+  裸 ExecMethod 不会)。`GetBiosSelections` 实际只携带声明的 out 参数
+  `Selections`;`SetBiosSetting`/`SaveBiosSettings`/`DiscardBiosSettings` 系列则
+  只携带 `return` 串,同样无 `ReturnValue`。协议实现不能要求 `ReturnValue`,
+  只能以传输成功 + 已声明 out 参数在场为接受信号。
+
 ##### CLASS: Lenovo_SetFunctionRequest                ← 功能请求
   PROP: Active : Boolean
   PROP: InstanceName : String
