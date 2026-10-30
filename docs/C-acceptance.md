@@ -637,3 +637,11 @@ Dolby/降噪 SDK、进程管理),其余功能经公开 OS API 完成。必要用
 热键/OSD),要么因缺已验证接口契约或硬件不适用而如实门控(充电/USB 写入、性能/风扇/
 PL 写入、BIOS 更新写入)。在全部必要功能与最小依赖切换验证完成之前,不停用或卸载任何
 官方驱动/服务。本记录不宣称 38 项已全部完成。
+
+## C22 · 可获取的 Windows 程序交付
+
+**状态:Windows 程序已发布并可获取。**
+
+release 二进制 `vantage.exe`(SHA-256 `8c299fd2d46c3a84c970a9c27ee06e8485223f812942b74eb4d24d8efad51482`,4627968 字节)随仓库发布于 `dist/windows/vantage.exe`,同目录 `vantage.exe.sha256` 提供核对值。Gitea 与 GitHub main 均已同步该二进制;GitHub release `v0.1.0-windows`(tag `v0.1.0-windows`)作为标签记录交付。
+
+目标机 Lenovo 21VG 上该二进制的实际效果与回读按 C1–C21 逐项验收;缺已验证接口契约或硬件不适用处(充电/USB 写入、性能/风扇/PL 写入、BIOS 更新写入)如实报告 `unavailable`,不以未知控制码、厂商二进制或停服务绕过。完整功能追踪见 tracker #39 的 38 个功能域。
