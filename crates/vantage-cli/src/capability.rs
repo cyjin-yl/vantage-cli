@@ -145,6 +145,7 @@ pub fn command_layer(command: &crate::Command) -> lctrl_core::StateLayer {
         } => StateLayer::OsPersistent,
         Command::Daemon { .. } => StateLayer::Runtime,
         Command::Scan { .. } => StateLayer::NotApplicable,
+        Command::Wifi { .. } => StateLayer::NotApplicable,
         Command::Touchpad {
             state: crate::TouchpadAction::Status | crate::TouchpadAction::Recover,
         } => StateLayer::Runtime,
@@ -191,6 +192,7 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
         OsdCommand, PanelCommand, PasswordCommand, PerfCommand, PrivacyCommand, ProfileCommand,
         SchemeCommand, SenseCommand, SnapshotCommand, TempCommand, TuneCommand, UpdateCommand,
         UsbCommand,
+        WifiCommand,
     };
     use lctrl_core::CommandId;
 
@@ -612,6 +614,10 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
             command: Some(crate::ScanCommand::Run { .. }),
         } => CommandId::SCAN_RUN,
         Command::Scan { command: None } => return None,
+        Command::Wifi {
+            command: Some(WifiCommand::Security),
+        } => CommandId::WIFI_SECURITY,
+        Command::Wifi { .. } => return None,
         Command::Snapshot {
             command: Some(SnapshotCommand::Capture),
         } => CommandId::SNAPSHOT_CAPTURE,

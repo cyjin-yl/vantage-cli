@@ -131,6 +131,8 @@ impl CommandId {
     pub const SCAN_LIST: Self = Self("scan.list");
     pub const SCAN_RUN: Self = Self("scan.run");
 
+    pub const WIFI_SECURITY: Self = Self("wifi.security");
+
     pub const SNAPSHOT_CAPTURE: Self = Self("snapshot.capture");
     pub const SNAPSHOT_DIFF: Self = Self("snapshot.diff");
     pub const SNAPSHOT_RESTORE: Self = Self("snapshot.restore");
