@@ -86,9 +86,10 @@ vantage --yes perf mode performance       # 执行、回读、确认
 
 | 功能 | 原因 |
 |---|---|
-| 充电模式、充电阈值、USB 关机供电 | 本机固件未公开可写通道 |
-| 风扇控制、CPU 功耗墙(PL1/PL2) | Windows 需自有签名驱动(Secure Boot+VBS/HVCI 要求 EV 签名)或 SYSTEM 代理,均未落地;Linux 走 `/dev/cpu/N/msr`,实现中 |
-| 厂商专属性能模式(极客模式等) | 该模式存在(联想 Vantage 提供),但仅经联想专有驱动下发;Windows 无公开等价接口,随签名驱动通道落地后提供 |
+| 充电模式、充电阈值、USB 关机供电 | 本机固件未公开可写通道;逆向发现官方经注册表 `...\IdeaNotebookAddin\BatteryChargeMode` 下发(依赖联想服务),未接入 |
+| 风扇模式(GAMEZONE) | 客户端已按逆向契约实现(Get/SetSmartFanMode),`perf.fan.mode` 能力行动态探测;21VG 固件拒绝所有 GAMEZONE 调用,如实报不可用 |
+| CPU 功耗墙(PL1/PL2/tau) | Linux 走 RAPL sysfs(标准内核接口,含 dry-run/回滚);Windows 的 WinMsrDev 通道已实现但需 SYSTEM 身份,且 MSR 0x65C 位语义未经物理确认前保持写入门禁 |
+| 厂商专属性能模式(极客模式等) | 该模式存在(联想 Vantage 提供),仅经联想专有驱动下发;HWP 请求 MSR 已在 WinMsrDev 选择子表内(0x772/0x774),但本机读回编码与 SDM 通用语义不一致,写入保持门禁直到物理确认 |
 | 修改 BIOS 设置 | 固件暂存机制未验证,写入锁定;读取正常 |
 | 智能感知(SmartSense) | 依赖联想授权服务 |
 | 杜比音效、降噪 | 依赖联想授权服务 |
