@@ -48,6 +48,27 @@ pub trait WmiTransport: Send + Sync {
     ) -> Result<WmiObject>;
 }
 
+impl<T: WmiTransport + ?Sized> WmiTransport for &T {
+    fn bios_staging_isolation_verified(&self) -> bool {
+        (**self).bios_staging_isolation_verified()
+    }
+
+    fn query(&self, namespace: &str, wql: &str) -> Result<Vec<WmiObject>> {
+        (**self).query(namespace, wql)
+    }
+
+    fn invoke_instance(
+        &self,
+        namespace: &str,
+        class: &str,
+        object_path: &str,
+        method: &str,
+        input: &WmiObject,
+    ) -> Result<WmiObject> {
+        (**self).invoke_instance(namespace, class, object_path, method, input)
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WmiInstance {
     class: String,

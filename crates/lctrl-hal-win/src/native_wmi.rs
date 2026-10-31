@@ -26,27 +26,32 @@ impl WmiTransport for NativeWmi {
         input: &WmiObject,
     ) -> Result<WmiObject> {
         let connection = connect(namespace)?;
-        let input_instance = if input.is_empty() {
-            None
-        } else {
-            let class_object = connection
-                .get_object(class)
-                .map_err(|error| map_error(error, &format!("{namespace} class {class}")))?;
-            let signature = class_object
-                .get_method(method)
-                .map_err(|error| map_error(error, &format!("{class}.{method} signature")))?
-                .ok_or_else(|| LctrlError::Unsupported {
-                    feature: format!("wmi.method.{class}.{method}"),
-                })?;
-            let instance = signature
-                .spawn_instance()
-                .map_err(|error| map_error(error, &format!("{class}.{method} input")))?;
-            for (name, value) in input {
-                instance
-                    .put_property(name, to_variant(value))
-                    .map_err(|error| map_error(error, &format!("{class}.{method}.{name}")))?;
+        // `get_method` returns None for methods without an in-parameters
+        // signature class (all parameterless getters). That is not "method
+        // missing": pass NULL in-params in that case. When a signature class
+        // exists, always spawn an instance (empty when no properties are set):
+        // several Lenovo firmware providers reject a NULL in-params pointer
+        // with WBEM_E_INVALID_METHOD_PARAMETERS while accepting an empty
+        // spawned instance.
+        let class_object = connection
+            .get_object(class)
+            .map_err(|error| map_error(error, &format!("{namespace} class {class}")))?;
+        let signature = class_object
+            .get_method(method)
+            .map_err(|error| map_error(error, &format!("{class}.{method} signature")))?;
+        let input_instance = match signature {
+            Some(signature) => {
+                let instance = signature
+                    .spawn_instance()
+                    .map_err(|error| map_error(error, &format!("{class}.{method} input")))?;
+                for (name, value) in input {
+                    instance
+                        .put_property(name, to_variant(value))
+                        .map_err(|error| map_error(error, &format!("{class}.{method}.{name}")))?;
+                }
+                Some(instance)
             }
-            Some(instance)
+            None => None,
         };
 
         let output = connection
