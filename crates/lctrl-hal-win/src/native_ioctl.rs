@@ -16,6 +16,35 @@ use crate::{
 
 const ENERGY_DRIVER_PATH: &str = r"\\.\EnergyDrv";
 
+/// Bound `DeviceIoControl` transport for a device interface path. Unlike
+/// [`NativeIoctl`] it performs no request validation and always opens with
+/// read+write access; contract validation lives in the caller (see `msr`).
+#[derive(Clone, Copy, Debug)]
+pub struct DeviceIoTransport {
+    path: &'static str,
+    context: &'static str,
+}
+
+impl DeviceIoTransport {
+    #[must_use]
+    pub const fn new(path: &'static str, context: &'static str) -> Self {
+        Self { path, context }
+    }
+
+    /// Device path this transport opens.
+    #[must_use]
+    pub const fn path(&self) -> &'static str {
+        self.path
+    }
+}
+
+impl IoctlTransport for DeviceIoTransport {
+    fn call(&self, code: u32, input: &[u8], output_len: usize) -> Result<Vec<u8>> {
+        let handle = EnergyDriverHandle::open_path(self.path, self.context, true)?;
+        handle.call_context(code, input, output_len, self.context)
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default)]
 pub struct NativeIoctl;
 
@@ -54,7 +83,11 @@ struct EnergyDriverHandle(HANDLE);
 
 impl EnergyDriverHandle {
     fn open(write: bool) -> Result<Self> {
-        let path: Vec<u16> = ENERGY_DRIVER_PATH.encode_utf16().chain(Some(0)).collect();
+        Self::open_path(ENERGY_DRIVER_PATH, "EnergyDrv", write)
+    }
+
+    fn open_path(path: &str, context: &str, write: bool) -> Result<Self> {
+        let path: Vec<u16> = path.encode_utf16().chain(Some(0)).collect();
         let access = if write {
             GENERIC_READ | GENERIC_WRITE
         } else {
@@ -73,18 +106,22 @@ impl EnergyDriverHandle {
         };
         if handle == INVALID_HANDLE_VALUE {
             let error = unsafe { GetLastError() };
-            return Err(map_win_error(error, "EnergyDrv open"));
+            return Err(map_win_error(error, &format!("{context} open")));
         }
         Ok(Self(handle))
     }
 
     fn call(&self, code: u32, input: &[u8], output_len: usize) -> Result<Vec<u8>> {
+        self.call_context(code, input, output_len, "EnergyDrv")
+    }
+
+    fn call_context(&self, code: u32, input: &[u8], output_len: usize, context: &str) -> Result<Vec<u8>> {
         let input_len = u32::try_from(input.len()).map_err(|_| LctrlError::InvalidArgument {
-            detail: "EnergyDrv input exceeds u32 buffer length".into(),
+            detail: format!("{context} input exceeds u32 buffer length"),
         })?;
         let requested_output =
             u32::try_from(output_len).map_err(|_| LctrlError::InvalidArgument {
-                detail: "EnergyDrv output exceeds u32 buffer length".into(),
+                detail: format!("{context} output exceeds u32 buffer length"),
             })?;
         let input_ptr = if input.is_empty() {
             ptr::null()
@@ -114,18 +151,18 @@ impl EnergyDriverHandle {
             let error = unsafe { GetLastError() };
             return Err(map_win_error(
                 error,
-                &format!("EnergyDrv IOCTL 0x{code:08x}"),
+                &format!("{context} IOCTL 0x{code:08x}"),
             ));
         }
         let returned = usize::try_from(returned).map_err(|_| {
-            LctrlError::Io(std::io::Error::other(
-                "EnergyDrv byte count does not fit usize",
-            ))
+            LctrlError::Io(std::io::Error::other(format!(
+                "{context} byte count does not fit usize"
+            )))
         })?;
         if returned > output.len() {
             return Err(LctrlError::FirmwareRejected {
                 detail: format!(
-                    "EnergyDrv IOCTL 0x{code:08x} returned {returned} bytes into {}-byte buffer",
+                    "{context} IOCTL 0x{code:08x} returned {returned} bytes into {}-byte buffer",
                     output.len()
                 ),
             });

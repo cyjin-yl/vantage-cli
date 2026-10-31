@@ -6,6 +6,8 @@ use crate::{
     power_overlay::NativePowerOverlay, power_overlay::PowerOverlayControl,
     wmi_contract::ROOT_WMI,
 };
+#[cfg(windows)]
+use crate::{WIN_MSR_TRANSPORT, WinMsrDev};
 
 const ROOT_CIMV2: &str = "ROOT\\CIMV2";
 
@@ -444,6 +446,26 @@ where
             ),
         ] {
             capabilities.record(feature, availability, Some(detail.into()))?;
+        }
+        #[cfg(windows)]
+        {
+            let msr = WinMsrDev::new(&WIN_MSR_TRANSPORT);
+            match msr.probe() {
+                Ok(()) => {
+                    capabilities.record(
+                        "tune.msr",
+                        Availability::Available,
+                        Some("WinMsrDev selector table enabled (SYSTEM context)".into()),
+                    )?;
+                }
+                Err(error) => {
+                    capabilities.record(
+                        "tune.msr",
+                        Availability::Unavailable,
+                        Some(format!("WinMsrDev MSR channel unavailable: {error}")),
+                    )?;
+                }
+            }
         }
         Ok(capabilities)
     }

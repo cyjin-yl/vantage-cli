@@ -278,16 +278,29 @@ Linux 上同类能力由主线内核 `/dev/cpu/N/msr` 完整提供(见 `09-linux
   WSHardwarePlugin.dll / lde_module_fan.dll(x64,代码最干净)/ TconSDK.dll 等。
   路径示例:`AcWMI::ExecMethodWMI`(Game/AcWMI.cpp)、`FunControlHelper.hpp`。
 
-### 10.3 常量(反汇编证实)
+### 10.3 常量(反汇编证实;2026-11-01 二次深挖更新)
 
-- SmartFan 模式开关:4 个离散值 0..3(WSGameSettingPlugin.dll 跳转表,4 项);
-  `DealWithSMfan` 对 `RecordMode==2 && mode==3` 走性能 setter 特判。
-  0/1/2 的逐名映射未恢复;实现暂用 standard=0/silent=1/performance=2/custom=3,
-  与 `FanMode::from_raw` 互逆,**未经真机验证**。
-- FeatureId 布局:`(family << 16) | index`。已证族:0x0403(lde_module_fan.dll
-  `dword = (member & 0xFFFF) | 0x04030000`)、0x0504;能力掩码形态 0x8000_04xx
-  (BiosOD.dll)。rdata 表样例:`{1, 0x80040E50}, {1, 0x80040DF0}, {1, 0x05040000}`。
-  具体 ID ↔ 特性名映射未恢复;充电/热模式写路径属此面,常量待定。
+- SmartFan 模式值:**先前"0..3 四值"判断被修正**。WSGameSettingPlugin.dll
+  (rva 校正后)真正的跳转表在 rva 0x157E0,属于 `GetFnQModeEx(type)`  getter
+  (type 1..4),不是 setter;`DealWithSMfan` 直接操作**固件原始编码**,出现
+  `cmp eax,0x7A` / `push 0x80; cmp ebx,0x80` 阈值比较(0x7A/0x80 语义未完全解析,
+  可能是钳位阈值而非模式值)。唯一确证的语义:`RecordMode==2 && fnq==3` 为
+  性能/电源特判。**实现中的 standard=0/silent=1/performance=2/custom=3 映射
+  未获确认且部分被驳**——本机 provider 全拒、无法真机校验,保留仅作占位并须
+  按未知处理。
+- FeatureId 布局:`(family << 16) | index`,**bit31 = supported 标志**。
+  lde_module_fan.dll(x64)file 0x6CF40 起有 `{u32 flag, u32 id}` 对表(stride 8,
+  flag 0 为终止符),紧邻 `IDs`/`value`/`LENOVO_OTHER_METHOD` 字符串,旁侧
+  `LENOVO_FAN_TEST_DATA`/`NumOfFans`/`FanMaxSpeed` → **风扇域 ID 表**:
+  `0x8002FCF0, 0x8002FBC0, 0x8002FBE0`(族 0x2F)、`0x80040320`(0x403)、
+  `0x80041A90`(0x41A)、`0x800414A0`/`0x80041430`(0x414)、
+  `0x80040E40`/`0x80040E50`(0x40E)、`0x80040DF0`(0x40D),终止符 `{0, 0x05040000}`。
+- **ID ↔ 特性名映射未恢复**(表项无名称;调用经间接调用传 ID,预算内无法 xref)。
+- **充电写路径不在 OTHER_METHOD**:三 DLL 中 `SetPowerCharge` 0 命中;
+  WSHardwarePlugin 的充电走**注册表**机制
+  (`SOFTWARE\Lenovo\VantageService\AddinData\IdeaNotebookAddin` 值 `BatteryChargeMode`,
+  Storage/Quick/Normal)——另一子系统。GAMEZONE 侧只有 `GetPowerChargeMode` 读。
+- 热模式 ID:无字符串证据把表内任何 ID 绑到 thermal/perf。
 - 已知命名特性:`Get_Support_LegionZone_Version`(OTHER_METHOD,不支持时默认 2)。
 
 ### 10.4 21VG 实测限制(客户端必须按此处理)
