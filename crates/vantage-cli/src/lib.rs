@@ -18,18 +18,20 @@ use std::{
 use clap::{Parser, Subcommand, ValueEnum};
 use lctrl_core::{
     ApplyMode, Availability, BacklightState, BiosChange, Capability, CapabilitySet, ChargeMode,
-    ChargeModeActual, DeviceState, DiagnosticKind, DriverIdentity, DriverVersion, FanMode,
-    HardwareInfo, LctrlError, LocalDriverRollbackRequest, LocalDriverUpdateRequest,
-    PerformanceMode, Platform, PowerGuid, PowerMutation, PowerRangeObservation, PowerSchemeId,
-    PowerSettingKey, PowerSettingValue, PowerSource, SceneAction, UpdateCapability,
+    ChargeModeActual, DeviceState, DiagnosticKind, DolbyProfile, DolbyState, DriverIdentity,
+    DriverVersion, FanMode, HardwareInfo, LctrlError, LocalDriverRollbackRequest,
+    LocalDriverUpdateRequest, PerformanceMode, Platform, PowerGuid, PowerMutation,
+    PowerRangeObservation, PowerSchemeId, PowerSettingKey, PowerSettingValue, PowerSource,
+    SceneAction, UpdateCapability,
 };
 use lctrl_hal::ScenePolicyControl;
 use lctrl_hal::{
-    BatteryControl, BiosControl, ControlConflictDetection, DbdcControl, DiagnosticsControl,
-    FanControl, Hal, HotkeyControl, KeyboardControl, LocalUpdateControl, MachineFixControl,
-    MagicBayControl, OsdControl, PanelBrightnessControl, PanelControl, PerformanceControl,
-    PowerControl, PowerLimitKind, PrivacyControl, ProcessorPowerControl, TemperatureControl,
-    TouchpadControl, TuningControl, UpdateControl, UsbControl, WifiSecurityControl,
+    AudioControl, BatteryControl, BiosControl, ControlConflictDetection, DbdcControl,
+    DiagnosticsControl, FanControl, Hal, HotkeyControl, KeyboardControl, LocalUpdateControl,
+    MachineFixControl, MagicBayControl, OsdControl, PanelBrightnessControl, PanelControl,
+    PerformanceControl, PowerControl, PowerLimitKind, PrivacyControl, ProcessorPowerControl,
+    TemperatureControl, TouchpadControl, TuningControl, UpdateControl, UsbControl,
+    WifiSecurityControl,
 };
 use serde::{Deserialize, Serialize};
 
@@ -60,6 +62,7 @@ pub struct StreamSpec {
 /// for it. Dispatch then returns `Unsupported`; it never synthesizes success.
 pub struct CommandServices<'a> {
     hal: &'a dyn Hal,
+    audio: Option<&'a dyn AudioControl>,
     battery: Option<&'a dyn BatteryControl>,
     bios: Option<&'a dyn BiosControl>,
     conflicts: Option<&'a dyn ControlConflictDetection>,
@@ -91,6 +94,7 @@ impl<'a> CommandServices<'a> {
     pub const fn new(hal: &'a dyn Hal) -> Self {
         Self {
             hal,
+            audio: None,
             battery: None,
             bios: None,
             conflicts: None,
@@ -117,6 +121,12 @@ impl<'a> CommandServices<'a> {
             osd: None,
             hotkey: None,
         }
+    }
+
+    #[must_use]
+    pub fn with_audio(mut self, audio: &'a dyn AudioControl) -> Self {
+        self.audio = Some(audio);
+        self
     }
 
     #[must_use]
@@ -1387,6 +1397,7 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
         Command::Perf {
             command: Some(PerfCommand::Dbdc { command }),
         } => execute_dbdc(services.dbdc, command.unwrap_or(DbdcCommand::Get)),
+        Command::Audio { command } => execute_audio(services.audio, command, apply),
         Command::Bios {
             command: Some(command),
         } => execute_bios(services.bios, command, apply, confirmed, interactive),
@@ -2188,6 +2199,68 @@ fn execute_dbdc(dbdc: Option<&dyn DbdcControl>, command: DbdcCommand) -> Command
             structured_output(&profile, text)
         }
     }
+}
+
+fn execute_audio(
+    audio: Option<&dyn AudioControl>,
+    command: Option<AudioCommand>,
+    apply: ApplyMode,
+) -> CommandResult {
+    match command {
+        Some(AudioCommand::Dolby { profile }) => execute_dolby(audio, profile, apply),
+        Some(AudioCommand::NoiseCancel { .. }) => Err(LctrlError::Unsupported {
+            feature:
+                "audio.noise-cancel: noise cancellation requires an unavailable vendor channel"
+                    .into(),
+        }),
+        None => Err(LctrlError::InvalidArgument {
+            detail: "an audio subcommand is required".into(),
+        }),
+    }
+}
+
+fn execute_dolby(
+    audio: Option<&dyn AudioControl>,
+    profile: DolbyProfileArg,
+    apply: ApplyMode,
+) -> CommandResult {
+    let audio = audio.ok_or_else(|| LctrlError::Unsupported {
+        feature: "audio.dolby".into(),
+    })?;
+    let target = match profile {
+        DolbyProfileArg::Off => DolbyProfile::Off,
+        DolbyProfileArg::Movie => DolbyProfile::Movie,
+        DolbyProfileArg::Music => DolbyProfile::Music,
+        DolbyProfileArg::Voice => DolbyProfile::Voice,
+        DolbyProfileArg::Game => DolbyProfile::Game,
+        DolbyProfileArg::Personalize => DolbyProfile::Personalize,
+        DolbyProfileArg::Dynamic => DolbyProfile::Dynamic,
+    };
+    let report = audio.set_dolby_profile(target, apply)?;
+    structured_output(&report, format_dolby_change(&report))
+}
+
+fn format_dolby_change(report: &lctrl_core::ChangeReport<DolbyState>) -> String {
+    let mode = if report.mode() == ApplyMode::DryRun {
+        "dry run"
+    } else {
+        "applied"
+    };
+    let mut text = format!(
+        "dolby ({mode}): previous enabled={} profile={:?}, requested enabled={} profile={:?}",
+        report.previous().enabled,
+        report.previous().active_profile,
+        report.requested().enabled,
+        report.requested().active_profile,
+    );
+    if let Some(actual) = report.actual() {
+        text.push_str(&format!(
+            ", actual enabled={} profile={:?}",
+            actual.enabled, actual.active_profile
+        ));
+    }
+    text.push('\n');
+    text
 }
 
 fn execute_usb(
@@ -5246,7 +5319,10 @@ fn unsupported_reason(command: &Command) -> &'static str {
         } => "GAMEZONE Win-key methods are not verified on the target",
         Command::Panel { command: None } => "a panel subcommand is required",
         Command::Sense { .. } => "SmartSense requires an unavailable vendor RPC channel",
-        Command::Audio { .. } => "audio control requires an unavailable licensed/vendor channel",
+        Command::Audio {
+            command: Some(AudioCommand::NoiseCancel { .. }),
+        } => "noise cancellation requires an unavailable vendor channel",
+        Command::Audio { .. } => "an audio subcommand is required",
         Command::Magicbay {
             command: Some(MagicbayCommand::Detect),
         } => "MagicBay detection service is unavailable",

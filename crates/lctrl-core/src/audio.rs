@@ -1,5 +1,27 @@
 use serde::Serialize;
 
+/// Live Dolby audio state read back from the DAX RPC endpoint.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+pub struct DolbyState {
+    pub enabled: bool,
+    pub active_profile: DolbyProfile,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sku: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub spatial_supported: Option<bool>,
+}
+
+impl std::fmt::Display for DolbyState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "enabled={}, profile={:?}",
+            if self.enabled { "on" } else { "off" },
+            self.active_profile,
+        )
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DolbyProfile {
