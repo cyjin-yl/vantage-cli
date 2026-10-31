@@ -154,28 +154,69 @@ where
     /// Generic feature-plane read. `ids` is the firmware feature identifier
     /// (reversed constants live at the call site; this layer does not invent
     /// identifiers).
-    pub fn feature_value(&self, ids: u32) -> Result<u32> {
+    pub fn feature_value(&self, ids: FeatureId) -> Result<u32> {
         let mut input = WmiObject::new();
-        input.insert("IDs".into(), WmiValue::U32(ids));
+        input.insert("IDs".into(), WmiValue::U32(ids.raw()));
         let output = self.invoke(OTHER_METHOD_CLASS, "GetFeatureValue", input)?;
         first_u32(&output, "GetFeatureValue")
     }
 
     /// Generic feature-plane write, used by firmware without dedicated setters
     /// (e.g. thermal mode / charge mode on this interface).
-    pub fn set_feature_value(&self, ids: u32, value: u32) -> Result<()> {
+    pub fn set_feature_value(&self, ids: FeatureId, value: u32) -> Result<()> {
         let mut input = WmiObject::new();
-        input.insert("IDs".into(), WmiValue::U32(ids));
+        input.insert("IDs".into(), WmiValue::U32(ids.raw()));
         input.insert("value".into(), WmiValue::U32(value));
         let output = self.invoke(OTHER_METHOD_CLASS, "SetFeatureValue", input)?;
         require_return_zero(&output, "SetFeatureValue")
     }
 
-    pub fn data_by_command(&self, command: u32, ids: u32) -> Result<WmiObject> {
+    pub fn data_by_command(&self, command: u32, ids: FeatureId) -> Result<WmiObject> {
         let mut input = WmiObject::new();
         input.insert("Command".into(), WmiValue::U32(command));
-        input.insert("IDs".into(), WmiValue::U32(ids));
+        input.insert("IDs".into(), WmiValue::U32(ids.raw()));
         self.invoke(OTHER_METHOD_CLASS, "GetDataByCommand", input)
+    }
+}
+
+/// Firmware feature identifier for `LENOVO_OTHER_METHOD`.
+///
+/// Reverse engineering (lde_module_fan.dll, 2026-11-01) established the wire
+/// layout `(family << 16) | index`: the vendor code builds the identifier as
+/// `(member & 0xFFFF) | 0x04030000`, and a read-only rdata table contains
+/// `0x80040E50`, `0x80040DF0`, and `0x05040000`. Individual IDs are not yet
+/// mapped to named features, so this type only encodes the proven layout.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Hash)]
+pub struct FeatureId(u32);
+
+impl FeatureId {
+    /// Observed feature families (see type documentation).
+    pub const FAMILY_0403: u16 = 0x0403;
+    pub const FAMILY_0504: u16 = 0x0504;
+
+    #[must_use]
+    pub const fn new(raw: u32) -> Self {
+        Self(raw)
+    }
+
+    #[must_use]
+    pub const fn from_parts(family: u16, index: u16) -> Self {
+        Self(((family as u32) << 16) | (index as u32))
+    }
+
+    #[must_use]
+    pub const fn raw(self) -> u32 {
+        self.0
+    }
+
+    #[must_use]
+    pub const fn family(self) -> u16 {
+        (self.0 >> 16) as u16
+    }
+
+    #[must_use]
+    pub const fn index(self) -> u16 {
+        self.0 as u16
     }
 }
 

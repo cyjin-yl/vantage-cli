@@ -52,7 +52,7 @@ pub use display::NativeDisplayApi;
 pub use display::{DisplayApi, WindowsPanelController};
 pub use error::{map_win_error, map_wmi_hresult};
 pub use events::DOCUMENTED_LENOVO_EVENT_CLASSES;
-pub use gamezone::{GameZone, SupportProbe};
+pub use gamezone::{FeatureId, GameZone, SupportProbe};
 #[cfg(windows)]
 pub use events::{NativeWmiEventReader, NativeWmiEventSource};
 pub use ioctl_contract::{EnergyDriver, IoctlTransport};
