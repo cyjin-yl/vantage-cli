@@ -1,7 +1,7 @@
 use lctrl_core::{
     AdapterAuthentication, AdapterDetailValues, AdapterInfo, BatteryDate, BatteryHealth,
     BatteryTelemetry, ChargeMode, ChargeModeActual, ChargePrimitive, ChargeStatus, LctrlError,
-    decode_charge_mode, plan_charge_mode,
+    decode_charge_mode, decode_gbmd_charge_mode, plan_charge_mode,
 };
 
 #[test]
@@ -43,6 +43,27 @@ fn decode_charge_mode_maps_conflict_and_unknown_combinations() {
             "raw {raw:#x}"
         );
     }
+}
+
+#[test]
+fn decode_gbmd_charge_mode_uses_the_vendor_bit_table() {
+    // Mirrors PowerBattery.dll!CChargingMode::GetChargingMode (RE-proven):
+    // bit 5 = storage ON, bit 2 = express ON, else Normal. The live target
+    // bitmask 0x00860004 (bits 2+17+18+23) therefore reports Quick, matching
+    // the vendor registry cache value "Quick" on TB14P-EZRA.
+    assert_eq!(decode_gbmd_charge_mode(0), ChargeModeActual::Normal);
+    assert_eq!(decode_gbmd_charge_mode(1 << 5), ChargeModeActual::Conservation);
+    assert_eq!(decode_gbmd_charge_mode(1 << 2), ChargeModeActual::Rapid);
+    assert_eq!(
+        decode_gbmd_charge_mode(0x0086_0004),
+        ChargeModeActual::Rapid
+    );
+    // Storage wins when both bits are set, matching the vendor's if/else
+    // order in GetChargingMode.
+    assert_eq!(
+        decode_gbmd_charge_mode((1 << 5) | (1 << 2)),
+        ChargeModeActual::Conservation
+    );
 }
 
 #[test]

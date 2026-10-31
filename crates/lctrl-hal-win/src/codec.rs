@@ -1,7 +1,13 @@
 use lctrl_core::{LctrlError, Result};
 
 pub const IOCTL_GENERIC_GET: u32 = 0x8310_20c4;
-pub const IOCTL_GENERIC_GET_VARIANT: u32 = 0x8310_20e8;
+/// USB charging control (`PowerBattery.dll` `CUSBCharger` / `CUSBBatteryCharger`).
+///
+/// Previously allowlisted as a "generic GET variant" from docs/01 behavior
+/// analysis; RE of the exact target binaries (PowerBattery.dll 1.0.13.114,
+/// AcpiVpc.sys 15.11.30.14) proved `in[0] == 0x02` is the flags query and
+/// `0x0a/0x0b/0x12/0x13` are the setters (docs/RE-interfaces.md §11).
+pub const IOCTL_USB_CHARGER: u32 = 0x8310_20e8;
 pub const IOCTL_GBMD: u32 = 0x8310_20f8;
 pub const IOCTL_BATTERY_CONFIG: u32 = 0x8310_2120;
 pub const IOCTL_BATTERY_DETAIL: u32 = 0x8310_2138;
@@ -45,6 +51,26 @@ impl GenericGet {
 
     pub fn decode(output: &[u8]) -> Result<u32> {
         decode_u32_exact(output, "generic GET")
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct UsbChargerSelector(u8);
+
+impl UsbChargerSelector {
+    pub const QUERY: Self = Self(0x02);
+    pub const AC_ON: Self = Self(0x0a);
+    pub const AC_OFF: Self = Self(0x0b);
+    pub const BATTERY_ON: Self = Self(0x13);
+    pub const BATTERY_OFF: Self = Self(0x12);
+
+    #[must_use]
+    pub const fn encode(self) -> [u8; 1] {
+        [self.0]
+    }
+
+    pub fn decode_flags(output: &[u8]) -> Result<u32> {
+        decode_u32_exact(output, "USB charger")
     }
 }
 

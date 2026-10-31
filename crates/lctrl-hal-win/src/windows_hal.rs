@@ -229,12 +229,16 @@ where
         )?;
         capabilities.record(
             "battery.charge_mode",
-            Availability::Unavailable,
-            Some(
-                "no verified independent charge-mode reader is attached; the tested 21VG \
-                 read channels did not reveal a state change (docs/C-acceptance.md C2)"
-                    .into(),
-            ),
+            if energy_available {
+                Availability::Available
+            } else {
+                Availability::Unavailable
+            },
+            if energy_available {
+                None
+            } else {
+                Some("EnergyDrv is not available for GBMD charge-mode readback".into())
+            },
         )?;
         capabilities.record(
             "diagnostics.inventory",

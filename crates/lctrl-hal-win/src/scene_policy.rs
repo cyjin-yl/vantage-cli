@@ -29,7 +29,7 @@ use lctrl_hal::{
 };
 use crate::{
     NativeBatteryElectrical, NativeDisplayApi, NativeIoctl, NativePerformanceRegistry,
-    NativePowerApi, NativeSystemPowerStatus, NativeWmi, UnverifiedChargeModeReader, WindowsBatteryP0,
+    GbmdChargeModeReader, NativePowerApi, NativeSystemPowerStatus, NativeWmi, WindowsBatteryP0,
     WindowsBatterySources, WindowsOsBattery, WindowsPanelController, WindowsPerformanceP0,
     WindowsPowerP0, WindowsThermal,
 };
@@ -292,7 +292,8 @@ impl NativeScenePolicy {
         event_class: &str,
         mode: ApplyMode,
     ) -> Result<ScenePolicyReport> {
-        let vendor_battery = WindowsBatteryP0::new(NativeIoctl, UnverifiedChargeModeReader);
+        let vendor_battery =
+            WindowsBatteryP0::new(NativeIoctl, GbmdChargeModeReader::new(NativeIoctl));
         let os_battery = WindowsOsBattery::new(NativeWmi, NativeSystemPowerStatus);
         let battery = WindowsBatterySources::new(vendor_battery, os_battery, NativeBatteryElectrical);
         let fan = WindowsThermal::new(NativeWmi, &battery);

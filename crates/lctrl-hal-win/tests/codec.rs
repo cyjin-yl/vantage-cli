@@ -1,17 +1,29 @@
 use lctrl_core::LctrlError;
 use lctrl_hal_win::{
     AdapterDetail, BatteryDetail83, GbmdCommand, GenericGet, IOCTL_BATTERY_CONFIG,
-    IOCTL_BATTERY_DETAIL, IOCTL_GAPD, IOCTL_GBMD, IOCTL_GENERIC_GET, IOCTL_GENERIC_GET_VARIANT,
+    IOCTL_BATTERY_DETAIL, IOCTL_GAPD, IOCTL_GBMD, IOCTL_GENERIC_GET, IOCTL_USB_CHARGER,
+    UsbChargerSelector,
 };
 
 #[test]
 fn ioctl_constants_match_verified_literal_codes() {
     assert_eq!(IOCTL_GENERIC_GET, 0x8310_20c4);
-    assert_eq!(IOCTL_GENERIC_GET_VARIANT, 0x8310_20e8);
+    assert_eq!(IOCTL_USB_CHARGER, 0x8310_20e8);
     assert_eq!(IOCTL_GBMD, 0x8310_20f8);
     assert_eq!(IOCTL_BATTERY_CONFIG, 0x8310_2120);
     assert_eq!(IOCTL_BATTERY_DETAIL, 0x8310_2138);
     assert_eq!(IOCTL_GAPD, 0x8310_215c);
+}
+
+#[test]
+fn usb_charger_selectors_encode_as_exactly_one_byte() {
+    // RE-proven selector bytes (PowerBattery.dll 1.0.13.114, AcpiVpc.sys
+    // 15.11.30.14; docs/RE-interfaces.md §11).
+    assert_eq!(UsbChargerSelector::QUERY.encode(), [0x02]);
+    assert_eq!(UsbChargerSelector::AC_ON.encode(), [0x0a]);
+    assert_eq!(UsbChargerSelector::AC_OFF.encode(), [0x0b]);
+    assert_eq!(UsbChargerSelector::BATTERY_ON.encode(), [0x13]);
+    assert_eq!(UsbChargerSelector::BATTERY_OFF.encode(), [0x12]);
 }
 
 #[test]
