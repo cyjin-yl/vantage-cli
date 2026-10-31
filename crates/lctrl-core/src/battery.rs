@@ -149,6 +149,62 @@ impl std::fmt::Display for UsbChargingState {
     }
 }
 
+/// Night-charge mode state (EnergyDrv `0x83102150`, RE-proven in
+/// docs/RE-interfaces.md §11: support probe input `0x13` — bit0 = supported,
+/// bit4 = currently on; status input `0x11` — bit4 = on; set inputs
+/// `0x80000012` = on, `0x12` = off).
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+pub struct NightChargeState {
+    pub supported: bool,
+    pub enabled: bool,
+}
+
+impl NightChargeState {
+    /// Decode the support-probe response word.
+    #[must_use]
+    pub const fn from_probe(raw: u32) -> Self {
+        Self {
+            supported: raw & 1 != 0,
+            enabled: raw & (1 << 4) != 0,
+        }
+    }
+
+    /// Decode the status-query response word.
+    #[must_use]
+    pub const fn enabled_from_status(raw: u32) -> bool {
+        raw & (1 << 4) != 0
+    }
+}
+
+/// Temporary charge-mode probe (EnergyDrv `0x83102148`, support `0x13`,
+/// status `0x11`). The bit meanings follow the historical component contract
+/// (docs/02 §5): bit0 = Permanent, bit1 = PlugIn, bit2 = DynamicLifeSpan;
+/// values with PlugIn or DynamicLifeSpan set are temporary modes.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+pub struct TemporaryChargeState {
+    pub raw: u32,
+    pub permanent: bool,
+    pub plug_in: bool,
+    pub dynamic_lifespan: bool,
+}
+
+impl TemporaryChargeState {
+    #[must_use]
+    pub const fn from_raw(raw: u32) -> Self {
+        Self {
+            raw,
+            permanent: raw & 1 != 0,
+            plug_in: raw & 2 != 0,
+            dynamic_lifespan: raw & 4 != 0,
+        }
+    }
+
+    #[must_use]
+    pub const fn is_temporary(&self) -> bool {
+        self.plug_in || self.dynamic_lifespan
+    }
+}
+
 /// Decode a raw charge-mode bitmask (docs/02 §3.3).
 ///
 /// `u32::MAX` is the firmware's read-failure sentinel and is reported as an

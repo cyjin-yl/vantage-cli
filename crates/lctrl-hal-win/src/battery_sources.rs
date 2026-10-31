@@ -73,6 +73,22 @@ where
         self.vendor.charge_mode()
     }
 
+    fn night_charge(&self) -> Result<lctrl_core::NightChargeState> {
+        self.vendor.night_charge()
+    }
+
+    fn set_night_charge(
+        &self,
+        enabled: bool,
+        apply: ApplyMode,
+    ) -> Result<ChangeReport<bool>> {
+        self.vendor.set_night_charge(enabled, apply)
+    }
+
+    fn temporary_charge(&self) -> Result<lctrl_core::TemporaryChargeState> {
+        self.vendor.temporary_charge()
+    }
+
     fn set_charge_mode(
         &self,
         mode: ChargeMode,

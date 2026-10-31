@@ -1344,6 +1344,12 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
         Command::Battery {
             command: Some(BatteryCommand::ChargeMode { mode }),
         } => execute_charge_mode(services.battery, mode, apply),
+        Command::Battery {
+            command: Some(BatteryCommand::NightCharge { state }),
+        } => execute_night_charge(services.battery, state, apply),
+        Command::Battery {
+            command: Some(BatteryCommand::TemporaryMode),
+        } => execute_temporary_charge(services.battery),
         Command::Power {
             command:
                 Some(PowerCommand::Scheme {
@@ -1497,6 +1503,9 @@ fn command_is_mutating(command: &Command) -> bool {
         command,
         Command::Battery {
             command: Some(BatteryCommand::ChargeMode { .. })
+        }
+        | Command::Battery {
+            command: Some(BatteryCommand::NightCharge { .. }),
         } | Command::Power {
             command: Some(PowerCommand::Scheme {
                 command: Some(SchemeCommand::Apply { .. } | SchemeCommand::Set { .. })
@@ -1804,6 +1813,40 @@ fn execute_charge_mode(
                 .actual()
                 .map_or("dry-run".into(), ToString::to_string),
             report.previous()
+        ),
+    )
+}
+
+fn execute_night_charge(
+    battery: Option<&dyn BatteryControl>,
+    state: Toggle,
+    apply: ApplyMode,
+) -> CommandResult {
+    let battery = battery.ok_or_else(|| LctrlError::Unsupported {
+        feature: "battery.night-charge".into(),
+    })?;
+    let enabled = matches!(state, Toggle::On);
+    let report = battery.set_night_charge(enabled, apply)?;
+    structured_output(
+        &report,
+        format!("night charge: {}\n", report.requested()),
+    )
+}
+
+fn execute_temporary_charge(battery: Option<&dyn BatteryControl>) -> CommandResult {
+    let battery = battery.ok_or_else(|| LctrlError::Unsupported {
+        feature: "battery.temporary-mode".into(),
+    })?;
+    let state = battery.temporary_charge()?;
+    structured_output(
+        &state,
+        format!(
+            "temporary charge mode: raw={:#x} permanent={} plug-in={} dynamic-lifespan={} temporary={}\n",
+            state.raw,
+            state.permanent,
+            state.plug_in,
+            state.dynamic_lifespan,
+            state.is_temporary()
         ),
     )
 }
@@ -5167,12 +5210,6 @@ fn unsupported_reason(command: &Command) -> &'static str {
         Command::Battery {
             command: Some(BatteryCommand::ExtremeLife { .. }),
         } => "no verified extreme-life channel is attached",
-        Command::Battery {
-            command: Some(BatteryCommand::NightCharge { .. }),
-        } => "no verified night-charge channel is attached",
-        Command::Battery {
-            command: Some(BatteryCommand::TemporaryMode),
-        } => "temporary-mode is read-only and no verified reader is attached",
         Command::Battery {
             command: Some(BatteryCommand::Watch),
         } => "battery event streaming requires the daemon event source",

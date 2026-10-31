@@ -23,8 +23,8 @@ pub use audio::{DolbyProfile, NoiseCancellationMode};
 pub use battery::{
     AdapterAuthentication, AdapterConnectorType, AdapterDetailValues, AdapterInfo, AdapterStatus,
     BatteryDate, BatteryElectricalObservation, BatteryHealth, BatterySourceIssue, BatteryTelemetry,
-    ChargeMode, ChargeModeActual, ChargePrimitive, ChargeStatus, OsBatterySnapshot,
-    UsbChargingState,
+    ChargeMode, ChargeModeActual, ChargePrimitive, ChargeStatus, NightChargeState,
+    OsBatterySnapshot, TemporaryChargeState, UsbChargingState,
     SystemPowerStatus, decode_charge_mode, decode_gbmd_charge_mode, plan_charge_mode,
 };
 pub use bios::{

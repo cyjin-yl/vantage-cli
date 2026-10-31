@@ -2,7 +2,8 @@ use lctrl_core::{LctrlError, Result};
 
 use crate::{
     AdapterDetail, BatteryDetail83, GbmdCommand, GenericGet, IOCTL_BATTERY_CONFIG,
-    IOCTL_BATTERY_DETAIL, IOCTL_GAPD, IOCTL_GBMD, IOCTL_GENERIC_GET, IOCTL_USB_CHARGER,
+    IOCTL_BATTERY_DETAIL, IOCTL_GAPD, IOCTL_GBMD, IOCTL_GENERIC_GET, IOCTL_NIGHT_CHARGE,
+    IOCTL_TEMP_CHARGE, IOCTL_USB_CHARGER, NightChargeSelector, TempChargeSelector,
     UsbChargerSelector,
 };
 
@@ -84,6 +85,42 @@ where
         self.transport
             .call(IOCTL_USB_CHARGER, &selector.encode(), 0)?;
         Ok(())
+    }
+
+    /// Night-charge support probe + current state in one word.
+    pub fn night_charge_probe(&self) -> Result<u32> {
+        let output = self.transport.call(
+            IOCTL_NIGHT_CHARGE,
+            &NightChargeSelector::SUPPORT_PROBE.encode(),
+            4,
+        )?;
+        NightChargeSelector::decode_word(&output)
+    }
+
+    /// Night-charge status word (bit4 = on).
+    pub fn night_charge_status(&self) -> Result<u32> {
+        let output = self
+            .transport
+            .call(IOCTL_NIGHT_CHARGE, &NightChargeSelector::STATUS.encode(), 4)?;
+        NightChargeSelector::decode_word(&output)
+    }
+
+    pub(crate) fn write_night_charge(&self, on: bool) -> Result<()> {
+        let selector = if on {
+            NightChargeSelector::SET_ON
+        } else {
+            NightChargeSelector::SET_OFF
+        };
+        self.transport.call(IOCTL_NIGHT_CHARGE, &selector.encode(), 4)?;
+        Ok(())
+    }
+
+    /// Temporary charge-mode status word (docs/02 §5 bit contract).
+    pub fn temporary_charge_status(&self) -> Result<u32> {
+        let output = self
+            .transport
+            .call(IOCTL_TEMP_CHARGE, &TempChargeSelector::STATUS.encode(), 4)?;
+        TempChargeSelector::decode_word(&output)
     }
 }
 
