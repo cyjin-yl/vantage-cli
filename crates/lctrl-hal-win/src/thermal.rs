@@ -212,11 +212,13 @@ where
 
 /// Maps the semantic fan mode to the firmware `SetSmartFanMode` value.
 ///
-/// Conservative inverse of [`FanMode::from_raw`] (standard=0, silent=1,
-/// performance=2, custom=3). The GAMEZONE provider on the reference machine
-/// rejects every call, so this mapping is unverified against hardware; the
-/// reverse-engineering pass on the vendor binaries must confirm these
-/// constants before the write path is claimed verified.
+/// Placeholder inverse of [`FanMode::from_raw`] (standard=0, silent=1,
+/// performance=2, custom=3). Reverse engineering (RE-interfaces.md §10.3)
+/// shows the vendor plugin operates on raw firmware encodings with 0x7A/0x80
+/// threshold comparisons, so this mapping is unconfirmed and partially
+/// refuted; the reference machine's provider rejects every GAMEZONE call,
+/// so it cannot be validated there either. Treat the write path as
+/// unverified until a supporting machine confirms the wire values.
 fn smart_fan_mode_raw(mode: FanMode) -> Result<u16> {
     match mode {
         FanMode::Standard => Ok(0),

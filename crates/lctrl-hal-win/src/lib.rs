@@ -12,6 +12,7 @@ mod ioctl_contract;
 mod local_updates;
 mod magicbay;
 mod machine_fix;
+mod msr;
 mod native_battery_electrical;
 #[cfg(windows)]
 mod native_ioctl;
@@ -51,6 +52,14 @@ pub use diagnostics::WindowsSystemInventory;
 pub use display::NativeDisplayApi;
 pub use display::{DisplayApi, WindowsPanelController};
 pub use error::{map_win_error, map_wmi_hresult};
+#[cfg(windows)]
+pub use native_ioctl::DeviceIoTransport;
+pub use msr::{
+    IOCTL_MSR_READ, IOCTL_MSR_WRITE, IOCTL_NOTIFY_PLATFORM, MsrSelector, PLATFORM_ID_21VG,
+    PLATFORM_WHITELIST, WIN_MSR_DEVICE_PATH, WinMsrDev,
+};
+#[cfg(windows)]
+pub use msr::WIN_MSR_TRANSPORT;
 pub use events::DOCUMENTED_LENOVO_EVENT_CLASSES;
 pub use gamezone::{FeatureId, GameZone, SupportProbe};
 #[cfg(windows)]
