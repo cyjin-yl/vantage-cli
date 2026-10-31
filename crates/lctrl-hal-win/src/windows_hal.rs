@@ -254,6 +254,35 @@ where
             (!usb_charging_available)
                 .then(|| "EnergyDrv USB charger query (0x831020e8/0x02) is unavailable".into()),
         )?;
+        let night_charge_available = energy_available
+            && EnergyDriver::new(&self.ioctl)
+                .night_charge_probe()
+                .is_ok();
+        capabilities.record(
+            "battery.night-charge",
+            if night_charge_available {
+                Availability::Available
+            } else {
+                Availability::Unavailable
+            },
+            (!night_charge_available)
+                .then(|| "EnergyDrv night-charge probe (0x83102150/0x13) is unavailable".into()),
+        )?;
+        let temporary_charge_available = energy_available
+            && EnergyDriver::new(&self.ioctl)
+                .temporary_charge_status()
+                .is_ok();
+        capabilities.record(
+            "battery.temporary-mode",
+            if temporary_charge_available {
+                Availability::Available
+            } else {
+                Availability::Unavailable
+            },
+            (!temporary_charge_available).then(|| {
+                "EnergyDrv temporary-charge probe (0x83102148/0x11) is unavailable".into()
+            }),
+        )?;
         capabilities.record(
             "diagnostics.inventory",
             if inventory_error.is_none() {

@@ -12,6 +12,12 @@ pub const IOCTL_GBMD: u32 = 0x8310_20f8;
 pub const IOCTL_BATTERY_CONFIG: u32 = 0x8310_2120;
 pub const IOCTL_BATTERY_DETAIL: u32 = 0x8310_2138;
 pub const IOCTL_GAPD: u32 = 0x8310_215c;
+/// Night-charge mode (`PowerBattery.dll` `CChargingMode`, RE-proven;
+/// 4-byte DWORD selectors).
+pub const IOCTL_NIGHT_CHARGE: u32 = 0x8310_2150;
+/// Temporary charge-mode probe (`PowerBattery.dll`, support `0x13`,
+/// status `0x11`; docs/RE-interfaces.md §11).
+pub const IOCTL_TEMP_CHARGE: u32 = 0x8310_2148;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct GbmdCommand(u8);
@@ -71,6 +77,42 @@ impl UsbChargerSelector {
 
     pub fn decode_flags(output: &[u8]) -> Result<u32> {
         decode_u32_exact(output, "USB charger")
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct NightChargeSelector(u32);
+
+impl NightChargeSelector {
+    pub const SUPPORT_PROBE: Self = Self(0x13);
+    pub const STATUS: Self = Self(0x11);
+    pub const SET_ON: Self = Self(0x8000_0012);
+    pub const SET_OFF: Self = Self(0x12);
+
+    #[must_use]
+    pub const fn encode(self) -> [u8; 4] {
+        self.0.to_le_bytes()
+    }
+
+    pub fn decode_word(output: &[u8]) -> Result<u32> {
+        decode_u32_exact(output, "night charge")
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TempChargeSelector(u32);
+
+impl TempChargeSelector {
+    pub const SUPPORT_PROBE: Self = Self(0x13);
+    pub const STATUS: Self = Self(0x11);
+
+    #[must_use]
+    pub const fn encode(self) -> [u8; 4] {
+        self.0.to_le_bytes()
+    }
+
+    pub fn decode_word(output: &[u8]) -> Result<u32> {
+        decode_u32_exact(output, "temporary charge mode")
     }
 }
 

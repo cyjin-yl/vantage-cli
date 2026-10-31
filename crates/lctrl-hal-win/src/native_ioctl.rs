@@ -11,7 +11,7 @@ use windows_sys::Win32::{
 
 use crate::{
     IOCTL_BATTERY_CONFIG, IOCTL_BATTERY_DETAIL, IOCTL_GAPD, IOCTL_GBMD, IOCTL_GENERIC_GET,
-    IOCTL_USB_CHARGER, IoctlTransport, map_win_error,
+    IOCTL_NIGHT_CHARGE, IOCTL_TEMP_CHARGE, IOCTL_USB_CHARGER, IoctlTransport, map_win_error,
 };
 
 const ENERGY_DRIVER_PATH: &str = r"\\.\EnergyDrv";
@@ -66,6 +66,19 @@ fn validate_request(code: u32, input: &[u8]) -> Result<bool> {
             }),
             _ => Err(LctrlError::InvalidArgument {
                 detail: "EnergyDrv GBMD requires exactly one input byte".into(),
+            }),
+        },
+        IOCTL_NIGHT_CHARGE => match input {
+            [0x13, 0, 0, 0] | [0x11, 0, 0, 0] => Ok(false),
+            [0x12, 0, 0, 0] | [0x12, 0, 0, 0x80] => Ok(true),
+            _ => Err(LctrlError::Unsupported {
+                feature: format!("EnergyDrv night-charge selector {input:?}"),
+            }),
+        },
+        IOCTL_TEMP_CHARGE => match input {
+            [0x13, 0, 0, 0] | [0x11, 0, 0, 0] => Ok(false),
+            _ => Err(LctrlError::Unsupported {
+                feature: format!("EnergyDrv temporary-charge selector {input:?}"),
             }),
         },
         IOCTL_GENERIC_GET | IOCTL_BATTERY_CONFIG | IOCTL_BATTERY_DETAIL | IOCTL_GAPD => Ok(false),

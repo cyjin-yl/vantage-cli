@@ -46,7 +46,8 @@ pub use bios::WindowsBiosController;
 pub use brightness::WindowsPanelBrightness;
 pub use codec::{
     AdapterDetail, BatteryDetail83, GbmdCommand, GenericGet, IOCTL_BATTERY_CONFIG,
-    IOCTL_BATTERY_DETAIL, IOCTL_GAPD, IOCTL_GBMD, IOCTL_GENERIC_GET, IOCTL_USB_CHARGER,
+    IOCTL_BATTERY_DETAIL, IOCTL_GAPD, IOCTL_GBMD, IOCTL_GENERIC_GET, IOCTL_NIGHT_CHARGE,
+    IOCTL_TEMP_CHARGE, IOCTL_USB_CHARGER, NightChargeSelector, TempChargeSelector,
     UsbChargerSelector,
 };
 pub use conflict::WindowsControlConflictDetector;

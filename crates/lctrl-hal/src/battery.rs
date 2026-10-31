@@ -35,6 +35,29 @@ pub trait BatteryControl: Send + Sync {
         mode: ChargeMode,
         apply: ApplyMode,
     ) -> Result<ChangeReport<ChargeMode>>;
+    /// Night-charge support + current state (no setter without a verified
+    /// channel; the Windows EnergyDrv implementation is RE-proven).
+    fn night_charge(&self) -> Result<lctrl_core::NightChargeState> {
+        Err(LctrlError::Unsupported {
+            feature: "battery.night-charge".into(),
+        })
+    }
+    fn set_night_charge(
+        &self,
+        enabled: bool,
+        apply: ApplyMode,
+    ) -> Result<ChangeReport<bool>> {
+        let _ = (enabled, apply);
+        Err(LctrlError::Unsupported {
+            feature: "battery.night-charge".into(),
+        })
+    }
+    /// Temporary charge-mode probe (read-only; no verified writer exists).
+    fn temporary_charge(&self) -> Result<lctrl_core::TemporaryChargeState> {
+        Err(LctrlError::Unsupported {
+            feature: "battery.temporary-mode".into(),
+        })
+    }
 }
 
 impl<T: BatteryControl + ?Sized> BatteryControl for &T {

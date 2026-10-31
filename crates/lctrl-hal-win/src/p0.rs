@@ -152,6 +152,51 @@ where
         self.reader.read_charge_mode()
     }
 
+    fn night_charge(&self) -> Result<lctrl_core::NightChargeState> {
+        let driver = EnergyDriver::new(&self.ioctl);
+        Ok(lctrl_core::NightChargeState::from_probe(
+            driver.night_charge_probe()?,
+        ))
+    }
+
+    fn set_night_charge(
+        &self,
+        enabled: bool,
+        apply: ApplyMode,
+    ) -> Result<ChangeReport<bool>> {
+        let previous = lctrl_core::NightChargeState::enabled_from_status(
+            EnergyDriver::new(&self.ioctl).night_charge_status()?,
+        );
+        if apply == ApplyMode::DryRun {
+            return Ok(ChangeReport::dry_run(previous, enabled));
+        }
+        let result = (|| {
+            EnergyDriver::new(&self.ioctl).write_night_charge(enabled)?;
+            poll_readback(&enabled, 10, Duration::from_millis(50), || {
+                Ok(lctrl_core::NightChargeState::enabled_from_status(
+                    EnergyDriver::new(&self.ioctl).night_charge_status()?,
+                ))
+            })
+        })();
+        match result {
+            Ok(actual) => Ok(ChangeReport::committed(previous, enabled, actual)),
+            Err(error) => match self.set_night_charge(previous, ApplyMode::Commit) {
+                Ok(_) => Err(error),
+                Err(rollback) => Err(LctrlError::FirmwareRejected {
+                    detail: format!(
+                        "night-charge transition failed ({error}); restoring {previous} also failed ({rollback}); device state is unverified"
+                    ),
+                }),
+            },
+        }
+    }
+
+    fn temporary_charge(&self) -> Result<lctrl_core::TemporaryChargeState> {
+        Ok(lctrl_core::TemporaryChargeState::from_raw(
+            EnergyDriver::new(&self.ioctl).temporary_charge_status()?,
+        ))
+    }
+
     fn set_charge_mode(
         &self,
         mode: ChargeMode,
