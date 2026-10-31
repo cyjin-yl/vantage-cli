@@ -131,10 +131,7 @@ where
             .call(IOCTL_MSR_READ, &selector.raw().to_le_bytes(), 8)?;
         if output.len() != 8 {
             return Err(LctrlError::ChannelUnavailable {
-                channel: format!(
-                    "WinMsrDev read returned {} bytes, expected 8",
-                    output.len()
-                ),
+                channel: format!("WinMsrDev read returned {} bytes, expected 8", output.len()),
             });
         }
         let low = u32::from_le_bytes(output[..4].try_into().expect("len checked"));
@@ -177,7 +174,10 @@ fn require_zero_status(output: &[u8], method: &str) -> Result<()> {
     }
     if output.len() != 4 {
         return Err(LctrlError::ChannelUnavailable {
-            channel: format!("WinMsrDev {method} returned {} bytes, expected 4", output.len()),
+            channel: format!(
+                "WinMsrDev {method} returned {} bytes, expected 4",
+                output.len()
+            ),
         });
     }
     let status = u32::from_le_bytes(output[..4].try_into().expect("len checked"));

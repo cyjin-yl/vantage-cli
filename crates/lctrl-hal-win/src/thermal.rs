@@ -5,7 +5,7 @@ use lctrl_core::{
     Result, SensorId, TemperatureLocation, TemperatureSensor, TemperatureSensorMetadata,
     TemperatureSource,
 };
-use lctrl_hal::{BatteryControl, FanControl, TemperatureControl, poll_readback};
+use lctrl_hal::{BatteryControl, DbdcControl, FanControl, TemperatureControl, poll_readback};
 
 use crate::{GameZone, WmiObject, WmiTransport, WmiValue, wmi_contract::ROOT_WMI};
 
@@ -14,6 +14,8 @@ const THERMAL_ZONE_QUERY: &str =
     "SELECT InstanceName, CurrentTemperature FROM MSAcpi_ThermalZoneTemperature";
 const FAN_INVENTORY_QUERY: &str =
     "SELECT NumOfFans, FanId, FanMinSpeed, FanMaxSpeed FROM LENOVO_FAN_TEST_DATA";
+const DBDC_QUERY: &str =
+    "SELECT Counts, CurrentLimit, ROS_Power, Threshold FROM LENOVO_REPORT_DBDC_DATA";
 
 /// Windows temperature and read-only fan-inventory services.
 ///
@@ -287,5 +289,43 @@ fn numeric_u32(wmi_value: &WmiValue, name: &str) -> Result<u32> {
 fn invalid_wmi_value(name: &str, value: &WmiValue) -> LctrlError {
     LctrlError::ChannelUnavailable {
         channel: format!("WMI {name} has an invalid value: {value:?}"),
+    }
+}
+
+impl<W, B> DbdcControl for WindowsThermal<W, B>
+where
+    W: WmiTransport,
+    B: BatteryControl,
+{
+    fn dbdc_profile(&self) -> Result<lctrl_core::DbdcProfile> {
+        let rows = self.wmi.query(ROOT_WMI, DBDC_QUERY)?;
+        let row = rows.first().ok_or_else(|| LctrlError::ChannelUnavailable {
+            channel: "LENOVO_REPORT_DBDC_DATA returned no instance".into(),
+        })?;
+        let counts = row
+            .get("Counts")
+            .ok_or_else(|| invalid_wmi_value("Counts", &WmiValue::Empty))
+            .and_then(|value| numeric_u32(value, "Counts"))?;
+        let current_limit_ma = dbdc_u32_array(row, "CurrentLimit")?;
+        let ros_power_mw = dbdc_u32_array(row, "ROS_Power")?;
+        let threshold_pct = dbdc_u32_array(row, "Threshold")?;
+        let profile = lctrl_core::DbdcProfile {
+            counts,
+            current_limit_ma,
+            ros_power_mw,
+            threshold_pct,
+        };
+        if !profile.is_consistent() {
+            return Err(invalid_wmi_value("DBDC arrays", &WmiValue::Null));
+        }
+        Ok(profile)
+    }
+}
+
+fn dbdc_u32_array(row: &WmiObject, name: &str) -> Result<Vec<u32>> {
+    match row.get(name) {
+        Some(WmiValue::Array(items)) => items.iter().map(|item| numeric_u32(item, name)).collect(),
+        Some(other) => Err(invalid_wmi_value(name, other)),
+        None => Err(invalid_wmi_value(name, &WmiValue::Empty)),
     }
 }

@@ -21,17 +21,16 @@ use lctrl_core::{
     ChargeModeActual, DeviceState, DiagnosticKind, DriverIdentity, DriverVersion, FanMode,
     HardwareInfo, LctrlError, LocalDriverRollbackRequest, LocalDriverUpdateRequest,
     PerformanceMode, Platform, PowerGuid, PowerMutation, PowerRangeObservation, PowerSchemeId,
-    PowerSettingKey, PowerSettingValue, PowerSource, UpdateCapability,
-    SceneAction,
-};
-use lctrl_hal::{
-    BatteryControl, BiosControl, ControlConflictDetection, DiagnosticsControl, FanControl, Hal,
-    HotkeyControl, KeyboardControl, MagicBayControl, OsdControl, PanelBrightnessControl,
-    PanelControl, PerformanceControl, LocalUpdateControl, MachineFixControl, PowerControl,
-    PowerLimitKind, PrivacyControl, ProcessorPowerControl, TemperatureControl, TouchpadControl,
-    TuningControl, UpdateControl, WifiSecurityControl,
+    PowerSettingKey, PowerSettingValue, PowerSource, SceneAction, UpdateCapability,
 };
 use lctrl_hal::ScenePolicyControl;
+use lctrl_hal::{
+    BatteryControl, BiosControl, ControlConflictDetection, DbdcControl, DiagnosticsControl,
+    FanControl, Hal, HotkeyControl, KeyboardControl, LocalUpdateControl, MachineFixControl,
+    MagicBayControl, OsdControl, PanelBrightnessControl, PanelControl, PerformanceControl,
+    PowerControl, PowerLimitKind, PrivacyControl, ProcessorPowerControl, TemperatureControl,
+    TouchpadControl, TuningControl, UpdateControl, WifiSecurityControl,
+};
 use serde::{Deserialize, Serialize};
 
 mod battery_observation;
@@ -64,6 +63,7 @@ pub struct CommandServices<'a> {
     battery: Option<&'a dyn BatteryControl>,
     bios: Option<&'a dyn BiosControl>,
     conflicts: Option<&'a dyn ControlConflictDetection>,
+    dbdc: Option<&'a dyn DbdcControl>,
     diagnostics: Option<&'a dyn DiagnosticsControl>,
     fan: Option<&'a dyn FanControl>,
     keyboard: Option<&'a dyn KeyboardControl>,
@@ -93,6 +93,7 @@ impl<'a> CommandServices<'a> {
             battery: None,
             bios: None,
             conflicts: None,
+            dbdc: None,
             diagnostics: None,
             fan: None,
             keyboard: None,
@@ -131,6 +132,12 @@ impl<'a> CommandServices<'a> {
     #[must_use]
     pub fn with_conflict_detection(mut self, conflicts: &'a dyn ControlConflictDetection) -> Self {
         self.conflicts = Some(conflicts);
+        self
+    }
+
+    #[must_use]
+    pub fn with_dbdc(mut self, dbdc: &'a dyn DbdcControl) -> Self {
+        self.dbdc = Some(dbdc);
         self
     }
 
@@ -236,7 +243,7 @@ impl<'a> CommandServices<'a> {
 
     #[must_use]
     pub fn with_scene(mut self, scene: &'a dyn ScenePolicyControl) -> Self {
-    self.scene = Some(scene);
+        self.scene = Some(scene);
         self
     }
 
@@ -615,6 +622,10 @@ pub enum PerfCommand {
     Pl2 {
         watts: u32,
     },
+    Dbdc {
+        #[command(subcommand)]
+        command: Option<DbdcCommand>,
+    },
     Top,
     Boost {
         pids: Vec<u32>,
@@ -622,6 +633,12 @@ pub enum PerfCommand {
     Throttle {
         pids: Vec<u32>,
     },
+}
+
+#[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
+pub enum DbdcCommand {
+    /// 读取电池直放逐流限流表(LENOVO_REPORT_DBDC_DATA,只读)
+    Get,
 }
 
 #[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
@@ -1353,6 +1370,9 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
         Command::Perf {
             command: Some(PerfCommand::Pl2 { watts }),
         } => execute_power_limit(services.tuning, PowerLimitKind::Pl2, watts, apply),
+        Command::Perf {
+            command: Some(PerfCommand::Dbdc { command }),
+        } => execute_dbdc(services.dbdc, command.unwrap_or(DbdcCommand::Get)),
         Command::Bios {
             command: Some(command),
         } => execute_bios(services.bios, command, apply, confirmed, interactive),
@@ -1438,7 +1458,12 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
             command: Some(SceneCommand::List),
         } => execute_scene_list(services.scene),
         Command::Scene {
-            command: Some(SceneCommand::Test { event, rule, dry_run }),
+            command:
+                Some(SceneCommand::Test {
+                    event,
+                    rule,
+                    dry_run,
+                }),
         } => execute_scene_test(services.scene, &event, rule.as_deref(), dry_run),
         Command::Scene {
             command: Some(SceneCommand::Track),
@@ -2070,6 +2095,37 @@ fn execute_temperature(
             )
         }
         TempCommand::Watch { .. } => Err(streaming_command_error(StreamKind::Temperatures)),
+    }
+}
+
+fn execute_dbdc(dbdc: Option<&dyn DbdcControl>, command: DbdcCommand) -> CommandResult {
+    match command {
+        DbdcCommand::Get => {
+            let dbdc = dbdc.ok_or_else(|| LctrlError::Unsupported {
+                feature: "perf.dbdc".into(),
+            })?;
+            let profile = dbdc.dbdc_profile()?;
+            let mut text = String::new();
+            for tier in 0..profile.counts as usize {
+                let threshold = profile
+                    .threshold_pct
+                    .get(tier)
+                    .map_or_else(|| "unknown".to_string(), |value| value.to_string());
+                let limit = profile
+                    .current_limit_ma
+                    .get(tier)
+                    .map_or_else(|| "unknown".to_string(), |value| value.to_string());
+                let power = profile
+                    .ros_power_mw
+                    .get(tier)
+                    .map_or_else(|| "unknown".to_string(), |value| value.to_string());
+                let _ = writeln!(
+                    text,
+                    "tier {tier}: <= {threshold}% battery: discharge limit {limit} mA, system power {power} mW"
+                );
+            }
+            structured_output(&profile, text)
+        }
     }
 }
 
@@ -3778,9 +3834,7 @@ fn execute_update(
                 channel: format!("update catalog: {reason}"),
             }),
         },
-        UpdateCommand::LocalDriver { command } => {
-            execute_local_driver(local_update, command)
-        }
+        UpdateCommand::LocalDriver { command } => execute_local_driver(local_update, command),
         UpdateCommand::Download { .. } => Err(LctrlError::Unsupported {
             feature: "update.download.without-authenticated-manifest".into(),
         }),
@@ -3858,8 +3912,7 @@ fn execute_local_driver(
                 matching_device_id,
                 inf_section: restore_section,
             };
-            let request =
-                LocalDriverRollbackRequest::new(device_instance_id, expected, restore)?;
+            let request = LocalDriverRollbackRequest::new(device_instance_id, expected, restore)?;
             let mode = if dry_run {
                 ApplyMode::DryRun
             } else {
@@ -3902,10 +3955,7 @@ fn local_driver_rollback_message(report: &lctrl_core::DriverRollbackReport) -> S
 }
 
 fn parse_driver_version(text: &str) -> lctrl_core::Result<DriverVersion> {
-    let parts = text
-        .split('.')
-        .map(str::trim)
-        .collect::<Vec<_>>();
+    let parts = text.split('.').map(str::trim).collect::<Vec<_>>();
     if parts.len() != 4 {
         return Err(LctrlError::InvalidArgument {
             detail: format!("driver version must be major.minor.build.revision, got {text}"),
@@ -3913,9 +3963,13 @@ fn parse_driver_version(text: &str) -> lctrl_core::Result<DriverVersion> {
     }
     let mut numbers = [0u16; 4];
     for (slot, part) in numbers.iter_mut().zip(parts.iter()) {
-        let value = part.parse::<u16>().map_err(|_| LctrlError::InvalidArgument {
-            detail: format!("driver version component must be an unsigned 16-bit integer, got {part}"),
-        })?;
+        let value = part
+            .parse::<u16>()
+            .map_err(|_| LctrlError::InvalidArgument {
+                detail: format!(
+                    "driver version component must be an unsigned 16-bit integer, got {part}"
+                ),
+            })?;
         *slot = value;
     }
     Ok(DriverVersion::new(numbers))
@@ -3974,7 +4028,9 @@ fn execute_wifi(wifi: Option<&dyn WifiSecurityControl>, command: WifiCommand) ->
                 &snapshot,
                 format!(
                     "Wi-Fi history: capacity {}, retain_ssid {}, {} observation(s), memory-only\n",
-                    snapshot.policy.capacity, snapshot.policy.retain_ssid, snapshot.entries.len(),
+                    snapshot.policy.capacity,
+                    snapshot.policy.retain_ssid,
+                    snapshot.entries.len(),
                 ),
             )
         }
@@ -4037,10 +4093,7 @@ fn execute_fix_run(
     };
     let report = machine_fix.fix(issue, mode)?;
     let verb = if dry_run { "plan" } else { "applied" };
-    structured_output(
-        &report,
-        format!("fix {} for {}\n", verb, report.issue_id),
-    )
+    structured_output(&report, format!("fix {} for {}\n", verb, report.issue_id))
 }
 
 fn execute_fix_track(machine_fix: Option<&dyn MachineFixControl>) -> CommandResult {
@@ -4103,7 +4156,10 @@ fn execute_scene_test(
     if let Some(rule_id) = rule {
         // Test a specific rule by id: apply it directly against the named event class.
         let report = scene.apply(rule_id, event, mode)?;
-        let human = format!("scene rule {rule_id} on {event}: {}", scene_action_kind(&report.requested));
+        let human = format!(
+            "scene rule {rule_id} on {event}: {}",
+            scene_action_kind(&report.requested)
+        );
         return structured_output(&report, human);
     }
     let matches = scene.match_event(event);
@@ -4147,7 +4203,10 @@ fn execute_scene_track(scene: Option<&dyn ScenePolicyControl>) -> CommandResult 
     let ledger = scene.track();
     structured_output(
         &ledger,
-        format!("{} applied scene action(s) on record\n", ledger.entries.len()),
+        format!(
+            "{} applied scene action(s) on record\n",
+            ledger.entries.len()
+        ),
     )
 }
 
@@ -4165,7 +4224,10 @@ fn execute_osd(
     match command {
         OsdCommand::Enable => {
             let outcome = osd.show(&["Vantage replacement OSD enabled"], dry_run)?;
-            structured_output(&outcome, format!("osd {}: {}\n", outcome.state, outcome.detail))
+            structured_output(
+                &outcome,
+                format!("osd {}: {}\n", outcome.state, outcome.detail),
+            )
         }
         OsdCommand::Disable => {
             let was_visible = osd.hide()?;
@@ -4180,7 +4242,10 @@ fn execute_osd(
         }
         OsdCommand::Test => {
             let outcome = osd.show(&["Vantage replacement", "osd test"], dry_run)?;
-            structured_output(&outcome, format!("osd test {}: {}\n", outcome.state, outcome.detail))
+            structured_output(
+                &outcome,
+                format!("osd test {}: {}\n", outcome.state, outcome.detail),
+            )
         }
         OsdCommand::Show { lines } => {
             let refs: Vec<&str> = lines.iter().map(String::as_str).collect();
@@ -5113,12 +5178,8 @@ fn command_feature(command: &Command) -> String {
             prefixed("update", command.as_ref().map(UpdateCommand::feature))
         }
         Command::Scan { command } => prefixed("scan", command.as_ref().map(ScanCommand::feature)),
-        Command::Wifi { command } => {
-            prefixed("wifi", command.as_ref().map(WifiCommand::feature))
-        }
-        Command::Fix { command } => {
-            prefixed("fix", command.as_ref().map(FixCommand::feature))
-        }
+        Command::Wifi { command } => prefixed("wifi", command.as_ref().map(WifiCommand::feature)),
+        Command::Fix { command } => prefixed("fix", command.as_ref().map(FixCommand::feature)),
         Command::Scene { command } => {
             prefixed("scene", command.as_ref().map(SceneCommand::feature))
         }
@@ -5184,6 +5245,7 @@ impl PerfCommand {
             Self::Temp { .. } => "temp",
             Self::Pl1 { .. } => "pl1",
             Self::Pl2 { .. } => "pl2",
+            Self::Dbdc { .. } => "dbdc",
             Self::Top => "top",
             Self::Boost { .. } => "boost",
             Self::Throttle { .. } => "throttle",

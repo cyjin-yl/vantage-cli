@@ -5,16 +5,16 @@ mod command_capability;
 mod conflict;
 mod diagnostics;
 mod events;
-mod magicbay;
-mod machine_fix;
-mod scene_policy;
 mod hotkey;
-mod osd;
+mod machine_fix;
+mod magicbay;
 mod network;
+mod osd;
 mod performance;
 mod peripherals;
 mod power;
 mod process;
+mod scene_policy;
 mod setting;
 mod update;
 mod verify;
@@ -30,25 +30,25 @@ pub use command_capability::{
 pub use conflict::ControlConflictDetection;
 pub use diagnostics::{DiagnosticsControl, UpdateControl};
 pub use events::{EventCancellation, EventSource, EventValue, RawEvent, RawEventReader};
-pub use magicbay::MagicBayControl;
-pub use machine_fix::MachineFixControl;
-pub use scene_policy::ScenePolicyControl;
 pub use hotkey::{HotkeyControl, HotkeyOutcome};
-pub use osd::{OsdControl, OsdOutcome};
+pub use machine_fix::MachineFixControl;
+pub use magicbay::MagicBayControl;
 pub use network::{
     MAX_WIFI_HISTORY_ENTRIES, WifiConnectionState, WifiHistoryPersistence, WifiHistoryPolicy,
     WifiHistorySnapshot, WifiInterfaceSnapshot, WifiLiveNetwork, WifiSavedProfile,
     WifiSecurityAssessment, WifiSecurityControl, WifiSecurityFinding, WifiSecurityReason,
     WifiSecurityReport, assess_wifi_security,
 };
+pub use osd::{OsdControl, OsdOutcome};
 pub use performance::{
-    FanControl, PerformanceControl, PowerLimitKind, TemperatureControl, TuningControl,
+    DbdcControl, FanControl, PerformanceControl, PowerLimitKind, TemperatureControl, TuningControl,
 };
 pub use peripherals::{
     KeyboardControl, PanelBrightnessControl, PanelControl, PrivacyControl, TouchpadControl,
 };
 pub use power::{PowerControl, ProcessorPowerControl};
 pub use process::ProcessControl;
+pub use scene_policy::ScenePolicyControl;
 pub use setting::{Setting, apply_setting};
 pub use update::LocalUpdateControl;
 pub use verify::poll_readback;

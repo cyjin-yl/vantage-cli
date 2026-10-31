@@ -180,8 +180,9 @@ fn api() -> Result<&'static OverlayApi> {
     API.get_or_init(load_api)
         .as_ref()
         .ok_or_else(|| LctrlError::ChannelUnavailable {
-            channel: "powrprof.dll does not export the power overlay API (Windows 10 1809+ required)"
-                .into(),
+            channel:
+                "powrprof.dll does not export the power overlay API (Windows 10 1809+ required)"
+                    .into(),
         })
 }
 

@@ -23,9 +23,9 @@ use windows_sys::Win32::{
     System::LibraryLoader::GetModuleHandleW,
     UI::WindowsAndMessaging::{
         CreateWindowExW, DefWindowProcW, DestroyWindow, GetClientRect, GetSystemMetrics,
-        RegisterClassExW, SetLayeredWindowAttributes, SetWindowPos, SM_CXSCREEN, SM_CYSCREEN,
-        WNDCLASSEXW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOPMOST, WS_EX_TRANSPARENT,
-        WS_CLIPSIBLINGS, WS_POPUP, WS_VISIBLE, WM_DESTROY, WM_PAINT,
+        RegisterClassExW, SM_CXSCREEN, SM_CYSCREEN, SetLayeredWindowAttributes, SetWindowPos,
+        WM_DESTROY, WM_PAINT, WNDCLASSEXW, WS_CLIPSIBLINGS, WS_EX_LAYERED, WS_EX_NOACTIVATE,
+        WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP, WS_VISIBLE,
     },
 };
 
@@ -150,9 +150,11 @@ fn show_overlay() -> std::result::Result<(), String> {
             std::ptr::null_mut(),
         );
         if hwnd.is_null() {
-            return Err("CreateWindowExW failed; this service is not attached to the active \
+            return Err(
+                "CreateWindowExW failed; this service is not attached to the active \
                         desktop session"
-                .into());
+                    .into(),
+            );
         }
         SetBkMode(hwnd, TRANSPARENT as i32);
         SetTextColor(hwnd, 0x00E6E6E6); // light gray text
@@ -184,8 +186,11 @@ unsafe extern "system" fn osd_wndproc(
                 let _ = BeginPaint(hwnd, &mut ps);
                 let text = OSD_TEXT.lock().unwrap();
                 if !text.is_empty() {
-                    let joined: Vec<u16> =
-                        text.join("\n").encode_utf16().chain(std::iter::once(0)).collect();
+                    let joined: Vec<u16> = text
+                        .join("\n")
+                        .encode_utf16()
+                        .chain(std::iter::once(0))
+                        .collect();
                     let mut rect = RECT {
                         left: 4,
                         top: 4,

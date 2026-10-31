@@ -9,9 +9,10 @@ use lctrl_core::{
     ChargeModeActual, DeviceState, HardwareInfo, LctrlError, Platform,
 };
 use lctrl_hal::{
-    BatteryControl, BiosControl, ControlConflictDetection, Hal, PanelBrightnessControl,
-    PerformanceControl, PowerControl, PrivacyControl, TemperatureControl,
+    BatteryControl, BiosControl, ControlConflictDetection, DbdcControl, Hal,
+    PanelBrightnessControl, PerformanceControl, PowerControl, PrivacyControl, TemperatureControl,
 };
+use serde_json::json;
 use vantage_cli::{
     Cli, Command, CommandResult, CommandServices, PerfCommand, StreamKind, StreamSpec, TempCommand,
     TuneCommand, execute, execute_with_services, render_error, sample_stream, stream_spec,
@@ -139,6 +140,7 @@ fn representative_command_paths_parse() {
         &["vantage", "perf", "fan", "status"],
         &["vantage", "perf", "temp"],
         &["vantage", "perf", "pl1", "15"],
+        &["vantage", "perf", "dbdc", "get"],
         &["vantage", "perf", "pl2", "25"],
         &["vantage", "perf", "top"],
         &["vantage", "tune", "profile", "list"],
@@ -223,6 +225,53 @@ impl TemperatureControl for ChangingTemperatures {
                 detail: format!("unknown sensor {id}"),
             })
     }
+}
+
+struct FixedDbdc {
+    profile: lctrl_core::DbdcProfile,
+}
+
+impl DbdcControl for FixedDbdc {
+    fn dbdc_profile(&self) -> lctrl_core::Result<lctrl_core::DbdcProfile> {
+        Ok(self.profile.clone())
+    }
+}
+
+#[test]
+fn perf_dbdc_get_reports_vendor_table() {
+    let cli = Cli::try_parse_from(["vantage", "--json", "perf", "dbdc", "get"])
+        .expect("parse perf dbdc get");
+    let hal = FakeHal::new("unused");
+    let dbdc = FixedDbdc {
+        profile: lctrl_core::DbdcProfile {
+            counts: 2,
+            current_limit_ma: vec![7500, 4500],
+            ros_power_mw: vec![65000, 35000],
+            threshold_pct: vec![100, 20],
+        },
+    };
+
+    let output = execute_with_services(cli, CommandServices::new(&hal).with_dbdc(&dbdc))
+        .expect("dbdc get succeeds");
+
+    assert_eq!(output.json["counts"], 2);
+    assert_eq!(output.json["current_limit_ma"], json!([7500, 4500]));
+    assert_eq!(output.json["threshold_pct"], json!([100, 20]));
+    let text = &output.human;
+    assert!(text.contains("tier 0"));
+    assert!(text.contains("7500 mA"));
+    assert!(text.contains("tier 1"));
+}
+
+#[test]
+fn perf_dbdc_get_without_service_is_structured_unsupported() {
+    let cli = Cli::try_parse_from(["vantage", "perf", "dbdc", "get"]).expect("parse");
+    let hal = FakeHal::new("unused");
+
+    let error = execute_with_services(cli, CommandServices::new(&hal))
+        .expect_err("missing dbdc service must not succeed");
+
+    assert!(matches!(error, LctrlError::Unsupported { .. }));
 }
 
 #[derive(Default)]

@@ -46,6 +46,7 @@ impl CommandId {
     pub const PERF_TEMP_WATCH: Self = Self("perf.temp.watch");
     pub const PERF_PL1: Self = Self("perf.pl1");
     pub const PERF_PL2: Self = Self("perf.pl2");
+    pub const PERF_DBDC_GET: Self = Self("perf.dbdc.get");
     pub const PERF_TOP: Self = Self("perf.top");
     pub const PERF_BOOST: Self = Self("perf.boost");
     pub const PERF_THROTTLE: Self = Self("perf.throttle");
@@ -192,6 +193,7 @@ impl CommandId {
         Self::PERF_TEMP_WATCH,
         Self::PERF_PL1,
         Self::PERF_PL2,
+        Self::PERF_DBDC_GET,
         Self::PERF_TOP,
         Self::PERF_BOOST,
         Self::PERF_THROTTLE,
@@ -477,6 +479,7 @@ pub enum Dependency {
     WindowsHpd,
     WindowsAudio,
     LenovoFirmwareWmi,
+    LenovoVendorWmi,
     EnergyDriver,
     LenovoProcessManagement,
     SmartSense,
@@ -541,6 +544,7 @@ impl Dependency {
             | Self::WindowsHpd
             | Self::WindowsAudio
             | Self::LenovoFirmwareWmi
+            | Self::LenovoVendorWmi
             | Self::EnergyDriver
             | Self::LenovoProcessManagement
             | Self::SmartSense
@@ -598,6 +602,7 @@ impl Dependency {
             Self::WindowsHpd => "Windows Human Presence Detection COM",
             Self::WindowsAudio => "Windows audio/kernel-streaming APIs",
             Self::LenovoFirmwareWmi => "Lenovo ACPI firmware through root\\WMI",
+            Self::LenovoVendorWmi => "Lenovo vendor WMI data classes (root\\WMI)",
             Self::EnergyDriver => "AcpiVpc.sys / \\\\.\\EnergyDrv",
             Self::LenovoProcessManagement => "LenovoProcessManagement",
             Self::SmartSense => "SmartSense and ACPI\\IDEA2002",

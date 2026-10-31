@@ -7,13 +7,20 @@
 //! present; the machine state cannot change because the written value
 //! equals the freshly observed baseline.
 
-use lctrl_hal_win::{MsrSelector, PLATFORM_ID_21VG, WinMsrDev, WIN_MSR_TRANSPORT};
+use lctrl_hal_win::{MsrSelector, PLATFORM_ID_21VG, WIN_MSR_TRANSPORT, WinMsrDev};
 
 fn main() {
     let write = std::env::args().any(|arg| arg == "--write");
     let client = WinMsrDev::new(&WIN_MSR_TRANSPORT);
 
-    println!("mode: {}", if write { "WRITE (no-op, owner present)" } else { "READ-ONLY" });
+    println!(
+        "mode: {}",
+        if write {
+            "WRITE (no-op, owner present)"
+        } else {
+            "READ-ONLY"
+        }
+    );
     client
         .notify_platform_info(PLATFORM_ID_21VG, 0)
         .expect("NotifyPlatformInfo(0x36) handshake");
@@ -23,12 +30,18 @@ fn main() {
         let value = client
             .read_selector(selector)
             .unwrap_or_else(|error| panic!("baseline read selector {}: {error}", selector.raw()));
-        println!("baseline selector {} (MSR 0x{:03X}): 0x{value:016X}", selector.raw(), selector.msr_address());
+        println!(
+            "baseline selector {} (MSR 0x{:03X}): 0x{value:016X}",
+            selector.raw(),
+            selector.msr_address()
+        );
         baseline.push(value);
     }
 
     if !write {
-        println!("read-only acceptance complete; re-run with --write (owner present) for the write path");
+        println!(
+            "read-only acceptance complete; re-run with --write (owner present) for the write path"
+        );
         return;
     }
 
@@ -46,7 +59,10 @@ fn main() {
     let after = client
         .read_selector(target)
         .expect("post-write readback of selector 5");
-    assert_eq!(before, after, "readback drifted across the same-value write");
+    assert_eq!(
+        before, after,
+        "readback drifted across the same-value write"
+    );
 
     // HWP request selector (4 / MSR 0x774): same-value write exercises the
     // per-core HWP register without altering any field.
@@ -60,13 +76,14 @@ fn main() {
     let after = client
         .read_selector(target)
         .expect("post-write readback of selector 4");
-    assert_eq!(before, after, "HWP readback drifted across the same-value write");
+    assert_eq!(
+        before, after,
+        "HWP readback drifted across the same-value write"
+    );
 
     // Full-table re-read proves no selector drifted as a side effect.
     for (selector, &expected) in MsrSelector::all().iter().zip(baseline.iter()) {
-        let now = client
-            .read_selector(*selector)
-            .expect("final sweep read");
+        let now = client.read_selector(*selector).expect("final sweep read");
         assert_eq!(now, expected, "selector {} drifted", selector.raw());
     }
     println!("write-path acceptance complete: same-value writes verified by readback, no drift");

@@ -195,10 +195,10 @@ pub fn privacy_layer(command: &crate::PrivacyCommand) -> Option<&'static str> {
 pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
     use crate::Command;
     use crate::{
-        AudioCommand, BatteryCommand, BiosCommand, DaemonCommand, LteCommand, MagicbayCommand,
-        FixCommand, LocalDriverCommand, OsdCommand, PanelCommand, PasswordCommand, PerfCommand,
-        PrivacyCommand, ProfileCommand, SchemeCommand, SenseCommand, SnapshotCommand,
-        TempCommand, TuneCommand, UpdateCommand, UsbCommand, WifiCommand,
+        AudioCommand, BatteryCommand, BiosCommand, DaemonCommand, FixCommand, LocalDriverCommand,
+        LteCommand, MagicbayCommand, OsdCommand, PanelCommand, PasswordCommand, PerfCommand,
+        PrivacyCommand, ProfileCommand, SchemeCommand, SenseCommand, SnapshotCommand, TempCommand,
+        TuneCommand, UpdateCommand, UsbCommand, WifiCommand,
     };
     use lctrl_core::CommandId;
 
@@ -367,6 +367,9 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
         Command::Perf {
             command: Some(PerfCommand::Pl2 { .. }),
         } => CommandId::PERF_PL2,
+        Command::Perf {
+            command: Some(PerfCommand::Dbdc { .. }),
+        } => CommandId::PERF_DBDC_GET,
         Command::Perf {
             command: Some(PerfCommand::Top),
         } => CommandId::PERF_TOP,
@@ -629,14 +632,16 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
             command: Some(UpdateCommand::Schedule { .. }),
         } => CommandId::UPDATE_SCHEDULE,
         Command::Update {
-            command: Some(UpdateCommand::LocalDriver {
-                command: LocalDriverCommand::Apply { .. },
-            }),
+            command:
+                Some(UpdateCommand::LocalDriver {
+                    command: LocalDriverCommand::Apply { .. },
+                }),
         } => CommandId::UPDATE_LOCAL_INSTALL,
         Command::Update {
-            command: Some(UpdateCommand::LocalDriver {
-                command: LocalDriverCommand::Rollback { .. },
-            }),
+            command:
+                Some(UpdateCommand::LocalDriver {
+                    command: LocalDriverCommand::Rollback { .. },
+                }),
         } => CommandId::UPDATE_LOCAL_ROLLBACK,
         Command::Update { command: None } => return None,
         Command::Scan {

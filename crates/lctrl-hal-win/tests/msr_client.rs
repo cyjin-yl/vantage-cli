@@ -21,12 +21,12 @@ impl FakeIoctl {
 
 impl lctrl_hal_win::IoctlTransport for FakeIoctl {
     fn call(&self, code: u32, input: &[u8], output_len: usize) -> Result<Vec<u8>> {
-        self.calls
-            .lock()
-            .unwrap()
-            .push((code, input.to_vec()));
+        self.calls.lock().unwrap().push((code, input.to_vec()));
         let mut outputs = self.outputs.lock().unwrap();
-        assert!(!outputs.is_empty(), "test must queue an output for every call");
+        assert!(
+            !outputs.is_empty(),
+            "test must queue an output for every call"
+        );
         let output = outputs.remove(0);
         assert!(
             output.len() <= output_len,
@@ -38,7 +38,8 @@ impl lctrl_hal_win::IoctlTransport for FakeIoctl {
 
 #[test]
 fn read_uses_documented_ioctl_and_reassembles_u64() {
-    let fake = FakeIoctl::default().with_output(vec![0x01, 0x00, 0xFF, 0x00, 0x19, 0x00, 0x00, 0x00]);
+    let fake =
+        FakeIoctl::default().with_output(vec![0x01, 0x00, 0xFF, 0x00, 0x19, 0x00, 0x00, 0x00]);
     let client = WinMsrDev::new(&fake);
 
     let value = client.read_selector(MsrSelector::HWP_REQUEST).unwrap();
