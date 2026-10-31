@@ -1,115 +1,77 @@
 # vantage
 
-Control your Lenovo ThinkBook from the terminal: performance mode, battery,
-screen, keyboard, BIOS settings, updates, and diagnostics — without the vendor
-app, without an account, without telemetry.
+用你的 ThinkBook,但不装联想那套全家桶。
 
-Every write is checked by reading the value back. If a channel isn't verified
-on your machine, the command says so and refuses instead of pretending.
+vantage 是一个命令行工具,能帮你管性能模式、电池、屏幕、键盘、BIOS、更新、Wi-Fi 这些硬件设置。没有账号,没有后台服务,没有广告,也不会偷偷传数据。
 
-## Install
+它有个原则:**写进去的每个设置,都会再读出来确认一遍**。做不到的它会直接说"这台机器上不行",不会假装成功了。
 
-**Windows** — download `vantage.exe` from [Releases](https://github.com/cyjin-yl/vantage-cli/releases)
-(also kept at `dist/windows/vantage.exe` on every tag), verify the SHA-256 in
-`dist/windows/vantage.exe.sha256`, and run it from anywhere. No installer, no
-background service. Reading state needs no elevation; changing hardware may
-require an admin shell and always requires `--yes`.
+## 怎么用
 
-**Linux** — build from source (see [Development](#development)). Some controls
-that are vendor-only on Windows use standard kernel interfaces on Linux.
+Windows:去 [Releases](https://github.com/cyjin-yl/vantage-cli/releases) 下载 `vantage.exe`,随便放个地方就能跑,不用安装。
 
-## Quick start
+看个状态不需要管理员权限;改设置可能需要,而且一定要加 `--yes` 确认。
 
-All read-only, safe to explore:
+先随便看看(这些都是只读的,放心点):
 
 ```bash
-vantage info            # what machine is this, what's available
-vantage doctor          # probe the channels and report problems
-vantage capability      # per-command status matrix for this machine
-vantage battery status  # charge, health, adapter
-vantage perf temp       # CPU temperature
+vantage info            # 看看你这是什么机器,支持哪些功能
+vantage doctor          # 检查一下各个通道好不好使
+vantage capability      # 每个命令在这台机器上能不能用,一张表
+vantage battery status  # 电池电量、健康度、电源适配器
+vantage perf temp       # CPU 温度
 ```
 
-Your first change — preview it, then apply it:
+改设置的姿势——先看计划,再真改:
 
 ```bash
-vantage --dry-run perf mode performance   # show the plan, write nothing
-vantage --yes perf mode performance       # apply, read back, confirm
+vantage --dry-run perf mode performance   # 只演示,不动真格
+vantage --yes perf mode performance       # 真改,改完会读回来确认
 ```
 
-Global flags: `--json` (machine-readable output), `--dry-run` (validate
-without writing), `--yes` (confirm a write after reviewing it). Every
-subcommand accepts `-h`.
+全局开关:`--json` 输出机器能读的格式,`--dry-run` 空跑一次不写硬件,`--yes` 确认写入。任何命令加 `-h` 看帮助。
 
-## Commands by task
+## 都能干啥
 
-| Task | Commands |
+| 你想干嘛 | 命令 |
 |---|---|
-| Performance & power | `perf mode`, `tune epp`, `tune turbo`, `power scheme list/get/set`, `perf temp` |
-| Battery | `battery status`, `battery adapter` |
-| Screen | `panel rate`, `panel brightness` |
-| Input | `touchpad status/on/off/recover`, `kbd backlight` |
-| BIOS | `bios list`, `bios get <name>` |
-| Updates | `update check`, `update local-driver` (install/rollback vendored drivers) |
-| Network | `wifi security` (audit live and saved networks) |
-| Diagnostics | `doctor`, `fix scan/run`, `scan`, `snapshot capture/diff/restore` |
-| Desktop integration | `osd`, `hotkey`, `scene`, `daemon` |
+| 切换性能模式 | `perf mode`(可选 auto / quiet / performance) |
+| 调省电/性能细节 | `tune epp`、`tune turbo` |
+| 管 Windows 电源方案 | `power scheme list / get / set` |
+| 看电池 | `battery status`、`battery adapter` |
+| 调屏幕 | `panel rate`(刷新率)、`panel brightness`(亮度) |
+| 触控板 | `touchpad status / on / off / recover` |
+| 键盘灯 | `kbd backlight` |
+| 看 BIOS 设置 | `bios list`、`bios get 设置名` |
+| 更新 | `update check`、`update local-driver`(装/回滚本地驱动) |
+| Wi-Fi 体检 | `wifi security`(检查有没有裸奔的网络) |
+| 体检修电脑 | `doctor`、`fix scan / run`、`scan`、`snapshot capture` |
+| 桌面小功能 | `osd`(屏幕提示)、`hotkey`(热键)、`scene`(自动场景)、`daemon` |
 
-## What works on this machine
+在 ThinkBook 14 G8+ 上实测好用的:性能模式切换、CPU 省电/睿频策略、电源方案、屏幕亮度和刷新率、触控板救活、电池各项数据、Wi-Fi 安全体检、一键修复规则、OSD/热键/自动场景、读 BIOS 设置、硬件快照。
 
-`vantage capability` is the source of truth — run it. Verified on the
-ThinkBook 14 G8+ (21VG): performance mode (`auto`/`quiet`/`performance`),
-processor energy preference and boost policy, Windows power schemes, built-in
-panel brightness and refresh rate, touchpad recovery, multi-source battery
-readings, Wi-Fi security audit, MachineFix repair rules, OSD / hotkey / scene
-automation, BIOS setting reads, and hardware snapshots.
+## 哪些干不了,为啥
 
-## Known limits — and why
+这台机器上真没路子,不是偷懒:
 
-| Feature | Status | Why |
-|---|---|---|
-| Charge mode, charge thresholds, USB charging | Not available | This model's firmware exposes no documented writable channel. The tool refuses rather than guess. |
-| Fan control, CPU power limits (PL1/PL2) | Not available on Windows | The only in-system channel is Lenovo's private driver; this project does not use vendor-private paths. On Linux, standard kernel interfaces apply. |
-| Vendor-only performance modes (`geek`, custom) | Refused | They have no OS-level equivalent; only mapped modes are offered. |
-| BIOS setting writes | Locked | Reads work. Writes stay locked until the firmware's staging behavior is independently verified. |
-| Smart sensing, Dolby / noise-cancel audio | Not available | These require Lenovo's licensed service, which is not usable here. |
-| BIOS update flashing, BIOS passwords | Out of scope | Deliberately excluded for safety. Driver packages from local `.inf` are supported via `update local-driver`. |
+- **充电模式 / 充电阈值 / USB 关机充电** —— 这代机器的固件压根没公开能写的口子,vantage 选择明说"不行",不瞎猜。
+- **风扇转速 / CPU 功耗墙(PL1/PL2)** —— Windows 上唯一的通道是联想自家驱动,vantage 不走联想私有通道。(Linux 上反而有标准接口。)
+- **联想专属性能模式(比如 geek 模式)** —— 系统层面没有对应的东西,只能提供有映射的模式。
+- **改 BIOS 设置** —— 读可以,写先锁着,等把固件的写入机制验证清楚再说。
+- **智能感知、杜比音效 / 降噪** —— 靠联想授权服务才能用,这边没有。
+- **刷 BIOS、设 BIOS 口令** —— 故意不做,太危险。
 
-## Safety model
+## 安全吗
 
-- Read-only commands never write to hardware.
-- A write requires `--yes`; `--dry-run` shows the exact intended change first.
-- After every write the value is read back; on mismatch the tool rolls back
-  and reports the failure.
-- It never flashes firmware, never sets or clears BIOS passwords, and never
-  weakens VBS/HVCI.
+- 只读的命令绝不写硬件。
+- 改设置必须加 `--yes`,`--dry-run` 会先告诉你打算改什么。
+- 改完会读回来核对,对不上就自动改回去并告诉你。
+- 永远不刷固件,永远不碰 BIOS 密码,永远不削弱系统安全机制(VBS/HVCI)。
 
-## What it won't do
+## 想深入了解
 
-No bundled vendor binaries, no app store, no accounts, no telemetry, no ads.
-`unavailable` in `vantage capability` means "no verified channel on this
-machine" — it is a boundary, not a bug to hide.
+`docs/` 里有完整的工程记录:接口规格、逆向分析、每一项功能在真机上的验收证据(C1–C24)。想知道"到底验没验证过",看 `docs/C-acceptance.md`。
 
-## Documentation
+想自己编译:装好 Rust 1.85+,然后 `cargo build --release -p vantage`。
 
-`docs/` holds the engineering record: interface notes, reverse-engineering
-findings, per-capability acceptance evidence (C1–C23), and the Linux backend
-mapping. Start with `docs/C-acceptance.md` for what was proven on real
-hardware and how.
-
-## Development
-
-Requires Rust 1.85 or newer.
-
-```bash
-cargo fmt --all -- --check
-cargo check --workspace --all-targets
-cargo test --workspace
-cargo clippy --workspace --all-targets -- -D warnings
-cargo build --release -p vantage
-```
-
-CI exercises Linux and Windows. Hardware smoke tests run only on the target
-machine, never in CI.
-
-Repository: [cyjin-yl/vantage-cli](https://github.com/cyjin-yl/vantage-cli)
+仓库:[cyjin-yl/vantage-cli](https://github.com/cyjin-yl/vantage-cli)
