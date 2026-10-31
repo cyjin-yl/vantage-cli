@@ -51,7 +51,9 @@ fn read_uses_documented_ioctl_and_reassembles_u64() {
 
 #[test]
 fn write_uses_documented_layout_and_rejects_nonzero_status() {
-    let ok = FakeIoctl::default().with_output(0u32.to_le_bytes().to_vec());
+    // The vendor wrapper returns the DeviceIoControl BOOL; the driver may
+    // leave the output buffer untouched (0 bytes = success).
+    let ok = FakeIoctl::default().with_output(Vec::new());
     let client = WinMsrDev::new(&ok);
     client
         .write_selector(MsrSelector::ENERGY_PERF_BIAS, 0x1_0000_0007)
@@ -73,7 +75,7 @@ fn write_uses_documented_layout_and_rejects_nonzero_status() {
 
 #[test]
 fn notify_platform_info_sends_id_and_cookie() {
-    let fake = FakeIoctl::default().with_output(0u32.to_le_bytes().to_vec());
+    let fake = FakeIoctl::default().with_output(Vec::new());
     let client = WinMsrDev::new(&fake);
 
     client.notify_platform_info(PLATFORM_ID_21VG, 0).unwrap();
@@ -88,7 +90,7 @@ fn notify_platform_info_sends_id_and_cookie() {
 #[test]
 fn probe_runs_handshake_then_safe_selector_read() {
     let fake = FakeIoctl::default()
-        .with_output(0u32.to_le_bytes().to_vec())
+        .with_output(Vec::new())
         .with_output(16u64.to_le_bytes().to_vec());
     let client = WinMsrDev::new(&fake);
 

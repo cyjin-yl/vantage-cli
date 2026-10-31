@@ -168,6 +168,13 @@ where
 }
 
 fn require_zero_status(output: &[u8], method: &str) -> Result<()> {
+    // The vendor wrappers (RE-interfaces.md §4.2–4.3) return the
+    // DeviceIoControl BOOL; the driver may leave the output buffer untouched
+    // (bytes returned = 0). Treat an empty output as success, a 4-byte zero
+    // status as success, and a nonzero status as rejection.
+    if output.is_empty() {
+        return Ok(());
+    }
     if output.len() != 4 {
         return Err(LctrlError::ChannelUnavailable {
             channel: format!("WinMsrDev {method} returned {} bytes, expected 4", output.len()),
