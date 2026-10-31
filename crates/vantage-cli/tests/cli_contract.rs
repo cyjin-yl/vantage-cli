@@ -11,6 +11,7 @@ use lctrl_core::{
 use lctrl_hal::{
     BatteryControl, BiosControl, ControlConflictDetection, DbdcControl, Hal,
     PanelBrightnessControl, PerformanceControl, PowerControl, PrivacyControl, TemperatureControl,
+    UsbControl,
 };
 use serde_json::json;
 use vantage_cli::{
@@ -237,6 +238,69 @@ impl DbdcControl for FixedDbdc {
     }
 }
 
+struct ToggleUsb {
+    state: Mutex<lctrl_core::UsbChargingState>,
+    writes: AtomicUsize,
+}
+
+impl ToggleUsb {
+    fn on() -> Self {
+        Self {
+            state: Mutex::new(lctrl_core::UsbChargingState {
+                ac_supported: true,
+                ac_enabled: true,
+                battery_supported: true,
+                battery_enabled: false,
+            }),
+            writes: AtomicUsize::new(0),
+        }
+    }
+}
+
+impl UsbControl for ToggleUsb {
+    fn usb_charging(&self) -> lctrl_core::Result<lctrl_core::UsbChargingState> {
+        Ok(*self.state.lock())
+    }
+
+    fn set_usb_ac_charging(
+        &self,
+        enabled: bool,
+        apply: ApplyMode,
+    ) -> lctrl_core::Result<lctrl_core::ChangeReport<lctrl_core::UsbChargingState>> {
+        self.writes.fetch_add(1, Ordering::SeqCst);
+        let previous = *self.state.lock();
+        let mut requested = previous;
+        requested.ac_enabled = enabled;
+        if apply == ApplyMode::Commit {
+            self.state.lock().ac_enabled = enabled;
+        }
+        Ok(if apply == ApplyMode::Commit {
+            lctrl_core::ChangeReport::committed(previous, requested, requested)
+        } else {
+            lctrl_core::ChangeReport::dry_run(previous, requested)
+        })
+    }
+
+    fn set_usb_battery_charging(
+        &self,
+        enabled: bool,
+        apply: ApplyMode,
+    ) -> lctrl_core::Result<lctrl_core::ChangeReport<lctrl_core::UsbChargingState>> {
+        self.writes.fetch_add(1, Ordering::SeqCst);
+        let previous = *self.state.lock();
+        let mut requested = previous;
+        requested.battery_enabled = enabled;
+        if apply == ApplyMode::Commit {
+            self.state.lock().battery_enabled = enabled;
+        }
+        Ok(if apply == ApplyMode::Commit {
+            lctrl_core::ChangeReport::committed(previous, requested, requested)
+        } else {
+            lctrl_core::ChangeReport::dry_run(previous, requested)
+        })
+    }
+}
+
 #[test]
 fn perf_dbdc_get_reports_vendor_table() {
     let cli = Cli::try_parse_from(["vantage", "--json", "perf", "dbdc", "get"])
@@ -272,6 +336,53 @@ fn perf_dbdc_get_without_service_is_structured_unsupported() {
         .expect_err("missing dbdc service must not succeed");
 
     assert!(matches!(error, LctrlError::Unsupported { .. }));
+}
+
+#[test]
+fn usb_always_on_commits_through_the_service() {
+    let cli = Cli::try_parse_from(["vantage", "usb", "always-on", "off"]).expect("parse");
+    let hal = FakeHal::new("unused");
+    let usb = ToggleUsb::on();
+
+    let output = execute_with_services(
+        cli,
+        CommandServices::new(&hal).with_usb(&usb),
+    )
+    .expect("usb always-on succeeds");
+
+    assert_eq!(usb.writes.load(Ordering::SeqCst), 1);
+    assert!(!usb.usb_charging().unwrap().ac_enabled);
+    assert!(output.human.contains("USB AC charging"));
+}
+
+#[test]
+fn usb_charge_on_battery_dry_run_does_not_write() {
+    let cli =
+        Cli::try_parse_from(["vantage", "--dry-run", "usb", "charge-on-battery", "on"]).expect("parse");
+    let hal = FakeHal::new("unused");
+    let usb = ToggleUsb::on();
+
+    let output = execute_with_services(
+        cli,
+        CommandServices::new(&hal).with_usb(&usb),
+    )
+    .expect("usb dry run succeeds");
+
+    assert_eq!(usb.writes.load(Ordering::SeqCst), 1);
+    assert!(!usb.usb_charging().unwrap().battery_enabled);
+    assert_eq!(output.json["mode"], "dry_run");
+}
+
+#[test]
+fn usb_without_service_is_structured_unsupported() {
+    let cli = Cli::try_parse_from(["vantage", "usb", "always-on", "on"]).expect("parse");
+    let hal = FakeHal::new("unused");
+
+    let error = execute_with_services(cli, CommandServices::new(&hal))
+        .expect_err("missing usb service must not succeed");
+
+    assert!(matches!(error, LctrlError::Unsupported { .. }));
+    assert!(error.to_string().contains("usb.always-on"));
 }
 
 #[derive(Default)]

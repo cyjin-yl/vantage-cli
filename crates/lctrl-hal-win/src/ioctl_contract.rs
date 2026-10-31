@@ -2,7 +2,8 @@ use lctrl_core::{LctrlError, Result};
 
 use crate::{
     AdapterDetail, BatteryDetail83, GbmdCommand, GenericGet, IOCTL_BATTERY_CONFIG,
-    IOCTL_BATTERY_DETAIL, IOCTL_GAPD, IOCTL_GBMD, IOCTL_GENERIC_GET,
+    IOCTL_BATTERY_DETAIL, IOCTL_GAPD, IOCTL_GBMD, IOCTL_GENERIC_GET, IOCTL_USB_CHARGER,
+    UsbChargerSelector,
 };
 
 pub trait IoctlTransport: Send + Sync {
@@ -63,6 +64,26 @@ where
     pub fn battery_config(&self) -> Result<[u8; 20]> {
         let output = self.transport.call(IOCTL_BATTERY_CONFIG, &[0; 4], 20)?;
         require_array::<20>(output, "battery config")
+    }
+
+    /// USB charging flags word (`0x831020e8`/`0x02`): bits 6/7 AC
+    /// supported/enabled, bits 14/15 battery-mode supported/enabled.
+    pub fn usb_charger_flags(&self) -> Result<u32> {
+        let output = self
+            .transport
+            .call(IOCTL_USB_CHARGER, &UsbChargerSelector::QUERY.encode(), 4)?;
+        UsbChargerSelector::decode_flags(&output)
+    }
+
+    /// Drive one USB charging setter. The driver completes the EC transaction
+    /// and reports `Information=4` without writing an output buffer, so a
+    /// zero-length output is the success shape; ioctl failure still maps to an
+    /// error (a rejected request does not prove the device ignored it, but no
+    /// post-write verification happens here — callers re-query flags).
+    pub(crate) fn write_usb_charger(&self, selector: UsbChargerSelector) -> Result<()> {
+        self.transport
+            .call(IOCTL_USB_CHARGER, &selector.encode(), 0)?;
+        Ok(())
     }
 }
 

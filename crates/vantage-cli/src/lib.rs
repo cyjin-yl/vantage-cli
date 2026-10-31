@@ -29,7 +29,7 @@ use lctrl_hal::{
     FanControl, Hal, HotkeyControl, KeyboardControl, LocalUpdateControl, MachineFixControl,
     MagicBayControl, OsdControl, PanelBrightnessControl, PanelControl, PerformanceControl,
     PowerControl, PowerLimitKind, PrivacyControl, ProcessorPowerControl, TemperatureControl,
-    TouchpadControl, TuningControl, UpdateControl, WifiSecurityControl,
+    TouchpadControl, TuningControl, UpdateControl, UsbControl, WifiSecurityControl,
 };
 use serde::{Deserialize, Serialize};
 
@@ -76,6 +76,7 @@ pub struct CommandServices<'a> {
     panel_brightness: Option<&'a dyn PanelBrightnessControl>,
     temperature: Option<&'a dyn TemperatureControl>,
     tuning: Option<&'a dyn TuningControl>,
+    usb: Option<&'a dyn UsbControl>,
     processor_power: Option<&'a dyn ProcessorPowerControl>,
     update: Option<&'a dyn UpdateControl>,
     local_update: Option<&'a dyn LocalUpdateControl>,
@@ -106,6 +107,7 @@ impl<'a> CommandServices<'a> {
             panel_brightness: None,
             temperature: None,
             tuning: None,
+            usb: None,
             processor_power: None,
             update: None,
             local_update: None,
@@ -209,6 +211,12 @@ impl<'a> CommandServices<'a> {
     #[must_use]
     pub fn with_tuning(mut self, tuning: &'a dyn TuningControl) -> Self {
         self.tuning = Some(tuning);
+        self
+    }
+
+    #[must_use]
+    pub fn with_usb(mut self, usb: &'a dyn UsbControl) -> Self {
+        self.usb = Some(usb);
         self
     }
 
@@ -1377,6 +1385,16 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
             command: Some(command),
         } => execute_bios(services.bios, command, apply, confirmed, interactive),
         Command::Bios { command: None } => execute_bios_list(services.bios),
+        Command::Usb { command } => execute_usb(
+            services.usb,
+            services.bios,
+            command.ok_or_else(|| LctrlError::InvalidArgument {
+                detail: "a usb subcommand is required".into(),
+            })?,
+            apply,
+            confirmed,
+            interactive,
+        ),
         Command::Kbd {
             command: Some(KbdCommand::Backlight { level, effect }),
         } => execute_backlight(services.keyboard, level, effect, apply),
@@ -2125,6 +2143,75 @@ fn execute_dbdc(dbdc: Option<&dyn DbdcControl>, command: DbdcCommand) -> Command
                 );
             }
             structured_output(&profile, text)
+        }
+    }
+}
+
+fn execute_usb(
+    usb: Option<&dyn UsbControl>,
+    bios: Option<&dyn BiosControl>,
+    command: UsbCommand,
+    apply: ApplyMode,
+    confirmed: bool,
+    interactive: bool,
+) -> CommandResult {
+    match command {
+        UsbCommand::AlwaysOn { state, persistent } => {
+            let enabled = matches!(state, Toggle::On);
+            if persistent {
+                // BIOS-persistent layer: Lenovo firmware setting
+                // `AlwaysOnUSB` (docs/02 §6), committed with --save through
+                // the same validated BIOS transaction as `vantage bios set`.
+                let bios = bios.ok_or_else(|| LctrlError::Unsupported {
+                    feature: "bios".into(),
+                })?;
+                return execute_bios(
+                    Some(bios),
+                    BiosCommand::Set {
+                        name: "AlwaysOnUSB".into(),
+                        value: if enabled { "Enable" } else { "Disable" }.into(),
+                        save: true,
+                    },
+                    apply,
+                    confirmed,
+                    interactive,
+                );
+            }
+            let usb = usb.ok_or_else(|| LctrlError::Unsupported {
+                feature: "usb.always-on".into(),
+            })?;
+            let report = usb.set_usb_ac_charging(enabled, apply)?;
+            structured_output(
+                &report,
+                format!("USB AC charging: {}\n", report.requested()),
+            )
+        }
+        UsbCommand::ChargeOnBattery { state, persistent } => {
+            let enabled = matches!(state, Toggle::On);
+            if persistent {
+                let bios = bios.ok_or_else(|| LctrlError::Unsupported {
+                    feature: "bios".into(),
+                })?;
+                return execute_bios(
+                    Some(bios),
+                    BiosCommand::Set {
+                        name: "ChargeInBatteryMode".into(),
+                        value: if enabled { "Enable" } else { "Disable" }.into(),
+                        save: true,
+                    },
+                    apply,
+                    confirmed,
+                    interactive,
+                );
+            }
+            let usb = usb.ok_or_else(|| LctrlError::Unsupported {
+                feature: "usb.charge-on-battery".into(),
+            })?;
+            let report = usb.set_usb_battery_charging(enabled, apply)?;
+            structured_output(
+                &report,
+                format!("USB battery-mode charging: {}\n", report.requested()),
+            )
         }
     }
 }
@@ -5089,7 +5176,6 @@ fn unsupported_reason(command: &Command) -> &'static str {
         Command::Battery {
             command: Some(BatteryCommand::Watch),
         } => "battery event streaming requires the daemon event source",
-        Command::Usb { .. } => "no verified USB charging control service is attached",
         Command::Power {
             command: Some(PowerCommand::SaverOnce),
         } => "composite saver workflow has no transactional executor",

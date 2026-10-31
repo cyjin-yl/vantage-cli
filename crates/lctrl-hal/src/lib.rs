@@ -46,7 +46,7 @@ pub use performance::{
 pub use peripherals::{
     KeyboardControl, PanelBrightnessControl, PanelControl, PrivacyControl, TouchpadControl,
 };
-pub use power::{PowerControl, ProcessorPowerControl};
+pub use power::{PowerControl, ProcessorPowerControl, UsbControl};
 pub use process::ProcessControl;
 pub use scene_policy::ScenePolicyControl;
 pub use setting::{Setting, apply_setting};
