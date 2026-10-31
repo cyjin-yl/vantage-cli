@@ -437,3 +437,13 @@ out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Se
 模式域(字符串槽 765):0=environmental(服务端默认,无独立 off)、1=shared、2=private、3=special、4=voiceid(需已注册否则 ret 4)、5=HQRecord;6/7=_td 旧别名,SDK 发送前重映射 1/2。`SetEffectMode` 返回码(545):1=成功、-1=RPC/默认端点失败、2=端点能力位不支持、4=VoiceID 未注册。能力门控位:GetMicAbilityByEndpoint bitmask(bit0=shared,bit1=private,bit2=special,bit3=voiceid,bit14=HQRecord)。
 
 持久化:HKCU\SOFTWARE\Lenovo\SmartEngine\modules\F4006(REG_SZ)是 Vantage 插件的只写镜像(noise_micro_mode=GetCurrentMode 结果、noise_speaker_mode=扬声器布尔、scene_enhance_mode);**服务不消费该键**,只写注册表无效(已证:仅 SENoiseCancellingPlugin64.dll 引用)。实机值:micro=1(shared)、speaker=0、scene=0。
+
+## 11.4 修正与 11.6 阈值写方结论(2026-11-01,ThresholdRe2:BatterySetting.exe/WrapPlugin.dll/ThinkPowerPlugin.dll/AcpiVpc.sys/PowerBattery.dll 反汇编 + 实机 ACPI 探针)
+
+**11.4 修正**:PowerBattery.dll 的 temporary-mode 只读选择子为 0x23/0x21/0x31/0x41;§11.4 原记的 0x13/0x11 实为读回 3/1(实机)。写选择子**证实缺席**:BatteryManagementContract.dll 无 Set-BatteryTemporaryMode,BatterySetting 从不发送 0x148,固件侧写口未恢复→写保持门禁。
+
+**11.6 自定义充电阈值**:完整链 BatterySetting.exe → WrapPlugin.dll(thunk `*0x560718` @+0x4268b8)→ ThinkPowerPlugin.dll → PWRMGRV(ThinkPad Power Manager)SetChargeThreshold → PWMIF32V.DLL SM_SetCharge{Start,Stop}CapacityThreshold,持久化 HKLM\SOFTWARE\Lenovo\PWRMGRV\Data\Charge{Start,Stop}{Control,Percentage},读回仅注册表(默认 76/80)。**21VG 判定不支持**:PWMIF32V.DLL 缺席、PWRMGRV 键空、AcpiVpc 能力方法 MHQI(IOCTL 0x83102130/0x83102134)实机返回 win32=2(该固件 ACPI 方法不存在)。无 powrprof/GUID 路径参与。
+
+**驱动 IOCTL→ACPI 全映射**(AcpiVpc.sys 15.11.30.14,驱动仅透传 4 字节选择子,写门控全在固件):0x20e8 SALS/HALS、0x20f8 GBMD、0x211c/0x2138 ITHC、0x2120 GBID、**0x212c SMTF(可写透传,语义未恢复,探测返回 0xFFFF→门禁)**、0x2130/0x2134 MHQI 读、0x2144/58/5c KBL*、**0x2148 BTMC**、0x214c BSIF、0x2150/0x2154 BNMC。
+
+**极端省电(原版实现还原)**:原版不是固件通道,而是 AiTurbo DriverStore 包的 BatteryLife.exe **EcoQoS 进程限流守护**:powrprof DC 索引写 + PowerSetActiveScheme + 进程节流委派 AiPerfSvc.exe,持久化 HKLM\SOFTWARE\Lenovo\AiTurbo\BatteryLife;BatterySetting 内的 "ExtremeBatteryLife" 代码实为云遥测(WININET 上报 + rainbow 注册表)。按用户 2026-11-01 指示(逆向实现与原版一致,不平替):本功能须按 AiTurbo 原版契约(AiPerfSvc 委派/其注册表键)实现,禁止用通用 ProcessPowerThrottling 平替;契约未恢复前保持门禁。
