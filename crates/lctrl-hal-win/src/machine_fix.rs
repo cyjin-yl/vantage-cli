@@ -6,13 +6,7 @@
 //! ledger is persisted as JSON under the user profile and read back by
 //! `fix track`. No vendor issue database or opaque fixer is used.
 
-use std::{
-    env,
-    fs,
-    io::Write as _,
-    path::PathBuf,
-    sync::Mutex,
-};
+use std::{env, fs, io::Write as _, path::PathBuf, sync::Mutex};
 
 use lctrl_core::{
     ApplyMode, FixIssue, FixLedger, FixLedgerEntry, FixObservation, FixRepairKind, FixReport,
@@ -116,7 +110,9 @@ impl MachineFixControl for WindowsMachineFix {
             .into_iter()
             .find(|rule| rule.issue.id == issue_id)
             .ok_or_else(|| LctrlError::InvalidArgument {
-                detail: format!("unknown fix issue {issue_id}; run `fix scan` for the declared ruleset"),
+                detail: format!(
+                    "unknown fix issue {issue_id}; run `fix scan` for the declared ruleset"
+                ),
             })?;
         let name = service_name(&rule.repair);
         let previous_state = service_status(&name)?;
@@ -204,17 +200,15 @@ fn read_ledger_file() -> Option<FixLedger> {
 }
 
 fn persist_ledger_entry(ledger: &Mutex<FixLedger>, entry: FixLedgerEntry) -> Result<()> {
-    let mut guard = ledger
-        .lock()
-        .map_err(|_| LctrlError::InvalidArgument {
-            detail: "fix ledger lock was poisoned".into(),
-        })?;
+    let mut guard = ledger.lock().map_err(|_| LctrlError::InvalidArgument {
+        detail: "fix ledger lock was poisoned".into(),
+    })?;
     guard.entries.push(entry);
     let path = ledger_path().ok_or_else(|| LctrlError::InvalidArgument {
         detail: "USERPROFILE is unset; cannot persist the fix ledger".into(),
     })?;
-    let text = serde_json::to_string_pretty(&*guard)
-        .map_err(|error| LctrlError::InvalidArgument {
+    let text =
+        serde_json::to_string_pretty(&*guard).map_err(|error| LctrlError::InvalidArgument {
             detail: format!("serializing fix ledger failed: {error}"),
         })?;
     write_all(&path, text.as_bytes())
@@ -229,11 +223,11 @@ fn write_all(path: &PathBuf, bytes: &[u8]) -> Result<()> {
         .map_err(|error| LctrlError::InvalidArgument {
             detail: format!("opening fix ledger failed: {error}"),
         })?;
-    file.write_all(bytes).and_then(|_| file.flush()).map_err(|error| {
-        LctrlError::InvalidArgument {
+    file.write_all(bytes)
+        .and_then(|_| file.flush())
+        .map_err(|error| LctrlError::InvalidArgument {
             detail: format!("writing fix ledger failed: {error}"),
-        }
-    })
+        })
 }
 
 fn now_unix_ms() -> u64 {
@@ -251,8 +245,8 @@ mod services {
         Foundation::{GetLastError, INVALID_HANDLE_VALUE},
         System::Services::{
             CloseServiceHandle, ControlService, OpenSCManagerW, OpenServiceW, QueryServiceStatus,
-            StartServiceW, SERVICE_ALL_ACCESS, SC_MANAGER_CONNECT,
-            SERVICE_QUERY_STATUS, SERVICE_START, SERVICE_STOP, SERVICE_STATUS,
+            SC_MANAGER_CONNECT, SERVICE_ALL_ACCESS, SERVICE_QUERY_STATUS, SERVICE_START,
+            SERVICE_STATUS, SERVICE_STOP, StartServiceW,
         },
     };
 
@@ -306,7 +300,8 @@ mod services {
 
     fn open(name: &str, access: u32) -> Result<(ScHandle, ScHandle), LctrlError> {
         let wide = wide(name);
-        let manager = unsafe { OpenSCManagerW(std::ptr::null(), std::ptr::null(), SC_MANAGER_CONNECT) };
+        let manager =
+            unsafe { OpenSCManagerW(std::ptr::null(), std::ptr::null(), SC_MANAGER_CONNECT) };
         if manager == INVALID_HANDLE_VALUE {
             return Err(map_error("OpenSCManagerW"));
         }
@@ -332,7 +327,9 @@ mod services {
 
     fn map_error(operation: &str) -> LctrlError {
         LctrlError::ChannelUnavailable {
-            channel: format!("{operation}: win32 error 0x{:08x}", unsafe { GetLastError() }),
+            channel: format!("{operation}: win32 error 0x{:08x}", unsafe {
+                GetLastError()
+            }),
         }
     }
 }
@@ -383,8 +380,12 @@ mod ruleset_tests {
         assert_eq!(rules.len(), 2);
         let wua = &rules[0];
         assert_eq!(wua.issue.id, "service.stopped.wuauserv");
-        assert!(matches!(wua.repair, FixRepairKind::StartService { ref name } if name == "wuauserv"));
-        assert!(matches!(wua.rollback, FixRepairKind::StopService { ref name } if name == "wuauserv"));
+        assert!(
+            matches!(wua.repair, FixRepairKind::StartService { ref name } if name == "wuauserv")
+        );
+        assert!(
+            matches!(wua.rollback, FixRepairKind::StopService { ref name } if name == "wuauserv")
+        );
         for rule in &rules {
             rule.issue.validate().unwrap();
             rule.repair.validate().unwrap();

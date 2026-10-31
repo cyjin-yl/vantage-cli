@@ -358,3 +358,33 @@ pub struct TemperatureSensor {
     pub metadata: TemperatureSensorMetadata,
     pub value_c: Option<f32>,
 }
+
+/// Battery direct-discharge current-limit (DBDC) table reported by the vendor
+/// `LENOVO_REPORT_DBDC_DATA` WMI class (docs/03 §5.3).
+///
+/// Semantics: when battery charge falls at or below `threshold_pct[i]`, the EC
+/// limits battery discharge current to `current_limit_ma[i]` and system power
+/// draw to `ros_power_mw[i]`. Thresholds are ordered high to low; tier count is
+/// `counts` and all arrays are expected to agree in length.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct DbdcProfile {
+    pub counts: u32,
+    /// Discharge current limit per tier, mA.
+    pub current_limit_ma: Vec<u32>,
+    /// System available power per tier, mW.
+    pub ros_power_mw: Vec<u32>,
+    /// Battery charge percentage threshold per tier, high to low.
+    pub threshold_pct: Vec<u32>,
+}
+
+impl DbdcProfile {
+    /// True when the table is internally consistent (equal-length arrays and a
+    /// matching tier count). A malformed vendor response is surfaced as an
+    /// error by readers, not silently normalised.
+    #[must_use]
+    pub fn is_consistent(&self) -> bool {
+        self.current_limit_ma.len() == self.counts as usize
+            && self.ros_power_mw.len() == self.counts as usize
+            && self.threshold_pct.len() == self.counts as usize
+    }
+}

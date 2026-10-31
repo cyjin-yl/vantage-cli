@@ -21,9 +21,7 @@
 
 use lctrl_core::{LctrlError, Result};
 
-use crate::{
-    WmiObject, WmiTransport, WmiValue, active_instance, wmi_contract::ROOT_WMI,
-};
+use crate::{WmiObject, WmiTransport, WmiValue, active_instance, wmi_contract::ROOT_WMI};
 
 const GAMEZONE_CLASS: &str = "LENOVO_GAMEZONE_DATA";
 const FAN_METHOD_CLASS: &str = "LENOVO_FAN_METHOD";
@@ -269,11 +267,11 @@ fn first_u32(output: &WmiObject, method: &str) -> Result<u32> {
 fn numeric(value: &WmiValue, method: &str) -> Result<u32> {
     match value {
         WmiValue::U32(number) => Ok(*number),
-        WmiValue::I32(number) => u32::try_from(*number).map_err(|_| {
-            LctrlError::ChannelUnavailable {
+        WmiValue::I32(number) => {
+            u32::try_from(*number).map_err(|_| LctrlError::ChannelUnavailable {
                 channel: format!("{GAMEZONE_CLASS}.{method} returned a negative value"),
-            }
-        }),
+            })
+        }
         WmiValue::U16(number) => Ok(u32::from(*number)),
         WmiValue::I16(number) => Ok(u32::from(u16::try_from(*number).map_err(|_| {
             LctrlError::ChannelUnavailable {

@@ -148,10 +148,8 @@ fn vendor_only_modes_are_refused_instead_of_approximated() {
         PerformanceMode::Custom,
     ] {
         let overlay = FakeOverlay::starting_at(OverlayGuid::BALANCED);
-        let controller = WindowsPerformanceP0::with_overlay(
-            reader(0x3000, 1, 1, 0, 0x1b),
-            &overlay,
-        );
+        let controller =
+            WindowsPerformanceP0::with_overlay(reader(0x3000, 1, 1, 0, 0x1b), &overlay);
         assert!(matches!(
             controller.set_performance_mode(mode, ApplyMode::Commit),
             Err(LctrlError::Unsupported { .. })
@@ -163,8 +161,7 @@ fn vendor_only_modes_are_refused_instead_of_approximated() {
 #[test]
 fn dry_run_reports_previous_without_touching_the_overlay() {
     let overlay = FakeOverlay::starting_at(OverlayGuid::POWER_EFFICIENCY);
-    let controller =
-        WindowsPerformanceP0::with_overlay(reader(0x3000, 1, 1, 0, 0x1b), &overlay);
+    let controller = WindowsPerformanceP0::with_overlay(reader(0x3000, 1, 1, 0, 0x1b), &overlay);
 
     let report = controller
         .set_performance_mode(PerformanceMode::Performance, ApplyMode::DryRun)
@@ -180,8 +177,7 @@ fn dry_run_reports_previous_without_touching_the_overlay() {
 #[test]
 fn commit_writes_the_overlay_and_verifies_the_readback() {
     let overlay = FakeOverlay::starting_at(OverlayGuid::BALANCED);
-    let controller =
-        WindowsPerformanceP0::with_overlay(reader(0x3000, 1, 1, 0, 0x1b), &overlay);
+    let controller = WindowsPerformanceP0::with_overlay(reader(0x3000, 1, 1, 0, 0x1b), &overlay);
 
     let report = controller
         .set_performance_mode(PerformanceMode::Performance, ApplyMode::Commit)
@@ -197,8 +193,7 @@ fn commit_writes_the_overlay_and_verifies_the_readback() {
 #[test]
 fn readback_mismatch_restores_the_previous_scheme() {
     let overlay = FakeOverlay::ignoring_writes(OverlayGuid::BALANCED);
-    let controller =
-        WindowsPerformanceP0::with_overlay(reader(0x3000, 1, 1, 0, 0x1b), &overlay);
+    let controller = WindowsPerformanceP0::with_overlay(reader(0x3000, 1, 1, 0, 0x1b), &overlay);
 
     let error = controller
         .set_performance_mode(PerformanceMode::Quiet, ApplyMode::Commit)
@@ -220,8 +215,7 @@ fn an_unowned_current_scheme_is_refused_before_writing() {
         data4: [0; 8],
     };
     let overlay = FakeOverlay::starting_at(custom);
-    let controller =
-        WindowsPerformanceP0::with_overlay(reader(0x3000, 1, 1, 0, 0x1b), &overlay);
+    let controller = WindowsPerformanceP0::with_overlay(reader(0x3000, 1, 1, 0, 0x1b), &overlay);
 
     let error = controller
         .set_performance_mode(PerformanceMode::Performance, ApplyMode::Commit)

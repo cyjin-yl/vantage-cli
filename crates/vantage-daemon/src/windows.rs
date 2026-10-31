@@ -83,12 +83,24 @@ pub fn run(events: Receiver<DaemonEvent>) -> Result<()> {
                                         lctrl_core::ApplyMode::Commit,
                                     ) {
                                         let action = match &report.requested {
-                                            lctrl_core::SceneAction::SetPowerScheme { scheme } => format!("scheme={scheme}"),
-                                            lctrl_core::SceneAction::SetPanelRefresh { hz } => format!("refresh={hz}Hz"),
-                                            lctrl_core::SceneAction::SetFanMode { mode } => format!("fan={mode:?}"),
-                                            lctrl_core::SceneAction::SetPerformanceMode { mode } => format!("perf={mode:?}"),
+                                            lctrl_core::SceneAction::SetPowerScheme { scheme } => {
+                                                format!("scheme={scheme}")
+                                            }
+                                            lctrl_core::SceneAction::SetPanelRefresh { hz } => {
+                                                format!("refresh={hz}Hz")
+                                            }
+                                            lctrl_core::SceneAction::SetFanMode { mode } => {
+                                                format!("fan={mode:?}")
+                                            }
+                                            lctrl_core::SceneAction::SetPerformanceMode {
+                                                mode,
+                                            } => format!("perf={mode:?}"),
                                         };
-                                        let status = if report.actual.is_some() { "applied" } else { "unavailable" };
+                                        let status = if report.actual.is_some() {
+                                            "applied"
+                                        } else {
+                                            "unavailable"
+                                        };
                                         let _ = osd.show(
                                             &[
                                                 &format!("scene {}", match_.rule.id),

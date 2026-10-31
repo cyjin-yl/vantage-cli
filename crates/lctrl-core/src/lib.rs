@@ -10,12 +10,12 @@ mod inventory;
 mod keyboard;
 mod machine_fix;
 mod magicbay;
-mod scene_policy;
 mod panel;
 mod performance;
 mod power;
 mod privacy;
 mod process;
+mod scene_policy;
 mod sensing;
 mod update;
 
@@ -58,10 +58,6 @@ pub use keyboard::{
 pub use machine_fix::{
     FixIssue, FixLedger, FixLedgerEntry, FixObservation, FixRepairKind, FixReport, FixRule,
 };
-pub use scene_policy::{
-    SceneAction, ScenePolicyLedger, ScenePolicyLedgerEntry, ScenePolicyMatch, ScenePolicyReport,
-    ScenePolicyRule,
-};
 pub use magicbay::{
     KNOWN_MAGICBAY_DEVICES, KnownMagicBayDevice, MAGICBAY_VENDOR_ID, MagicBayDevice,
     MagicBayInventory, MagicBayKind, identify_magicbay,
@@ -72,9 +68,9 @@ pub use panel::{
     RefreshMode,
 };
 pub use performance::{
-    DispatcherVersion, FanDescriptor, FanId, FanMode, FanStep, FanTable, PerformanceCapabilities,
-    PerformanceMode, PerformanceState, SensorId, TemperatureLocation, TemperatureSensor,
-    TemperatureSensorMetadata, TemperatureSource,
+    DbdcProfile, DispatcherVersion, FanDescriptor, FanId, FanMode, FanStep, FanTable,
+    PerformanceCapabilities, PerformanceMode, PerformanceState, SensorId, TemperatureLocation,
+    TemperatureSensor, TemperatureSensorMetadata, TemperatureSource,
 };
 pub use power::{
     PowerGuid, PowerMutation, PowerRangeObservation, PowerScheme, PowerSchemeId, PowerSettingKey,
@@ -86,6 +82,10 @@ pub use process::{
     DEFAULT_PROCESS_TOP_LIMIT, MAX_PROCESS_TOP_LIMIT, ProcessAffinityPolicy, ProcessIdentity,
     ProcessInventory, ProcessInventoryEntry, ProcessPolicy, ProcessPriorityClass, ProcessSnapshot,
     ProcessState, ProcessTarget, ProcessWorkingSet, validate_process_top_limit,
+};
+pub use scene_policy::{
+    SceneAction, ScenePolicyLedger, ScenePolicyLedgerEntry, ScenePolicyMatch, ScenePolicyReport,
+    ScenePolicyRule,
 };
 pub use sensing::{LeaveAction, PresenceDistance, SenseGlobal, SenseMode};
 pub use update::{

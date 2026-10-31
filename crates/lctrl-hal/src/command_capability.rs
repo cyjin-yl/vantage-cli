@@ -658,6 +658,14 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
+        CommandId::PERF_DBDC_GET,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("perf.dbdc"),
+        ServiceBinding::One(ServiceRole::Performance),
+        &[lctrl_core::required(Dependency::LenovoVendorWmi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
         CommandId::PERF_TOP,
         CommandAxes::read_only(StateLayer::NotApplicable),
         FeatureBinding::Capability("perf.top"),
@@ -778,7 +786,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             lctrl_core::required(Dependency::Win32PowerApi),
             lctrl_core::required(Dependency::LinuxSysfs),
         ],
-        DispatchSupport::Unsupported("no verified turbo mutator is attached"),
+        DispatchSupport::Implemented,
     ),
     CommandCapability::new(
         CommandId::TUNE_RESTORE,

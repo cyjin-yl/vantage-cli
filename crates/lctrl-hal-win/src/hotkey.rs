@@ -15,10 +15,10 @@ use lctrl_hal::{HotkeyControl, HotkeyOutcome};
 use windows_sys::Win32::{
     Foundation::{HWND, LPARAM, LRESULT, WPARAM},
     System::LibraryLoader::GetModuleHandleW,
-    UI::Input::KeyboardAndMouse::{RegisterHotKey, UnregisterHotKey, MOD_ALT},
+    UI::Input::KeyboardAndMouse::{MOD_ALT, RegisterHotKey, UnregisterHotKey},
     UI::WindowsAndMessaging::{
-        CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, MSG,
-        RegisterClassExW, TranslateMessage, WNDCLASSEXW, WS_EX_NOACTIVATE, HWND_MESSAGE, WM_HOTKEY,
+        CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, HWND_MESSAGE, MSG,
+        RegisterClassExW, TranslateMessage, WM_HOTKEY, WNDCLASSEXW, WS_EX_NOACTIVATE,
     },
 };
 

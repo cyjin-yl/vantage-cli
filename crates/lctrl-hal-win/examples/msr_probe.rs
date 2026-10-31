@@ -3,7 +3,7 @@
 //! Never writes. Intended to run as LocalSystem (device ACL); any other
 //! caller gets an honest access-denied error.
 
-use lctrl_hal_win::{MsrSelector, PLATFORM_ID_21VG, WinMsrDev, WIN_MSR_TRANSPORT};
+use lctrl_hal_win::{MsrSelector, PLATFORM_ID_21VG, WIN_MSR_TRANSPORT, WinMsrDev};
 
 fn main() {
     let client = WinMsrDev::new(&WIN_MSR_TRANSPORT);

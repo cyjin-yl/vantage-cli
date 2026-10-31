@@ -11,28 +11,20 @@
 //! (e.g. fan/performance on 21VG firmware) reports `unavailable` rather than faking
 //! a scene change.
 
-use std::{
-    env,
-    fs,
-    io::Write as _,
-    path::PathBuf,
-    sync::Mutex,
-};
+use std::{env, fs, io::Write as _, path::PathBuf, sync::Mutex};
 
+use crate::{
+    NativeBatteryElectrical, NativeDisplayApi, NativeIoctl, NativePerformanceRegistry,
+    NativePowerApi, NativeSystemPowerStatus, NativeWmi, UnverifiedChargeModeReader,
+    WindowsBatteryP0, WindowsBatterySources, WindowsOsBattery, WindowsPanelController,
+    WindowsPerformanceP0, WindowsPowerP0, WindowsThermal,
+};
 use lctrl_core::{
     ApplyMode, FanMode, LctrlError, PanelRefreshRequest, PerformanceMode, PowerMutation, Result,
     SceneAction, ScenePolicyLedger, ScenePolicyLedgerEntry, ScenePolicyMatch, ScenePolicyReport,
     ScenePolicyRule,
 };
-use lctrl_hal::{
-    FanControl, PerformanceControl, PanelControl, PowerControl, ScenePolicyControl,
-};
-use crate::{
-    NativeBatteryElectrical, NativeDisplayApi, NativeIoctl, NativePerformanceRegistry,
-    NativePowerApi, NativeSystemPowerStatus, NativeWmi, UnverifiedChargeModeReader, WindowsBatteryP0,
-    WindowsBatterySources, WindowsOsBattery, WindowsPanelController, WindowsPerformanceP0,
-    WindowsPowerP0, WindowsThermal,
-};
+use lctrl_hal::{FanControl, PanelControl, PerformanceControl, PowerControl, ScenePolicyControl};
 
 /// A transparent scene-policy backend over the Windows control channels.
 ///
@@ -132,7 +124,10 @@ impl ScenePolicyControl for NativeScenePolicy {
             .map(|rule| {
                 let matched = rule.event_class == event_class;
                 let reason = if matched {
-                    format!("rule {} fires on documented event class {}", rule.id, event_class)
+                    format!(
+                        "rule {} fires on documented event class {}",
+                        rule.id, event_class
+                    )
                 } else {
                     format!(
                         "rule {} is bound to event class {}, not {}",
@@ -159,7 +154,9 @@ impl ScenePolicyControl for NativeScenePolicy {
             .into_iter()
             .find(|rule| rule.id == rule_id)
             .ok_or_else(|| LctrlError::InvalidArgument {
-                detail: format!("unknown scene rule {rule_id}; run `scene list` for the declared ruleset"),
+                detail: format!(
+                    "unknown scene rule {rule_id}; run `scene list` for the declared ruleset"
+                ),
             })?;
         match &rule.action {
             SceneAction::SetPowerScheme { scheme } => {
@@ -233,7 +230,10 @@ impl NativeScenePolicy {
             .ok_or_else(|| LctrlError::InvalidArgument {
                 detail: format!("power scheme {scheme} was not enumerated on this machine"),
             })?;
-        power.apply_power_mutation(PowerMutation::Activate(target.id.clone()), ApplyMode::Commit)?;
+        power.apply_power_mutation(
+            PowerMutation::Activate(target.id.clone()),
+            ApplyMode::Commit,
+        )?;
         let actual = power.active_power_scheme()?.name.clone();
         if actual != scheme {
             return Err(LctrlError::VerifyMismatch {
@@ -267,12 +267,13 @@ impl NativeScenePolicy {
         if mode == ApplyMode::DryRun {
             return Ok(self.report_dry_run(rule, event_class, mode, previous));
         }
-        let actual = report.actual().cloned().ok_or_else(|| {
-            LctrlError::VerifyMismatch {
+        let actual = report
+            .actual()
+            .cloned()
+            .ok_or_else(|| LctrlError::VerifyMismatch {
                 requested: format!("panel refresh {hz} Hz"),
                 actual: "panel refresh readback was not returned".into(),
-            }
-        })?;
+            })?;
         self.record_entry(rule, event_class, "applied")?;
         Ok(ScenePolicyReport {
             rule_id: rule.id.clone(),
@@ -294,7 +295,8 @@ impl NativeScenePolicy {
     ) -> Result<ScenePolicyReport> {
         let vendor_battery = WindowsBatteryP0::new(NativeIoctl, UnverifiedChargeModeReader);
         let os_battery = WindowsOsBattery::new(NativeWmi, NativeSystemPowerStatus);
-        let battery = WindowsBatterySources::new(vendor_battery, os_battery, NativeBatteryElectrical);
+        let battery =
+            WindowsBatterySources::new(vendor_battery, os_battery, NativeBatteryElectrical);
         let fan = WindowsThermal::new(NativeWmi, &battery);
         match fan.set_fan_mode(requested, mode) {
             Ok(report) => {
@@ -302,12 +304,14 @@ impl NativeScenePolicy {
                 if mode == ApplyMode::DryRun {
                     return Ok(self.report_dry_run(rule, event_class, mode, previous));
                 }
-                let actual = report.actual().cloned().ok_or_else(|| {
-                    LctrlError::VerifyMismatch {
-                        requested: format!("fan mode {requested}"),
-                        actual: "fan mode readback was not returned".into(),
-                    }
-                })?;
+                let actual =
+                    report
+                        .actual()
+                        .cloned()
+                        .ok_or_else(|| LctrlError::VerifyMismatch {
+                            requested: format!("fan mode {requested}"),
+                            actual: "fan mode readback was not returned".into(),
+                        })?;
                 self.record_entry(rule, event_class, "applied")?;
                 Ok(ScenePolicyReport {
                     rule_id: rule.id.clone(),
@@ -337,12 +341,14 @@ impl NativeScenePolicy {
                 if mode == ApplyMode::DryRun {
                     return Ok(self.report_dry_run(rule, event_class, mode, previous));
                 }
-                let actual = report.actual().cloned().ok_or_else(|| {
-                    LctrlError::VerifyMismatch {
-                        requested: format!("performance mode {requested}"),
-                        actual: "performance mode readback was not returned".into(),
-                    }
-                })?;
+                let actual =
+                    report
+                        .actual()
+                        .cloned()
+                        .ok_or_else(|| LctrlError::VerifyMismatch {
+                            requested: format!("performance mode {requested}"),
+                            actual: "performance mode readback was not returned".into(),
+                        })?;
                 self.record_entry(rule, event_class, "applied")?;
                 Ok(ScenePolicyReport {
                     rule_id: rule.id.clone(),
@@ -418,9 +424,10 @@ fn persist_ledger_entry(
     let path = ledger_path().ok_or_else(|| LctrlError::InvalidArgument {
         detail: "USERPROFILE is unset; cannot persist the scene ledger".into(),
     })?;
-    let text = serde_json::to_string_pretty(&*guard).map_err(|error| LctrlError::InvalidArgument {
-        detail: format!("serializing scene ledger failed: {error}"),
-    })?;
+    let text =
+        serde_json::to_string_pretty(&*guard).map_err(|error| LctrlError::InvalidArgument {
+            detail: format!("serializing scene ledger failed: {error}"),
+        })?;
     write_all(&path, text.as_bytes())
 }
 
@@ -433,11 +440,11 @@ fn write_all(path: &PathBuf, bytes: &[u8]) -> Result<()> {
         .map_err(|error| LctrlError::InvalidArgument {
             detail: format!("opening scene ledger failed: {error}"),
         })?;
-    file.write_all(bytes).and_then(|_| file.flush()).map_err(|error| {
-        LctrlError::InvalidArgument {
+    file.write_all(bytes)
+        .and_then(|_| file.flush())
+        .map_err(|error| LctrlError::InvalidArgument {
             detail: format!("writing scene ledger failed: {error}"),
-        }
-    })
+        })
 }
 
 fn now_unix_ms() -> u64 {
@@ -470,9 +477,11 @@ mod tests {
             .count();
         assert_eq!(matched, 2); // performance + panel high-refresh both fire on game-zone start
         // An unknown class matches nothing.
-        assert!(policy
-            .match_event("NOT_A_LENOVO_CLASS")
-            .iter()
-            .all(|m| !m.matched));
+        assert!(
+            policy
+                .match_event("NOT_A_LENOVO_CLASS")
+                .iter()
+                .all(|m| !m.matched)
+        );
     }
 }

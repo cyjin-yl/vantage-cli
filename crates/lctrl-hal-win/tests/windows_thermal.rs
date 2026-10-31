@@ -5,7 +5,7 @@ use lctrl_core::{
     ChangeReport, ChargeMode, ChargeModeActual, FanDescriptor, FanId, FanMode, LctrlError, Result,
     SensorId, TemperatureLocation, TemperatureSource,
 };
-use lctrl_hal::{BatteryControl, FanControl, TemperatureControl};
+use lctrl_hal::{BatteryControl, DbdcControl, FanControl, TemperatureControl};
 use lctrl_hal_win::{WindowsThermal, WmiObject, WmiTransport, WmiValue};
 
 #[derive(Clone, Copy)]
@@ -116,11 +116,14 @@ impl WmiReply {
 impl WmiReply {
     fn get_single(&self) -> Result<WmiObject> {
         match self {
-            Self::Objects(objects) => objects.first().cloned().ok_or_else(|| {
-                LctrlError::ChannelUnavailable {
-                    channel: "fake returned no WMI object".into(),
-                }
-            }),
+            Self::Objects(objects) => {
+                objects
+                    .first()
+                    .cloned()
+                    .ok_or_else(|| LctrlError::ChannelUnavailable {
+                        channel: "fake returned no WMI object".into(),
+                    })
+            }
             Self::Unsupported => Err(LctrlError::Unsupported {
                 feature: "test WMI class".into(),
             }),
@@ -141,6 +144,7 @@ struct FakeWmi {
     thermal: WmiReply,
     fans: WmiReply,
     gamezone: WmiReply,
+    dbdc: WmiReply,
     invoke_replies: Vec<(String, WmiObject)>,
     invocations: parking_lot::Mutex<Vec<String>>,
     queries: parking_lot::Mutex<Vec<Query>>,
@@ -152,6 +156,7 @@ impl FakeWmi {
             thermal,
             fans,
             gamezone: WmiReply::Unsupported,
+            dbdc: WmiReply::Unsupported,
             invoke_replies: Vec::new(),
             invocations: parking_lot::Mutex::new(Vec::new()),
             queries: parking_lot::Mutex::new(Vec::new()),
@@ -160,6 +165,11 @@ impl FakeWmi {
 
     fn with_gamezone(mut self, gamezone: WmiReply) -> Self {
         self.gamezone = gamezone;
+        self
+    }
+
+    fn with_dbdc(mut self, dbdc: WmiReply) -> Self {
+        self.dbdc = dbdc;
         self
     }
 
@@ -185,6 +195,8 @@ impl WmiTransport for FakeWmi {
             self.fans.get()
         } else if wql.contains("LENOVO_GAMEZONE_DATA") {
             self.gamezone.get()
+        } else if wql.contains("LENOVO_REPORT_DBDC_DATA") {
+            self.dbdc.get()
         } else {
             panic!("unexpected WMI query: {wql}")
         }
@@ -495,7 +507,10 @@ fn set_fan_mode_commit_sends_raw_and_verifies_readback() {
     let wmi = FakeWmi::empty()
         .with_gamezone(WmiReply::Objects(vec![gamezone_instance()]))
         .with_invoke_reply("GetSmartFanMode", object(&[("Data", WmiValue::U32(2))]))
-        .with_invoke_reply("SetSmartFanMode", object(&[("ReturnValue", WmiValue::U32(0))]));
+        .with_invoke_reply(
+            "SetSmartFanMode",
+            object(&[("ReturnValue", WmiValue::U32(0))]),
+        );
     let controller = WindowsThermal::new(wmi, FakeBattery::unavailable());
 
     let report = controller
@@ -548,11 +563,79 @@ fn set_fan_mode_surfaces_verify_mismatch_when_readback_disagrees() {
     let wmi = FakeWmi::empty()
         .with_gamezone(WmiReply::Objects(vec![gamezone_instance()]))
         .with_invoke_reply("GetSmartFanMode", object(&[("Data", WmiValue::U32(0))]))
-        .with_invoke_reply("SetSmartFanMode", object(&[("ReturnValue", WmiValue::U32(0))]));
+        .with_invoke_reply(
+            "SetSmartFanMode",
+            object(&[("ReturnValue", WmiValue::U32(0))]),
+        );
     let controller = WindowsThermal::new(wmi, FakeBattery::unavailable());
 
     let error = controller
         .set_fan_mode(FanMode::Performance, ApplyMode::Commit)
         .unwrap_err();
     assert!(matches!(error, LctrlError::VerifyMismatch { .. }));
+}
+
+#[test]
+fn dbdc_profile_parses_vendor_table() {
+    let row = object(&[
+        ("Counts", WmiValue::U32(3)),
+        (
+            "CurrentLimit",
+            WmiValue::Array(vec![
+                WmiValue::U32(7500),
+                WmiValue::U32(5000),
+                WmiValue::U32(4500),
+            ]),
+        ),
+        (
+            "ROS_Power",
+            WmiValue::Array(vec![
+                WmiValue::U32(65000),
+                WmiValue::U32(55000),
+                WmiValue::U32(35000),
+            ]),
+        ),
+        (
+            "Threshold",
+            WmiValue::Array(vec![
+                WmiValue::U32(100),
+                WmiValue::U32(40),
+                WmiValue::U32(20),
+            ]),
+        ),
+    ]);
+    let wmi = FakeWmi::empty().with_dbdc(WmiReply::Objects(vec![row]));
+    let controller = WindowsThermal::new(wmi, FakeBattery::unavailable());
+
+    let profile = controller.dbdc_profile().expect("dbdc table");
+
+    assert_eq!(profile.counts, 3);
+    assert_eq!(profile.current_limit_ma, vec![7500, 5000, 4500]);
+    assert_eq!(profile.ros_power_mw, vec![65000, 55000, 35000]);
+    assert_eq!(profile.threshold_pct, vec![100, 40, 20]);
+    assert!(profile.is_consistent());
+}
+
+#[test]
+fn dbdc_profile_rejects_missing_instance() {
+    let wmi = FakeWmi::empty().with_dbdc(WmiReply::Objects(Vec::new()));
+    let controller = WindowsThermal::new(wmi, FakeBattery::unavailable());
+
+    let error = controller.dbdc_profile().unwrap_err();
+    assert!(matches!(error, LctrlError::ChannelUnavailable { .. }));
+}
+
+#[test]
+fn dbdc_profile_rejects_inconsistent_arrays() {
+    let row = object(&[
+        ("Counts", WmiValue::U32(3)),
+        ("CurrentLimit", WmiValue::Array(vec![WmiValue::U32(7500)])),
+        ("ROS_Power", WmiValue::Array(vec![WmiValue::U32(65000)])),
+        ("Threshold", WmiValue::Array(vec![WmiValue::U32(100)])),
+    ]);
+    let wmi = FakeWmi::empty().with_dbdc(WmiReply::Objects(vec![row]));
+    let controller = WindowsThermal::new(wmi, FakeBattery::unavailable());
+
+    let error = controller.dbdc_profile().unwrap_err();
+    assert!(matches!(error, LctrlError::ChannelUnavailable { .. }));
 }

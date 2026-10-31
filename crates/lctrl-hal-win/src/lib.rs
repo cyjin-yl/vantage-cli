@@ -10,8 +10,8 @@ mod events;
 mod gamezone;
 mod ioctl_contract;
 mod local_updates;
-mod magicbay;
 mod machine_fix;
+mod magicbay;
 mod msr;
 mod native_battery_electrical;
 #[cfg(windows)]
@@ -52,26 +52,26 @@ pub use diagnostics::WindowsSystemInventory;
 pub use display::NativeDisplayApi;
 pub use display::{DisplayApi, WindowsPanelController};
 pub use error::{map_win_error, map_wmi_hresult};
+pub use events::DOCUMENTED_LENOVO_EVENT_CLASSES;
 #[cfg(windows)]
-pub use native_ioctl::DeviceIoTransport;
+pub use events::{NativeWmiEventReader, NativeWmiEventSource};
+pub use gamezone::{FeatureId, GameZone, SupportProbe};
+pub use ioctl_contract::{EnergyDriver, IoctlTransport};
+#[cfg(windows)]
+pub use local_updates::NativeLocalDriverUpdateApi;
+pub use local_updates::{LocalDriverUpdateApi, WindowsLocalUpdateController};
+pub use machine_fix::WindowsMachineFix;
+#[cfg(windows)]
+pub use magicbay::NativeMagicBay;
+pub use magicbay::{coalesce_magicbay_devices, parse_magicbay_instance_id};
+#[cfg(windows)]
+pub use msr::WIN_MSR_TRANSPORT;
 pub use msr::{
     IOCTL_MSR_READ, IOCTL_MSR_WRITE, IOCTL_NOTIFY_PLATFORM, MsrSelector, PLATFORM_ID_21VG,
     PLATFORM_WHITELIST, WIN_MSR_DEVICE_PATH, WinMsrDev,
 };
 #[cfg(windows)]
-pub use msr::WIN_MSR_TRANSPORT;
-pub use events::DOCUMENTED_LENOVO_EVENT_CLASSES;
-pub use gamezone::{FeatureId, GameZone, SupportProbe};
-#[cfg(windows)]
-pub use events::{NativeWmiEventReader, NativeWmiEventSource};
-pub use ioctl_contract::{EnergyDriver, IoctlTransport};
-#[cfg(windows)]
-pub use local_updates::NativeLocalDriverUpdateApi;
-pub use local_updates::{LocalDriverUpdateApi, WindowsLocalUpdateController};
-#[cfg(windows)]
-pub use magicbay::NativeMagicBay;
-pub use magicbay::{coalesce_magicbay_devices, parse_magicbay_instance_id};
-pub use machine_fix::WindowsMachineFix;
+pub use native_ioctl::DeviceIoTransport;
 mod scene_policy;
 pub use scene_policy::NativeScenePolicy;
 mod osd;
@@ -92,10 +92,10 @@ pub use native_wmi::NativeWmi;
 pub use os_battery::{OsBatteryChannel, SystemPowerStatusReader, WindowsOsBattery};
 pub use p0::{ChargeModeReader, UnverifiedChargeModeReader, WindowsBatteryP0};
 pub use performance_p0::{PerformanceRegistryReader, WindowsPerformanceP0, read_effective_mode};
+pub use peripherals::WindowsPeripheralController;
 pub use power_overlay::{
     NativePowerOverlay, OverlayGuid, PowerOverlayControl, mode_for_overlay, overlay_for_mode,
 };
-pub use peripherals::WindowsPeripheralController;
 pub use power_p0::{PowerApi, WindowsPowerP0};
 pub use power_tuning::{
     PROCESSOR_BOOST_SETTING, PROCESSOR_EPP_SETTING, PROCESSOR_SETTINGS_SUBGROUP,
