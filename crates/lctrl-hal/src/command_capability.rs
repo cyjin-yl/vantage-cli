@@ -1213,9 +1213,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         FeatureBinding::Unprobed("audio.noise-cancel"),
         ServiceBinding::One(ServiceRole::Audio),
         &[lctrl_core::required(Dependency::NoiseCancellationSdk)],
-        DispatchSupport::Unsupported(
-            "audio control requires an unavailable licensed/vendor channel",
-        ),
+        DispatchSupport::Implemented,
     ),
     CommandCapability::new(
         CommandId::BIOS_LIST,

@@ -58,9 +58,9 @@ BIOS 密码元数据、MagicBay 检测和 scan 清单共 **12 次实际运行,�
 | #22 内屏刷新率 | C1 已验收;要求交互式会话,不以 SSH 无显示路径误判硬件不支持 |
 | #23 色彩/显示增强 | 当前写入口 Unsupported;按硬件/接口/授权分别核实,不是统一判不适用 |
 | #24 运行时隐私 | 状态实际读取成功;逐层写入、独立读回及恢复证据须按版本保存 |
-| #25 SmartSense/HPD | 当前无控制执行器;设备存在性与可调用契约需分开确认 |
+| #25 SmartSense/HPD | 已逆向接入:sense 设置管道(RE-interfaces §13),`sense status/lock-on-leave/wake-on-approach/pause-video/attention-tracking` 实现+dry-run+注册表读回;attention-tracking 写后无持久化键(如实 write-only);键盘灯自动仍门禁(contract RPC 未恢复);写入验收待补 |
 | #26 Dolby | 2026-10-31 决策取消 cleanroom 约束后已逆向接入:DolbyRpcClient.dll ALPC 端点契约(RE-interfaces.md §12),`audio dolby` 实现+dry-run+读回;实机只读探针证实第三方进程可绑定(Dolby 关/预设 5/空间音频支持);写入验收待补 |
-| #27 音频降噪 | 当前无受支持控制执行器;不把普通音频设备存在当作降噪支持 |
+| #27 音频降噪 | 已逆向接入:Elevoc RPC(RE-interfaces §14),`audio noise-cancel` 模式 0-4 + VoiceID 注册门控 + 能力位拒绝映射;删除无证据的 far-field 模式;F4006 注册表镜像只读展示(服务不消费,只写无效);写入验收待补 |
 | #28 BIOS 批量/元数据 | 原生事务源码与只读密码元数据已有;CLI 批量、风险和实际生效态验收待完成 |
 | #29 MagicBay LTE | 当前检测未见附件;实现缺口与附件未连接分别记录,不伪报完成 |
 | #30 MagicBay 摄像头 | 当前检测未见附件;UVC 实现及目标附件验收待完成 |
