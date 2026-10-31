@@ -17,7 +17,7 @@ use lctrl_hal::{
     MagicBayControl, PerformanceControl, PowerControl, PowerLimitKind, PrivacyControl,
     TemperatureControl, TouchpadControl, TuningControl, UpdateControl,
 };
-use lctrl_hal_linux::LinuxHal;
+use lctrl_hal_linux::{LinuxHal, MsrAddress, MsrTransport};
 
 static NEXT_TREE: AtomicU64 = AtomicU64::new(0);
 
@@ -843,4 +843,58 @@ fn conflict_detection_reports_vendor_controller_processes() {
 
 fn tree_update_capability() -> UpdateCapability {
     TempTree::new().hal().update_capability().unwrap()
+}
+
+#[test]
+fn msr_channel_reads_and_writes_u64_at_msr_offsets() {
+    let tree = TempTree::new();
+    tree.write("dev/cpu/0/msr", "");
+    let hal = tree.hal();
+    let msr = hal.msr();
+
+    msr.write(MsrAddress::HWP_REQUEST, 0x0000_81E0_005B_81E0)
+        .unwrap();
+
+    assert_eq!(
+        msr.read(MsrAddress::HWP_REQUEST).unwrap(),
+        0x0000_81E0_005B_81E0
+    );
+    assert_eq!(msr.read(MsrAddress::THERM_STATUS).unwrap(), 0);
+    assert!(msr.probe().is_ok());
+}
+
+#[test]
+fn msr_channel_maps_missing_node_to_unsupported() {
+    let tree = TempTree::new();
+    let msr = tree.hal().msr();
+
+    assert!(matches!(
+        msr.read(MsrAddress::THERM_STATUS),
+        Err(LctrlError::Unsupported { .. })
+    ));
+    assert!(matches!(
+        msr.probe(),
+        Err(LctrlError::Unsupported { .. })
+    ));
+}
+
+#[test]
+fn capability_probe_records_msr_availability() {
+    let tree = TempTree::new();
+    let hal = tree.hal();
+    assert_eq!(
+        hal.capabilities()
+            .unwrap()
+            .get("tune.msr")
+            .unwrap()
+            .availability,
+        Availability::Unavailable
+    );
+
+    tree.write("dev/cpu/0/msr", "");
+    let hal = tree.hal();
+    let msr = hal.capabilities().unwrap();
+    let entry = msr.get("tune.msr").unwrap();
+    assert_eq!(entry.availability, Availability::Available);
+    assert_eq!(hal.msr().cpu(), 0);
 }
