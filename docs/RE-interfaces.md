@@ -238,17 +238,21 @@ BOOL WrmsrCollection(ULONG reserved0, ULONG reserved1, ULONG selector, ULONG low
 | `perf.mode.set` | 原返回 `Unsupported` | 经 overlay 实现,含 dry-run/回滚/读回 | **已更正** |
 | `perf.mode` 能力值 | 原静态表硬编码 `Unavailable`（且覆盖先前的动态记录） | 移除该静态条目,改为按 `PowerGetEffectiveOverlayScheme` 探测,记录 `Limited` | **已更正** |
 | `powrprof` 链接方式 | 曾用 `#[link(name="powrprof")]` | SDK 的 `powrprof.lib` 不导出该符号 → 改为运行时 `GetProcAddress` 解析,缺失时诚实报不可用 | **已更正** |
-| PL1/PL2/tau | 曾拟用 `\\.\WinMsrDev` | **不采用**（联想专有驱动）→ 保持不可用 | 按决策更正 |
+| PL1/PL2/tau | 曾拟用 `\\.\WinMsrDev` | 2026-10-31 决策后改为：Linux 走 `/dev/cpu/N/msr`;Windows 自有签名驱动未落地前保持不可用(原因:Secure Boot+VBS/HVCI 需 EV 签名,见 §9.3) | 按决策更正 |
 
-### 9.3 为什么 Windows 的 MSR 通道不进入实现
+### 9.3 Windows 的 MSR 通道现状(2026-11-01 按项目决策更新)
 
 1. 设备 ACL 仅 `LocalSystem`,合法调用者身份是系统服务;
 2. 选择子集合固定为 6 个 MSR,由驱动按平台 ID 白名单启用;
-3. 该驱动为联想签名专有组件,使用即"经过联想专有层",与实现约束冲突;
-4. Windows 不向用户态暴露 MSR,自建通道需要自签名内核驱动,不在可交付范围。
+3. ~~该驱动为联想签名专有组件,使用即"经过联想专有层",与实现约束冲突~~
+   (2026-10-31 决策已取消该约束;经联想签名驱动调用在允许范围内,但受 1、2 限制);
+4. Windows 不向用户态暴露 MSR;目标机 Secure Boot ON + VBS/HVCI running,
+   自建 Rust 内核驱动需 EV+WHQL 签名(test-sign 不可行)。
 
-结论:Windows 上 PL/风扇保持 `unavailable`,原因精确到"缺少非厂商的 ring-0 通道";
-Linux 上同类能力由主线内核完整提供。
+结论:Windows 上 PL/风扇写路径二选一——(a) 加载联想 LnvMSRIO 驱动并以 SYSTEM
+身份服务代理 IOCTL(受选择子白名单限制,见 §3.1);(b) 分发自签名+EV 路径的自有
+Rust 驱动(需证书,见 §3 门禁)。未落地前能力行保持 `unavailable` 并注明具体原因;
+Linux 上同类能力由主线内核 `/dev/cpu/N/msr` 完整提供(见 `09-linux-backend.md`)。
 
 ## 10. GAMEZONE WMI 面(root\wmi)逆向结论(2026-11-01,目标机 21VG 实测 + ~3708 个联想二进制字符串/反汇编扫描)
 
