@@ -685,3 +685,22 @@ Windows 目标机构建:`cargo build --locked --release -p vantage` 退出 0;
 边界:overlay 只覆盖 OS 定义的三个方案;厂商专有的 geek/自定义模式不实现。
 PL1/PL2/tau 与风扇模式在 Windows 仍为不可用——唯一在册 MSR 通道是联想专有驱动,
 按"不经厂商专有层"的约束不采用（详见 `docs/RE-interfaces.md` §9.3）;Linux 侧同类能力由主线内核提供。
+
+## C24 · v1.0.0 首版发布（Windows 二进制交付）
+
+**状态：已交付。README 面向用户重写；CLI 版本 1.0.0；dist 二进制随标签可获取。**
+
+- 版本：`vantage` / `vantage-cli` 升至 1.0.0，`vantage --version` 实测输出 `vantage 1.0.0`。
+- README.md 重写为 CLI 产品文风：安装、快速上手、按任务分类的命令表、本机已验证清单、
+  已知限制及原因（逐条对应真实缺口，非隐藏 Unsupported）、安全模型。
+- 构建：目标机 `cargo build --locked --release -p vantage --offline` 退出 0（37s）。
+- 发布物：`dist/windows/vantage.exe`（4,487,680 字节），SHA-256
+  `a24592060e174583043ef9739a92e8e17425e6f0362584b81c5f43b64dde2b71`，
+  同目录 `.sha256` 文件。
+- 发布后冒烟（v1.0.0 二进制）：`capability` 含 `perf.mode` 行；
+  `--dry-run --yes perf mode performance` exit 0 且前值如实报告（quiet）；
+  `--yes perf mode geek` exit 3 拒绝。
+- 标签 `v1.0.0` 打于 main，Gitea 与 GitHub 同步；GitHub Release 页面随发布说明创建。
+
+边界声明：本版覆盖 21VG 全部适用功能（C1–C23）；充电写入、风扇与 PL 写入、
+BIOS 写入保持不可用/锁定（确证缺口，见 C2/C10/C23 边界），README 已如实列出。

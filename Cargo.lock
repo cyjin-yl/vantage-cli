@@ -6107,7 +6107,7 @@ dependencies = [
 
 [[package]]
 name = "vantage"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "clap",
  "lctrl-core",
@@ -6121,7 +6121,7 @@ dependencies = [
 
 [[package]]
 name = "vantage-cli"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "clap",
  "clap_complete",
