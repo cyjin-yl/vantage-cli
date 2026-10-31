@@ -150,9 +150,11 @@ impl std::fmt::Display for UsbChargingState {
 }
 
 /// Night-charge mode state (EnergyDrv `0x83102150`, RE-proven in
-/// docs/RE-interfaces.md §11: support probe input `0x13` — bit0 = supported,
-/// bit4 = currently on; status input `0x11` — bit4 = on; set inputs
-/// `0x80000012` = on, `0x12` = off).
+/// docs/RE-interfaces.md §11: support probe input `0x13` — bit0 = supported;
+/// status input `0x11` — bit4 = on; set inputs `0x80000012` = on,
+/// `0x12` = off). Live evidence (2026-11-01): the probe response bit4 does
+/// NOT track the effective state (probe `0x11` vs status `0x01` on the same
+/// machine) — only the status query reports the current mode.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub struct NightChargeState {
     pub supported: bool,
@@ -160,12 +162,13 @@ pub struct NightChargeState {
 }
 
 impl NightChargeState {
-    /// Decode the support-probe response word.
+    /// Decode the support-probe response word. Only bit0 (supported) is
+    /// reliable here; the current state comes from the status query.
     #[must_use]
     pub const fn from_probe(raw: u32) -> Self {
         Self {
             supported: raw & 1 != 0,
-            enabled: raw & (1 << 4) != 0,
+            enabled: false,
         }
     }
 
