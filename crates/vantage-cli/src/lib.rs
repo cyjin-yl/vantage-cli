@@ -5449,10 +5449,10 @@ fn unsupported_reason(command: &Command) -> &'static str {
         Command::Battery { command: None } => "a battery subcommand is required",
         Command::Battery {
             command: Some(BatteryCommand::Thresholds { .. }),
-        } => "the target has no verified arbitrary-threshold writer",
+        } => "custom charge thresholds are unsupported on this target: the PWRMGRV/PWMIF32V chain is absent and the ACPI MHQI method is missing (RE-interfaces.md §11.6)",
         Command::Battery {
             command: Some(BatteryCommand::ExtremeLife { .. }),
-        } => "no verified extreme-life channel is attached",
+        } => "extreme-life must match the original AiTurbo EcoQoS daemon contract; a generic substitute is not implemented (RE-interfaces.md §11.6)",
         Command::Battery {
             command: Some(BatteryCommand::Watch),
         } => "battery event streaming requires the daemon event source",
