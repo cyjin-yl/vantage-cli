@@ -410,11 +410,19 @@ fn main() {
     let scene = lctrl_hal_win::NativeScenePolicy::new();
     let osd = lctrl_hal_win::NativeOsd::new();
     let hotkey = lctrl_hal_win::NativeHotkey::new();
+    let usb_power = lctrl_hal_win::WindowsUsbPower::new(lctrl_hal_win::NativeIoctl);
+    // The Dolby RPC client binds the vendor DLL and DAX3API endpoint; when
+    // the Vantage package is absent the service stays unattached and
+    // `audio dolby` reports Unsupported instead of failing the whole CLI.
+    let audio = lctrl_hal_win::NativeDolbyRpc::load()
+        .map(|rpc| lctrl_hal_win::WindowsDolbyAudio::new(rpc))
+        .ok();
     let services = vantage_cli::CommandServices::new(&hal)
         .with_battery(&battery)
         .with_conflict_detection(&conflicts)
         .with_bios(&bios)
         .with_diagnostics(&system_inventory)
+        .with_dbdc(&thermal)
         .with_keyboard(&peripherals)
         .with_magicbay(&magicbay)
         .with_performance(&performance)
@@ -422,6 +430,7 @@ fn main() {
         .with_privacy(&runtime_devices)
         .with_touchpad(&runtime_devices)
         .with_tuning(&power)
+        .with_usb(&usb_power)
         .with_processor_power(&power)
         .with_panel(&panel)
         .with_panel_brightness(&panel_brightness)
@@ -434,6 +443,10 @@ fn main() {
         .with_scene(&scene)
         .with_osd(&osd)
         .with_hotkey(&hotkey);
+    let services = match &audio {
+        Some(audio) => services.with_audio(audio),
+        None => services,
+    };
     run(cli, services);
 }
 
