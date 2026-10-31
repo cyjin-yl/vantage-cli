@@ -1,7 +1,7 @@
 use std::sync::Mutex;
 
 use lctrl_core::{LctrlError, Result};
-use lctrl_hal_win::{GameZone, SupportProbe, WmiObject, WmiTransport, WmiValue};
+use lctrl_hal_win::{FeatureId, GameZone, SupportProbe, WmiObject, WmiTransport, WmiValue};
 
 #[derive(Default)]
 struct FakeWmi {
@@ -121,9 +121,9 @@ fn feature_plane_uses_other_method_class() {
     fake.output.lock().unwrap().insert("Data".into(), WmiValue::U32(7));
     let zone = GameZone::new(&fake);
 
-    assert_eq!(zone.feature_value(0x1000_0001).unwrap(), 7);
+    assert_eq!(zone.feature_value(FeatureId::new(0x1000_0001)).unwrap(), 7);
     assert_eq!(fake.calls.lock().unwrap()[0].0, "LENOVO_OTHER_METHOD");
-    zone.set_feature_value(0x1000_0001, 1).unwrap();
+    zone.set_feature_value(FeatureId::new(0x1000_0001), 1).unwrap();
     assert_eq!(fake.calls.lock().unwrap()[1].1, "SetFeatureValue");
 }
 
