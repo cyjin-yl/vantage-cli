@@ -249,3 +249,48 @@ BOOL WrmsrCollection(ULONG reserved0, ULONG reserved1, ULONG selector, ULONG low
 
 结论:Windows 上 PL/风扇保持 `unavailable`,原因精确到"缺少非厂商的 ring-0 通道";
 Linux 上同类能力由主线内核完整提供。
+
+## 10. GAMEZONE WMI 面(root\wmi)逆向结论(2026-11-01,目标机 21VG 实测 + ~3708 个联想二进制字符串/反汇编扫描)
+
+### 10.1 提供者拓扑
+
+- `LENOVO_GAMEZONE_DATA` / `LENOVO_FAN_METHOD` / `LENOVO_OTHER_METHOD` / `LENOVO_UTILITY_DATA`
+  注册在 `ACPI\PNP0C14\GMZN_0` 上,宿主是微软标准 **WmiProv**(`wbem\wmiprovse.exe`,
+  `wmiprov.dll`)——纯 WMI→ACPI 胶合层,方法语义全部在 BIOS ACPI(固件 GUID 对应的
+  WMxx 控制方法)。**没有任何厂商内核驱动参与**:固件 GUID 不在磁盘上任何 .sys 里
+  (已扫全 DriverStore)。HAL 客户端不依赖厂商驱动即可调用。
+- 21VG 上仅 GAMEZONE_DATA / OTHER_METHOD / UTILITY_DATA 各有 1 个活实例;
+  FAN_METHOD / CPU / GPU / MEM / PANEL / LIGHTING 实例报"不支持"——GAMEZONE 是
+  拯救者硬件特性,ThinkBook 只暴露同一提供者骨架。
+
+### 10.2 调用形态(已从二进制证实)
+
+- 全部为普通 WMI ExecMethod;root\wmi 实例级调用。setter 收单个
+  VT_I4/u32 `Data`(`SetIGPUModeStatus` 形参名 `mode`);布尔路径
+  (`Fan_Set_FullSpeed` 除尘)用 VT_BOOL(u32 1/0)。
+- `LENOVO_OTHER_METHOD.GetFeatureValue(IDs: u32)` 返回 CIM_UINT32(0x1A),
+  与 `value: u32` 的 `SetFeatureValue` 配对。
+- 方法名出现在用户态二进制:GameSettingsPlugin.dll / WSGameSettingPlugin.dll /
+  WSHardwarePlugin.dll / lde_module_fan.dll(x64,代码最干净)/ TconSDK.dll 等。
+  路径示例:`AcWMI::ExecMethodWMI`(Game/AcWMI.cpp)、`FunControlHelper.hpp`。
+
+### 10.3 常量(反汇编证实)
+
+- SmartFan 模式开关:4 个离散值 0..3(WSGameSettingPlugin.dll 跳转表,4 项);
+  `DealWithSMfan` 对 `RecordMode==2 && mode==3` 走性能 setter 特判。
+  0/1/2 的逐名映射未恢复;实现暂用 standard=0/silent=1/performance=2/custom=3,
+  与 `FanMode::from_raw` 互逆,**未经真机验证**。
+- FeatureId 布局:`(family << 16) | index`。已证族:0x0403(lde_module_fan.dll
+  `dword = (member & 0xFFFF) | 0x04030000`)、0x0504;能力掩码形态 0x8000_04xx
+  (BiosOD.dll)。rdata 表样例:`{1, 0x80040E50}, {1, 0x80040DF0}, {1, 0x05040000}`。
+  具体 ID ↔ 特性名映射未恢复;充电/热模式写路径属此面,常量待定。
+- 已知命名特性:`Get_Support_LegionZone_Version`(OTHER_METHOD,不支持时默认 2)。
+
+### 10.4 21VG 实测限制(客户端必须按此处理)
+
+- 本机**每一个** GAMEZONE 方法(包括 `GetVersion`)在实例级与类级调用都返回
+  `WBEM_E_INVALID_METHOD_PARAMETERS` / "Invalid object"。原因未查明(PowerShell
+  与 Rust 客户端行为一致),推测固件按机型/调用方校验拒绝。**客户端必须把它当
+  "该固件不支持"处理,而不是调用形态错误**——当前实现映射为
+  `LctrlError::Unsupported`,能力行动态探测如实报 Unavailable。
+- FAN_METHOD 常量无法在本机验证(实例不存在),按 §10.2 形态实现、按 §10.4 报错。

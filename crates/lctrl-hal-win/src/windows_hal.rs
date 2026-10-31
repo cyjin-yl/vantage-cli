@@ -2,7 +2,7 @@ use lctrl_core::{Availability, CapabilitySet, HardwareInfo, Platform, Result};
 use lctrl_hal::{BatteryElectricalSource, Hal};
 
 use crate::{
-    EnergyDriver, IoctlTransport, WmiObject, WmiTransport, WmiValue, active_instance,
+    EnergyDriver, GameZone, IoctlTransport, WmiObject, WmiTransport, WmiValue, active_instance,
     power_overlay::NativePowerOverlay, power_overlay::PowerOverlayControl,
     wmi_contract::ROOT_WMI,
 };
@@ -382,6 +382,18 @@ where
                 Some("firmware exposed no fan inventory record".into())
             },
         )?;
+        let gamezone_fan_mode = GameZone::new(&self.wmi).smart_fan_mode();
+        capabilities.record(
+            "perf.fan.mode",
+            match &gamezone_fan_mode {
+                Ok(_) => Availability::Available,
+                Err(_) => Availability::Unavailable,
+            },
+            match &gamezone_fan_mode {
+                Ok(raw) => Some(format!("GAMEZONE GetSmartFanMode readable (raw={raw})")),
+                Err(error) => Some(format!("GAMEZONE fan mode rejected: {error}")),
+            },
+        )?;
         capabilities.record(
             "power.scheme",
             Availability::Limited,
@@ -395,11 +407,6 @@ where
             ),
         )?;
         for (feature, availability, detail) in [
-            (
-                "perf.fan.mode",
-                Availability::Unavailable,
-                "no verified fan-mode write channel on 21VG firmware",
-            ),
             (
                 "tune.pl1",
                 Availability::Unavailable,

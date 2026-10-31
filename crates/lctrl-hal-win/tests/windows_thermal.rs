@@ -113,6 +113,24 @@ impl WmiReply {
     }
 }
 
+impl WmiReply {
+    fn get_single(&self) -> Result<WmiObject> {
+        match self {
+            Self::Objects(objects) => objects.first().cloned().ok_or_else(|| {
+                LctrlError::ChannelUnavailable {
+                    channel: "fake returned no WMI object".into(),
+                }
+            }),
+            Self::Unsupported => Err(LctrlError::Unsupported {
+                feature: "test WMI class".into(),
+            }),
+            Self::PermissionDenied => Err(LctrlError::PermissionDenied {
+                need: "administrator".into(),
+            }),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct Query {
     namespace: String,
@@ -122,6 +140,9 @@ struct Query {
 struct FakeWmi {
     thermal: WmiReply,
     fans: WmiReply,
+    gamezone: WmiReply,
+    invoke_replies: Vec<(String, WmiObject)>,
+    invocations: parking_lot::Mutex<Vec<String>>,
     queries: parking_lot::Mutex<Vec<Query>>,
 }
 
@@ -130,8 +151,21 @@ impl FakeWmi {
         Self {
             thermal,
             fans,
+            gamezone: WmiReply::Unsupported,
+            invoke_replies: Vec::new(),
+            invocations: parking_lot::Mutex::new(Vec::new()),
             queries: parking_lot::Mutex::new(Vec::new()),
         }
+    }
+
+    fn with_gamezone(mut self, gamezone: WmiReply) -> Self {
+        self.gamezone = gamezone;
+        self
+    }
+
+    fn with_invoke_reply(mut self, method: &str, object: WmiObject) -> Self {
+        self.invoke_replies.push((method.into(), object));
+        self
     }
 
     fn empty() -> Self {
@@ -149,6 +183,8 @@ impl WmiTransport for FakeWmi {
             self.thermal.get()
         } else if wql.contains("LENOVO_FAN_TEST_DATA") {
             self.fans.get()
+        } else if wql.contains("LENOVO_GAMEZONE_DATA") {
+            self.gamezone.get()
         } else {
             panic!("unexpected WMI query: {wql}")
         }
@@ -157,13 +193,19 @@ impl WmiTransport for FakeWmi {
     fn invoke_instance(
         &self,
         _namespace: &str,
-        _class: &str,
+        class: &str,
         _object_path: &str,
-        _method: &str,
+        method: &str,
         _input: &WmiObject,
     ) -> Result<WmiObject> {
+        self.invocations.lock().push(format!("{class}.{method}"));
+        for (reply_method, object) in &self.invoke_replies {
+            if reply_method == method {
+                return Ok(object.clone());
+            }
+        }
         Err(LctrlError::Unsupported {
-            feature: "test.invoke".into(),
+            feature: format!("test.invoke.{method}"),
         })
     }
 }
@@ -420,7 +462,7 @@ fn fan_mode_table_and_writes_remain_unsupported_without_real_channels() {
 
     assert!(matches!(
         controller.fan_mode(),
-        Err(LctrlError::Unsupported { feature }) if feature == "perf.fan.mode"
+        Err(LctrlError::Unsupported { .. })
     ));
     assert!(matches!(
         controller.fan_table(FanId::new(1), SensorId::new(0)),
@@ -429,7 +471,88 @@ fn fan_mode_table_and_writes_remain_unsupported_without_real_channels() {
     for apply in [ApplyMode::DryRun, ApplyMode::Commit] {
         assert!(matches!(
             controller.set_fan_mode(FanMode::Standard, apply),
-            Err(LctrlError::Unsupported { feature }) if feature == "perf.fan.mode.set"
+            Err(LctrlError::Unsupported { .. })
         ));
     }
+}
+
+fn gamezone_instance() -> WmiObject {
+    object(&[("__Path", WmiValue::String("fake/gamezone".into()))])
+}
+
+#[test]
+fn fan_mode_reads_smart_fan_raw_and_maps_semantic_mode() {
+    let wmi = FakeWmi::empty()
+        .with_gamezone(WmiReply::Objects(vec![gamezone_instance()]))
+        .with_invoke_reply("GetSmartFanMode", object(&[("Data", WmiValue::U32(1))]));
+    let controller = WindowsThermal::new(wmi, FakeBattery::unavailable());
+
+    assert_eq!(controller.fan_mode().unwrap(), FanMode::Silent);
+}
+
+#[test]
+fn set_fan_mode_commit_sends_raw_and_verifies_readback() {
+    let wmi = FakeWmi::empty()
+        .with_gamezone(WmiReply::Objects(vec![gamezone_instance()]))
+        .with_invoke_reply("GetSmartFanMode", object(&[("Data", WmiValue::U32(2))]))
+        .with_invoke_reply("SetSmartFanMode", object(&[("ReturnValue", WmiValue::U32(0))]));
+    let controller = WindowsThermal::new(wmi, FakeBattery::unavailable());
+
+    let report = controller
+        .set_fan_mode(FanMode::Performance, ApplyMode::Commit)
+        .unwrap();
+
+    assert_eq!(report.mode(), ApplyMode::Commit);
+    assert_eq!(report.requested(), &FanMode::Performance);
+    assert_eq!(report.actual(), Some(&FanMode::Performance));
+    let wmi = controller.wmi();
+    let invocations = wmi.invocations.lock();
+    assert!(invocations.contains(&"LENOVO_GAMEZONE_DATA.SetSmartFanMode".to_string()));
+}
+
+#[test]
+fn set_fan_mode_dry_run_reads_but_never_invokes_the_setter() {
+    let wmi = FakeWmi::empty()
+        .with_gamezone(WmiReply::Objects(vec![gamezone_instance()]))
+        .with_invoke_reply("GetSmartFanMode", object(&[("Data", WmiValue::U32(0))]));
+    let controller = WindowsThermal::new(wmi, FakeBattery::unavailable());
+
+    let report = controller
+        .set_fan_mode(FanMode::Silent, ApplyMode::DryRun)
+        .unwrap();
+
+    assert_eq!(report.mode(), ApplyMode::DryRun);
+    assert_eq!(report.actual(), None);
+    let wmi = controller.wmi();
+    let invocations = wmi.invocations.lock();
+    assert_eq!(invocations.len(), 1);
+    assert_eq!(invocations[0], "LENOVO_GAMEZONE_DATA.GetSmartFanMode");
+}
+
+#[test]
+fn set_fan_mode_rejects_unknown_semantic_mode_without_touching_wmi() {
+    let wmi = FakeWmi::empty()
+        .with_gamezone(WmiReply::Objects(vec![gamezone_instance()]))
+        .with_invoke_reply("GetSmartFanMode", object(&[("Data", WmiValue::U32(0))]));
+    let controller = WindowsThermal::new(wmi, FakeBattery::unavailable());
+
+    let error = controller
+        .set_fan_mode(FanMode::Unknown(9), ApplyMode::Commit)
+        .unwrap_err();
+    assert!(matches!(error, LctrlError::InvalidArgument { .. }));
+    assert!(controller.wmi().invocations.lock().is_empty());
+}
+
+#[test]
+fn set_fan_mode_surfaces_verify_mismatch_when_readback_disagrees() {
+    let wmi = FakeWmi::empty()
+        .with_gamezone(WmiReply::Objects(vec![gamezone_instance()]))
+        .with_invoke_reply("GetSmartFanMode", object(&[("Data", WmiValue::U32(0))]))
+        .with_invoke_reply("SetSmartFanMode", object(&[("ReturnValue", WmiValue::U32(0))]));
+    let controller = WindowsThermal::new(wmi, FakeBattery::unavailable());
+
+    let error = controller
+        .set_fan_mode(FanMode::Performance, ApplyMode::Commit)
+        .unwrap_err();
+    assert!(matches!(error, LctrlError::VerifyMismatch { .. }));
 }

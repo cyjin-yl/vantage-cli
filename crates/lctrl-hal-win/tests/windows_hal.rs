@@ -133,18 +133,30 @@ fn capability_probe_requires_battery_detail_for_battery_telemetry() {
 }
 
 #[test]
-fn capability_probe_never_queries_gamezone_methods() {
+fn capability_probe_marks_fan_mode_unavailable_when_gamezone_is_not_exposed() {
     let wmi = FakeWmi::default();
     let hal = WindowsHal::with_electrical(wmi, FakeIoctl::default(), AbsentElectrical);
 
-    hal.capabilities().unwrap();
+    let capabilities = hal.capabilities().unwrap();
 
+    let fan_mode = capabilities.get("perf.fan.mode").unwrap();
+    assert_eq!(fan_mode.availability, Availability::Unavailable);
+    assert!(
+        fan_mode
+            .detail
+            .as_deref()
+            .is_some_and(|detail| detail.contains("GAMEZONE")),
+        "expected the GAMEZONE rejection detail, got {:?}",
+        fan_mode.detail
+    );
+    // The capability probe is read-only: it queries the GAMEZONE class but
+    // must never invoke a WMI method.
     assert!(
         hal.wmi()
             .queries
             .lock()
             .iter()
-            .all(|query| !query.contains("GAMEZONE"))
+            .any(|query| query.contains("LENOVO_GAMEZONE_DATA"))
     );
 }
 
