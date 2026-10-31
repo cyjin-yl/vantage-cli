@@ -71,7 +71,6 @@ pub enum NoiseCancellationMode {
     Single,
     Spatial,
     VoiceId,
-    FarField,
     Unknown(u8),
 }
 
@@ -84,7 +83,6 @@ impl NoiseCancellationMode {
             2 => Self::Single,
             3 => Self::Spatial,
             4 => Self::VoiceId,
-            10 => Self::FarField,
             other => Self::Unknown(other),
         }
     }
@@ -97,8 +95,43 @@ impl NoiseCancellationMode {
             Self::Single => 2,
             Self::Spatial => 3,
             Self::VoiceId => 4,
-            Self::FarField => 10,
             Self::Unknown(raw) => raw,
         }
+    }
+}
+
+/// Live noise-cancellation state read back from the Elevoc RPC endpoint
+/// (docs/RE-interfaces.md §14).
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+pub struct NoiseCancelState {
+    /// Uplink microphone mode (`GetCurrentMode`, SDK domain 0–7; the
+    /// legacy `_td` aliases 6/7 are remapped to 1/2 by the SDK before send,
+    /// so the wire readback never contains them).
+    pub mic_mode: NoiseCancellationMode,
+    /// Speaker-side (downlink) state mirrored from the SmartEngine F4006
+    /// cache (`noise_speaker_mode`). The authoritative downlink toggle is
+    /// `SetDownLinkStatus`; the registry mirror is observation only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub speaker_enabled: Option<bool>,
+    /// VoiceID enrollment (`QueryVoiceIDStatus`: 0 = unset, 2 = enrolled);
+    /// mode 4 is rejected by the service when not enrolled.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub voice_id_enrolled: Option<bool>,
+}
+
+impl std::fmt::Display for NoiseCancelState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "mic mode={:?}", self.mic_mode)?;
+        if let Some(enabled) = self.speaker_enabled {
+            write!(f, ", speaker={}", if enabled { "on" } else { "off" })?;
+        }
+        if let Some(enrolled) = self.voice_id_enrolled {
+            write!(
+                f,
+                ", voice-id {}",
+                if enrolled { "enrolled" } else { "not enrolled" }
+            )?;
+        }
+        Ok(())
     }
 }

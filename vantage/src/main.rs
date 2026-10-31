@@ -417,6 +417,9 @@ fn main() {
     let audio = lctrl_hal_win::NativeDolbyRpc::load()
         .map(|rpc| lctrl_hal_win::WindowsDolbyAudio::new(rpc))
         .ok();
+    let noise_cancel = lctrl_hal_win::NativeElevocRpc::load()
+        .map(|rpc| lctrl_hal_win::WindowsNoiseCancel::new(rpc))
+        .ok();
     let services = vantage_cli::CommandServices::new(&hal)
         .with_battery(&battery)
         .with_conflict_detection(&conflicts)
@@ -445,6 +448,10 @@ fn main() {
         .with_hotkey(&hotkey);
     let services = match &audio {
         Some(audio) => services.with_audio(audio),
+        None => services,
+    };
+    let services = match &noise_cancel {
+        Some(noise_cancel) => services.with_noise_cancel(noise_cancel),
         None => services,
     };
     let sense = lctrl_hal_win::WindowsSenseControl::new(

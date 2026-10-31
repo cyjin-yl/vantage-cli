@@ -20,6 +20,7 @@ use lctrl_core::{
     ApplyMode, Availability, BacklightState, BiosChange, Capability, CapabilitySet, ChargeMode,
     ChargeModeActual, DeviceState, DiagnosticKind, DolbyProfile, DolbyState, DriverIdentity,
     DriverVersion, FanMode, HardwareInfo, LctrlError, LocalDriverRollbackRequest,
+    NoiseCancelState, NoiseCancellationMode,
     LocalDriverUpdateRequest, PerformanceMode, Platform, PowerGuid, PowerMutation,
     PowerRangeObservation, PowerSchemeId, PowerSettingKey, PowerSettingValue, PowerSource,
     SceneAction, UpdateCapability,
@@ -28,10 +29,10 @@ use lctrl_hal::ScenePolicyControl;
 use lctrl_hal::{
     AudioControl, BatteryControl, BiosControl, ControlConflictDetection, DbdcControl,
     DiagnosticsControl, FanControl, Hal, HotkeyControl, KeyboardControl, LocalUpdateControl,
-    MachineFixControl, MagicBayControl, OsdControl, PanelBrightnessControl, PanelControl,
-    PerformanceControl, PowerControl, PowerLimitKind, PrivacyControl, ProcessorPowerControl,
-    SenseControl, SenseFeature, TemperatureControl, TouchpadControl, TuningControl, UpdateControl,
-    UsbControl, WifiSecurityControl,
+    MachineFixControl, MagicBayControl, NoiseCancelControl, OsdControl, PanelBrightnessControl,
+    PanelControl, PerformanceControl, PowerControl, PowerLimitKind, PrivacyControl,
+    ProcessorPowerControl, SenseControl, SenseFeature, TemperatureControl, TouchpadControl,
+    TuningControl, UpdateControl, UsbControl, WifiSecurityControl,
 };
 use serde::{Deserialize, Serialize};
 
@@ -63,6 +64,7 @@ pub struct StreamSpec {
 pub struct CommandServices<'a> {
     hal: &'a dyn Hal,
     audio: Option<&'a dyn AudioControl>,
+    noise_cancel: Option<&'a dyn NoiseCancelControl>,
     battery: Option<&'a dyn BatteryControl>,
     bios: Option<&'a dyn BiosControl>,
     conflicts: Option<&'a dyn ControlConflictDetection>,
@@ -96,6 +98,7 @@ impl<'a> CommandServices<'a> {
         Self {
             hal,
             audio: None,
+            noise_cancel: None,
             battery: None,
             bios: None,
             conflicts: None,
@@ -128,6 +131,12 @@ impl<'a> CommandServices<'a> {
     #[must_use]
     pub fn with_audio(mut self, audio: &'a dyn AudioControl) -> Self {
         self.audio = Some(audio);
+        self
+    }
+
+    #[must_use]
+    pub fn with_noise_cancel(mut self, noise_cancel: &'a dyn NoiseCancelControl) -> Self {
+        self.noise_cancel = Some(noise_cancel);
         self
     }
 
@@ -1165,8 +1174,6 @@ pub enum NoiseCancelArg {
     Shared,
     Spatial,
     VoiceId,
-    #[value(alias = "far-field")]
-    Farfield,
 }
 
 #[derive(Clone, Debug, ValueEnum, PartialEq, Eq)]
@@ -1405,7 +1412,9 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
         Command::Perf {
             command: Some(PerfCommand::Dbdc { command }),
         } => execute_dbdc(services.dbdc, command.unwrap_or(DbdcCommand::Get)),
-        Command::Audio { command } => execute_audio(services.audio, command, apply),
+        Command::Audio { command } => {
+            execute_audio(services.audio, services.noise_cancel, command, apply)
+        }
         Command::Sense { command } => execute_sense(services.sense, command, apply),
         Command::Bios {
             command: Some(command),
@@ -2212,20 +2221,56 @@ fn execute_dbdc(dbdc: Option<&dyn DbdcControl>, command: DbdcCommand) -> Command
 
 fn execute_audio(
     audio: Option<&dyn AudioControl>,
+    noise_cancel: Option<&dyn NoiseCancelControl>,
     command: Option<AudioCommand>,
     apply: ApplyMode,
 ) -> CommandResult {
     match command {
         Some(AudioCommand::Dolby { profile }) => execute_dolby(audio, profile, apply),
-        Some(AudioCommand::NoiseCancel { .. }) => Err(LctrlError::Unsupported {
-            feature:
-                "audio.noise-cancel: noise cancellation requires an unavailable vendor channel"
-                    .into(),
-        }),
+        Some(AudioCommand::NoiseCancel { mode }) => {
+            execute_noise_cancel(noise_cancel, mode, apply)
+        }
         None => Err(LctrlError::InvalidArgument {
             detail: "an audio subcommand is required".into(),
         }),
     }
+}
+
+fn execute_noise_cancel(
+    noise_cancel: Option<&dyn NoiseCancelControl>,
+    mode: NoiseCancelArg,
+    apply: ApplyMode,
+) -> CommandResult {
+    let noise_cancel = noise_cancel.ok_or_else(|| LctrlError::Unsupported {
+        feature: "audio.noise-cancel".into(),
+    })?;
+    let target = match mode {
+        NoiseCancelArg::Off => NoiseCancellationMode::Off,
+        NoiseCancelArg::Single => NoiseCancellationMode::Single,
+        NoiseCancelArg::Shared => NoiseCancellationMode::Shared,
+        NoiseCancelArg::Spatial => NoiseCancellationMode::Spatial,
+        NoiseCancelArg::VoiceId => NoiseCancellationMode::VoiceId,
+    };
+    let report = noise_cancel.set_noise_cancel_mode(target, apply)?;
+    structured_output(&report, format_noise_cancel_change(&report))
+}
+
+fn format_noise_cancel_change(report: &lctrl_core::ChangeReport<NoiseCancelState>) -> String {
+    let mode = if report.mode() == ApplyMode::DryRun {
+        "dry run"
+    } else {
+        "applied"
+    };
+    let mut text = format!(
+        "noise-cancel ({mode}): previous {}, requested mic mode={:?}",
+        report.previous(),
+        report.requested().mic_mode,
+    );
+    if let Some(actual) = report.actual() {
+        text.push_str(&format!(", actual {actual}"));
+    }
+    text.push('\n');
+    text
 }
 
 fn execute_dolby(
@@ -5447,9 +5492,6 @@ fn unsupported_reason(command: &Command) -> &'static str {
             command: Some(SenseCommand::KbdLightAuto { .. }),
         } => "keyboard-light auto requires the Vantage contract RPC channel, which is not recovered",
         Command::Sense { .. } => "a sense subcommand is required",
-        Command::Audio {
-            command: Some(AudioCommand::NoiseCancel { .. }),
-        } => "noise cancellation requires an unavailable vendor channel",
         Command::Audio { .. } => "an audio subcommand is required",
         Command::Magicbay {
             command: Some(MagicbayCommand::Detect),

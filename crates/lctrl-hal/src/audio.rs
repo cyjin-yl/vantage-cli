@@ -1,4 +1,7 @@
-use lctrl_core::{ApplyMode, ChangeReport, DolbyProfile, DolbyState, Result};
+use lctrl_core::{
+    ApplyMode, ChangeReport, DolbyProfile, DolbyState, NoiseCancelState, NoiseCancellationMode,
+    Result,
+};
 
 /// Dolby audio control through the vendor DAX RPC endpoint.
 ///
@@ -17,4 +20,20 @@ pub trait AudioControl: Send + Sync {
         profile: DolbyProfile,
         apply: ApplyMode,
     ) -> Result<ChangeReport<DolbyState>>;
+}
+
+/// Noise-cancellation control through the vendor Elevoc RPC endpoint
+/// (docs/RE-interfaces.md §14). Only the microphone mode is exposed; the
+/// DSP pipeline stays inside ElevocControlService.
+pub trait NoiseCancelControl: Send + Sync {
+    fn noise_cancel_state(&self) -> Result<NoiseCancelState>;
+
+    /// Set the uplink microphone mode. `NoiseCancellationMode::Off` selects
+    /// SDK mode 0 (`environmental`), which is the closest the endpoint has
+    /// to "off" — there is no dedicated off value on the wire.
+    fn set_noise_cancel_mode(
+        &self,
+        mode: NoiseCancellationMode,
+        apply: ApplyMode,
+    ) -> Result<ChangeReport<NoiseCancelState>>;
 }

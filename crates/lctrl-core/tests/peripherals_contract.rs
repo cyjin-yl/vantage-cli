@@ -163,12 +163,14 @@ fn noise_cancellation_maps_all_documented_values() {
         (2, NoiseCancellationMode::Single),
         (3, NoiseCancellationMode::Spatial),
         (4, NoiseCancellationMode::VoiceId),
-        (10, NoiseCancellationMode::FarField),
     ];
     for (raw, mode) in cases {
         assert_eq!(NoiseCancellationMode::from_raw(raw), mode);
         assert_eq!(mode.raw(), raw);
     }
+    // The Elevoc SDK domain is 0–7 with 6/7 remapped to 1/2 before send;
+    // values outside the documented set stay explicit unknowns.
+    assert_eq!(NoiseCancellationMode::from_raw(5).raw(), 5);
     assert_eq!(
         NoiseCancellationMode::from_raw(99),
         NoiseCancellationMode::Unknown(99)

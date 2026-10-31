@@ -21,7 +21,7 @@ mod setting;
 mod update;
 mod verify;
 
-pub use audio::AudioControl;
+pub use audio::{AudioControl, NoiseCancelControl};
 pub use battery::{BatteryControl, BatteryElectricalSource};
 pub use bios::{BiosAssistantControl, BiosControl, apply_bios_transaction, plan_bios_apply};
 pub use capability::Hal;

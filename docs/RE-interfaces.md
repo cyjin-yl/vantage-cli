@@ -388,3 +388,52 @@ out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Se
 - `lctrl-hal-win/src/dolby.rs`:`NativeDolbyRpc`(发现/缓存/装载/绑定导出)+ `WindowsDolbyAudio<R: DolbyRpc>`(dry-run/commit + 读回轮询,`poll_readback` 10×50ms)。
 - `vantage/src/main.rs` Windows 组合根:`NativeDolbyRpc::load()` 失败(无 Vantage 包)时不挂载 audio 服务,`audio dolby` 如实报 Unsupported。
 - 第二通道 `ncalrpc:[FusionRpcEndpoint]`(DolbyFusionRpcClient.dll,Atmos/Fusion 附加项)未接入,列为后续。
+
+## 13. SmartSense HPD 设置管道契约(2026-11-01,ThinkSmartSenseAddin.dll 1.0.0.77 IL + SmartSense.exe/LnvSST.dll 1.0.8.5 反汇编 + 实机枚举实证)
+
+链路:`vantage sense → \\.\pipe\com.lenovo.smartsense.settings → SmartSense.exe(LocalSystem)→ HKLM\SYSTEM\CurrentControlSet\Services\SmartSense\Parameters\HPD`。帧格式:`u32 code + u32 arg` 小端(legacy bool=0/1;camera/video 系 1=enable/2=disable),每连接一请求;响应单个 `i32`(0=拒绝/非零=受理/-1=服务端异常)。客户端任何用户可连接(addin runas=user)。完整命令表(IL .ctor 0x01-0x13a,已证;`code=0xNNvv`,payload `u32 code [+ u32 arg]`,响应 i32):
+
+| 命令 | code | 参数编码 | 功能 |
+|---|---|---|---|
+| ENABLE_SST | 0x00010101 | "True"→1 else 0 | SmartSense 总开关 |
+| ENABLE_BLC | 0x00020101 | bool u32 | 背光控制 |
+| SET_BLC_AUTO | 0x00030101 | u32 | BLC 自动 |
+| ENABLE_MODE | 0x00040101 | bool u8 + i32 modeId(2=Browsing,3=Facedown,5=Walking) | 模式开关 |
+| SET_BROWSING_TIME | 0x00050101 | i32 秒(分钟×60) | 浏览延时 |
+| ENABLE_SCREEN_LOCK | 0x00060101 | bool u32 | 自动锁屏(旧 HPD) |
+| ENABLE_APPROACH | 0x00070101 | bool u32 | 靠近唤醒 |
+| SET_APPROACH_DISTANCE | 0x00080101 | i32 0/1/2 | Near/Middle/Far |
+| ENABLE_PRESENTLEAVE | 0x00090101 | bool u32 | 离开检测 |
+| SET_LEAVE_WAIT | 0x000A0101 | i32 0/1/2 | Short/Middle/Long |
+| UI_INSTALL | 0x000B0101 | u32 | UI 安装标志 |
+| ENABLE_VIDEOSTOP | 0x000D0101 | 1 enable/2 disable | 视频自动暂停 |
+| ENABLE_CAMERADETECT | 0x000D0201 | 1/2 | 摄像头检测(肩窥隐私告警) |
+| ENABLE_AUTOADJUST | 0x000E0101 | 1/2 | 距离自适应 |
+| HPD_RESET_COMMAND | 0x000F0101 | =1 | 重置全部 HPD 设置 |
+| HPD_SET_GLOBAL | 0x00100101 | 2=off/3=on | HPD 总开关 |
+| SET_LEAVE_DISTANCE | 0x00110101 | i32 0/1/2 | Near/Middle/Far |
+| ENABLE_CAMERAASSIST | 0x00120101 | 1/2 | 摄像头辅助 |
+| ENABLE_OVERRIDEOSTIMER | 0x00130101 | 1/2 | 覆盖 Windows 关屏计时 |
+| ENABLE_LEAVE | 0x00140101 | 0/1 | 离开锁 |
+| SET_LEAVE_TIMER | 0x00150101 | i32 | 离开计时 |
+| ENABLE_ATTENTION_TRACKING | 0x00160101 | 0/1 | 注意力追踪 |
+| ENABLE_ATTENTION_TRACKING_TIMER | 0x00170101 | i32 | AT 计时 |
+| ENABLE_ATTENTION_TRACKING_AC | 0x00180101 | 0/1 | AT 接电时 |
+| ENABLE_ATTENTION_TRACKING_DIM | 0x00190101 | i32 | AT 调光级别 |
+| ENABLE_FACE_SENSING | 0x001A0101 | 0/1 | 人脸感知 |
+| ENABLE_APPROACH_EXTDISP | 0x001C0101 | 0/1 | 外接屏时靠近 |
+| ENABLE_LEAVE_EXTDISP | 0x001D0101 | 0/1 | 外接屏时离开 |
+| ENABLE_AD_EXTDISP | 0x001E0101 | 0/1 | 外接屏时自适应调光 |
+
+
+读回:服务持久化到 HPD 键(REG_DWORD),addin 自身 getter 也直读该键 —— 注册表即权威读回通道。已建模:PresentLeave/LeaveDistance/LeaveWait/Approach/ApproachDistance/Video(1开2关)/CameraDetect(1开2关)/Capability/SensorType/FacialFeatureRegistered。AttentionTracking 命令存在(0x0016-0x0019)但本机 HPD 无对应持久化键(Capability=1 最小集)→ 写后不轮询,如实报 write-only。键盘灯自动走 contract RPC 通道(Lenovo.Vantage.RpcClient,SystemManagement.SmartSense)未恢复,保持门禁。感知管线(VL53L5 ToF + IR 摄像头)留在厂商服务内,本通道只改设置。
+
+## 14. Elevoc 降噪 RPC 契约(2026-11-01,ElevocControlSDK_x64.dll 1.0.1.1108.8f92a86 + ElevocControlService.exe 1.0.1.1142 反汇编实证)
+
+链路:`vantage audio noise-cancel → ElevocControlSDK_x64.dll C 导出 → ALPC ncalrpc:[ElevocRpcEndpoint] → ElevocControlService.exe(LocalSystem)`。接口 GUID `{6F761170-1054-4339-A573-063DD08C7E16}` v4.0,NDR32;单 opnum-0 通用分发,方法名在 JSON 请求信封内(elevoc_rpc_protocol)。手写纯 Rust NDR/JSON 栈成本高,实现走 vendor DLL FFI(同 Dolby 策略)。DLL 路径 `C:\ProgramData\Lenovo\Vantage\Addins\SmartNoiseCancelledAddin\*\ElevocControlSDK_x64.dll`,装载策略同 §12.2(缓存副本)。
+
+导出(opnum/签名/RVA 已证):`SetEffectMode(int mode, const char* ep=NULL)` @0x322c0、`GetCurrentMode(const char* ep=NULL)` @0x2d7d0、`QueryVoiceIDStatus()` @0x311d0(0=未注册,2=已注册)、`SetDownLinkStatus(bool)` @0x31f60(扬声器侧)、`SetRawModeSupport(bool)` @0x32950。
+
+模式域(字符串槽 765):0=environmental(服务端默认,无独立 off)、1=shared、2=private、3=special、4=voiceid(需已注册否则 ret 4)、5=HQRecord;6/7=_td 旧别名,SDK 发送前重映射 1/2。`SetEffectMode` 返回码(545):1=成功、-1=RPC/默认端点失败、2=端点能力位不支持、4=VoiceID 未注册。能力门控位:GetMicAbilityByEndpoint bitmask(bit0=shared,bit1=private,bit2=special,bit3=voiceid,bit14=HQRecord)。
+
+持久化:HKCU\SOFTWARE\Lenovo\SmartEngine\modules\F4006(REG_SZ)是 Vantage 插件的只写镜像(noise_micro_mode=GetCurrentMode 结果、noise_speaker_mode=扬声器布尔、scene_enhance_mode);**服务不消费该键**,只写注册表无效(已证:仅 SENoiseCancellingPlugin64.dll 引用)。实机值:micro=1(shared)、speaker=0、scene=0。
