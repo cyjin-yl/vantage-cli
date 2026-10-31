@@ -300,7 +300,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             Readback::Unverified,
             Rollback::Unavailable,
         ),
-        FeatureBinding::Absent("battery.thresholds"),
+        FeatureBinding::Unprobed("battery.thresholds"),
         ServiceBinding::Unsupported,
         &[],
         DispatchSupport::Unsupported("custom charge thresholds are unsupported on this target: the PWRMGRV/PWMIF32V chain is absent and the ACPI MHQI method is missing (RE-interfaces.md §11.6)"),
