@@ -311,3 +311,45 @@ Linux 上同类能力由主线内核 `/dev/cpu/N/msr` 完整提供(见 `09-linux
   "该固件不支持"处理,而不是调用形态错误**——当前实现映射为
   `LctrlError::Unsupported`,能力行动态探测如实报 Unavailable。
 - FAN_METHOD 常量无法在本机验证(实例不存在),按 §10.2 形态实现、按 §10.4 报错。
+
+## 11. EnergyDrv 充电域完整契约(2026-11-01,PowerBattery.dll 1.0.13.114 + IdeaBatteryAgent.dll + AcpiVpc.sys 15.11.30.14 反汇编/IL 实证)
+
+二进制链:`LenovoVantage-(IdeaNotebookAddin).exe → IdeaNotebookAddin.dll → IdeaBatteryAgent.dll(BatteryAgent RPC 面)→ PowerBattery.dll(native,按序数导出)`。设备 `\\.\EnergyDrv` 由 `AcpiVpc.sys` 创建(服务 `acpivpc`,demand-start;用户态可开,无需 SYSTEM)。所有 IOCTL 输入输出校验以驱动 Dispatch 为准:`InputLength≥1`(USB)/`≥4`(夜间),`OutputLength≥4`,否则 `STATUS_BUFFER_TOO_SMALL`。
+
+### 11.1 充电模式(GBMD,`0x831020f8`,1B 子命令)
+
+| 子命令 | 语义 | 证据 |
+|---|---|---|
+| `0xFF` | 状态位掩码查询 | 实机 `0x00860004`(bits 2,17,18,23) |
+| `0x03` | 打开 storage(养护) | CStorageMode v+8 @0xc3d0 |
+| `0x05` | 关闭 storage | @0xc580 |
+| `0x07` | 打开 express(快充) | CExpressMode v+8 @0xbe90 |
+| `0x08` | 关闭 express | @0xbfb0 |
+
+**读回解码**(`CChargingMode::GetChargingMode` @0x9bc0,IL 面为恒等映射):bit5=storage 开 → Storage;bit2=express 开 → Quick;否则 Normal。storage 支持在 x86 上=驱动可打开(@0xc1d0,无状态位);express 支持=bit17(@0xbd70 `shr 0x11`);Storage80 支持=bit23(@0xaa80)。`SetChargingMode` @0x9c30 写后按同一解码轮询(`Sleep 50ms ×10`)等待生效,然后写注册表缓存。
+
+**对 §10.3 与 docs/01 的更正**:
+- 注册表值实为 `HKCU\SOFTWARE\Lenovo\VantageService\AddinData\IdeaNotebookAddin\BatteryChargeMode`,**REG_EXPAND_SZ**,取值字符串 `Normal`/`Storage`/`Quick`(HKLM 键不存在)。它是**只写透传缓存——二进制内无任何读取方驱动行为**,硬件位掩码才是权威状态。vantage 不写该值。
+- docs/01 §3.3 对 `0xFF` 的旧位注释(bit24=认证充电器, bit15-16=Inbox 适配器)与反汇编不符,以本节位表为准(bit2/bit5/bit17/bit23 已证;bit14 语义未决;bit18 未识)。
+
+### 11.2 USB 充电控制(`0x831020e8`,1B 选择子)
+
+| 选择子 | 语义 | 输出 |
+|---|---|---|
+| `0x02` | 标志字查询 | bit6=AC 支持, bit7=AC 开, bit14=电池模式支持, bit15=电池模式开 |
+| `0x0a`/`0x0b` | AC AlwaysOnUSB 开/关 | 空输出(Information=4) |
+| `0x13`/`0x12` | 电池模式开/关 | 空输出 |
+
+`CUSBCharger::OpenOrClose`(@0xc730)就是状态查询(+0x20 槽),写后按位条件重查(厂商最多 10 次)。`IsSupportOnARM` 恒 0。**对 docs/02 §6 的更正**:`+0x32` 不是函数槽(该版本 vtable:+8 Open, +16 Close, +24 IsSupport, +32 OpenOrClose=status);旧资料 "同族命令字[推断]" 已解决为同一 IOCTL 0x0a/0x0b。实机 `0x02 → 0x0000CEC0`:两种模式均支持、均关闭。
+
+### 11.3 夜间充电(`0x83102150`,4B 选择子)
+
+`0x13` 支持探测(响应 bit0=支持, bit4=当前开);`0x11` 状态(bit4=开);写 `0x80000012`=开、`0x12`=关。实机 `0x13 → 0x11`:支持且当前开。写响应按 4B 读取(内容不解释),写后以 `0x11` 轮询验证(与 GBMD 同轮询界,语义[推断]自同类实现)。
+
+### 11.4 临时充电模式(`0x83102148`,4B 选择子)
+
+`0x13` 支持探测、`0x11` 状态读。位语义沿用历史组件契约(docs/02 §5):bit0=Permanent, bit1=PlugIn, bit2=DynamicLifeSpan;PlugIn/DynamicLifeSpan 置位即临时模式。本机未发现写方(写选择子按夜间充电同型试探无对应代码路径)——只读探测。
+
+### 11.5 DBDC(`LENOVO_REPORT_DBDC_DATA`,WMI 只读)
+
+Counts/CurrentLimit[](mA)/ROS_Power[](mW)/Threshold[](%),实机 3 档 [7500,5000,4500]/[100,40,20]。写路径(`SetFeatureValue` + DBDC FeatureId)因 ID↔名映射未恢复保持门禁(§10.3 表)。
