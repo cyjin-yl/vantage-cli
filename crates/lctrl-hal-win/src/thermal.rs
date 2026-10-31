@@ -1,11 +1,13 @@
+use std::time::Duration;
+
 use lctrl_core::{
     ApplyMode, Availability, ChangeReport, FanDescriptor, FanId, FanMode, FanTable, LctrlError,
     Result, SensorId, TemperatureLocation, TemperatureSensor, TemperatureSensorMetadata,
     TemperatureSource,
 };
-use lctrl_hal::{BatteryControl, FanControl, TemperatureControl};
+use lctrl_hal::{BatteryControl, FanControl, TemperatureControl, poll_readback};
 
-use crate::{WmiObject, WmiTransport, WmiValue, wmi_contract::ROOT_WMI};
+use crate::{GameZone, WmiObject, WmiTransport, WmiValue, wmi_contract::ROOT_WMI};
 
 const BATTERY_SENSOR_ID: &str = "windows-battery-class/temperature";
 const THERMAL_ZONE_QUERY: &str =
@@ -141,15 +143,22 @@ where
     B: BatteryControl,
 {
     fn fan_mode(&self) -> Result<FanMode> {
-        Err(LctrlError::Unsupported {
-            feature: "perf.fan.mode".into(),
-        })
+        let raw = GameZone::new(&self.wmi).smart_fan_mode()?;
+        let raw = u16::try_from(raw).map_err(|_| LctrlError::ChannelUnavailable {
+            channel: format!("GetSmartFanMode returned {raw}, outside the u16 fan-mode domain"),
+        })?;
+        Ok(FanMode::from_raw(raw))
     }
 
-    fn set_fan_mode(&self, _mode: FanMode, _apply: ApplyMode) -> Result<ChangeReport<FanMode>> {
-        Err(LctrlError::Unsupported {
-            feature: "perf.fan.mode.set".into(),
-        })
+    fn set_fan_mode(&self, mode: FanMode, apply: ApplyMode) -> Result<ChangeReport<FanMode>> {
+        let raw = smart_fan_mode_raw(mode)?;
+        let previous = self.fan_mode()?;
+        if apply == ApplyMode::DryRun {
+            return Ok(ChangeReport::dry_run(previous, mode));
+        }
+        GameZone::new(&self.wmi).set_smart_fan_mode(u32::from(raw))?;
+        let actual = poll_readback(&mode, 3, Duration::from_millis(200), || self.fan_mode())?;
+        Ok(ChangeReport::committed(previous, mode, actual))
     }
 
     fn fans(&self) -> Result<Vec<FanDescriptor>> {
@@ -198,6 +207,25 @@ where
         Err(LctrlError::Unsupported {
             feature: "perf.fan.curve".into(),
         })
+    }
+}
+
+/// Maps the semantic fan mode to the firmware `SetSmartFanMode` value.
+///
+/// Conservative inverse of [`FanMode::from_raw`] (standard=0, silent=1,
+/// performance=2, custom=3). The GAMEZONE provider on the reference machine
+/// rejects every call, so this mapping is unverified against hardware; the
+/// reverse-engineering pass on the vendor binaries must confirm these
+/// constants before the write path is claimed verified.
+fn smart_fan_mode_raw(mode: FanMode) -> Result<u16> {
+    match mode {
+        FanMode::Standard => Ok(0),
+        FanMode::Silent => Ok(1),
+        FanMode::Performance => Ok(2),
+        FanMode::Custom => Ok(3),
+        FanMode::Unknown(raw) => Err(LctrlError::InvalidArgument {
+            detail: format!("cannot write unknown firmware fan mode {raw}"),
+        }),
     }
 }
 
