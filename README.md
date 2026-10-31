@@ -79,6 +79,11 @@ vantage --yes perf mode performance       # 执行、回读、确认
 | BIOS 设置读取 | C11 |
 | 硬件快照 | C3 |
 
+**🔬 逆向接入**(2026-11-01 经目标机二进制逆向验证契约,实现+测试已推送,待 C 系列补验收):
+充电模式(GBMD 位掩码读回)、USB 关机供电运行时控制(0x831020e8)、夜间充电
+(0x83102150)、临时充电模式只读(0x83102148)、DBDC 电池限流表只读
+(`perf dbdc get`)。契约见 docs/RE-interfaces.md §11。
+
 **⚠️ 有限验收**(部分路径验证,未全覆盖):遥测/温度流(C19)、本地驱动安装
 (`update local-driver`)。
 
@@ -86,7 +91,7 @@ vantage --yes perf mode performance       # 执行、回读、确认
 
 | 功能 | 原因 |
 |---|---|
-| 充电模式、充电阈值、USB 关机供电 | 本机固件未公开可写通道;逆向发现官方经注册表 `...\IdeaNotebookAddin\BatteryChargeMode` 下发(依赖联想服务),未接入 |
+| 充电阈值(自定义起止百分比) | 目标机无可验证的自定义阈值写入通道(负向验收 U1b);仅能力探测与如实拒绝 |
 | 风扇模式(GAMEZONE) | 客户端已按逆向契约实现(Get/SetSmartFanMode),`perf.fan.mode` 能力行动态探测;21VG 固件拒绝所有 GAMEZONE 调用,如实报不可用 |
 | CPU 功耗墙(PL1/PL2/tau) | Linux 走 RAPL sysfs(标准内核接口,含 dry-run/回滚);Windows 的 WinMsrDev 通道已实现但需 SYSTEM 身份,且 MSR 0x65C 位语义未经物理确认前保持写入门禁 |
 | 厂商专属性能模式(极客模式等) | 该模式存在(联想 Vantage 提供),仅经联想专有驱动下发;HWP 请求 MSR 已在 WinMsrDev 选择子表内(0x772/0x774),但本机读回编码与 SDM 通用语义不一致,写入保持门禁直到物理确认 |
