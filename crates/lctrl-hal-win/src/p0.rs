@@ -2,19 +2,19 @@ use std::time::Duration;
 
 use lctrl_core::{
     AdapterDetailValues, AdapterInfo, ApplyMode, BatteryTelemetry, ChangeReport, ChargeMode,
-    ChargeModeActual, ChargePrimitive, LctrlError, Result, decode_charge_mode, plan_charge_mode,
+    ChargeModeActual, ChargePrimitive, LctrlError, Result, decode_gbmd_charge_mode,
+    plan_charge_mode,
 };
 use lctrl_hal::{BatteryControl, poll_readback};
 
 use crate::{EnergyDriver, GbmdCommand, IoctlTransport};
 
-/// A readback source for the firmware charge-mode bitmask.
+/// A readback source for the effective charge mode.
 ///
-/// The target firmware's WMI battery class is read-only identity data, so a
-/// production writer is only constructed after a separately verified source
-/// is available. The controller refuses writes before this first read.
+/// The production implementation reads the GBMD status bitmask; the controller
+/// refuses writes until a reader is attached.
 pub trait ChargeModeReader: Send + Sync {
-    fn read_charge_mode_raw(&self) -> Result<u32>;
+    fn read_charge_mode(&self) -> Result<ChargeModeActual>;
 }
 
 /// Explicitly denies charge-mode writes until a firmware readback transport is
@@ -24,10 +24,35 @@ pub trait ChargeModeReader: Send + Sync {
 pub struct UnverifiedChargeModeReader;
 
 impl ChargeModeReader for UnverifiedChargeModeReader {
-    fn read_charge_mode_raw(&self) -> Result<u32> {
+    fn read_charge_mode(&self) -> Result<ChargeModeActual> {
         Err(LctrlError::Unsupported {
             feature: "battery.charge-mode.readback".into(),
         })
+    }
+}
+
+/// Reads the charge mode through the GBMD status bitmask (`0x831020f8`/`0xFF`).
+///
+/// The bit decode mirrors `PowerBattery.dll!CChargingMode::GetChargingMode`
+/// and its post-write poll loop (RE-proven against the exact target binaries,
+/// docs/RE-interfaces.md §10.3), so the same value the vendor waits on is the
+/// value this controller verifies against.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct GbmdChargeModeReader<I>(I);
+
+impl<I> GbmdChargeModeReader<I> {
+    #[must_use]
+    pub const fn new(ioctl: I) -> Self {
+        Self(ioctl)
+    }
+}
+
+impl<I> ChargeModeReader for GbmdChargeModeReader<I>
+where
+    I: IoctlTransport,
+{
+    fn read_charge_mode(&self) -> Result<ChargeModeActual> {
+        Ok(decode_gbmd_charge_mode(EnergyDriver::new(&self.0).gbmd_status()?))
     }
 }
 
@@ -60,7 +85,7 @@ where
     R: ChargeModeReader,
 {
     fn mode_for_write(&self) -> Result<ChargeMode> {
-        match decode_charge_mode(self.reader.read_charge_mode_raw()?)? {
+        match self.reader.read_charge_mode()? {
             ChargeModeActual::Normal => Ok(ChargeMode::Normal),
             ChargeModeActual::Conservation => Ok(ChargeMode::Conservation),
             ChargeModeActual::Rapid => Ok(ChargeMode::Rapid),
@@ -124,7 +149,7 @@ where
     }
 
     fn charge_mode(&self) -> Result<ChargeModeActual> {
-        decode_charge_mode(self.reader.read_charge_mode_raw()?)
+        self.reader.read_charge_mode()
     }
 
     fn set_charge_mode(

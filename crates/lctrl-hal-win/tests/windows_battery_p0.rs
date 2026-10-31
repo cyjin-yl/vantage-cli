@@ -5,8 +5,8 @@ use lctrl_core::{
 };
 use lctrl_hal::BatteryControl;
 use lctrl_hal_win::{
-    ChargeModeReader, IOCTL_BATTERY_DETAIL, IOCTL_GAPD, IOCTL_GBMD, IoctlTransport,
-    WindowsBatteryP0,
+    ChargeModeReader, GbmdChargeModeReader, IOCTL_BATTERY_DETAIL, IOCTL_GAPD, IOCTL_GBMD,
+    IoctlTransport, WindowsBatteryP0,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -44,11 +44,11 @@ impl IoctlTransport for FakeIoctl {
 }
 
 struct FakeReader {
-    states: Mutex<Vec<u32>>,
+    states: Mutex<Vec<ChargeModeActual>>,
 }
 
 impl FakeReader {
-    fn new(states: impl IntoIterator<Item = u32>) -> Self {
+    fn new(states: impl IntoIterator<Item = ChargeModeActual>) -> Self {
         let mut states: Vec<_> = states.into_iter().collect();
         states.reverse();
         Self {
@@ -58,7 +58,7 @@ impl FakeReader {
 }
 
 impl ChargeModeReader for FakeReader {
-    fn read_charge_mode_raw(&self) -> lctrl_core::Result<u32> {
+    fn read_charge_mode(&self) -> lctrl_core::Result<ChargeModeActual> {
         self.states
             .lock()
             .pop()
@@ -129,7 +129,7 @@ fn adapter_sentinel_ids_are_reported_as_disconnected_not_65535() {
 #[test]
 fn dry_run_reads_but_never_writes() {
     let ioctl = FakeIoctl::new([telemetry(5000)]);
-    let p0 = WindowsBatteryP0::new(ioctl, FakeReader::new([0]));
+    let p0 = WindowsBatteryP0::new(ioctl, FakeReader::new([ChargeModeActual::Normal]));
 
     let report = p0
         .set_charge_mode(ChargeMode::Conservation, ApplyMode::DryRun)
@@ -143,7 +143,7 @@ fn dry_run_reads_but_never_writes() {
 #[test]
 fn target_conservation_uses_only_safe_gen2_commands_and_reads_back() {
     let ioctl = FakeIoctl::new([0_u32.to_le_bytes().to_vec(), 0_u32.to_le_bytes().to_vec()]);
-    let p0 = WindowsBatteryP0::new(ioctl, FakeReader::new([0, 1]));
+    let p0 = WindowsBatteryP0::new(ioctl, FakeReader::new([ChargeModeActual::Normal, ChargeModeActual::Conservation]));
 
     let report = p0
         .set_charge_mode(ChargeMode::Conservation, ApplyMode::Commit)
@@ -160,7 +160,7 @@ fn target_conservation_uses_only_safe_gen2_commands_and_reads_back() {
 #[test]
 fn target_rapid_rejects_39wh_before_any_write() {
     let ioctl = FakeIoctl::new([telemetry(3900)]);
-    let p0 = WindowsBatteryP0::new(ioctl, FakeReader::new([0]));
+    let p0 = WindowsBatteryP0::new(ioctl, FakeReader::new([ChargeModeActual::Normal]));
 
     assert!(matches!(
         p0.set_charge_mode(ChargeMode::Rapid, ApplyMode::Commit),
@@ -179,7 +179,7 @@ fn readback_mismatch_is_not_reported_as_success() {
         0_u32.to_le_bytes().to_vec(),
         0_u32.to_le_bytes().to_vec(),
     ]);
-    let p0 = WindowsBatteryP0::new(ioctl, FakeReader::new([0; 12]));
+    let p0 = WindowsBatteryP0::new(ioctl, FakeReader::new([ChargeModeActual::Normal; 12]));
 
     assert!(matches!(
         p0.set_charge_mode(ChargeMode::Rapid, ApplyMode::Commit),
@@ -189,9 +189,13 @@ fn readback_mismatch_is_not_reported_as_success() {
 
 #[test]
 fn conflict_or_unknown_readback_blocks_write() {
-    for raw in [3, 9, u32::MAX] {
+    for state in [
+        ChargeModeActual::Conflict,
+        ChargeModeActual::Unknown(9),
+        ChargeModeActual::Unknown(u32::MAX),
+    ] {
         let ioctl = FakeIoctl::new([]);
-        let p0 = WindowsBatteryP0::new(ioctl, FakeReader::new([raw]));
+        let p0 = WindowsBatteryP0::new(ioctl, FakeReader::new([state]));
         assert!(
             p0.set_charge_mode(ChargeMode::Normal, ApplyMode::Commit)
                 .is_err()
@@ -221,7 +225,7 @@ fn telemetry_uses_energy_driver_battery_detail() {
 
 #[test]
 fn current_charge_mode_preserves_conflict() {
-    let p0 = WindowsBatteryP0::new(FakeIoctl::new([]), FakeReader::new([3]));
+    let p0 = WindowsBatteryP0::new(FakeIoctl::new([]), FakeReader::new([ChargeModeActual::Conflict]));
     assert_eq!(p0.charge_mode().unwrap(), ChargeModeActual::Conflict);
 }
 
@@ -270,8 +274,12 @@ fn first_write_failure_after_effect_restores_prior_mode() {
     struct Reader(Arc<AtomicU32>);
 
     impl ChargeModeReader for Reader {
-        fn read_charge_mode_raw(&self) -> lctrl_core::Result<u32> {
-            Ok(self.0.load(Ordering::SeqCst))
+        fn read_charge_mode(&self) -> lctrl_core::Result<ChargeModeActual> {
+            Ok(match self.0.load(Ordering::SeqCst) {
+                1 => ChargeModeActual::Conservation,
+                2 => ChargeModeActual::Rapid,
+                _ => ChargeModeActual::Normal,
+            })
         }
     }
 
@@ -318,8 +326,12 @@ fn failed_recovery_keeps_both_errors_and_does_not_claim_restoration() {
     struct Reader(Arc<AtomicU32>);
 
     impl ChargeModeReader for Reader {
-        fn read_charge_mode_raw(&self) -> lctrl_core::Result<u32> {
-            Ok(self.0.load(Ordering::SeqCst))
+        fn read_charge_mode(&self) -> lctrl_core::Result<ChargeModeActual> {
+            Ok(match self.0.load(Ordering::SeqCst) {
+                1 => ChargeModeActual::Conservation,
+                2 => ChargeModeActual::Rapid,
+                _ => ChargeModeActual::Normal,
+            })
         }
     }
 
@@ -333,4 +345,31 @@ fn failed_recovery_keeps_both_errors_and_does_not_claim_restoration() {
     assert!(message.contains("restore unavailable"));
     assert_eq!(state.load(Ordering::SeqCst), 0);
     assert_eq!(p0.charge_mode().unwrap(), ChargeModeActual::Normal);
+}
+
+#[test]
+fn gbmd_reader_decodes_the_vendor_status_bitmask() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicU32, Ordering},
+    };
+
+    struct StatusOnly(Arc<AtomicU32>);
+
+    impl IoctlTransport for StatusOnly {
+        fn call(&self, code: u32, input: &[u8], _: usize) -> lctrl_core::Result<Vec<u8>> {
+            assert_eq!(code, IOCTL_GBMD);
+            assert_eq!(input, [0xff]);
+            Ok(self.0.load(Ordering::SeqCst).to_le_bytes().to_vec())
+        }
+    }
+
+    for (raw, expected) in [
+        (0u32, ChargeModeActual::Normal),
+        (1 << 5, ChargeModeActual::Conservation),
+        (0x0086_0004, ChargeModeActual::Rapid),
+    ] {
+        let reader = GbmdChargeModeReader::new(StatusOnly(Arc::new(AtomicU32::new(raw))));
+        assert_eq!(reader.read_charge_mode().unwrap(), expected, "raw {raw:#x}");
+    }
 }

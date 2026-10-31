@@ -24,7 +24,8 @@ pub use battery::{
     AdapterAuthentication, AdapterConnectorType, AdapterDetailValues, AdapterInfo, AdapterStatus,
     BatteryDate, BatteryElectricalObservation, BatteryHealth, BatterySourceIssue, BatteryTelemetry,
     ChargeMode, ChargeModeActual, ChargePrimitive, ChargeStatus, OsBatterySnapshot,
-    SystemPowerStatus, decode_charge_mode, plan_charge_mode,
+    UsbChargingState,
+    SystemPowerStatus, decode_charge_mode, decode_gbmd_charge_mode, plan_charge_mode,
 };
 pub use bios::{
     BiosAppliedChange, BiosApplyEffect, BiosApplyPlan, BiosApplyResult, BiosAssistantCapabilities,

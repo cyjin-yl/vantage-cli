@@ -44,7 +44,8 @@ pub use bios::WindowsBiosController;
 pub use brightness::WindowsPanelBrightness;
 pub use codec::{
     AdapterDetail, BatteryDetail83, GbmdCommand, GenericGet, IOCTL_BATTERY_CONFIG,
-    IOCTL_BATTERY_DETAIL, IOCTL_GAPD, IOCTL_GBMD, IOCTL_GENERIC_GET, IOCTL_GENERIC_GET_VARIANT,
+    IOCTL_BATTERY_DETAIL, IOCTL_GAPD, IOCTL_GBMD, IOCTL_GENERIC_GET, IOCTL_USB_CHARGER,
+    UsbChargerSelector,
 };
 pub use conflict::WindowsControlConflictDetector;
 pub use diagnostics::WindowsSystemInventory;
@@ -90,7 +91,7 @@ pub use native_power_status::NativeSystemPowerStatus;
 #[cfg(windows)]
 pub use native_wmi::NativeWmi;
 pub use os_battery::{OsBatteryChannel, SystemPowerStatusReader, WindowsOsBattery};
-pub use p0::{ChargeModeReader, UnverifiedChargeModeReader, WindowsBatteryP0};
+pub use p0::{ChargeModeReader, GbmdChargeModeReader, UnverifiedChargeModeReader, WindowsBatteryP0};
 pub use performance_p0::{PerformanceRegistryReader, WindowsPerformanceP0, read_effective_mode};
 pub use peripherals::WindowsPeripheralController;
 pub use power_overlay::{

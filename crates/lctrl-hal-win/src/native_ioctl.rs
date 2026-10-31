@@ -11,7 +11,7 @@ use windows_sys::Win32::{
 
 use crate::{
     IOCTL_BATTERY_CONFIG, IOCTL_BATTERY_DETAIL, IOCTL_GAPD, IOCTL_GBMD, IOCTL_GENERIC_GET,
-    IOCTL_GENERIC_GET_VARIANT, IoctlTransport, map_win_error,
+    IOCTL_USB_CHARGER, IoctlTransport, map_win_error,
 };
 
 const ENERGY_DRIVER_PATH: &str = r"\\.\EnergyDrv";
@@ -68,11 +68,19 @@ fn validate_request(code: u32, input: &[u8]) -> Result<bool> {
                 detail: "EnergyDrv GBMD requires exactly one input byte".into(),
             }),
         },
-        IOCTL_GENERIC_GET
-        | IOCTL_GENERIC_GET_VARIANT
-        | IOCTL_BATTERY_CONFIG
-        | IOCTL_BATTERY_DETAIL
-        | IOCTL_GAPD => Ok(false),
+        IOCTL_GENERIC_GET | IOCTL_BATTERY_CONFIG | IOCTL_BATTERY_DETAIL | IOCTL_GAPD => Ok(false),
+        IOCTL_USB_CHARGER => match input {
+            // RE-proven contract (docs/RE-interfaces.md §11): only 0x02 is a
+            // query; every other dispatched byte reaches the EC setter.
+            [0x02] => Ok(false),
+            [0x0a | 0x0b | 0x12 | 0x13] => Ok(true),
+            [other] => Err(LctrlError::Unsupported {
+                feature: format!("EnergyDrv USB charger selector 0x{other:02x}"),
+            }),
+            _ => Err(LctrlError::InvalidArgument {
+                detail: "EnergyDrv USB charger requires exactly one input byte".into(),
+            }),
+        },
         _ => Err(LctrlError::Unsupported {
             feature: format!("EnergyDrv IOCTL 0x{code:08x}"),
         }),

@@ -106,6 +106,32 @@ impl std::fmt::Display for ChargeModeActual {
     }
 }
 
+/// Runtime USB charging control state, from the EnergyDrv `0x831020e8` flags
+/// word (`PowerBattery.dll` `CUSBCharger`/`CUSBBatteryCharger`, RE-proven in
+/// docs/RE-interfaces.md §11).
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+pub struct UsbChargingState {
+    pub ac_supported: bool,
+    pub ac_enabled: bool,
+    pub battery_supported: bool,
+    pub battery_enabled: bool,
+}
+
+impl UsbChargingState {
+    /// Decode the vendor flags DWORD. Bit positions are proven by static
+    /// disassembly of the exact target binaries; the EC-side meaning of the
+    /// capability/state split follows the vendor class names and log strings.
+    #[must_use]
+    pub const fn from_flags(raw: u32) -> Self {
+        Self {
+            ac_supported: raw & (1 << 6) != 0,
+            ac_enabled: raw & (1 << 7) != 0,
+            battery_supported: raw & (1 << 14) != 0,
+            battery_enabled: raw & (1 << 15) != 0,
+        }
+    }
+}
+
 /// Decode a raw charge-mode bitmask (docs/02 §3.3).
 ///
 /// `u32::MAX` is the firmware's read-failure sentinel and is reported as an
@@ -120,6 +146,26 @@ pub fn decode_charge_mode(raw: u32) -> Result<ChargeModeActual> {
             channel: "battery charge mode".into(),
         }),
         other => Ok(ChargeModeActual::Unknown(other)),
+    }
+}
+
+/// Decode the GBMD `0x831020f8`/`0xFF` status bitmask into the contract
+/// charge mode, mirroring `PowerBattery.dll!CChargingMode::GetChargingMode`
+/// (RE-proven, docs/RE-interfaces.md §10.3):
+///
+/// - storage mode is ON when bit 5 is set;
+/// - express/Quick mode is ON when bit 2 is set;
+/// - anything else reports Normal.
+///
+/// The vendor polls the same decode after writes (Sleep 50 ms, up to 10
+/// tries) before recording the effective mode.
+pub fn decode_gbmd_charge_mode(raw: u32) -> ChargeModeActual {
+    if raw & (1 << 5) != 0 {
+        ChargeModeActual::Conservation
+    } else if raw & (1 << 2) != 0 {
+        ChargeModeActual::Rapid
+    } else {
+        ChargeModeActual::Normal
     }
 }
 
