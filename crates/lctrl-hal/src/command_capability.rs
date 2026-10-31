@@ -1199,9 +1199,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         FeatureBinding::Unprobed("audio.dolby"),
         ServiceBinding::One(ServiceRole::Audio),
         &[lctrl_core::required(Dependency::DolbyAudioSdk)],
-        DispatchSupport::Unsupported(
-            "audio control requires an unavailable licensed/vendor channel",
-        ),
+        DispatchSupport::Implemented,
     ),
     CommandCapability::new(
         CommandId::AUDIO_NOISE_CANCEL,

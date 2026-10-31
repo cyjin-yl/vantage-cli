@@ -4,6 +4,8 @@ mod brightness;
 mod codec;
 mod conflict;
 mod diagnostics;
+#[cfg(windows)]
+mod dolby;
 mod display;
 mod error;
 mod events;
@@ -52,6 +54,8 @@ pub use codec::{
 };
 pub use conflict::WindowsControlConflictDetector;
 pub use diagnostics::WindowsSystemInventory;
+#[cfg(windows)]
+pub use dolby::{DolbyRpc, NativeDolbyRpc, WindowsDolbyAudio};
 #[cfg(windows)]
 pub use display::NativeDisplayApi;
 pub use display::{DisplayApi, WindowsPanelController};

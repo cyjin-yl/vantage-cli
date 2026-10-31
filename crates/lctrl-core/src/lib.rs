@@ -19,7 +19,7 @@ mod scene_policy;
 mod sensing;
 mod update;
 
-pub use audio::{DolbyProfile, NoiseCancellationMode};
+pub use audio::{DolbyProfile, DolbyState, NoiseCancellationMode};
 pub use battery::{
     AdapterAuthentication, AdapterConnectorType, AdapterDetailValues, AdapterInfo, AdapterStatus,
     BatteryDate, BatteryElectricalObservation, BatteryHealth, BatterySourceIssue, BatteryTelemetry,

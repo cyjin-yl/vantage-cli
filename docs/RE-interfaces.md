@@ -353,3 +353,38 @@ Linux 上同类能力由主线内核 `/dev/cpu/N/msr` 完整提供(见 `09-linux
 ### 11.5 DBDC(`LENOVO_REPORT_DBDC_DATA`,WMI 只读)
 
 Counts/CurrentLimit[](mA)/ROS_Power[](mW)/Threshold[](%),实机 3 档 [7500,5000,4500]/[100,40,20]。写路径(`SetFeatureValue` + DBDC FeatureId)因 ID↔名映射未恢复保持门禁(§10.3 表)。
+
+## 12. Dolby DAX RPC 契约(2026-11-01,DolbyRpcClient.dll pkg 1.0.3 + DAX3API.exe 3.30904.943.0 反汇编 + 实机只读探针实证)
+
+链路:`vantage audio dolby → DolbyRpcClient.dll C 导出 → ALPC ncalrpc:[DaxRpcEndpoint] → DAX3API.exe(DolbyDAXAPI 服务,SYSTEM)`。接口 GUID `11c6212d-d5f3-4500-ab16-634dc63037be` v1.0,NDR v2.0,`RPC_IF_AUTOLISTEN | RPC_IF_ALLOW_LOCAL_ONLY`(仅本机);Object UUID `B94BA572-658F-40E6-861D-DFB7BB4001A8`。许可 APO DSP(DolbyAPOv*/DolbyAPOAIDE)只被 DAX3API 内部使用,vantage 只切换开关/预设,不重实现 DSP。
+
+### 12.1 客户端导出(`DolbyRpcClient.dll`,按 thunk 字节验证,全部无调用方可见参数)
+
+| RVA | 导出 | 签名 | RPC opnum |
+|---|---|---|---|
+| `0x74e0` | `DolbyClient_GetDolbyEnabled` | `fn() -> bool` | 5 (u16 out) |
+| `0x74f0` | `DolbyClient_SetDolbyEnabled` | `fn(u8) -> bool` | 6 |
+| `0x7510` | `DolbyClient_GetActiveProfile` | `fn() -> u32` | 7 |
+| `0x7520` | `DolbyClient_SetActiveProfile` | `fn(u32) -> bool` | 8 |
+| `0x7540` | `DolbyClient_Initialize` | `fn() -> bool` | 0/握手 |
+| `0x7660` | `DolbyClient_GetCurrentMode` | `fn() -> i32` | 无(缓存字段 +0x10) |
+| `0x7670` | `DolbyClient_IsSpatialAudioSupported` | `fn() -> bool` | 2 |
+| `0x7700` | `DolbyClient_GetSpatialAudioStatus` | `fn() -> u32` | 35 |
+| `0x7710` | `DolbyClient_WaitForCallBack` | 回调注册 | 3 |
+| `0x7720` | `DolbyClient_GetSKU` | `fn() -> u32` | — |
+
+out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Set*` 的 bool 返回值恒为真(thunk 内 `mov al,1`),失败检测靠读回。
+
+### 12.2 装载约束与运行时行为
+
+- WindowsApps 包路径 `C:\Program Files\WindowsApps\E046963F.LenovoCompanion_*\LenovoVantage\DolbyRpcClient.dll`;其 DACL 阻止原地 `LoadLibrary`(实机探针证实),须先复制到可写目录(实现用 `%LOCALAPPDATA%\vantage\dolby-rpc-client\`)。
+- `DolbyClient_Initialize` 的 bool 返回不是就绪信号(实机探针返回 false,后续所有 RPC 均成功),调用但不判其值。
+- 实机只读探针(ezra/管理员,非 Vantage 进程):`Initialize=0 GetDolbyEnabled=0 GetActiveProfile=5 GetCurrentMode=-1 IsSpatialAudioSupported=1 GetSpatialAudioStatus=2 GetSKU=1` —— Dolby 关、预设索引 5、空间音频支持。证明第三方进程可独立绑定该端点(非 SYSTEM 专属)。
+- 预设索引表(打包名字表顺序,中置信):0=movie,1=music,2=game,3=voice,4=personalize,5=dynamic;服务器校验范围 [0,5]。`Off` 不是预设索引,走 `SetDolbyEnabled(0)`。
+- 服务前置:`DolbyDAXAPI` 须 Running;标准用户(未提权)RPC ACL 未验证 —— 写操作经现有提权路径。
+
+### 12.3 实现落点
+
+- `lctrl-hal-win/src/dolby.rs`:`NativeDolbyRpc`(发现/缓存/装载/绑定导出)+ `WindowsDolbyAudio<R: DolbyRpc>`(dry-run/commit + 读回轮询,`poll_readback` 10×50ms)。
+- `vantage/src/main.rs` Windows 组合根:`NativeDolbyRpc::load()` 失败(无 Vantage 包)时不挂载 audio 服务,`audio dolby` 如实报 Unsupported。
+- 第二通道 `ncalrpc:[FusionRpcEndpoint]`(DolbyFusionRpcClient.dll,Atmos/Fusion 附加项)未接入,列为后续。
