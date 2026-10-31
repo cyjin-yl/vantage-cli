@@ -872,7 +872,10 @@ fn msr_channel_maps_missing_node_to_unsupported() {
         msr.read(MsrAddress::THERM_STATUS),
         Err(LctrlError::Unsupported { .. })
     ));
-    assert!(matches!(msr.probe(), Err(LctrlError::Unsupported { .. })));
+    assert!(matches!(
+        msr.probe(),
+        Err(LctrlError::Unsupported { .. })
+    ));
 }
 
 #[test]

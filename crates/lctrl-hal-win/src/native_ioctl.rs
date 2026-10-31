@@ -115,13 +115,7 @@ impl EnergyDriverHandle {
         self.call_context(code, input, output_len, "EnergyDrv")
     }
 
-    fn call_context(
-        &self,
-        code: u32,
-        input: &[u8],
-        output_len: usize,
-        context: &str,
-    ) -> Result<Vec<u8>> {
+    fn call_context(&self, code: u32, input: &[u8], output_len: usize, context: &str) -> Result<Vec<u8>> {
         let input_len = u32::try_from(input.len()).map_err(|_| LctrlError::InvalidArgument {
             detail: format!("{context} input exceeds u32 buffer length"),
         })?;

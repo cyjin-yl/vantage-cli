@@ -85,13 +85,14 @@ where
         let target = overlay_for_mode(mode)?;
 
         let previous_guid = self.overlay.actual()?;
-        let previous =
-            mode_for_overlay(&previous_guid).ok_or_else(|| LctrlError::ChannelUnavailable {
+        let previous = mode_for_overlay(&previous_guid).ok_or_else(|| {
+            LctrlError::ChannelUnavailable {
                 channel: format!(
                     "current power overlay {previous_guid} is not a scheme this build owns; \
                      refusing a change that could not be rolled back"
                 ),
-            })?;
+            }
+        })?;
 
         if apply == ApplyMode::DryRun {
             return Ok(ChangeReport::dry_run(previous, mode));

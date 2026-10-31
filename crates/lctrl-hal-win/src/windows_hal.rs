@@ -3,7 +3,8 @@ use lctrl_hal::{BatteryElectricalSource, Hal};
 
 use crate::{
     EnergyDriver, GameZone, IoctlTransport, WmiObject, WmiTransport, WmiValue, active_instance,
-    power_overlay::NativePowerOverlay, power_overlay::PowerOverlayControl, wmi_contract::ROOT_WMI,
+    power_overlay::NativePowerOverlay, power_overlay::PowerOverlayControl,
+    wmi_contract::ROOT_WMI,
 };
 #[cfg(windows)]
 use crate::{WIN_MSR_TRANSPORT, WinMsrDev};
