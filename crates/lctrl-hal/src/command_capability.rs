@@ -1112,7 +1112,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         FeatureBinding::Unprobed("sense.status"),
         ServiceBinding::One(ServiceRole::Sense),
         &[lctrl_core::required(Dependency::SmartSense)],
-        DispatchSupport::Unsupported("SmartSense requires an unavailable vendor RPC channel"),
+        DispatchSupport::Implemented,
     ),
     CommandCapability::new(
         CommandId::SENSE_LOCK_ON_LEAVE,
@@ -1127,7 +1127,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             lctrl_core::required(Dependency::SmartSense),
             lctrl_core::optional(Dependency::WindowsHpd),
         ],
-        DispatchSupport::Unsupported("SmartSense requires an unavailable vendor RPC channel"),
+        DispatchSupport::Implemented,
     ),
     CommandCapability::new(
         CommandId::SENSE_WAKE_ON_APPROACH,
@@ -1142,7 +1142,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             lctrl_core::required(Dependency::SmartSense),
             lctrl_core::optional(Dependency::WindowsHpd),
         ],
-        DispatchSupport::Unsupported("SmartSense requires an unavailable vendor RPC channel"),
+        DispatchSupport::Implemented,
     ),
     CommandCapability::new(
         CommandId::SENSE_PAUSE_VIDEO,
@@ -1157,7 +1157,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             lctrl_core::required(Dependency::SmartSense),
             lctrl_core::optional(Dependency::WindowsHpd),
         ],
-        DispatchSupport::Unsupported("SmartSense requires an unavailable vendor RPC channel"),
+        DispatchSupport::Implemented,
     ),
     CommandCapability::new(
         CommandId::SENSE_ATTENTION_TRACKING,
@@ -1172,7 +1172,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             lctrl_core::required(Dependency::SmartSense),
             lctrl_core::optional(Dependency::WindowsHpd),
         ],
-        DispatchSupport::Unsupported("SmartSense requires an unavailable vendor RPC channel"),
+        DispatchSupport::Implemented,
     ),
     CommandCapability::new(
         CommandId::SENSE_KBD_LIGHT_AUTO,
@@ -1187,7 +1187,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             lctrl_core::required(Dependency::SmartSense),
             lctrl_core::optional(Dependency::WindowsHpd),
         ],
-        DispatchSupport::Unsupported("SmartSense requires an unavailable vendor RPC channel"),
+        DispatchSupport::Unsupported(
+            "keyboard-light auto requires the Vantage contract RPC channel, which is not recovered",
+        ),
     ),
     CommandCapability::new(
         CommandId::AUDIO_DOLBY,

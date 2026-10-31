@@ -55,63 +55,116 @@ impl SenseMode {
     }
 }
 
+/// Presence distance selector shared by approach and leave
+/// (`SET_APPROACH_DISTANCE`/`SET_LEAVE_DISTANCE`, pipe enum 0/1/2).
+/// Replaces the earlier speculative 15/30/50/80 cm mapping, which had no
+/// binary evidence (docs/RE-interfaces.md §13).
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum PresenceDistance {
-    Cm15,
-    Cm30,
-    Cm50,
-    Cm80,
+pub enum SenseDistance {
+    Near,
+    Middle,
+    Far,
 }
 
-impl PresenceDistance {
+impl SenseDistance {
     #[must_use]
     pub const fn raw(self) -> u32 {
         match self {
-            Self::Cm15 => 0,
-            Self::Cm30 => 1,
-            Self::Cm50 => 2,
-            Self::Cm80 => 3,
+            Self::Near => 0,
+            Self::Middle => 1,
+            Self::Far => 2,
         }
     }
 
     #[must_use]
     pub const fn from_raw(raw: u32) -> Option<Self> {
         match raw {
-            0 => Some(Self::Cm15),
-            1 => Some(Self::Cm30),
-            2 => Some(Self::Cm50),
-            3 => Some(Self::Cm80),
+            0 => Some(Self::Near),
+            1 => Some(Self::Middle),
+            2 => Some(Self::Far),
             _ => None,
         }
     }
 }
 
+/// Presence-leave wait selector (`SET_LEAVE_WAIT`, pipe enum 0/1/2).
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum LeaveAction {
-    LockAndPause,
-    LockOnly,
-    Prompt,
+pub enum SenseWait {
+    Short,
+    Middle,
+    Long,
 }
 
-impl LeaveAction {
+impl SenseWait {
     #[must_use]
     pub const fn raw(self) -> u32 {
         match self {
-            Self::LockAndPause => 0,
-            Self::LockOnly => 1,
-            Self::Prompt => 2,
+            Self::Short => 0,
+            Self::Middle => 1,
+            Self::Long => 2,
         }
     }
 
     #[must_use]
     pub const fn from_raw(raw: u32) -> Option<Self> {
         match raw {
-            0 => Some(Self::LockAndPause),
-            1 => Some(Self::LockOnly),
-            2 => Some(Self::Prompt),
+            0 => Some(Self::Short),
+            1 => Some(Self::Middle),
+            2 => Some(Self::Long),
             _ => None,
         }
+    }
+}
+
+/// Snapshot of the SmartSense HPD settings store
+/// (`HKLM\SYSTEM\CurrentControlSet\Services\SmartSense\Parameters\HPD`,
+/// all REG_DWORD; docs/RE-interfaces.md §13).
+///
+/// Fields are `Option` because the key may be absent when the SmartSense
+/// service has never run; absence is reported, never synthesized. Two
+/// encodings exist on the wire: legacy booleans are 0/1, the newer
+/// camera/video commands use 1=enable/2=disable — both are normalized here.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize)]
+pub struct SenseState {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lock_on_leave: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub leave_distance: Option<SenseDistance>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub leave_wait: Option<SenseWait>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wake_on_approach: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub approach_distance: Option<SenseDistance>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pause_video: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub privacy_alert: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attention_tracking: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capability: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sensor_type: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub facial_feature_registered: Option<bool>,
+}
+
+impl std::fmt::Display for SenseState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "lock-on-leave={} wake-on-approach={} pause-video={} attention-tracking={}",
+            self.lock_on_leave
+                .map_or("unknown", |v| if v { "on" } else { "off" }),
+            self.wake_on_approach
+                .map_or("unknown", |v| if v { "on" } else { "off" }),
+            self.pause_video
+                .map_or("unknown", |v| if v { "on" } else { "off" }),
+            self.attention_tracking
+                .map_or("unknown", |v| if v { "on" } else { "off" }),
+        )
     }
 }

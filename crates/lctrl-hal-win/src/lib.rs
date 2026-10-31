@@ -35,6 +35,8 @@ mod power_p0;
 mod power_tuning;
 mod process;
 mod runtime_devices;
+#[cfg(windows)]
+mod sense;
 mod system_inventory;
 mod thermal;
 mod wifi_security;
@@ -120,6 +122,8 @@ pub use runtime_devices::{
 };
 #[cfg(windows)]
 pub use runtime_devices::{NativeRuntimeDeviceApi, NativeWindowsRuntimeDevices};
+#[cfg(windows)]
+pub use sense::{HpdSettingsStore, NativeHpdStore, NativeSensePipe, SensePipe, WindowsSenseControl};
 pub use system_inventory::WindowsInventory;
 pub use thermal::WindowsThermal;
 pub use wifi_security::{NetshCommandRunner, WindowsWifiSecurity, WlanNetshRunner};

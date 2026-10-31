@@ -30,8 +30,8 @@ use lctrl_hal::{
     DiagnosticsControl, FanControl, Hal, HotkeyControl, KeyboardControl, LocalUpdateControl,
     MachineFixControl, MagicBayControl, OsdControl, PanelBrightnessControl, PanelControl,
     PerformanceControl, PowerControl, PowerLimitKind, PrivacyControl, ProcessorPowerControl,
-    TemperatureControl, TouchpadControl, TuningControl, UpdateControl, UsbControl,
-    WifiSecurityControl,
+    SenseControl, SenseFeature, TemperatureControl, TouchpadControl, TuningControl, UpdateControl,
+    UsbControl, WifiSecurityControl,
 };
 use serde::{Deserialize, Serialize};
 
@@ -81,6 +81,7 @@ pub struct CommandServices<'a> {
     tuning: Option<&'a dyn TuningControl>,
     usb: Option<&'a dyn UsbControl>,
     processor_power: Option<&'a dyn ProcessorPowerControl>,
+    sense: Option<&'a dyn SenseControl>,
     update: Option<&'a dyn UpdateControl>,
     local_update: Option<&'a dyn LocalUpdateControl>,
     wifi: Option<&'a dyn WifiSecurityControl>,
@@ -113,6 +114,7 @@ impl<'a> CommandServices<'a> {
             tuning: None,
             usb: None,
             processor_power: None,
+            sense: None,
             update: None,
             local_update: None,
             wifi: None,
@@ -231,8 +233,14 @@ impl<'a> CommandServices<'a> {
     }
 
     #[must_use]
-    pub fn with_processor_power(mut self, power: &'a dyn ProcessorPowerControl) -> Self {
-        self.processor_power = Some(power);
+    pub fn with_processor_power(mut self, processor_power: &'a dyn ProcessorPowerControl) -> Self {
+        self.processor_power = Some(processor_power);
+        self
+    }
+
+    #[must_use]
+    pub fn with_sense(mut self, sense: &'a dyn SenseControl) -> Self {
+        self.sense = Some(sense);
         self
     }
     #[must_use]
@@ -1398,6 +1406,7 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
             command: Some(PerfCommand::Dbdc { command }),
         } => execute_dbdc(services.dbdc, command.unwrap_or(DbdcCommand::Get)),
         Command::Audio { command } => execute_audio(services.audio, command, apply),
+        Command::Sense { command } => execute_sense(services.sense, command, apply),
         Command::Bios {
             command: Some(command),
         } => execute_bios(services.bios, command, apply, confirmed, interactive),
@@ -2261,6 +2270,122 @@ fn format_dolby_change(report: &lctrl_core::ChangeReport<DolbyState>) -> String 
     }
     text.push('\n');
     text
+}
+
+fn execute_sense(
+    sense: Option<&dyn SenseControl>,
+    command: Option<SenseCommand>,
+    apply: ApplyMode,
+) -> CommandResult {
+    match command {
+        Some(SenseCommand::Status) => {
+            let sense = sense.ok_or_else(|| LctrlError::Unsupported {
+                feature: "sense.status".into(),
+            })?;
+            let state = sense.sense_state()?;
+            structured_output(&state, format!("smartsense: {state}\n"))
+        }
+        Some(SenseCommand::LockOnLeave {
+            state,
+            distance,
+            wait,
+        }) => {
+            let sense = required_sense(sense, "sense.lock-on-leave")?;
+            let mut features = vec![SenseFeature::LockOnLeave(state == Toggle::On)];
+            if let Some(raw) = distance {
+                features.push(SenseFeature::LeaveDistance(sense_distance(raw)?));
+            }
+            if let Some(raw) = wait {
+                features.push(SenseFeature::LeaveWait(sense_wait(raw)?));
+            }
+            apply_sense_features(sense, &features, apply)
+        }
+        Some(SenseCommand::WakeOnApproach { state, distance }) => {
+            let sense = required_sense(sense, "sense.wake-on-approach")?;
+            let mut features = vec![SenseFeature::WakeOnApproach(state == Toggle::On)];
+            if let Some(raw) = distance {
+                features.push(SenseFeature::ApproachDistance(sense_distance(raw)?));
+            }
+            apply_sense_features(sense, &features, apply)
+        }
+        Some(SenseCommand::PauseVideo { state }) => {
+            let sense = required_sense(sense, "sense.pause-video")?;
+            apply_sense_features(sense, &[SenseFeature::PauseVideo(state == Toggle::On)], apply)
+        }
+        Some(SenseCommand::AttentionTracking {
+            state,
+            dim,
+            ac_only,
+        }) => {
+            if dim || ac_only {
+                return Err(LctrlError::Unsupported {
+                    feature: "sense.attention-tracking options: --dim/--ac-only have no recovered persistence mapping on this model".into(),
+                });
+            }
+            let sense = required_sense(sense, "sense.attention-tracking")?;
+            apply_sense_features(
+                sense,
+                &[SenseFeature::AttentionTracking(state == Toggle::On)],
+                apply,
+            )
+        }
+        Some(SenseCommand::KbdLightAuto { .. }) => Err(LctrlError::Unsupported {
+            feature: "sense.kbd-light-auto: requires the Vantage contract RPC channel, which is not recovered"
+                .into(),
+        }),
+        None => Err(LctrlError::InvalidArgument {
+            detail: "a sense subcommand is required".into(),
+        }),
+    }
+}
+
+fn required_sense<'a>(
+    sense: Option<&'a dyn SenseControl>,
+    feature: &str,
+) -> lctrl_core::Result<&'a dyn SenseControl> {
+    sense.ok_or_else(|| LctrlError::Unsupported {
+        feature: feature.to_string(),
+    })
+}
+
+fn sense_distance(raw: u32) -> lctrl_core::Result<lctrl_core::SenseDistance> {
+    lctrl_core::SenseDistance::from_raw(raw).ok_or_else(|| LctrlError::InvalidArgument {
+        detail: format!("distance must be 0 (near), 1 (middle), or 2 (far), got {raw}"),
+    })
+}
+
+fn sense_wait(raw: u32) -> lctrl_core::Result<lctrl_core::SenseWait> {
+    lctrl_core::SenseWait::from_raw(raw).ok_or_else(|| LctrlError::InvalidArgument {
+        detail: format!("wait must be 0 (short), 1 (middle), or 2 (long), got {raw}"),
+    })
+}
+
+fn apply_sense_features(
+    sense: &dyn SenseControl,
+    features: &[SenseFeature],
+    apply: ApplyMode,
+) -> CommandResult {
+    let mut last = None;
+    for feature in features {
+        last = Some(sense.set_sense_feature(*feature, apply)?);
+    }
+    let report = last.expect("at least one sense feature");
+    let mode = if report.mode() == ApplyMode::DryRun {
+        "dry run"
+    } else {
+        "applied"
+    };
+    let actual = report
+        .actual()
+        .map_or("pending readback".to_string(), |state| state.to_string());
+    structured_output(
+        &report,
+        format!(
+            "smartsense ({mode}): {} feature(s), latest state: {actual} (previous: {})\n",
+            features.len(),
+            report.previous(),
+        ),
+    )
 }
 
 fn execute_usb(
@@ -5318,7 +5443,10 @@ fn unsupported_reason(command: &Command) -> &'static str {
             command: Some(KbdCommand::Winlock { .. }),
         } => "GAMEZONE Win-key methods are not verified on the target",
         Command::Panel { command: None } => "a panel subcommand is required",
-        Command::Sense { .. } => "SmartSense requires an unavailable vendor RPC channel",
+        Command::Sense {
+            command: Some(SenseCommand::KbdLightAuto { .. }),
+        } => "keyboard-light auto requires the Vantage contract RPC channel, which is not recovered",
+        Command::Sense { .. } => "a sense subcommand is required",
         Command::Audio {
             command: Some(AudioCommand::NoiseCancel { .. }),
         } => "noise cancellation requires an unavailable vendor channel",
