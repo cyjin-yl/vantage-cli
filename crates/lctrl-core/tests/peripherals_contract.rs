@@ -1,9 +1,9 @@
 use lctrl_core::{
     BacklightState, BiosChange, BiosName, BiosPasswordStatus, BiosRisk, BiosValue, DeviceState,
-    DolbyProfile, GamutMode, LeaveAction, LightingEffect, LockState, LowLatencyMode,
-    NoiseCancellationMode, PanelAdapterId, PanelDisplayMode, PanelMode, PanelRefreshCapability,
-    PanelRefreshRequest, PanelRotation, PanelSupportBits, PanelTarget, PresenceDistance,
-    PrivacyDevice, PrivacyState, RefreshMode, SenseGlobal, SenseMode, classify_risk, is_success,
+    DolbyProfile, GamutMode, LightingEffect, LockState, LowLatencyMode, NoiseCancellationMode,
+    PanelAdapterId, PanelDisplayMode, PanelMode, PanelRefreshCapability, PanelRefreshRequest,
+    PanelRotation, PanelSupportBits, PanelTarget, PrivacyDevice, PrivacyState, RefreshMode,
+    SenseDistance, SenseGlobal, SenseMode, SenseWait, classify_risk, is_success,
     parse_current_setting, parse_selections, save_parameter,
 };
 
@@ -182,12 +182,13 @@ fn sensing_values_map_only_documented_presets() {
     assert_eq!(SenseMode::Browsing.raw(), 2);
     assert_eq!(SenseMode::FaceDown.raw(), 3);
     assert_eq!(SenseMode::Walking.raw(), 5);
-    assert_eq!(PresenceDistance::Cm15.raw(), 0);
-    assert_eq!(PresenceDistance::Cm80.raw(), 3);
-    assert_eq!(LeaveAction::LockAndPause.raw(), 0);
-    assert_eq!(LeaveAction::Prompt.raw(), 2);
+    assert_eq!(SenseDistance::Near.raw(), 0);
+    assert_eq!(SenseDistance::Far.raw(), 2);
+    assert_eq!(SenseWait::Short.raw(), 0);
+    assert_eq!(SenseWait::Long.raw(), 2);
     assert_eq!(SenseMode::from_raw(4), None);
-    assert_eq!(PresenceDistance::from_raw(4), None);
+    assert_eq!(SenseDistance::from_raw(3), None);
+    assert_eq!(SenseWait::from_raw(3), None);
 }
 
 #[test]

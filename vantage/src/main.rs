@@ -447,6 +447,11 @@ fn main() {
         Some(audio) => services.with_audio(audio),
         None => services,
     };
+    let sense = lctrl_hal_win::WindowsSenseControl::new(
+        lctrl_hal_win::NativeSensePipe,
+        lctrl_hal_win::NativeHpdStore,
+    );
+    let services = services.with_sense(&sense);
     run(cli, services);
 }
 

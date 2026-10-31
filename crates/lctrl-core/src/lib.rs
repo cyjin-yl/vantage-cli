@@ -88,7 +88,7 @@ pub use scene_policy::{
     SceneAction, ScenePolicyLedger, ScenePolicyLedgerEntry, ScenePolicyMatch, ScenePolicyReport,
     ScenePolicyRule,
 };
-pub use sensing::{LeaveAction, PresenceDistance, SenseGlobal, SenseMode};
+pub use sensing::{SenseDistance, SenseGlobal, SenseMode, SenseState, SenseWait};
 pub use update::{
     DriverIdentity, DriverPackage, DriverRollbackReport, DriverSignature, DriverUpdateReport,
     DriverVersion, FIRMWARE_DEVICE_CLASS_GUID, IgnoredDriverRule, InstalledDriver,
