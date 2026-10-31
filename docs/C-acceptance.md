@@ -738,3 +738,28 @@ BIOS 写入保持不可用/锁定（确证缺口，见 C2/C10/C23 边界），RE
 cargo build -p lctrl-hal-win --example msr_acceptance --offline
 # 经 schtasks /RU SYSTEM 运行;输出贴回 C25 补全写路径证据
 ```
+
+## C26 · EnergyDrv 充电域只读真机验收（2026-11-01，用户态，无写入）
+
+`cargo build -p lctrl-hal-win --example charge_domain_probe --offline` 在 TB14P-EZRA
+用户会话直跑(无需 SYSTEM;`\\.\EnergyDrv` 以标准读写打开)。只读输出:
+
+```
+gbmd_status: 0x00860004 -> charge mode Rapid     (bit2 express ON;与厂商 HKCU 缓存 "Quick" 一致)
+usb_charger: 0x0000cec0 -> ac on (supported), battery-mode on (supported)
+night_charge probe: 0x00000011 -> supported=true (probe bit4 ≠ 实时状态,以 status 为准)
+night_charge status: 0x00000001 -> enabled=false
+temporary_charge: 0x00000001 -> permanent=true (非临时模式)
+```
+
+验收点:
+- 充电模式解码与厂商注册表缓存相互印证(Rapid=Quick),`decode_gbmd_charge_mode`
+  的 bit5/bit2 表在真机成立(C2 读回门禁的实机证据)。
+- USB 两种模式支持位与 BIOS `AlwaysOnUSB=Enable` 一致;运行态 AC/电池模式均开。
+- 夜间充电支持位为真、状态为关;发现并修正了"探测 bit4=当前状态"的错误推断
+  (RE-interfaces.md §11.3 更正)。
+- 临时模式原始值 0x01=Permanent,与 docs/02 §5 契约一致。
+
+写路径(充电模式 GBMD 03/05/07/08、USB 0x0a/0x0b/0x12/0x13、夜间充电
+0x80000012/0x12)契约经反汇编验证、实现带 dry-run/回滚/读回轮询,但**真机写入
+验收待 owner 在场时按各命令执行**(本机记录仍为只读证据)。
