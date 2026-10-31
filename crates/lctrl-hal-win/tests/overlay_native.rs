@@ -21,8 +21,7 @@ fn native_overlay_api_resolves_and_reports_a_scheme() {
 fn native_hal_records_the_perf_mode_capability() {
     use lctrl_hal::Hal;
 
-    let hal =
-        lctrl_hal_win::NativeWindowsHal::new(lctrl_hal_win::NativeWmi, lctrl_hal_win::NativeIoctl);
+    let hal = lctrl_hal_win::NativeWindowsHal::new(lctrl_hal_win::NativeWmi, lctrl_hal_win::NativeIoctl);
     let capabilities = hal.capabilities().expect("capabilities must evaluate");
     println!("perf.mode = {:?}", capabilities.get("perf.mode"));
     assert!(

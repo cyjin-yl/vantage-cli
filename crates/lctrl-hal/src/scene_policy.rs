@@ -19,8 +19,12 @@ pub trait ScenePolicyControl: Send + Sync {
     fn match_event(&self, event_class: &str) -> Vec<ScenePolicyMatch>;
 
     /// Apply the named rule's action (or report the plan under dry-run).
-    fn apply(&self, rule_id: &str, event_class: &str, mode: ApplyMode)
-    -> Result<ScenePolicyReport>;
+    fn apply(
+        &self,
+        rule_id: &str,
+        event_class: &str,
+        mode: ApplyMode,
+    ) -> Result<ScenePolicyReport>;
 
     /// The local ledger of applied scene actions and their rollbacks.
     fn track(&self) -> ScenePolicyLedger;

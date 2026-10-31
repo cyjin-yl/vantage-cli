@@ -6,8 +6,8 @@
 //! No vendor issue database or opaque "one-click fix" is admitted: every rule
 //! is declared here and visible through `fix scan`.
 
-use serde::Deserialize;
 use serde::Serialize;
+use serde::Deserialize;
 
 use crate::{LctrlError, Result};
 
