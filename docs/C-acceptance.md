@@ -730,3 +730,11 @@ BIOS 写入保持不可用/锁定（确证缺口，见 C2/C10/C23 边界），RE
   （返回 0 字节即成功）；`require_zero_status` 已按此契约实现并有单测覆盖。
 - 写入门禁：`0x65C`/`0x772`/`0x774` 位语义未按本机基线验证前，PL/HWP 写路径
   保持 `unavailable`；能力行 `tune.msr` 动态探测如实报告。
+
+**写入验收（owner 在场时一步执行）：**
+
+```powershell
+# 以 SYSTEM 运行(一次性计划任务);默认只读;--write 为等值回写(机器状态可证不变)
+cargo build -p lctrl-hal-win --example msr_acceptance --offline
+# 经 schtasks /RU SYSTEM 运行;输出贴回 C25 补全写路径证据
+```
