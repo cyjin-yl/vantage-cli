@@ -240,6 +240,20 @@ where
                 Some("EnergyDrv is not available for GBMD charge-mode readback".into())
             },
         )?;
+        let usb_charging_available = energy_available
+            && EnergyDriver::new(&self.ioctl)
+                .usb_charger_flags()
+                .is_ok();
+        capabilities.record(
+            "usb.charging",
+            if usb_charging_available {
+                Availability::Available
+            } else {
+                Availability::Unavailable
+            },
+            (!usb_charging_available)
+                .then(|| "EnergyDrv USB charger query (0x831020e8/0x02) is unavailable".into()),
+        )?;
         capabilities.record(
             "diagnostics.inventory",
             if inventory_error.is_none() {

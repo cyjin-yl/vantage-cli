@@ -39,6 +39,8 @@ mod wifi_security;
 mod windows_hal;
 mod wmi_contract;
 
+mod usb;
+
 pub use battery_sources::WindowsBatterySources;
 pub use bios::WindowsBiosController;
 pub use brightness::WindowsPanelBrightness;
@@ -92,6 +94,7 @@ pub use native_power_status::NativeSystemPowerStatus;
 pub use native_wmi::NativeWmi;
 pub use os_battery::{OsBatteryChannel, SystemPowerStatusReader, WindowsOsBattery};
 pub use p0::{ChargeModeReader, GbmdChargeModeReader, UnverifiedChargeModeReader, WindowsBatteryP0};
+pub use usb::WindowsUsbPower;
 pub use performance_p0::{PerformanceRegistryReader, WindowsPerformanceP0, read_effective_mode};
 pub use peripherals::WindowsPeripheralController;
 pub use power_overlay::{

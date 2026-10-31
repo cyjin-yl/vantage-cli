@@ -1,7 +1,26 @@
 use lctrl_core::{
     ApplyMode, ChangeReport, PowerMutation, PowerScheme, PowerSchemeId, PowerSettingKey,
     PowerSettingObservation, PowerSourceValues, PowerValueRange, ProcessorBoostMode, Result,
+    UsbChargingState,
 };
+
+/// Runtime USB charging control (AlwaysOnUSB AC mode and charge-from-USB in
+/// battery mode). The RE-proven EnergyDrv `0x831020e8` contract backs the
+/// Windows implementation (docs/RE-interfaces.md §11); BIOS-persistent
+/// variants are separate `BIOS_SET` transactions, not part of this trait.
+pub trait UsbControl: Send + Sync {
+    fn usb_charging(&self) -> Result<UsbChargingState>;
+    fn set_usb_ac_charging(
+        &self,
+        enabled: bool,
+        apply: ApplyMode,
+    ) -> Result<ChangeReport<UsbChargingState>>;
+    fn set_usb_battery_charging(
+        &self,
+        enabled: bool,
+        apply: ApplyMode,
+    ) -> Result<ChangeReport<UsbChargingState>>;
+}
 
 pub trait PowerControl: Send + Sync {
     fn power_schemes(&self) -> Result<Vec<PowerScheme>>;

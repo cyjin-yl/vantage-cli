@@ -132,6 +132,23 @@ impl UsbChargingState {
     }
 }
 
+impl std::fmt::Display for UsbChargingState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "ac {} ({}), battery-mode {} ({})",
+            if self.ac_enabled { "on" } else { "off" },
+            if self.ac_supported { "supported" } else { "unsupported" },
+            if self.battery_enabled { "on" } else { "off" },
+            if self.battery_supported {
+                "supported"
+            } else {
+                "unsupported"
+            },
+        )
+    }
+}
+
 /// Decode a raw charge-mode bitmask (docs/02 §3.3).
 ///
 /// `u32::MAX` is the firmware's read-failure sentinel and is reported as an
