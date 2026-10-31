@@ -1,5 +1,8 @@
+/dist/
 /target/
+/re-stage/
 **/target/
+*.exe
 /crates/*/Cargo.lock
 /vantage/Cargo.lock
 /.worktrees/
