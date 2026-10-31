@@ -16,7 +16,7 @@
 ## 安装
 
 **Windows** — 从 [Releases](https://github.com/cyjin-yl/vantage-cli/releases) 下载
-`vantage.exe`(各标签的 `dist/windows/vantage.exe` 同步维护),放到任意目录即可运行,
+`vantage.exe`,放到任意目录即可运行,
 无需安装。读取状态不需要管理员权限;修改硬件设置可能需要,且必须加 `--yes` 确认。
 
 **Linux** — 从源码构建(见[开发](#开发))。部分在 Windows 上依赖厂商私有通道的功能,
