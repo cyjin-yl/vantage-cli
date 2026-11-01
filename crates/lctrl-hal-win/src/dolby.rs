@@ -8,8 +8,10 @@
 //! RPC_IF_ALLOW_LOCAL_ONLY`. This module reproduces the vendor
 //! `DolbyRpcClient.dll` call sequence on the same endpoint without loading
 //! any Lenovo-delivered binary: `rpcrt4.dll` (the Windows RPC runtime) does
-//! the NDR marshaling, driven by the exact MIDL interpreter metadata the
-//! vendor stub was compiled with (byte-verified, `dolby_ndr_data`).
+//! marshaling, driven by MIDL interpreter metadata generated in-tree
+//! from the recovered interface signatures (`ndr` module — the `-Oicf`
+//! encoding is canonical, so the emitted descriptors coincide with the
+//! proc strings the vendor stub carried).
 //!
 //! Call sequence replicated from the vendor DLL (`Initialize`):
 //!
@@ -56,9 +58,6 @@ use std::time::Duration;
 use lctrl_core::{ApplyMode, ChangeReport, DolbyProfile, DolbyState, LctrlError, Result};
 use lctrl_hal::AudioControl;
 use lctrl_hal::poll_readback;
-
-#[path = "dolby_ndr_data.rs"]
-mod dolby_ndr_data;
 
 /// Sealed seam over the DAX RPC session so [`WindowsDolbyAudio`] stays
 /// testable without a running DAX3API.
@@ -167,7 +166,7 @@ mod rpc {
     };
     use windows_sys::core::GUID;
 
-    use super::dolby_ndr_data::{FORMAT_STRING_OFFSETS, PROC_FORMAT_STRING, TYPE_FORMAT_STRING};
+    use crate::ndr::dolby::{FORMAT_STRING_OFFSETS, PROC_FORMAT_STRING, TYPE_FORMAT_STRING};
 
     /// Interface UUID on `ncalrpc:[DaxRpcEndpoint]` (`DAX3API.exe`,
     /// `RpcServerRegisterIf3`, flags `AUTOLISTEN | ALLOW_LOCAL_ONLY`).
@@ -798,8 +797,8 @@ impl DolbyRpc for NativeDolbyRpc {
 
 #[cfg(test)]
 mod tests {
-    use super::dolby_ndr_data::{FORMAT_STRING_OFFSETS, PROC_FORMAT_STRING, TYPE_FORMAT_STRING};
     use super::rpc::{DaxMeta, is_rpc_dispatch_code};
+    use crate::ndr::dolby::{FORMAT_STRING_OFFSETS, PROC_FORMAT_STRING, TYPE_FORMAT_STRING};
     use std::mem::align_of;
 
     /// Every nProcNum used by the transport resolves to a proc string whose
