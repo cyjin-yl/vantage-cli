@@ -1,7 +1,7 @@
 //! Dolby DAX RPC control through a pure-Rust `rpcrt4.dll` NDR client.
 //!
 //! Contract recovered by static analysis of TB14P-EZRA vendor binaries plus a
-//! live read-only probe; see `docs/RE-interfaces.md` §12. `DAX3API.exe`
+//! live read-only probe; see `docs/interfaces.md` §12. `DAX3API.exe`
 //! (`DolbyDAXAPI` service, SYSTEM) registers interface
 //! `11c6212d-d5f3-4500-ab16-634dc63037be` v1.0 / NDR v2.0 on the ALPC
 //! endpoint `ncalrpc:[DaxRpcEndpoint]` with `RPC_IF_AUTOLISTEN |
@@ -16,26 +16,26 @@
 //! Call sequence replicated from the vendor DLL (`Initialize`):
 //!
 //! 1. `RpcStringBindingComposeW("ncalrpc", NULL, "DaxRpcEndpoint")` —
-//!    no object UUID on the binding (vendor-verified; the UUID is carried in
-//!    the opnum-4 handshake instead).
+//! no object UUID on the binding (vendor-verified; the UUID is carried in
+//! the opnum-4 handshake instead).
 //! 2. `RpcBindingFromStringBindingW` → session binding handle (lazy bind).
 //! 3. `NdrClientCall3(proc 0)`: `[in] handle_t` binding → `[out]` session
-//!    context token. All later procedures take that token as parameter 0;
-//!    the runtime routes the call over the binding stored inside it.
+//! context token. All later procedures take that token as parameter 0;
+//! the runtime routes the call over the binding stored inside it.
 //! 4. `NdrClientCall3(proc 4)`: `[in]` object-UUID BSTR → `[out]` u16; the
-//!    vendor ignores the result, so a failure is reported but not fatal.
-//!    BSTR parameters marshal through `FC_USER_MARSHAL` quad index 0, which
-//!    this module binds to oleaut32's `BSTR_User*` routines — identical to
-//!    the vendor client's quad table.
+//! vendor ignores the result, so a failure is reported but not fatal.
+//! BSTR parameters marshal through `FC_USER_MARSHAL` quad index 0, which
+//! this module binds to oleaut32's `BSTR_User*` routines — identical to
+//! the vendor client's quad table.
 //!
 //! | procedure | opnum | args (after context token) | semantics |
 //! |-----------|-------|----------------------------|-----------|
-//! | GetDolbyEnabled        | 5  | `[out] u16`           | on/off read (0/1) |
-//! | SetDolbyEnabled        | 6  | `[in] u8`             | on/off write |
-//! | GetActiveProfile       | 7  | `[out] u32`           | preset read [0,5] |
-//! | SetActiveProfile       | 8  | `[in] u32`            | preset write |
-//! | IsSpatialAudioSupported| 2  | 4 × `[out] u32`       | `p0 > 3 ‖ p1 ≥ 0x7853` |
-//! | GetSKU                 | 37 | `[out] BSTR*`         | SKU-name copy success |
+//! | GetDolbyEnabled | 5 | `[out] u16` | on/off read (0/1) |
+//! | SetDolbyEnabled | 6 | `[in] u8` | on/off write |
+//! | GetActiveProfile | 7 | `[out] u32` | preset read [0,5] |
+//! | SetActiveProfile | 8 | `[in] u32` | preset write |
+//! | IsSpatialAudioSupported| 2 | 4 × `[out] u32` | `p0 > 3 ‖ p1 ≥ 0x7853` |
+//! | GetSKU | 37 | `[out] BSTR*` | SKU-name copy success |
 //!
 //! The licensed APO DSP inside DAX3API is never touched; only the
 //! toggle/profile opnums are exercised.
@@ -359,7 +359,7 @@ mod rpc {
                 // advertises a single syntax: the negotiated transfer
                 // syntax is then always NDR v2.0 and the copied proc/type
                 // strings are the ones the interpreter uses. Verified live
-                // against DAX3API (see docs/RE-interfaces.md §12).
+                // against DAX3API (see docs/interfaces.md §12).
                 Flags: 0,
             };
             meta.stub_desc = MIDL_STUB_DESC {

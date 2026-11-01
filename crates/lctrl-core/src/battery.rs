@@ -108,7 +108,7 @@ impl std::fmt::Display for ChargeModeActual {
 
 /// Runtime USB charging control state, from the EnergyDrv `0x831020e8` flags
 /// word (`PowerBattery.dll` `CUSBCharger`/`CUSBBatteryCharger`, RE-proven in
-/// docs/RE-interfaces.md §11).
+/// docs/interfaces.md §11).
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub struct UsbChargingState {
     pub ac_supported: bool,
@@ -154,7 +154,7 @@ impl std::fmt::Display for UsbChargingState {
 }
 
 /// Night-charge mode state (EnergyDrv `0x83102150`, RE-proven in
-/// docs/RE-interfaces.md §11: support probe input `0x13` — bit0 = supported;
+/// docs/interfaces.md §11: support probe input `0x13` — bit0 = supported;
 /// status input `0x11` — bit4 = on; set inputs `0x80000012` = on,
 /// `0x12` = off). Live evidence (2026-11-01): the probe response bit4 does
 /// NOT track the effective state (probe `0x11` vs status `0x01` on the same
@@ -231,7 +231,7 @@ pub fn decode_charge_mode(raw: u32) -> Result<ChargeModeActual> {
 
 /// Decode the GBMD `0x831020f8`/`0xFF` status bitmask into the contract
 /// charge mode, mirroring `PowerBattery.dll!CChargingMode::GetChargingMode`
-/// (RE-proven, docs/RE-interfaces.md §10.3):
+/// (RE-proven, docs/interfaces.md §10.3):
 ///
 /// - storage mode is ON when bit 5 is set;
 /// - express/Quick mode is ON when bit 2 is set;

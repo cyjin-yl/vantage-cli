@@ -2,7 +2,7 @@
 //!
 //! Contract recovered from ThinkSmartSenseAddin.dll 1.0.0.77 (IL) and
 //! LnvSST.dll/SmartSense.exe 1.0.8.5 on TB14P-EZRA; see
-//! `docs/RE-interfaces.md` §13. Writes go to the
+//! `docs/interfaces.md` §13. Writes go to the
 //! `\\.\pipe\com.lenovo.smartsense.settings` named pipe (raw little-endian
 //! `u32 code + u32 arg`, response `i32`: 0 = rejected, nonzero = queued,
 //! -1 = server exception); the service persists to
@@ -290,7 +290,7 @@ fn read_bool(key: &str, value: &str, encoding: BoolEncoding) -> Result<Option<bo
 }
 
 // Keep the connect timeout visible next to the pipe path for reviewers
-// checking the framing contract against docs/RE-interfaces.md §13.
+// checking the framing contract against docs/interfaces.md §13.
 #[allow(dead_code)]
 const fn connect_timeout() -> Duration {
     CONNECT_TIMEOUT

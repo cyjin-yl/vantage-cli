@@ -58,9 +58,9 @@ BIOS 密码元数据、MagicBay 检测和 scan 清单共 **12 次实际运行,�
 | #22 内屏刷新率 | C1 已验收;要求交互式会话,不以 SSH 无显示路径误判硬件不支持 |
 | #23 色彩/显示增强 | 护眼和超分已有尝试性 IGCL 绑定,但 `CtlPixelFormat` 和 `CtlPixtxConfig` 与公开头文件布局不一致;旧探针返回 0 block/错误码不能证明该硬件没有管线,读写均未完成验证。超分状态此前报 unknown;色域目前 Unsupported,overdrive 目标设备未观察到。写入验收待 owner 物理确认,当前不得当作已完成 |
 | #24 运行时隐私 | 状态实际读取成功;逐层写入、独立读回及恢复证据须按版本保存 |
-| #25 SmartSense/HPD | 已逆向接入:sense 设置管道(RE-interfaces §13),`sense status/lock-on-leave/wake-on-approach/pause-video/attention-tracking` 实现+dry-run+注册表读回;attention-tracking 写后无持久化键(如实 write-only);键盘灯自动仍门禁(contract RPC 未恢复);写入验收待补 |
-| #26 Dolby | 纯 Rust rpcrt4/NDR 客户端不加载 DolbyRpcClient.dll,描述符由本仓库生成(RE-interfaces §0/§12),仍需 DolbyDAXAPI 服务。实机只读复验 connect=ok / GetDolbyEnabled=0 / GetActiveProfile=5 / IsSpatialAudioSupported=1 / GetSKU=1,与厂商 DLL 基线逐项一致;合并后复验(C35)`audio dolby … --dry-run` → previous enabled=false profile=Dynamic;写入验收待补 |
-| #27 音频降噪 | 纯 Rust rpcrt4/NDR 客户端(不加载 ElevocControlSDK,也不内嵌其接口表;描述符由本仓库生成,RE-interfaces §0/§14);仍需要 ElevocService。应用密钥已删除:目标机已观察 `user:""` 可通过交换,不能推断所有输入均获接受。实机只读复验 `audio noise-cancel shared --dry-run` 读出 mic mode=Shared、speaker=off、voice-id=enrolled,与同机基线一致;合并后复验(C35)同值;写入验收待补 |
+| #25 SmartSense/HPD | 已逆向接入:sense 设置管道(interfaces §13),`sense status/lock-on-leave/wake-on-approach/pause-video/attention-tracking` 实现+dry-run+注册表读回;attention-tracking 写后无持久化键(如实 write-only);键盘灯自动仍门禁(contract RPC 未恢复);写入验收待补 |
+| #26 Dolby | 纯 Rust rpcrt4/NDR 客户端不加载 DolbyRpcClient.dll,描述符由本仓库生成(interfaces §0/§12),仍需 DolbyDAXAPI 服务。实机只读复验 connect=ok / GetDolbyEnabled=0 / GetActiveProfile=5 / IsSpatialAudioSupported=1 / GetSKU=1,与厂商 DLL 基线逐项一致;合并后复验(C35)`audio dolby … --dry-run` → previous enabled=false profile=Dynamic;写入验收待补 |
+| #27 音频降噪 | 纯 Rust rpcrt4/NDR 客户端(不加载 ElevocControlSDK,也不内嵌其接口表;描述符由本仓库生成,interfaces §0/§14);仍需要 ElevocService。应用密钥已删除:目标机已观察 `user:""` 可通过交换,不能推断所有输入均获接受。实机只读复验 `audio noise-cancel shared --dry-run` 读出 mic mode=Shared、speaker=off、voice-id=enrolled,与同机基线一致;合并后复验(C35)同值;写入验收待补 |
 | #28 BIOS 批量/元数据 | 原生事务源码与只读密码元数据已有;CLI 批量、风险和实际生效态验收待完成 |
 | #29 MagicBay LTE | 当前检测未见附件;实现缺口与附件未连接分别记录,不伪报完成 |
 | #30 MagicBay 摄像头 | 当前检测未见附件;UVC 实现及目标附件验收待完成 |
@@ -684,7 +684,7 @@ Windows 目标机构建:`cargo build --locked --release -p vantage` 退出 0;
 
 边界:overlay 只覆盖 OS 定义的三个方案;厂商专有的 geek/自定义模式不实现。
 PL1/PL2/tau 与风扇模式在 Windows 仍为不可用——唯一在册 MSR 通道是联想专有驱动,
-按"不经厂商专有层"的约束不采用（详见 `docs/RE-interfaces.md` §9.3）;Linux 侧同类能力由主线内核提供。
+按"不经厂商专有层"的约束不采用（详见 `docs/interfaces.md` §9.3）;Linux 侧同类能力由主线内核提供。
 
 ## C24 · v1.0.0 首版发布（Windows 二进制交付）
 
@@ -710,7 +710,7 @@ PL1/PL2/tau 与风扇模式在 Windows 仍为不可用——唯一在册 MSR 通
 **状态：只读路径已验收；写入路径保持门禁，等待独立物理确认。**
 
 - 通道：自有 Rust 客户端 `WinMsrDev`（`crates/lctrl-hal-win/src/msr.rs`）经
-  联想签名 `LnvMSRIO` 驱动设备 `\\.\WinMsrDev`，IOCTL 契约按 `RE-interfaces.md` §4。
+  联想签名 `LnvMSRIO` 驱动设备 `\\.\WinMsrDev`，IOCTL 契约按 `interfaces.md` §4。
 - 调用身份：`LocalSystem`（经一次性计划任务）；普通用户直开设备如实报
   `permission denied; requires administrator`。
 - 握手：真实 `NotifyPlatformInfo(0x36, 0)` 返回成功——**未经驱动白名单修补**，
@@ -757,7 +757,7 @@ temporary_charge: 0x00000001 -> permanent=true (非临时模式)
   的 bit5/bit2 表在真机成立(C2 读回门禁的实机证据)。
 - USB 两种模式支持位与 BIOS `AlwaysOnUSB=Enable` 一致;运行态 AC/电池模式均开。
 - 夜间充电支持位为真、状态为关;发现并修正了"探测 bit4=当前状态"的错误推断
-  (RE-interfaces.md §11.3 更正)。
+  (interfaces.md §11.3 更正)。
 - 临时模式原始值 0x01=Permanent,与 docs/02 §5 契约一致。
 
 写路径(充电模式 GBMD 03/05/07/08、USB 0x0a/0x0b/0x12/0x13、夜间充电

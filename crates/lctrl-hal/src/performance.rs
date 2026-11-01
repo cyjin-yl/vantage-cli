@@ -46,7 +46,7 @@ pub trait TemperatureControl: Send + Sync {
 /// Read-only battery direct-discharge current-limit (DBDC) table.
 ///
 /// Writes stay gated: `LENOVO_OTHER_METHOD.SetFeatureValue` needs a recovered
-/// FeatureId↔name mapping (docs/RE-interfaces.md §10.3), and the tier-write
+/// FeatureId↔name mapping (docs/interfaces.md §10.3), and the tier-write
 /// semantics are not verified on the target.
 pub trait DbdcControl: Send + Sync {
     fn dbdc_profile(&self) -> Result<lctrl_core::DbdcProfile>;

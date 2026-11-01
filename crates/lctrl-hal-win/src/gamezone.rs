@@ -1,17 +1,17 @@
 //! Lenovo firmware GAMEZONE control plane (`root\wmi`).
 //!
-//! Reversed interface semantics (see `docs/RE-interfaces.md` §10):
+//! Reversed interface semantics (see `docs/interfaces.md` §10):
 //!
 //! - `LENOVO_GAMEZONE_DATA` exposes the Legion/ThinkBook game-zone feature
-//!   set: thermal mode, fan cooling, smart fan, keyboard light, Win-key lock,
-//!   touchpad toggle, panel overdrive, charge-mode readout, CPU/GPU
-//!   temperature and frequency, and overclocking support probes. Setters take
-//!   a single `Data: u32` input; `SetIGPUModeStatus` names it `mode`.
+//! set: thermal mode, fan cooling, smart fan, keyboard light, Win-key lock,
+//! touchpad toggle, panel overdrive, charge-mode readout, CPU/GPU
+//! temperature and frequency, and overclocking support probes. Setters take
+//! a single `Data: u32` input; `SetIGPUModeStatus` names it `mode`.
 //! - `LENOVO_FAN_METHOD.Fan_Get_Table(FanID: u8, SensorID: u8)` /
-//!   `Fan_Set_Table` carry the firmware fan curve.
+//! `Fan_Set_Table` carry the firmware fan curve.
 //! - `LENOVO_OTHER_METHOD` is the generic feature plane:
-//!   `GetFeatureValue(IDs: u32)`, `SetFeatureValue(IDs: u32, value: u32)`,
-//!   `GetDataByCommand(Command: u32, IDs: u32)`, `GetDataByPackage(Input: u8)`.
+//! `GetFeatureValue(IDs: u32)`, `SetFeatureValue(IDs: u32, value: u32)`,
+//! `GetDataByCommand(Command: u32, IDs: u32)`, `GetDataByPackage(Input: u8)`.
 //!
 //! Firmware support is model-dependent: Legion-class machines implement these
 //! providers; ThinkBook 21VG enumerates the classes but the provider rejects

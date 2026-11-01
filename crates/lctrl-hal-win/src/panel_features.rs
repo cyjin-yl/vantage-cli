@@ -3,7 +3,7 @@
 //!
 //! IGCL is a public Intel SDK shipped with the graphics driver (non-Lenovo
 //! driver component, allowed dependency). ABI stability argument
-//! (docs/RE-interfaces.md §15): every call takes caller-sized,
+//! (docs/interfaces.md §15): every call takes caller-sized,
 //! caller-versioned structs (`Size` + `Version` fields), the API version is
 //! pinned at build time (`CTL_API_VERSION`) and the implementation version
 //! reported by `ctlInit` is checked at runtime; unsupported versions fail
@@ -93,7 +93,7 @@ const CTL_VIDEO_PROCESSING_SUPER_RESOLUTION_FLAG_ENABLE_DEFAULT_SCENARIO_MODE: u
 /// PlatformInterface.dll) but the UI-level defaults are delivered at runtime
 /// through Vantage config, so the two levels below are the standard
 /// Tanner-Helland approximation and are marked inferred pending the
-/// read-only LUT comparison acceptance (docs/RE-interfaces.md §15).
+/// read-only LUT comparison acceptance (docs/interfaces.md §15).
 const EYE_CARE_MID_KELVIN: u32 = 5000;
 const EYE_CARE_HIGH_KELVIN: u32 = 4000;
 const LUT_SAMPLES: usize = 256;

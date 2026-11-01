@@ -1,5 +1,5 @@
 //! Runtime USB charging control through the RE-proven `0x831020e8` contract
-//! (`PowerBattery.dll` `CUSBCharger` / `CUSBBatteryCharger`; docs/RE-interfaces.md
+//! (`PowerBattery.dll` `CUSBCharger` / `CUSBBatteryCharger`; docs/interfaces.md
 //! §11). The vendor retries the status query up to 10 times after a write; the
 //! same poll bounds verification here.
 

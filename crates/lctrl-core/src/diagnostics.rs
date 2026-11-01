@@ -21,7 +21,7 @@ pub enum DiagnosticKind {
 
 /// The result of the checks that were actually performed.
 ///
-/// `Passed` never means that an unimplemented vendor/deep test passed.  A
+/// `Passed` never means that an unimplemented vendor/deep test passed. A
 /// shallow readout without a normative health decision is `Warning` instead.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -36,7 +36,7 @@ pub enum DiagnosticOutcome {
 }
 
 /// A measured value retains its type instead of being flattened into detail
-/// text.  Floating point values are used only for finite unit conversions.
+/// text. Floating point values are used only for finite unit conversions.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum DiagnosticValue {
@@ -132,7 +132,7 @@ pub enum DiagnosticThresholdComparison {
     AtOrAbove,
 }
 
-/// A threshold is present only when the source defines the comparison.  In
+/// A threshold is present only when the source defines the comparison. In
 /// particular, charge percentage and temperature readouts do not acquire
 /// invented "healthy" ranges.
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -170,7 +170,7 @@ pub enum DiagnosticCancellationReason {
     ExecutorStopped,
 }
 
-/// Structured machine-readable context for an outcome.  The human-readable
+/// Structured machine-readable context for an outcome. The human-readable
 /// `DiagnosticResult::detail` remains suitable for CLI text output.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -272,7 +272,7 @@ impl DiagnosticResult {
     }
 }
 
-/// A cloneable cooperative cancellation handle.  Cancellation never issues a
+/// A cloneable cooperative cancellation handle. Cancellation never issues a
 /// device or service mutation; providers observe it at execution boundaries.
 #[derive(Clone, Debug)]
 pub struct DiagnosticCancellationToken {

@@ -3,7 +3,7 @@
 //!
 //! Contract recovered from ElevocControlSDK_x64.dll 1.0.1.1108.8f92a86 and
 //! ElevocControlService.exe 1.0.1.1142 on TB14P-EZRA; see
-//! `docs/RE-interfaces.md` §14. The vendor SDK forwards to the service over
+//! `docs/interfaces.md` §14. The vendor SDK forwards to the service over
 //! ALPC (`ncalrpc:[ElevocRpcEndpoint]`, interface
 //! `{6F761170-1054-4339-A573-063DD08C7E16}` v4.0, NDR32 transfer syntax) using
 //! a JSON request envelope on a single NDR opnum-0 stub. This module
@@ -14,19 +14,19 @@
 //! modes.
 //!
 //! Mode domain (`SetEffectMode`, proven from SDK string slots
-//! 765):
+//!:
 //!
-//! | mode | name          | notes                                        |
+//! | mode | name | notes |
 //! |------|---------------|----------------------------------------------|
-//! | 0    | environmental | service default; closest to "off"            |
-//! | 1    | shared        |                                              |
-//! | 2    | private       |                                              |
-//! | 3    | special       |                                              |
-//! | 4    | voiceid       | rejected unless VoiceID is enrolled          |
-//! | 5    | HQRecord      |                                              |
-//! | 6/7  | shared_td / private_td | legacy aliases remapped to 1/2 by the SDK |
+//! | 0 | environmental | service default; closest to "off" |
+//! | 1 | shared | |
+//! | 2 | private | |
+//! | 3 | special | |
+//! | 4 | voiceid | rejected unless VoiceID is enrolled |
+//! | 5 | HQRecord | |
+//! | 6/7 | shared_td / private_td | legacy aliases remapped to 1/2 by the SDK |
 //!
-//! `SetEffectMode` results (proven 545):
+//! `SetEffectMode` results (proven:
 //! 1 = success, -1 = RPC/default-endpoint failure, 2 = mode not supported
 //! by the endpoint ability list, 4 = VoiceID requested but not enrolled.
 
@@ -110,7 +110,7 @@ impl<R: ElevocRpc> NoiseCancelControl for WindowsNoiseCancel<R> {
 }
 
 // ---------------------------------------------------------------------------
-// Wire contract constants (docs/RE-interfaces.md §14)
+// Wire contract constants (docs/interfaces.md §14)
 // ---------------------------------------------------------------------------
 
 /// Interface GUID `{6F761170-1054-4339-A573-063DD08C7E16}` v4.0 — the ABI
@@ -144,7 +144,7 @@ const PROTO_SEQ: &[u16] = &[0x6e, 0x63, 0x61, 0x6c, 0x72, 0x70, 0x63, 0x00];
 // are accepted: a previously tested non-whitelisted value faulted the service
 // handler. Send an empty value and do not retain the original application key.
 
-/// Canonical uplink mode names (SDK table f40 / ).
+/// Canonical uplink mode names (SDK table /.
 /// The vendor `RpcGetMode` maps `Content.mode` by comparing against these
 /// names only (shared→1 … HQRecord→5); anything else, including the
 /// `*_td` client-side alias names, falls through to 0 (environmental).
@@ -295,7 +295,7 @@ unsafe extern "C" {
 }
 
 // ---------------------------------------------------------------------------
-// RpcExcept parity: the vendor `SafeRpcRequest` () wraps
+// RpcExcept parity: the vendor `SafeRpcRequest` wraps
 // `NdrClientCall3` in `__try/__except` and converts RPC exceptions into a
 // return code (e.g. `RPC_S_SERVER_UNAVAILABLE` when the service dies
 // mid-call). Rust cannot catch SEH exceptions; we reproduce the semantics
@@ -593,7 +593,7 @@ impl ProxyTables {
                 // `RPC_CLIENT_INTERFACE::Flags` must stay 0 here: the vendor
                 // ifspec carries 0x06000000, which makes rpcrt4 take the
                 // NDR64-capable dispatch path. That path needs the NDR64
-                // format tables the vendor DLL keeps in its own .rdata;
+                // format tables the vendor DLL keeps in its own.rdata;
                 // with only the NDR32 (v2.0) interpreter tables this client
                 // carries, the call dies with RPC_S_INTERNAL_ERROR (0x6e6)
                 // inside the type-format interpreter. Flags = 0 selects the
@@ -792,7 +792,7 @@ fn json_int(obj: &str, key: &str) -> Option<i64> {
         .ok()
 }
 
-/// Collect `"key": [ "a", "b", ... ]` string arrays (e.g. `tokens`,
+/// Collect `"key": [ "a", "b",... ]` string arrays (e.g. `tokens`,
 /// `supported_functions`).
 fn json_string_array(obj: &str, key: &str) -> Vec<String> {
     let Some(v) = json_value(obj, key) else {
@@ -821,7 +821,7 @@ fn json_string_array(obj: &str, key: &str) -> Vec<String> {
 }
 
 /// Per-request nonce — the vendor fills `token` with a randomized short
-/// string (`rand()`→obfuscated itoa d08); only presence is
+/// string (`rand()`→obfuscated itoa); only presence is
 /// server-visible, so a fresh pseudo-random value is equivalent.
 fn make_token() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -991,15 +991,15 @@ impl NativeElevocRpc {
     /// queries in their original order. Warm-up failures are non-fatal, as in
     /// the SDK; only the authorization exchange gates login success.
     fn login(&self) -> Result<()> {
-        // Init warm-ups (client->Init db0): downlink mode probe,
+        // Init warm-ups (client->Init): downlink mode probe,
         // endpoint ability probe, headset status.
         let endpoint = default_capture_endpoint().unwrap_or_default();
         let _ = self.rpc_get_mode("app_downlink", "");
         let _ = self.rpc_get_functions_by_endpoint("app_downlink");
         let _ = self.rpc_simple("GetHeadSetStatus");
 
-        // Connect(appkey) (client->Connect a80 → RpcGetTokens
-        // 710): skipping this exchange caused later queries to
+        // Connect(appkey) (client->Connect → RpcGetTokens
+        //): skipping this exchange caused later queries to
         // fault on the observed service version. Empty or absent `user`
         // worked on that target; a non-whitelisted value faulted the handler.
         // Accept either `auth_status` or a non-empty `tokens` list.
@@ -1020,14 +1020,14 @@ impl NativeElevocRpc {
             });
         }
 
-        // Query(out) (client->Query 9d0 → RpcGetConfigData
-        // aa0): request=GetConfigFileContent, buffer_len=0x1000.
+        // Query(out) (client->Query → RpcGetConfigData
+        //): request=GetConfigFileContent, buffer_len=0x1000.
         let mut env = Envelope::new("GetConfigFileContent");
         env.number("buffer_len", 0x1000);
         let body = env.seal(&make_token());
         let _ = self.request(&body);
 
-        // GetMicState(out3) warm-ups (export cb0): supported
+        // GetMicState(out3) warm-ups (export): supported
         // functions, voice-id state, speaker_extraction ability.
         let _ = self.rpc_get_functions();
         let _ = self.rpc_is_voiceid_setted(&endpoint);
@@ -1037,7 +1037,7 @@ impl NativeElevocRpc {
     }
 
     /// One opnum-0 round trip: UTF-16 JSON out, response JSON back in the
-    /// same buffer. Mirrors `SafeRpcRequest` ().
+    /// same buffer. Mirrors `SafeRpcRequest`.
     fn request(&self, request_json: &str) -> Result<String> {
         exchange_json(request_json, |buf| rpc_call_guarded(&self.tables, buf))
     }
@@ -1048,7 +1048,7 @@ impl NativeElevocRpc {
         self.request(&body)
     }
 
-    /// `RpcGetMode` (): `{request,link,endpoint?,proto,token}` →
+    /// `RpcGetMode`: `{request,link,endpoint?,proto,token}` →
     /// `Content.mode` name → int, then the `algType`-contains-`token` probe
     /// that upgrades 1→6 (`shared_td`) and 2→7 (`private_td`).
     fn rpc_get_mode(&self, link: &str, endpoint: &str) -> Result<i32> {
@@ -1070,7 +1070,7 @@ impl NativeElevocRpc {
             // The SDK upgrades shared/private to the legacy time-domain
             // aliases when the endpoint's algType does NOT start with "AI"
             // (`com = algType.find("AI")`, `com != 0` → td; at
-            // bb4 — matches SetAlgType sending
+            // — matches SetAlgType sending
             // "Non-AI" for td modes).
             if let Some(alg) = self.rpc_get_alg_type(endpoint) {
                 if !alg.starts_with("AI") {
@@ -1090,7 +1090,7 @@ impl NativeElevocRpc {
         json_string(content, "algroithm_type").map(str::to_string)
     }
 
-    /// `RpcSetAlgType` (): `{request:"SetAlgType",algroithm_type,
+    /// `RpcSetAlgType`: `{request:"SetAlgType",algroithm_type,
     /// endpoint?,proto,token}` — sent by `SetEffectMode` before every mode
     /// dispatch ("Non-AI" for td-alias modes, "AI" otherwise); the vendor
     /// ignores its result.
@@ -1102,7 +1102,7 @@ impl NativeElevocRpc {
         self.request(&body).map(|_| ())
     }
 
-    /// `RpcSetMode` (): `{request:"SetMode",link,mode,CALLER:"SDK",
+    /// `RpcSetMode`: `{request:"SetMode",link,mode,CALLER:"SDK",
     /// proto,token,endpoint?}`. Returns 1 on send success.
     fn rpc_set_mode(&self, link: &str, mode_name: &str, endpoint: &str) -> Result<i32> {
         let mut env = Envelope::new("SetMode");
@@ -1115,7 +1115,7 @@ impl NativeElevocRpc {
         self.request(&body).map(|_| 1)
     }
 
-    /// `RpcIsVoiceidSetted` (): `{request,endpoint,proto,token}` →
+    /// `RpcIsVoiceidSetted`: `{request,endpoint,proto,token}` →
     /// `Content.is_voiceid_setted` → 2 enrolled / 0 unset.
     fn rpc_is_voiceid_setted(&self, endpoint: &str) -> Result<i32> {
         let mut env = Envelope::new("IsVoiceidSetted");
@@ -1138,7 +1138,7 @@ impl NativeElevocRpc {
         )
     }
 
-    /// `RpcGetSupportedFunctionsByEndpoint` ():
+    /// `RpcGetSupportedFunctionsByEndpoint`:
     /// `{request:"GetFunctionsByEndpoint",endpoint,proto,token}` →
     /// `Content.supported_functions` string list.
     fn rpc_get_functions_by_endpoint(&self, endpoint: &str) -> Result<Vec<String>> {
@@ -1231,7 +1231,7 @@ impl ElevocRpc for NativeElevocRpc {
             }
         }
         // `SetEffectMode` then announces the algorithm family: Non-AI for
-        // the td-alias inputs (/ → SetAlgType), AI for
+        // the td-alias inputs / → SetAlgType), AI for
         // everything else. The result is ignored by the vendor.
         let alg_type = if matches!(mode, 6 | 7) {
             "Non-AI"

@@ -1,6 +1,6 @@
 //! MSR channel through the vendor-signed `LnvMSRIO` driver (`\\.\WinMsrDev`).
 //!
-//! Spec source: `docs/RE-interfaces.md` §3–§4 (IOCTL contract recovered from
+//! Spec source: `docs/interfaces.md` §3–§4 (IOCTL contract recovered from
 //! `WinMSRIO.dll`). The device ACL admits `LocalSystem` only, so a normal
 //! process receives `ERROR_ACCESS_DENIED` on open; run the caller as a
 //! SYSTEM service or accept the honest `PermissionDenied`.
@@ -12,7 +12,7 @@
 //! Write gating: raw selector writes are exposed for the acceptance-gated
 //! tuning path; see `set_selector`. No field-level semantics are assumed
 //! here — callers must read-modify-write against the machine baseline
-//! (RE-interfaces.md §3.3) and never write lock bits.
+//! (interfaces.md §3.3) and never write lock bits.
 
 use lctrl_core::{LctrlError, Result};
 
@@ -165,7 +165,7 @@ where
 }
 
 fn require_zero_status(output: &[u8], method: &str) -> Result<()> {
-    // The vendor wrappers (RE-interfaces.md §4.2–4.3) return the
+    // The vendor wrappers (interfaces.md §4.2–4.3) return the
     // DeviceIoControl BOOL; the driver may leave the output buffer untouched
     // (bytes returned = 0). Treat an empty output as success, a 4-byte zero
     // status as success, and a nonzero status as rejection.

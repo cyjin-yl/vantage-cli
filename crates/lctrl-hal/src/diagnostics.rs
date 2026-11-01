@@ -7,7 +7,7 @@ pub trait DiagnosticsControl: Send + Sync {
     fn diagnostic_items(&self) -> Result<Vec<DiagnosticKind>>;
 
     /// Run each requested item with cooperative cancellation and a finite
-    /// per-item deadline.  Item-level failures are represented in the returned
+    /// per-item deadline. Item-level failures are represented in the returned
     /// results rather than being promoted to a whole-run error.
     fn run_diagnostics(
         &self,

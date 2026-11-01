@@ -6,7 +6,7 @@ use lctrl_core::{
 
 /// Runtime USB charging control (AlwaysOnUSB AC mode and charge-from-USB in
 /// battery mode). The RE-proven EnergyDrv `0x831020e8` contract backs the
-/// Windows implementation (docs/RE-interfaces.md §11); BIOS-persistent
+/// Windows implementation (docs/interfaces.md §11); BIOS-persistent
 /// variants are separate `BIOS_SET` transactions, not part of this trait.
 pub trait UsbControl: Send + Sync {
     fn usb_charging(&self) -> Result<UsbChargingState>;
