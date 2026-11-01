@@ -79,8 +79,9 @@ const CTL_RESULT_ERROR_INVALID_PIXTX_BLOCK_TYPE: u32 = 0x4800_000f;
 const CTL_RESULT_ERROR_INVALID_BOUND: u32 = 0x4000_0017;
 /// Upper bound on the LUT samples the driver may report per channel.
 const MAX_LUT_SAMPLES: usize = 8192;
-/// Number of block descriptors handed to the driver per query.
-const MAX_BLOCKS: usize = 4;
+/// Number of block descriptors handed to the driver per query. One block at
+/// a time keeps the driver's per-block sample writes inside our buffer.
+const MAX_BLOCKS: usize = 1;
 const CTL_RESULT_ERROR_INVALID_ARGUMENT: u32 = 0x4000_000b;
 
 const CTL_PIXTX_BLOCK_TYPE_1D_LUT: u32 = 1;
