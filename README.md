@@ -50,7 +50,7 @@ vantage --yes perf mode performance       # 执行、回读、确认
 |---|---|
 | 性能与电源 | `perf mode`、`tune epp`、`tune turbo`、`power scheme list/get/set`、`perf temp` |
 | 电池 | `battery status`、`battery adapter` |
-| 屏幕 | `panel rate`(刷新率)、`panel brightness`(亮度)、`panel eye-care`(护眼)、`panel super-resolution`(超分) |
+| 屏幕 | `panel rate`(刷新率)、`panel brightness`(亮度);`panel eye-care`/`panel super-resolution` 已接入驱动通道但 21VG 内屏无像素变换管线(护眼报 Unsupported、超分状态 unknown,见 RE-interfaces §15.1) |
 | 输入设备 | `touchpad status/on/off/recover`、`kbd backlight` |
 | 音频 | `audio dolby`(杜比开关/预设切换)、`audio noise-cancel`(降噪模式) |
 | 智能感知 | `sense status`、`sense lock-on-leave/wake-on-approach/pause-video/attention-tracking` |
@@ -86,7 +86,8 @@ vantage --yes perf mode performance       # 执行、回读、确认
 (0x83102150)、临时充电模式只读(0x83102148)、DBDC 电池限流表只读
 (`perf dbdc get`)、杜比音效开关/预设切换(`audio dolby`)、降噪模式
 (`audio noise-cancel`)、SmartSense 人体感知设置(`sense *`)、护眼/超分
-(`panel eye-care`/`panel super-resolution`,经 Intel IGCL,驱动组件 ABI pin)。
+(`panel eye-care`/`panel super-resolution`,经 Intel IGCL,驱动组件 ABI pin;
+21VG 内屏无像素变换管线,护眼诚实 Unsupported、超分状态 unknown)。
 契约见 docs/RE-interfaces.md §11–§15。
 
 **⚠️ 有限验收**(部分路径验证,未全覆盖):遥测/温度流(C19)、本地驱动安装
@@ -104,6 +105,7 @@ vantage --yes perf mode performance       # 执行、回读、确认
 | 智能感知键盘灯自动 | 需 Vantage contract RPC 通道,未恢复 |
 | 面板色域切换 | 原版依赖联想交付的 MONITORCONTROL.dll(SmartColor addin),按依赖裁定不引用;契约已存档(RE-interfaces §15) |
 | 面板 overdrive | 21VG 硬件缺席:无 SPBTESTTOOL 设备、BIOSOD 0x1A0000 读 null(RE-interfaces §15) |
+| 面板护眼(21VG) | 内屏无 IGCL 像素变换管线(CAPABILITY 报 0 block),硬件不适用(RE-interfaces §15.1) |
 | BIOS 刷写、BIOS 口令 | 安全考虑,明确不支持;本地 `.inf` 驱动经 `update local-driver` 支持 |
 
 ## 安全模型

@@ -516,4 +516,20 @@ out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Se
 
 **色域(诚实 Unsupported,依赖被禁)**:原版链路 `SEColorManagerPlugin64.dll` → `MONITORCONTROL.dll`(SmartColor addin 1.1.4.32 交付,**联想交付组件,禁依赖**)→ `MonCtrl_GetMonitorColorGamutByIndex`(按名查索引)/`MonCtrl_SetMonitorColorGamut(monitor, index)`,配 `WcsSetDefaultColorProfile`+`InstallColorProfileW` 挂 ICM(ICM 包 9 个 TPLCD_8AD7_*.icm 位于 C:\ProgramData\Lenovo\SmartColorAddin\AddinData\icc\ColorCalibration\)。无 MONITORCONTROL 只剩 ICC 关联 ≠ 原版行为(面板原生色域未切),不平替 → Unsupported, recovered contract 存档于此待非联想路径。Linux 等价评估:colord。
 
+### 15.1 21VG 实机 IGCL 探针结论(2026-11-01,只读)
+
+目标机 IGCL 组件:`C:\Windows\System32\DriverStore\FileRepository\iigd_dch.inf_amd64_*\IntelControlLib.dll`(两版 1.2.265 / 1.2.301.0;`ctlInit` 回 `SupportedVersion=0x00010001`)。导出名以实机为准:**`ctlClose`**(非 `ctlDestroy`);`ctlInit`/`ctlEnumerateDevices`/`ctlEnumerateDisplayOutputs`/`ctlPixelTransformationGetConfig`/`ctlPixelTransformationSetConfig`/`ctlGetSupportedVideoProcessingCapabilities`/`ctlGetSetVideoProcessingFeature` 均在。结构体按公版头:`ctl_init_args_t` 的 `ctl_application_id_t` 为 16 字节(Data1 u32/Data2 u16/Data3 u16/Data4[8]),写错会让 `ctlInit` 返 `CTL_RESULT_ERROR_UNSUPPORTED_VERSION(0x40000009)`。
+
+探针(`crates/lctrl-hal-win/examples/pixtx_probe.rs`,只读)实测:
+
+| 查询 | 结果 | 结论 |
+|---|---|---|
+| `ctlEnumerateDevices` / `ctlEnumerateDisplayOutputs` | SUCCESS,各 1 个 | 内屏输出句柄可用 |
+| `ctlPixelTransformationGetConfig(CAPABILITY)`,1 block | SUCCESS,但 `NumBlocks=0` | **21VG 内屏无像素变换(1D LUT)管线** |
+| `ctlPixelTransformationGetConfig(CURRENT)` | `0x4800000c INVALID_PIXTX_BLOCK_NUMBER` | 无活动 LUT 可读 |
+| `ctlGetSupportedVideoProcessingCapabilities` | SUCCESS,7 项特性 | 适配器支持视频处理族 |
+| `ctlGetSetVideoProcessingFeature(get SUPER_RESOLUTION)` | `0x4000000b INVALID_ARGUMENT` | 状态查询被驱动拒(尺寸/版本/参数语义未对齐)→ 状态报 unknown,不伪造 |
+
+因此 CLI 现状:`panel eye-care` → Unsupported(`panel.eye-care.no-pixel-transformation-pipeline`,硬件不适用);`panel super-resolution` → 状态 unknown,写路径保留但仍在写门禁内。护眼 Kelvin 档位(INFERRED)与 LUT 生成逻辑保留,供具备像素变换管线的面板使用。
+
 **Overdrive(诚实 Unsupported,硬件缺席)**:21VG 无 \\.\SPBTESTTOOL PnP 设备/INF,BIOSOD GetFeatureValue(0x1A0000) 返回 null —— 原版 UI 亦无此项。
