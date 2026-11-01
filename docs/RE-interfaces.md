@@ -475,6 +475,8 @@ out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Se
 
 链路:`vantage audio noise-cancel → ALPC ncalrpc:[ElevocRpcEndpoint] → ElevocControlService.exe(LocalSystem)`。接口 GUID `{6F761170-1054-4339-A573-063DD08C7E16}` v4.0,NDR32;单 opnum-0 通用分发,方法名在 JSON 请求信封内(elevoc_rpc_protocol)。**实现为纯 Rust rpcrt4 客户端**(`lctrl-hal-win/src/noise.rs`,`NativeElevocRpc`):按 2026-11-01 依赖裁定,Lenovo 交付的 ElevocControlSDK_x64.dll 已禁止作为运行时依赖,DLL 发现/缓存机制移除;传输改为系统 `rpcrt4.dll` + `NdrClientCall3` 直打 opnum-0。
 
+**依赖边界说明**:运行时只依赖系统组件 `rpcrt4.dll`(+oleaut32 的 BSTR 封送导出);复刻进代码的 MIDL 解释器表/格式串是**逆向期从厂商二进制逐字节转录的接口常量**(来源与 SHA 见 14.0),不是对厂商软件的运行时依赖——卸载 Lenovo Vantage 后通道仍可用;接口常量随接口版本走(ABI 锚点见下),服务端改版本即绑定失败而非静默错译。
+
 ### 14.0 纯 Rust 通道实现要点(ABI 稳定依据)
 
 - **绑定**:`RpcStringBindingComposeW(NULL,"ncalrpc",NULL,"ElevocRpcEndpoint")` → `RpcBindingFromStringBindingW`(与 SDK Initialize 9c0- 一致;无 AuthInfo,服务端无鉴权注册)。
