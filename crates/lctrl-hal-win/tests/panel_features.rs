@@ -4,13 +4,27 @@ use lctrl_hal_win::{IntelCtlApi, WindowsPanelFeatures, classify_lut, eye_care_lu
 use parking_lot::Mutex;
 use std::sync::Arc;
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 struct FakeCtl {
     lut: Arc<Mutex<Option<[f64; 768]>>>,
     lut_writes: Arc<Mutex<usize>>,
     sr_flag: Arc<Mutex<u32>>,
     sr_writes: Arc<Mutex<usize>>,
     fail_sr: Arc<Mutex<bool>>,
+    has_pixtx: Arc<Mutex<bool>>,
+}
+
+impl Default for FakeCtl {
+    fn default() -> Self {
+        Self {
+            lut: Arc::new(Mutex::new(None)),
+            lut_writes: Arc::new(Mutex::new(0)),
+            sr_flag: Arc::new(Mutex::new(0)),
+            sr_writes: Arc::new(Mutex::new(0)),
+            fail_sr: Arc::new(Mutex::new(false)),
+            has_pixtx: Arc::new(Mutex::new(true)),
+        }
+    }
 }
 
 const SR_DISABLE: u32 = 1;
@@ -50,6 +64,10 @@ impl IntelCtlApi for FakeCtl {
         *self.sr_writes.lock() += 1;
         *self.sr_flag.lock() = flag;
         Ok(())
+    }
+
+    fn has_pixel_transformation(&self) -> Result<bool> {
+        Ok(*self.has_pixtx.lock())
     }
 }
 
@@ -96,7 +114,8 @@ fn set_eye_care_commit_writes_and_reports() {
         .set_eye_care(EyeCareLevel::High, ApplyMode::Commit)
         .expect("commit");
     assert_eq!(*ctl.lut_writes.lock(), 1);
-    assert_eq!(report.actual(), Some(&EyeCareLevel::High));
+    assert_eq!(report.actual(), Some(&Some(EyeCareLevel::High)));
+    assert_eq!(report.previous(), &None);
     let observed = classify_lut(&ctl.lut.lock().as_ref().expect("lut set")).expect("level");
     assert_eq!(observed, EyeCareLevel::High);
 }
@@ -124,7 +143,7 @@ fn dry_run_sends_no_lut_writes() {
         .expect("dry run");
     assert_eq!(*ctl.lut_writes.lock(), 0);
     assert!(report.actual().is_none());
-    assert_eq!(report.requested(), &EyeCareLevel::Mid);
+    assert_eq!(report.requested(), &Some(EyeCareLevel::Mid));
 }
 
 #[test]
@@ -141,14 +160,17 @@ fn custom_level_is_rejected() {
 fn super_resolution_commit_toggles_flag() {
     let ctl = FakeCtl::default();
     let features = WindowsPanelFeatures::new(ctl.clone());
-    assert!(!features.super_resolution().expect("initial off"));
+    assert_eq!(
+        features.super_resolution().expect("initial state"),
+        Some(false)
+    );
     let report = features
         .set_super_resolution(true, ApplyMode::Commit)
         .expect("enable");
     assert_eq!(*ctl.sr_writes.lock(), 1);
     assert_eq!(*ctl.sr_flag.lock(), SR_ENABLE_DEFAULT);
-    assert_eq!(report.actual(), Some(&true));
-    assert!(features.super_resolution().expect("readback"));
+    assert_eq!(report.actual(), Some(&Some(true)));
+    assert_eq!(features.super_resolution().expect("readback"), Some(true));
     features
         .set_super_resolution(false, ApplyMode::Commit)
         .expect("disable");
@@ -167,14 +189,30 @@ fn super_resolution_dry_run_sends_no_writes() {
 }
 
 #[test]
-fn eye_care_falls_back_to_process_state_without_driver_readback() {
+fn eye_care_is_unknown_until_the_driver_reports_a_lut() {
     let ctl = FakeCtl::default();
-    let features = WindowsPanelFeatures::new(ctl);
-    // No LUT ever written and driver readback unsupported: reports Off (the
-    // process-local initial state) instead of failing.
-    assert_eq!(features.eye_care().expect("fallback"), EyeCareLevel::Off);
-    features
+    let features = WindowsPanelFeatures::new(ctl.clone());
+    // Nothing written yet and the driver cannot report a current LUT: the
+    // state is unknown, never invented.
+    let error = features.eye_care().expect_err("no readback yet");
+    assert!(matches!(error, LctrlError::Unsupported { .. }));
+    let report = features
         .set_eye_care(EyeCareLevel::Mid, ApplyMode::Commit)
         .expect("set");
-    assert_eq!(features.eye_care().expect("fallback"), EyeCareLevel::Mid);
+    assert_eq!(report.previous(), &None);
+    assert_eq!(
+        features.eye_care().expect("after write"),
+        Some(EyeCareLevel::Mid)
+    );
+}
+
+#[test]
+fn eye_care_is_unsupported_without_a_pixel_transformation_pipeline() {
+    let ctl = FakeCtl {
+        has_pixtx: Arc::new(Mutex::new(false)),
+        ..FakeCtl::default()
+    };
+    let features = WindowsPanelFeatures::new(ctl);
+    let error = features.eye_care().expect_err("no pipeline");
+    assert!(matches!(error, LctrlError::Unsupported { .. }));
 }

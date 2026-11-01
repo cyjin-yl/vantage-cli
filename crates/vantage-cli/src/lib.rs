@@ -20,19 +20,18 @@ use lctrl_core::{
     ApplyMode, Availability, BacklightState, BiosChange, Capability, CapabilitySet, ChargeMode,
     ChargeModeActual, DeviceState, DiagnosticKind, DolbyProfile, DolbyState, DriverIdentity,
     DriverVersion, FanMode, HardwareInfo, LctrlError, LocalDriverRollbackRequest,
-    NoiseCancelState, NoiseCancellationMode,
-    LocalDriverUpdateRequest, PerformanceMode, Platform, PowerGuid, PowerMutation,
-    PowerRangeObservation, PowerSchemeId, PowerSettingKey, PowerSettingValue, PowerSource,
-    SceneAction, UpdateCapability,
+    LocalDriverUpdateRequest, NoiseCancelState, NoiseCancellationMode, PerformanceMode, Platform,
+    PowerGuid, PowerMutation, PowerRangeObservation, PowerSchemeId, PowerSettingKey,
+    PowerSettingValue, PowerSource, SceneAction, UpdateCapability,
 };
 use lctrl_hal::ScenePolicyControl;
 use lctrl_hal::{
     AudioControl, BatteryControl, BiosControl, ControlConflictDetection, DbdcControl,
     DiagnosticsControl, FanControl, Hal, HotkeyControl, KeyboardControl, LocalUpdateControl,
     MachineFixControl, MagicBayControl, NoiseCancelControl, OsdControl, PanelBrightnessControl,
-    PanelControl, PanelFeaturesControl, PerformanceControl, PowerControl, PowerLimitKind, PrivacyControl,
-    ProcessorPowerControl, SenseControl, SenseFeature, TemperatureControl, TouchpadControl,
-    TuningControl, UpdateControl, UsbControl, WifiSecurityControl,
+    PanelControl, PanelFeaturesControl, PerformanceControl, PowerControl, PowerLimitKind,
+    PrivacyControl, ProcessorPowerControl, SenseControl, SenseFeature, TemperatureControl,
+    TouchpadControl, TuningControl, UpdateControl, UsbControl, WifiSecurityControl,
 };
 use serde::{Deserialize, Serialize};
 
@@ -1540,8 +1539,7 @@ fn command_is_mutating(command: &Command) -> bool {
         command,
         Command::Battery {
             command: Some(BatteryCommand::ChargeMode { .. })
-        }
-        | Command::Battery {
+        } | Command::Battery {
             command: Some(BatteryCommand::NightCharge { .. }),
         } | Command::Power {
             command: Some(PowerCommand::Scheme {
@@ -1864,10 +1862,7 @@ fn execute_night_charge(
     })?;
     let enabled = matches!(state, Toggle::On);
     let report = battery.set_night_charge(enabled, apply)?;
-    structured_output(
-        &report,
-        format!("night charge: {}\n", report.requested()),
-    )
+    structured_output(&report, format!("night charge: {}\n", report.requested()))
 }
 
 fn execute_temporary_charge(battery: Option<&dyn BatteryControl>) -> CommandResult {
@@ -2235,9 +2230,7 @@ fn execute_audio(
 ) -> CommandResult {
     match command {
         Some(AudioCommand::Dolby { profile }) => execute_dolby(audio, profile, apply),
-        Some(AudioCommand::NoiseCancel { mode }) => {
-            execute_noise_cancel(noise_cancel, mode, apply)
-        }
+        Some(AudioCommand::NoiseCancel { mode }) => execute_noise_cancel(noise_cancel, mode, apply),
         None => Err(LctrlError::InvalidArgument {
             detail: "an audio subcommand is required".into(),
         }),
@@ -2605,8 +2598,15 @@ fn execute_panel(
                     } else {
                         "applied"
                     },
-                    report.previous(),
-                    report.requested()
+                    report
+                        .previous()
+                        .map(|value| if value { "on" } else { "off" })
+                        .unwrap_or("unknown"),
+                    if report.requested() == &Some(true) {
+                        "on"
+                    } else {
+                        "off"
+                    }
                 ),
             )
         }
@@ -2632,8 +2632,14 @@ fn execute_panel(
                     } else {
                         "applied"
                     },
-                    report.previous(),
-                    report.requested()
+                    report
+                        .previous()
+                        .map(|level| level.to_string())
+                        .unwrap_or_else(|| "unknown".to_string()),
+                    report
+                        .requested()
+                        .map(|level| level.to_string())
+                        .unwrap_or_else(|| "unknown".to_string())
                 ),
             )
         }
@@ -5495,10 +5501,14 @@ fn unsupported_reason(command: &Command) -> &'static str {
         Command::Battery { command: None } => "a battery subcommand is required",
         Command::Battery {
             command: Some(BatteryCommand::Thresholds { .. }),
-        } => "custom charge thresholds are unsupported on this target: the PWRMGRV/PWMIF32V chain is absent and the ACPI MHQI method is missing (RE-interfaces.md §11.6)",
+        } => {
+            "custom charge thresholds are unsupported on this target: the PWRMGRV/PWMIF32V chain is absent and the ACPI MHQI method is missing (RE-interfaces.md §11.6)"
+        }
         Command::Battery {
             command: Some(BatteryCommand::ExtremeLife { .. }),
-        } => "extreme-life must match the original AiTurbo EcoQoS daemon contract; a generic substitute is not implemented (RE-interfaces.md §11.6)",
+        } => {
+            "extreme-life must match the original AiTurbo EcoQoS daemon contract; a generic substitute is not implemented (RE-interfaces.md §11.6)"
+        }
         Command::Battery {
             command: Some(BatteryCommand::Watch),
         } => "battery event streaming requires the daemon event source",
@@ -5536,13 +5546,19 @@ fn unsupported_reason(command: &Command) -> &'static str {
         Command::Panel { command: None } => "a panel subcommand is required",
         Command::Panel {
             command: Some(PanelCommand::Color { .. }),
-        } => "panel gamut switching requires MONITORCONTROL.dll delivered inside the Lenovo SmartColor addin; Lenovo-delivered components are not a permitted dependency (docs/RE-interfaces.md §15)",
+        } => {
+            "panel gamut switching requires MONITORCONTROL.dll delivered inside the Lenovo SmartColor addin; Lenovo-delivered components are not a permitted dependency (docs/RE-interfaces.md §15)"
+        }
         Command::Panel {
             command: Some(PanelCommand::Overdrive { .. }),
-        } => "overdrive is absent on this target: no SPBTESTTOOL PnP device and BIOSOD feature 0x1A0000 reads null (docs/RE-interfaces.md §15)",
+        } => {
+            "overdrive is absent on this target: no SPBTESTTOOL PnP device and BIOSOD feature 0x1A0000 reads null (docs/RE-interfaces.md §15)"
+        }
         Command::Sense {
             command: Some(SenseCommand::KbdLightAuto { .. }),
-        } => "keyboard-light auto requires the Vantage contract RPC channel, which is not recovered",
+        } => {
+            "keyboard-light auto requires the Vantage contract RPC channel, which is not recovered"
+        }
         Command::Sense { .. } => "a sense subcommand is required",
         Command::Audio { .. } => "an audio subcommand is required",
         Command::Magicbay {

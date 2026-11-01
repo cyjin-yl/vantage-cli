@@ -70,14 +70,20 @@ pub trait PanelBrightnessControl: Send + Sync {
 /// depend on (docs/RE-interfaces.md §15).
 pub trait PanelFeaturesControl: Send + Sync {
     /// Current eye-care level as observed from the active 1D LUT.
-    /// `Custom` reports a non-eye-care custom LUT; when the driver exposes no
-    /// stable get-config the last process-local write is reported instead.
-    fn eye_care(&self) -> Result<EyeCareLevel>;
+    /// `Ok(None)` means the driver cannot report the level (no readback);
+    /// `Err(Unsupported)` means the panel has no pixel-transformation
+    /// pipeline at all.
+    fn eye_care(&self) -> Result<Option<EyeCareLevel>>;
     fn set_eye_care(
         &self,
         level: EyeCareLevel,
         apply: ApplyMode,
-    ) -> Result<ChangeReport<EyeCareLevel>>;
-    fn super_resolution(&self) -> Result<bool>;
-    fn set_super_resolution(&self, enabled: bool, apply: ApplyMode) -> Result<ChangeReport<bool>>;
+    ) -> Result<ChangeReport<Option<EyeCareLevel>>>;
+    /// `Ok(None)` means the driver cannot report the current state.
+    fn super_resolution(&self) -> Result<Option<bool>>;
+    fn set_super_resolution(
+        &self,
+        enabled: bool,
+        apply: ApplyMode,
+    ) -> Result<ChangeReport<Option<bool>>>;
 }
