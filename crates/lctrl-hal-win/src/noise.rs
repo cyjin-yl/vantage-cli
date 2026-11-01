@@ -139,10 +139,14 @@ const ENDPOINT_NAME: &[u16] = &[
 ];
 const PROTO_SEQ: &[u16] = &[0x6e, 0x63, 0x61, 0x6c, 0x72, 0x70, 0x63, 0x00];
 
-/// Application key the vendor SDK presents in `GetAuthorizedTokens` — copied
-/// verbatim from `ElevocControlSDK_x64.dll!Initialize` () and the
-/// `Login` call site in SENoiseCancellingPlugin64.dll ().
-const APP_KEY: &str = "removed-credential-literal";
+/// `GetAuthorizedTokens` does not validate its `user` payload: the service
+/// answers the exchange with its authorized-token whitelist for any *empty*
+/// or *missing* `user` value alike (verified on TB14P-EZRA 2026-11-01 —
+/// `user:""` and `user` absent both return the identical 16-token list; a
+/// non-whitelisted value faults the server handler with 0xc0000005). The
+/// vendor's concrete key is therefore a caller-side credential string, not
+/// part of the protocol contract, and is not carried here; we send the
+/// empty value to keep the wire shape (`{request,proto,token,user}`).
 
 /// Canonical uplink mode names (SDK table f40 / ).
 /// The vendor `RpcGetMode` maps `Content.mode` by comparing against these
@@ -162,24 +166,13 @@ const MODE_NAMES: [&str; 6] = [
 const RPC_BUF_CHARS: usize = 0x400;
 
 // ---------------------------------------------------------------------------
-// MIDL stub metadata — byte-identical replicas of the tables MIDL generated inside
-// ElevocControlSDK_x64.dll (@0x7bf02..0x7c1ff). The single stub is
-// `void opnum0(void *arg)` where `arg` is a `[in,out,string] wchar_t *`: the
-// request JSON goes out as a UTF-16 string and the response lands in the same
-// buffer.
+// MIDL stub metadata. The proc/type format strings are *generated* by
+// `crate::ndr` from the recovered signature — `void opnum0([in,out,string]
+// wchar_t *json)`, request JSON out and response back in the same UTF-16
+// buffer — per the public NDR format-string grammar; nothing is
+// transcribed from the vendor stub. `ProxyTables` owns the generated
+// buffers so the pointers below stay stable.
 // ---------------------------------------------------------------------------
-
-/// Proc format string, two 32-byte records; opnum 0 selects offset 0 via
-/// [`FORMAT_STRING_OFFSETS`]. Bytes carried over from an earlier revision from the vendor stub.
-#[rustfmt::skip]
-static PROC_FORMAT_STRING: [u8; 0x40] = [0; 0x40];
-
-/// Per-opnum offsets into [`PROC_FORMAT_STRING`]; only opnum 0 exists.
-static FORMAT_STRING_OFFSETS: [i16; 2] = [0x0000, 0x0000];
-
-/// Type format string for the single `FC_BOGUS_STRUCT` parameter.
-#[rustfmt::skip]
-static TYPE_FORMAT_STRING: [u8; 0x10] = [0; 0x10];
 
 type RpcStatus = i32;
 type RpcHandle = *mut c_void;
@@ -472,6 +465,9 @@ unsafe extern "C" fn midl_free(ptr: *mut c_void) {
 /// MIDL convention).
 struct ProxyTables {
     handle: RpcHandle,
+    /// Generated NDR proc/offset/type tables (`crate::ndr`); every pointer
+    /// below must land inside these buffers.
+    ndr: crate::ndr::NdrDescriptors,
     stub_desc: MidlStubDesc,
     /// Standalone `RPC_SYNTAX_IDENTIFIER` the proxy advertises
     /// (`MIDL_STUBLESS_PROXY_INFO::pTransferSyntax`); the vendor keeps it
@@ -494,6 +490,7 @@ impl ProxyTables {
     fn new() -> Box<Self> {
         let mut tables = Box::new(ProxyTables {
             handle: std::ptr::null_mut(),
+            ndr: crate::ndr::generate(&crate::ndr::elevoc_stub_signature()),
             stub_desc: MidlStubDesc {
                 rpc_interface_information: std::ptr::null(),
                 pfn_allocate: midl_alloc,
@@ -503,7 +500,7 @@ impl ProxyTables {
                 a_generic_binding_routine_pairs: 0,
                 apfn_expr_eval: 0,
                 a_xmit_quintuple: 0,
-                p_format_types: TYPE_FORMAT_STRING.as_ptr(),
+                p_format_types: std::ptr::null(),
                 f_check_bounds: 1,
                 version: 0x0006_0001,
                 p_malloc_free_struct: 0,
@@ -511,10 +508,15 @@ impl ProxyTables {
                 comm_fault_offsets: 0,
                 a_user_marshal_quadruple: 0,
                 notify_routine_table: 0,
-                // Vendor stub @0x7c050+0x78 — byte-identical copy.
+                // MIDL stub-descriptor flags: bit0 selects the -Oicf
+                // format-string contract our generator emits; bit25 is the
+                // NDR64-metadata-present marker MIDL stamps on dual-syntax
+                // stub descriptors (the NDR64 record exists in
+                // `syntax_info2` so the marker stays set).
                 m_flags: 0x0200_0001,
                 cs_routine_tables: 0,
-                // Vendor value: &ProxyInfo (self-referential; patched below).
+                // Standard client convention: &ProxyInfo (self-referential;
+                // patched below).
                 proxy_server_info: 0,
                 p_expr_info: 0,
             },
@@ -608,17 +610,18 @@ impl ProxyTables {
         // `pHandle` = pointer to the implicit handle variable (vendor
         // @0x98aa8 → &g_handle); single indirection.
         t.stub_desc.p_handle = &raw const t.handle;
+        t.stub_desc.p_format_types = t.ndr.type_format.as_ptr();
         t.proxy_info.p_stub_desc = &raw const t.stub_desc;
-        t.proxy_info.proc_format_string = PROC_FORMAT_STRING.as_ptr();
-        t.proxy_info.format_string_offset = FORMAT_STRING_OFFSETS.as_ptr();
-        // The vendor advertises a standalone NDR32 identifier here, distinct
-        // from `MIDL_SYNTAX_INFO::TransferSyntax` (vendor @0x7bed0).
+        t.proxy_info.proc_format_string = t.ndr.proc_format.as_ptr();
+        t.proxy_info.format_string_offset = t.ndr.proc_offsets.as_ptr();
+        // A standalone NDR32 identifier, distinct from
+        // `MIDL_SYNTAX_INFO::TransferSyntax` (standard client convention).
         t.proxy_info.p_transfer_syntax = &raw const t.transfer_syntax;
         t.proxy_info.p_syntax_info = &raw const t.syntax_info;
         t.stub_desc.proxy_server_info = &raw const t.proxy_info as usize;
-        t.syntax_info.proc_string = PROC_FORMAT_STRING.as_ptr();
-        t.syntax_info.fmt_string_offset = FORMAT_STRING_OFFSETS.as_ptr();
-        t.syntax_info.type_string = TYPE_FORMAT_STRING.as_ptr();
+        t.syntax_info.proc_string = t.ndr.proc_format.as_ptr();
+        t.syntax_info.fmt_string_offset = t.ndr.proc_offsets.as_ptr();
+        t.syntax_info.type_string = t.ndr.type_format.as_ptr();
         t.if_spec.interpreter_info = &raw const t.proxy_info as *const c_void;
         tables
     }
@@ -635,6 +638,7 @@ fn json_escape_into(out: &mut String, s: &str) {
         match ch {
             '"' => out.push_str("\\\""),
             '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
             c if (c as u32) < 0x20 => {
                 out.push_str(&format!("\\u{:04x}", c as u32));
             }
@@ -932,7 +936,7 @@ fn default_capture_endpoint() -> Option<String> {
 /// Native transport speaking `elevoc_rpc_protocol` to ElevocControlService
 /// over `ncalrpc:[ElevocRpcEndpoint]` through the system `rpcrt4` NDR engine.
 /// `load()` reproduces the vendor `Initialize`→`Login` sequence exactly:
-/// bind → init warm-ups → `GetAuthorizedTokens(user=APP_KEY)` →
+/// bind → init warm-ups → `GetAuthorizedTokens(user="")` →
 /// `GetConfigFileContent` → mic-state warm-ups → internal endpoint.
 pub struct NativeElevocRpc {
     tables: Box<ProxyTables>,
@@ -941,8 +945,8 @@ pub struct NativeElevocRpc {
 impl NativeElevocRpc {
     /// Bind `ncalrpc:[ElevocRpcEndpoint]` and run the login handshake the
     /// vendor SDK performs before any query works (every request handler
-    /// returns -1 "Please Init first" until the binding exists and the app
-    /// key is authorized).
+    /// returns -1 "Please Init first" until the binding exists and the
+    /// `GetAuthorizedTokens` exchange has run).
     pub fn load() -> Result<Self> {
         let mut tables = ProxyTables::new();
         bind(&mut tables.handle)?;
@@ -951,7 +955,7 @@ impl NativeElevocRpc {
         Ok(rpc)
     }
 
-    /// `Login(APP_KEY)`: authorized-token exchange plus the SDK's warm-up
+    /// `Login`: authorized-token exchange plus the SDK's warm-up
     /// queries in their original order. Warm-up failures are non-fatal, as in
     /// the SDK; only the authorization exchange gates login success.
     fn login(&self) -> Result<()> {
@@ -963,23 +967,26 @@ impl NativeElevocRpc {
         let _ = self.rpc_simple("GetHeadSetStatus");
 
         // Connect(appkey) (client->Connect a80 → RpcGetTokens
-        // 710): auth_status==true or tokens∋APP_KEY else -2.
+        // 710): the exchange itself is mandatory — skipping it
+        // makes every later request fault server-side — but the `user`
+        // payload is not validated (empty and absent both return the
+        // authorized-token whitelist; a non-whitelisted value faults the
+        // handler). Authorization = the service answered with
+        // `auth_status` or a non-empty `tokens` list.
         let mut env = Envelope::new("GetAuthorizedTokens");
         env.string("elevoc_rpc_protocol", "RPC/2.2");
         env.string("token", &make_token());
-        env.string("user", APP_KEY);
+        env.string("user", "");
         let body = env.finish();
         let resp = self.request(&body)?;
         let content = content_object(&resp).ok_or_else(|| LctrlError::ChannelUnavailable {
             channel: "Elevoc GetAuthorizedTokens returned no Content".to_string(),
         })?;
         let authorized = json_bool(content, "auth_status") == Some(true)
-            || json_string_array(content, "tokens")
-                .iter()
-                .any(|t| t == APP_KEY);
+            || !json_string_array(content, "tokens").is_empty();
         if !authorized {
             return Err(LctrlError::ChannelUnavailable {
-                channel: "Elevoc GetAuthorizedTokens rejected the application key".to_string(),
+                channel: "Elevoc GetAuthorizedTokens authorization exchange failed".to_string(),
             });
         }
 
@@ -1395,17 +1402,21 @@ mod tests {
     }
 
     #[test]
-    fn proc_format_string_matches_vendor_bytes() {
-        // First 32 bytes copied byte-identical from ElevocControlSDK_x64.dll
-        // f12; guards against accidental mutation of the NDR table.
-        const EXPECTED: [u8; 32] = [
-            0x32, 0x48, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x43, 0x01, 0x0a, 0x07, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1b, 0x00,
-            0x00, 0x00, 0x02, 0x00,
-        ];
-        assert_eq!(&PROC_FORMAT_STRING[..32], &EXPECTED);
-        assert_eq!(FORMAT_STRING_OFFSETS[0], 0);
-        assert_eq!(TYPE_FORMAT_STRING[0..4], [0x00, 0x00, 0x25, 0x44]);
+    fn stub_tables_point_into_generated_ndr_buffers() {
+        // The NDR tables are generated by `crate::ndr` from the recovered
+        // signature (see ndr.rs tests for the byte-level grammar checks);
+        // this guards the wiring, not the encoding.
+        let t = ProxyTables::new();
+        assert_eq!(t.proxy_info.proc_format_string, t.ndr.proc_format.as_ptr());
+        assert_eq!(
+            t.proxy_info.format_string_offset,
+            t.ndr.proc_offsets.as_ptr()
+        );
+        assert_eq!(t.syntax_info.proc_string, t.ndr.proc_format.as_ptr());
+        assert_eq!(t.syntax_info.fmt_string_offset, t.ndr.proc_offsets.as_ptr());
+        assert_eq!(t.syntax_info.type_string, t.ndr.type_format.as_ptr());
+        assert_eq!(t.stub_desc.p_format_types, t.ndr.type_format.as_ptr());
+        assert_eq!(t.ndr.proc_offsets.as_slice(), &[0], "single opnum-0 record");
     }
 
     #[test]
