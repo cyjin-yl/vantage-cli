@@ -77,8 +77,13 @@ const CTL_RESULT_ERROR_INVALID_PIXTX_BLOCK_NUMBER: u32 = 0x4800_000c;
 const CTL_RESULT_ERROR_INVALID_PIXTX_BLOCK_ID: u32 = 0x4800_000b;
 const CTL_RESULT_ERROR_INVALID_PIXTX_BLOCK_TYPE: u32 = 0x4800_000f;
 const CTL_RESULT_ERROR_INVALID_BOUND: u32 = 0x4000_0017;
-/// Upper bound on the LUT samples the driver may report per channel.
-const MAX_LUT_SAMPLES: usize = 8192;
+/// Upper bound on the LUT samples the driver may report per channel. The
+/// driver writes its own sample count into the caller's buffer, so the
+/// allocation carries headroom above every count the public header allows
+/// (`CTL_MAX_NUM_SAMPLES_PER_CHANNEL_1D_LUT`) — a buffer that is exactly
+/// sized to the reported count overflows by one element and corrupts the
+/// heap.
+const MAX_LUT_SAMPLES: usize = 65_536;
 /// Number of block descriptors handed to the driver per query. One block at
 /// a time keeps the driver's per-block sample writes inside our buffer.
 const MAX_BLOCKS: usize = 1;
