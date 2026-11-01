@@ -60,6 +60,7 @@ pub struct StreamSpec {
 ///
 /// A service is absent when the selected platform has no safe implementation
 /// for it. Dispatch then returns `Unsupported`; it never synthesizes success.
+#[derive(Clone, Copy)]
 pub struct CommandServices<'a> {
     hal: &'a dyn Hal,
     audio: Option<&'a dyn AudioControl>,
@@ -363,6 +364,11 @@ pub struct Cli {
     /// Confirm a risky operation after reviewing its impact and recovery path.
     #[arg(long, global = true)]
     pub yes: bool,
+    /// Acknowledge that the requested write has no independent physical
+    /// verification on this machine. Unverified write paths refuse to commit
+    /// without it; `--dry-run` always remains available.
+    #[arg(long, global = true)]
+    pub accept_unverified_write: bool,
 
     #[command(subcommand)]
     pub command: Command,
@@ -1367,7 +1373,26 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
     let confirmed = cli.yes;
     let interactive = !cli.json;
     if apply == ApplyMode::Commit && command_is_mutating(&cli.command) {
+        // Concurrent vendor control is reported first: it is a read-only
+        // observation and needs no acknowledgement from the operator.
         preflight_control_conflicts(services.conflicts, confirmed, interactive)?;
+    }
+    if apply == ApplyMode::Commit
+        && write_requires_physical_acceptance(&cli.command)
+        && !cli.accept_unverified_write
+    {
+        // Probe viability next: the dry run performs no write, so an
+        // unsupported or invalid command still reports its own error instead
+        // of the acknowledgement prompt.
+        let mut probe = cli.clone();
+        probe.dry_run = true;
+        execute_with_services(probe, services)?;
+        return Err(LctrlError::InvalidArgument {
+            detail: "this write has no independent physical verification on this machine; \
+                     run it with --dry-run to plan, or repeat with --accept-unverified-write to \
+                     write without that verification"
+                .to_string(),
+        });
     }
     match cli.command {
         Command::Info => execute_info(services.hal),
@@ -1541,6 +1566,48 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
         command => Err(unsupported(command)),
     }
 }
+/// Write paths whose effect has never been confirmed by an independent
+/// physical readback on the target machine. They still plan under
+/// `--dry-run`, but committing one requires an explicit acknowledgement.
+fn write_requires_physical_acceptance(command: &Command) -> bool {
+    matches!(
+        command,
+        Command::Battery {
+            command: Some(BatteryCommand::ChargeMode { .. } | BatteryCommand::NightCharge { .. },)
+        } | Command::Usb {
+            command: Some(UsbCommand::AlwaysOn { .. } | UsbCommand::ChargeOnBattery { .. }),
+        } | Command::Audio {
+            command: Some(AudioCommand::Dolby { .. } | AudioCommand::NoiseCancel { .. }),
+        } | Command::Sense {
+            command: Some(
+                SenseCommand::LockOnLeave { .. }
+                    | SenseCommand::WakeOnApproach { .. }
+                    | SenseCommand::PauseVideo { .. }
+                    | SenseCommand::AttentionTracking { .. },
+            )
+        } | Command::Panel {
+            command: Some(
+                PanelCommand::Color { .. }
+                    | PanelCommand::Overdrive { .. }
+                    | PanelCommand::EyeCare { .. }
+                    | PanelCommand::SuperResolution { .. },
+            )
+        } | Command::Perf {
+            command: Some(
+                PerfCommand::Fan {
+                    command: Some(
+                        FanCommand::Auto
+                            | FanCommand::Manual
+                            | FanCommand::Fullspeed
+                            | FanCommand::Smart,
+                    ),
+                } | PerfCommand::Pl1 { .. }
+                    | PerfCommand::Pl2 { .. },
+            )
+        }
+    )
+}
+
 fn command_is_mutating(command: &Command) -> bool {
     matches!(
         command,

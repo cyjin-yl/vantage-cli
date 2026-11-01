@@ -524,20 +524,16 @@ out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Se
 
 **色域(诚实 Unsupported,依赖被禁)**:原版链路 `SEColorManagerPlugin64.dll` → `MONITORCONTROL.dll`(SmartColor addin 1.1.4.32 交付,**联想交付组件,禁依赖**)→ `MonCtrl_GetMonitorColorGamutByIndex`(按名查索引)/`MonCtrl_SetMonitorColorGamut(monitor, index)`,配 `WcsSetDefaultColorProfile`+`InstallColorProfileW` 挂 ICM(ICM 包 9 个 TPLCD_8AD7_*.icm 位于 C:\ProgramData\Lenovo\SmartColorAddin\AddinData\icc\ColorCalibration\)。无 MONITORCONTROL 只剩 ICC 关联 ≠ 原版行为(面板原生色域未切),不平替 → Unsupported, recovered contract 存档于此待非联想路径。Linux 等价评估:colord。
 
-### 15.1 21VG 实机 IGCL 探针结论(2026-11-01,只读)
+### 15.1 21VG 实机 IGCL 探针结论(2026-11-02,只读)
 
-目标机 IGCL 组件:`C:\Windows\System32\DriverStore\FileRepository\iigd_dch.inf_amd64_*\IntelControlLib.dll`(两版 1.2.265 / 1.2.301.0;历史探针 `ctlInit` 回 `SupportedVersion=0x00010001`)。导出名为 `ctlClose`。注意 Intel 公布的 [`ctl_pixtx_pixel_format_t`](https://intel.github.io/drivers.gpu.control-library/Control/api.html#ctl-pixtx-pixel-format-t) 包含完整 `ctl_pixtx_color_primaries_t` 结构,当前代码及探针却将其写成 `u32`;`ctl_pixtx_config_t` 的公开联合体还包含比 1D LUT 更大的矩阵成员。版本主号匹配并不能证明这些布局兼容。历史 `ctlInit` 报 `0x4000000f` 是 INVALID_SIZE,不是 UNSUPPORTED_VERSION。
+目标机 IGCL 组件:`C:\Windows\System32\DriverStore\FileRepository\iigd_dch.inf_amd64_*\IntelControlLib.dll`(两版 1.2.265 / 1.2.301.0;`ctlInit` 回 `SupportedVersion=0x00010001`)。导出名以实机为准:`ctlClose`、`ctlInit`、`ctlEnumerateDevices`、`ctlEnumerateDisplayOutputs`、`ctlPixelTransformationGetConfig`、`ctlPixelTransformationSetConfig`、`ctlGetSupportedVideoProcessingCapabilities`、`ctlGetSetVideoProcessingFeature`。
 
-探针(`crates/lctrl-hal-win/examples/pixtx_probe.rs`,只读)实测:
+**结构布局已按公开头文件校正**(此前把 `ctl_pixtx_color_primaries_t` 写成 `u32`、`ctl_pixtx_config_t` 只留 1D LUT 成员、`ctl_video_processing_super_resolution_info_t` 缺两个 range 字段——这会让驱动按更大的结构写入调用方栈帧)。校正后的布局由 `crates/lctrl-hal-win/src/panel_features.rs` 的布局测试逐字段钉住(大小与偏移)。
 
-| 查询 | 结果 | 结论 |
-|---|---|---|
-| `ctlEnumerateDevices` / `ctlEnumerateDisplayOutputs` | SUCCESS,各 1 个 | 枚举到一个输出;未证明其与目标内屏身份绑定 |
-| `ctlPixelTransformationGetConfig(CAPABILITY)`,1 block | SUCCESS,探针字段显示 `NumBlocks=0` | **无结论:**探针结构布局不符公开 ABI |
-| `ctlPixelTransformationGetConfig(CURRENT)` | `0x4800000c INVALID_PIXTX_BLOCK_NUMBER` | 查询失败;不能证明硬件缺席或没有活动 LUT |
-| `ctlGetSupportedVideoProcessingCapabilities` | SUCCESS,7 项特性 | 未完成各特性枚举,不能证明 SR 在其中 |
-| `ctlGetSetVideoProcessingFeature(get SUPER_RESOLUTION)` | `0x4000000b INVALID_ARGUMENT` | 状态查询被驱动拒(尺寸/版本/参数语义未对齐)→ 状态报 unknown,不伪造 |
+**校正后仍然不可用**:像素变换块查询在结构正确的情况下依然让驱动写出我们结构之外的内容 —— 同一调用在目标机上 5 次里 4 次以 `0xC0000374`(堆损坏)结束、1 次侥幸返回 `0x4800000b`(`INVALID_PIXTX_BLOCK_ID`)。驱动同时把一个块 id 写回调用方数组(`0x0007FF01`),但把它作为 `BlockId` 传回仍被拒(`0x4800000b` / `0x40000017 INVALID_BOUND`)。结论:**块查询契约尚未恢复**,因此:
 
-因此 CLI 当前 `panel eye-care` 返回的 Unsupported 原因不能作为硬件不适用证据;`panel super-resolution` 返回 unknown 也不代表控制可用。必须先修正并核对 ABI、绑定真实内屏、只读重测,再考虑由 owner 在场的独立写入验收。当前 CLI 还没有对所有未验收写路径强制物理确认门禁,不要执行面板控制命令(包括 dry-run)。
+- `panel eye-care` 不再调用该接口,直接报 `Unsupported(panel.eye-care.pixel-transformation-query-unsupported)` —— 与其冒堆破坏风险,不如如实关闭;
+- 超分状态查询被驱动以 `0x4000000b` 拒(`INVALID_ARGUMENT`),CLI 报 `unknown`;写路径同理拒绝(`panel.super-resolution.write-unverified`);
+- 之前"21VG 内屏无像素变换管线"的结论**不成立**(那次读数来自错误结构),硬件适用性仍然未知;校正后的正确布局与保留的布局测试,供后续恢复契约时使用。
 
 **Overdrive(当前 Unsupported)**:21VG 上未观察到 `\\.\SPBTESTTOOL` PnP 设备/INF,所测 BIOSOD `0x1A0000` 返回 null。上述结果不足以证明不存在其他硬件控制通道。

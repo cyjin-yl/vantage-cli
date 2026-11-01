@@ -339,8 +339,36 @@ fn perf_dbdc_get_without_service_is_structured_unsupported() {
 }
 
 #[test]
-fn usb_always_on_commits_through_the_service() {
+fn unverified_write_refuses_without_an_explicit_acknowledgement() {
     let cli = Cli::try_parse_from(["vantage", "usb", "always-on", "off"]).expect("parse");
+    let hal = FakeHal::new("unused");
+    let usb = ToggleUsb::on();
+
+    let error = execute_with_services(cli, CommandServices::new(&hal).with_usb(&usb))
+        .expect_err("an unverified write must not commit silently");
+
+    assert!(
+        matches!(error, LctrlError::InvalidArgument { ref detail } if detail.contains("--accept-unverified-write")),
+        "unexpected error: {error:?}"
+    );
+    // The dry-run probe reaches the service (its counter counts attempts);
+    // the observable state must be untouched.
+    assert!(
+        usb.usb_charging().unwrap().ac_enabled,
+        "the USB charging state must be unchanged"
+    );
+}
+
+#[test]
+fn unverified_write_commits_with_the_acknowledgement() {
+    let cli = Cli::try_parse_from([
+        "vantage",
+        "--accept-unverified-write",
+        "usb",
+        "always-on",
+        "off",
+    ])
+    .expect("parse");
     let hal = FakeHal::new("unused");
     let usb = ToggleUsb::on();
 
@@ -496,6 +524,7 @@ fn stream_intervals_are_positive_and_specified_in_seconds() {
             json: false,
             dry_run: false,
             yes: false,
+            accept_unverified_write: false,
             command,
         };
         assert!(matches!(
@@ -767,12 +796,14 @@ fn unsupported_error_uses_core_exit_code_mapping() {
 
 struct FakeBattery {
     adapter_calls: AtomicUsize,
+    charge_writes: AtomicUsize,
 }
 
 impl FakeBattery {
     const fn new() -> Self {
         Self {
             adapter_calls: AtomicUsize::new(0),
+            charge_writes: AtomicUsize::new(0),
         }
     }
 }
@@ -793,10 +824,18 @@ impl BatteryControl for FakeBattery {
 
     fn set_charge_mode(
         &self,
-        _mode: ChargeMode,
-        _apply: ApplyMode,
+        mode: ChargeMode,
+        apply: ApplyMode,
     ) -> lctrl_core::Result<ChangeReport<ChargeMode>> {
-        unreachable!()
+        let previous = ChargeMode::Normal;
+        if apply == ApplyMode::Commit {
+            self.charge_writes.fetch_add(1, Ordering::SeqCst);
+        }
+        Ok(if apply == ApplyMode::Commit {
+            lctrl_core::ChangeReport::committed(previous, mode, mode)
+        } else {
+            lctrl_core::ChangeReport::dry_run(previous, mode)
+        })
     }
 }
 
