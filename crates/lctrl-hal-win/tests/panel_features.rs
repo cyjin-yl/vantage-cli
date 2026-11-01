@@ -212,7 +212,12 @@ fn eye_care_is_unsupported_without_a_pixel_transformation_pipeline() {
         has_pixtx: Arc::new(Mutex::new(false)),
         ..FakeCtl::default()
     };
-    let features = WindowsPanelFeatures::new(ctl);
+    let features = WindowsPanelFeatures::new(ctl.clone());
     let error = features.eye_care().expect_err("no pipeline");
     assert!(matches!(error, LctrlError::Unsupported { .. }));
+    let error = features
+        .set_eye_care(EyeCareLevel::Mid, ApplyMode::DryRun)
+        .expect_err("no pipeline write either");
+    assert!(matches!(error, LctrlError::Unsupported { .. }));
+    assert_eq!(*ctl.lut_writes.lock(), 0);
 }
