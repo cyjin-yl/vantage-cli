@@ -411,15 +411,20 @@ fn main() {
     let osd = lctrl_hal_win::NativeOsd::new();
     let hotkey = lctrl_hal_win::NativeHotkey::new();
     let usb_power = lctrl_hal_win::WindowsUsbPower::new(lctrl_hal_win::NativeIoctl);
-    // The Dolby RPC client binds the vendor DLL and DAX3API endpoint; when
-    // the Vantage package is absent the service stays unattached and
-    // `audio dolby` reports Unsupported instead of failing the whole CLI.
+    // The Dolby client speaks the DAX contract over rpcrt4 (no Lenovo
+    // payload dependency); when the DAX endpoint is unreachable the service
+    // stays unattached and `audio dolby` reports Unsupported instead of
+    // failing the whole CLI.
     let audio = lctrl_hal_win::NativeDolbyRpc::load()
         .map(|rpc| lctrl_hal_win::WindowsDolbyAudio::new(rpc))
         .ok();
-    let noise_cancel = lctrl_hal_win::NativeElevocRpc::load()
-        .map(|rpc| lctrl_hal_win::WindowsNoiseCancel::new(rpc))
-        .ok();
+    let noise_cancel = match lctrl_hal_win::NativeElevocRpc::load() {
+        Ok(rpc) => Some(lctrl_hal_win::WindowsNoiseCancel::new(rpc)),
+        Err(error) => {
+            eprintln!("noise-cancel channel unavailable: {error}");
+            None
+        }
+    };
     let services = vantage_cli::CommandServices::new(&hal)
         .with_battery(&battery)
         .with_conflict_detection(&conflicts)
@@ -452,6 +457,20 @@ fn main() {
     };
     let services = match &noise_cancel {
         Some(noise_cancel) => services.with_noise_cancel(noise_cancel),
+        None => services,
+    };
+    // Panel image-quality features ride the graphics driver's Intel Control
+    // Library (IGCL). The library ships with the Intel driver, so a missing
+    // package only disables eye-care/super-resolution.
+    let panel_features = match lctrl_hal_win::IntelControlLib::load() {
+        Ok(ctl) => Some(lctrl_hal_win::WindowsPanelFeatures::new(ctl)),
+        Err(error) => {
+            eprintln!("panel features channel unavailable: {error}");
+            None
+        }
+    };
+    let services = match &panel_features {
+        Some(panel_features) => services.with_panel_features(panel_features),
         None => services,
     };
     let sense = lctrl_hal_win::WindowsSenseControl::new(
