@@ -30,7 +30,7 @@ use lctrl_hal::{
     AudioControl, BatteryControl, BiosControl, ControlConflictDetection, DbdcControl,
     DiagnosticsControl, FanControl, Hal, HotkeyControl, KeyboardControl, LocalUpdateControl,
     MachineFixControl, MagicBayControl, NoiseCancelControl, OsdControl, PanelBrightnessControl,
-    PanelControl, PerformanceControl, PowerControl, PowerLimitKind, PrivacyControl,
+    PanelControl, PanelFeaturesControl, PerformanceControl, PowerControl, PowerLimitKind, PrivacyControl,
     ProcessorPowerControl, SenseControl, SenseFeature, TemperatureControl, TouchpadControl,
     TuningControl, UpdateControl, UsbControl, WifiSecurityControl,
 };
@@ -79,6 +79,7 @@ pub struct CommandServices<'a> {
     touchpad: Option<&'a dyn TouchpadControl>,
     panel: Option<&'a dyn PanelControl>,
     panel_brightness: Option<&'a dyn PanelBrightnessControl>,
+    panel_features: Option<&'a dyn PanelFeaturesControl>,
     temperature: Option<&'a dyn TemperatureControl>,
     tuning: Option<&'a dyn TuningControl>,
     usb: Option<&'a dyn UsbControl>,
@@ -113,6 +114,7 @@ impl<'a> CommandServices<'a> {
             touchpad: None,
             panel: None,
             panel_brightness: None,
+            panel_features: None,
             temperature: None,
             tuning: None,
             usb: None,
@@ -215,6 +217,12 @@ impl<'a> CommandServices<'a> {
     #[must_use]
     pub fn with_panel(mut self, panel: &'a dyn PanelControl) -> Self {
         self.panel = Some(panel);
+        self
+    }
+
+    #[must_use]
+    pub fn with_panel_features(mut self, panel_features: &'a dyn PanelFeaturesControl) -> Self {
+        self.panel_features = Some(panel_features);
         self
     }
 
@@ -1449,7 +1457,7 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
         } => execute_panel_brightness(services.panel_brightness, percent, expect_current, apply),
         Command::Panel {
             command: Some(command),
-        } => execute_panel(services.panel, command, apply),
+        } => execute_panel(services.panel, services.panel_features, command, apply),
         Command::Privacy {
             command: Some(command),
         } => execute_privacy(
@@ -2559,6 +2567,7 @@ fn execute_panel_brightness(
 
 fn execute_panel(
     panel: Option<&dyn PanelControl>,
+    panel_features: Option<&dyn PanelFeaturesControl>,
     command: PanelCommand,
     apply: ApplyMode,
 ) -> CommandResult {
@@ -2582,15 +2591,52 @@ fn execute_panel(
         PanelCommand::Color { .. } => Err(LctrlError::Unsupported {
             feature: "panel.color.write".into(),
         }),
-        PanelCommand::SuperResolution { .. } => Err(LctrlError::Unsupported {
-            feature: "panel.super-resolution.write".into(),
-        }),
+        PanelCommand::SuperResolution { state } => {
+            let features = panel_features.ok_or_else(|| LctrlError::Unsupported {
+                feature: "panel.super-resolution.write".into(),
+            })?;
+            let report = features.set_super_resolution(state == Toggle::On, apply)?;
+            structured_output(
+                &report,
+                format!(
+                    "panel super-resolution ({}): previous {}, requested {}\n",
+                    if report.mode() == ApplyMode::DryRun {
+                        "dry run"
+                    } else {
+                        "applied"
+                    },
+                    report.previous(),
+                    report.requested()
+                ),
+            )
+        }
         PanelCommand::Overdrive { .. } => Err(LctrlError::Unsupported {
             feature: "panel.overdrive.write".into(),
         }),
-        PanelCommand::EyeCare { .. } => Err(LctrlError::Unsupported {
-            feature: "panel.eye-care.write".into(),
-        }),
+        PanelCommand::EyeCare { level } => {
+            let features = panel_features.ok_or_else(|| LctrlError::Unsupported {
+                feature: "panel.eye-care.write".into(),
+            })?;
+            let target = match level {
+                EyeCareLevel::Off => lctrl_core::EyeCareLevel::Off,
+                EyeCareLevel::Mid => lctrl_core::EyeCareLevel::Mid,
+                EyeCareLevel::High => lctrl_core::EyeCareLevel::High,
+            };
+            let report = features.set_eye_care(target, apply)?;
+            structured_output(
+                &report,
+                format!(
+                    "panel eye-care ({}): previous {}, requested {}\n",
+                    if report.mode() == ApplyMode::DryRun {
+                        "dry run"
+                    } else {
+                        "applied"
+                    },
+                    report.previous(),
+                    report.requested()
+                ),
+            )
+        }
     }
 }
 
@@ -5488,6 +5534,12 @@ fn unsupported_reason(command: &Command) -> &'static str {
             command: Some(KbdCommand::Winlock { .. }),
         } => "GAMEZONE Win-key methods are not verified on the target",
         Command::Panel { command: None } => "a panel subcommand is required",
+        Command::Panel {
+            command: Some(PanelCommand::Color { .. }),
+        } => "panel gamut switching requires MONITORCONTROL.dll delivered inside the Lenovo SmartColor addin; Lenovo-delivered components are not a permitted dependency (docs/RE-interfaces.md §15)",
+        Command::Panel {
+            command: Some(PanelCommand::Overdrive { .. }),
+        } => "overdrive is absent on this target: no SPBTESTTOOL PnP device and BIOSOD feature 0x1A0000 reads null (docs/RE-interfaces.md §15)",
         Command::Sense {
             command: Some(SenseCommand::KbdLightAuto { .. }),
         } => "keyboard-light auto requires the Vantage contract RPC channel, which is not recovered",

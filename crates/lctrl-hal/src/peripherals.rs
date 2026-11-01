@@ -1,5 +1,5 @@
 use lctrl_core::{
-    ApplyMode, BacklightState, ChangeReport, PanelMode, PanelRefreshCapability,
+    ApplyMode, BacklightState, ChangeReport, EyeCareLevel, PanelMode, PanelRefreshCapability,
     PanelRefreshRequest, RefreshMode, Result,
 };
 
@@ -61,4 +61,23 @@ pub trait PanelBrightnessControl: Send + Sync {
         expected_current: Option<u8>,
         apply: ApplyMode,
     ) -> Result<ChangeReport<u8>>;
+}
+
+/// Panel image-quality features driven through the graphics driver control
+/// library (Intel IGCL on the reference target). Gamut switching is not part
+/// of this trait: on the reference target the original vendor path requires a
+/// Lenovo-delivered monitor-control DLL, which the replacement must not
+/// depend on (docs/RE-interfaces.md §15).
+pub trait PanelFeaturesControl: Send + Sync {
+    /// Current eye-care level as observed from the active 1D LUT.
+    /// `Custom` reports a non-eye-care custom LUT; when the driver exposes no
+    /// stable get-config the last process-local write is reported instead.
+    fn eye_care(&self) -> Result<EyeCareLevel>;
+    fn set_eye_care(
+        &self,
+        level: EyeCareLevel,
+        apply: ApplyMode,
+    ) -> Result<ChangeReport<EyeCareLevel>>;
+    fn super_resolution(&self) -> Result<bool>;
+    fn set_super_resolution(&self, enabled: bool, apply: ApplyMode) -> Result<ChangeReport<bool>>;
 }
