@@ -63,8 +63,13 @@ const fn ctl_make_version(major: u32, minor: u32) -> u32 {
     (major << 16) | (minor & 0x0000ffff)
 }
 
-/// Pinned IGCL API version. Verified against `SupportedVersion` after init.
-const CTL_API_VERSION: u32 = ctl_make_version(1, 1);
+/// Pinned IGCL API versions, tried in order. The public IGCL header ships
+/// 1.1; the Intel driver packages observed on the reference target implement
+/// 1.2. The negotiated version is verified against `SupportedVersion` after
+/// init and only the implementation *major* version is required to match, so
+/// a driver update cannot silently change the struct layouts we marshal
+/// (every struct carries `Size`/`Version` fields).
+const CTL_API_VERSIONS: [u32; 2] = [ctl_make_version(1, 2), ctl_make_version(1, 1)];
 const CTL_IMPL_MAJOR_VERSION: u32 = 1;
 
 const CTL_RESULT_SUCCESS: u32 = 0;
@@ -219,7 +224,7 @@ impl IntelControlLib {
             let ctl_init: unsafe extern "C" fn(*mut CtlInitArgs, *mut *mut c_void) -> u32 =
                 export(handle, b"ctlInit\0")?;
             let ctl_destroy: unsafe extern "C" fn(*mut c_void) -> u32 =
-                export(handle, b"ctlDestroy\0")?;
+                export(handle, b"ctlClose\0")?;
             let ctl_enumerate_devices: unsafe extern "C" fn(
                 *mut c_void,
                 *mut u32,
@@ -252,16 +257,25 @@ impl IntelControlLib {
             let mut init = CtlInitArgs {
                 size: std::mem::size_of::<CtlInitArgs>() as u32,
                 version: 0,
-                app_version: CTL_API_VERSION,
+                app_version: CTL_API_VERSIONS[0],
                 flags: 0,
                 supported_version: 0,
                 application_uid: [0; 24],
             };
-            let result = (handles.ctl_init)(&mut init, &mut api);
+            let mut result = u32::MAX;
+            for candidate in CTL_API_VERSIONS {
+                init.app_version = candidate;
+                init.supported_version = 0;
+                api = std::ptr::null_mut();
+                result = (handles.ctl_init)(&mut init, &mut api);
+                if result == CTL_RESULT_SUCCESS && !api.is_null() {
+                    break;
+                }
+            }
             if result != CTL_RESULT_SUCCESS || api.is_null() {
                 return Err(LctrlError::ChannelUnavailable {
                     channel: format!(
-                        "IntelControlLib ctlInit failed (result 0x{result:08x}); ABI version {CTL_API_VERSION} rejected"
+                        "IntelControlLib ctlInit failed (result 0x{result:08x}); pinned ABI versions {CTL_API_VERSIONS:?} rejected"
                     ),
                 });
             }

@@ -341,6 +341,14 @@ fn run_checked(program: &str, args: &[&str]) -> lctrl_core::Result<()> {
     }
 }
 
+/// Channel diagnostics are opt-in: `VANTAGE_DEBUG=1` prints why an optional
+/// channel stayed unattached, so normal runs stay quiet.
+fn debug_note(message: &str) {
+    if std::env::var_os("VANTAGE_DEBUG").is_some() {
+        eprintln!("{message}");
+    }
+}
+
 #[cfg(target_os = "linux")]
 fn main() {
     let cli = parse_cli();
@@ -421,7 +429,7 @@ fn main() {
     let noise_cancel = match lctrl_hal_win::NativeElevocRpc::load() {
         Ok(rpc) => Some(lctrl_hal_win::WindowsNoiseCancel::new(rpc)),
         Err(error) => {
-            eprintln!("noise-cancel channel unavailable: {error}");
+            debug_note(&format!("noise-cancel channel unavailable: {error}"));
             None
         }
     };
@@ -465,7 +473,7 @@ fn main() {
     let panel_features = match lctrl_hal_win::IntelControlLib::load() {
         Ok(ctl) => Some(lctrl_hal_win::WindowsPanelFeatures::new(ctl)),
         Err(error) => {
-            eprintln!("panel features channel unavailable: {error}");
+            debug_note(&format!("panel features channel unavailable: {error}"));
             None
         }
     };
