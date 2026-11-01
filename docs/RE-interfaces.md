@@ -354,9 +354,11 @@ Linux 上同类能力由主线内核 `/dev/cpu/N/msr` 完整提供(见 `09-linux
 
 Counts/CurrentLimit[](mA)/ROS_Power[](mW)/Threshold[](%),实机 3 档 [7500,5000,4500]/[100,40,20]。写路径(`SetFeatureValue` + DBDC FeatureId)因 ID↔名映射未恢复保持门禁(§10.3 表)。
 
-## 12. Dolby DAX RPC 契约(2026-11-01,DolbyRpcClient.dll pkg 1.0.3 + DAX3API.exe 3.30904.943.0 反汇编 + 实机只读探针实证)
+## 12. Dolby DAX RPC 契约(2026-11-01,DolbyRpcClient.dll pkg 1.0.3 + DAX3API.exe 3.30904.943.0 反汇编 + 实机只读探针实证;实现改为纯 Rust rpcrt4 通道)
 
-链路:`vantage audio dolby → DolbyRpcClient.dll C 导出 → ALPC ncalrpc:[DaxRpcEndpoint] → DAX3API.exe(DolbyDAXAPI 服务,SYSTEM)`。接口 GUID `11c6212d-d5f3-4500-ab16-634dc63037be` v1.0,NDR v2.0,`RPC_IF_AUTOLISTEN | RPC_IF_ALLOW_LOCAL_ONLY`(仅本机);Object UUID `B94BA572-658F-40E6-861D-DFB7BB4001A8`。许可 APO DSP(DolbyAPOv*/DolbyAPOAIDE)只被 DAX3API 内部使用,vantage 只切换开关/预设,不重实现 DSP。
+链路:`vantage audio dolby → 纯 Rust rpcrt4 NDR 客户端 → ALPC ncalrpc:[DaxRpcEndpoint] → DAX3API.exe(DolbyDAXAPI 服务,SYSTEM)`。接口 GUID `11c6212d-d5f3-4500-ab16-634dc63037be` v1.0,NDR v2.0,`RPC_IF_AUTOLISTEN | RPC_IF_ALLOW_LOCAL_ONLY`(仅本机);Object UUID `B94BA572-658F-40E6-861D-DFB7BB4001A8`。许可 APO DSP(DolbyAPOv*/DolbyAPOAIDE)只被 DAX3API 内部使用,vantage 只切换开关/预设,不重实现 DSP。
+
+**依赖裁定(2026-11-01 用户裁定:联想交付的软件一律禁依赖)**:原实现绑定 WindowsApps 包内的 `DolbyRpcClient.dll` 并把字节复制到 `%LOCALAPPDATA%` 缓存,现已整体删除。实现只依赖 `rpcrt4.dll` 与 `oleaut32.dll`(均为 Windows 系统组件),NDR 封送由 rpcrt4 解释器完成,元数据逐字节取自厂商客户端的 MIDL 表(见 12.4)。
 
 ### 12.1 客户端导出(`DolbyRpcClient.dll`,按 thunk 字节验证,全部无调用方可见参数)
 
@@ -375,19 +377,51 @@ Counts/CurrentLimit[](mA)/ROS_Power[](mW)/Threshold[](%),实机 3 档 [7500,5000
 
 out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Set*` 的 bool 返回值恒为真(thunk 内 `mov al,1`),失败检测靠读回。
 
-### 12.2 装载约束与运行时行为
+### 12.2 运行时行为(厂商客户端基线,用于对照)
 
-- WindowsApps 包路径 `C:\Program Files\WindowsApps\E046963F.LenovoCompanion_*\LenovoVantage\DolbyRpcClient.dll`;其 DACL 阻止原地 `LoadLibrary`(实机探针证实),须先复制到可写目录(实现用 `%LOCALAPPDATA%\vantage\dolby-rpc-client\`)。
-- `DolbyClient_Initialize` 的 bool 返回不是就绪信号(实机探针返回 false,后续所有 RPC 均成功),调用但不判其值。
+- (历史)WindowsApps 包路径 `C:\Program Files\WindowsApps\E046963F.LenovoCompanion_*\LenovoVantage\DolbyRpcClient.dll`;其 DACL 阻止原地 `LoadLibrary`(实机探针证实),须先复制到可写目录 —— 该复制/缓存机制已随 DLL 依赖一并删除。
+- `DolbyClient_Initialize` 的 bool 返回不是就绪信号(实机探针返回 false,后续所有 RPC 均成功),调用但不判其值。纯 Rust 通道无此导出,等价地不判任何“就绪”返回值。
 - 实机只读探针(ezra/管理员,非 Vantage 进程):`Initialize=0 GetDolbyEnabled=0 GetActiveProfile=5 GetCurrentMode=-1 IsSpatialAudioSupported=1 GetSpatialAudioStatus=2 GetSKU=1` —— Dolby 关、预设索引 5、空间音频支持。证明第三方进程可独立绑定该端点(非 SYSTEM 专属)。
 - 预设索引表(打包名字表顺序,中置信):0=movie,1=music,2=game,3=voice,4=personalize,5=dynamic;服务器校验范围 [0,5]。`Off` 不是预设索引,走 `SetDolbyEnabled(0)`。
 - 服务前置:`DolbyDAXAPI` 须 Running;标准用户(未提权)RPC ACL 未验证 —— 写操作经现有提权路径。
 
 ### 12.3 实现落点
 
-- `lctrl-hal-win/src/dolby.rs`:`NativeDolbyRpc`(发现/缓存/装载/绑定导出)+ `WindowsDolbyAudio<R: DolbyRpc>`(dry-run/commit + 读回轮询,`poll_readback` 10×50ms)。
-- `vantage/src/main.rs` Windows 组合根:`NativeDolbyRpc::load()` 失败(无 Vantage 包)时不挂载 audio 服务,`audio dolby` 如实报 Unsupported。
+- `lctrl-hal-win/src/dolby.rs`:`NativeDolbyRpc`(纯 Rust rpcrt4 NDR 客户端)+ `WindowsDolbyAudio<R: DolbyRpc>`(dry-run/commit + 读回轮询,`poll_readback` 10×50ms)。trait 接缝 `DolbyRpc` 与 `vantage-cli` 表面未变。
+- `vantage/src/main.rs` Windows 组合根:`NativeDolbyRpc::load()` 失败(端点不可达)时不挂载 audio 服务,`audio dolby` 如实报 Unsupported。
 - 第二通道 `ncalrpc:[FusionRpcEndpoint]`(DolbyFusionRpcClient.dll,Atmos/Fusion 附加项)未接入,列为后续。
+
+### 12.4 纯 Rust rpcrt4 通道契约(取代厂商 DLL 绑定)
+
+**ABI 稳定性依据**:锚点是 IfSpec 版本 `11c6212d-…` **v1.0** 与 NDR **v2.0**(DCE/RPC NDR32 封送规则,`NdrClientCall3` 由 rpcrt4 实现)。调用方与 DAX3API 之间只有这两项版本化约定;厂商 DLL 自身的导出签名不是契约,故可弃用。`rpcrt4.dll`/`oleaut32.dll` 是 Windows 系统组件,随系统更新而稳定。
+
+**绑定与调用序列**(与厂商 `DolbyClient_Initialize` 逐条对齐):
+
+1. `RpcStringBindingComposeW(NULL, "ncalrpc", NULL, "DaxRpcEndpoint", NULL, &binding)` —— 绑定串不带 object UUID(UUID 走 opnum 4 握手)。
+2. `RpcBindingFromStringBindingW` → 会话 binding handle(懒绑定)。
+3. `NdrClientCall3(proxy, 0, NULL, binding, &context)`:`[in] handle_t` binding → `[out]` 会话 context token;后续所有过程以该 token 作第 0 参数。
+4. `NdrClientCall3(proxy, 4, NULL, context, bstr, &u16, bstr)`:`[in]` object-UUID BSTR → `[out]` u16;厂商忽略返回值(实现同样只报传输级失败)。
+
+**各 opnum 的形参**(厂商 thunk 逐字节确认;x64 ABI:第 1 个变参在 `r9`,其余在栈参槽,`proc string` 的 `stack_size` 给出槽数):
+
+| opnum | 过程 | 形参(stack_size) | 语义 |
+|---|---|---|---|
+| 0 | OpenContext | binding + `&context`(0x10) | 建立会话 context |
+| 2 | IsSpatialAudioSupported | context + 4×`&u32`(0x28) | `p0 > 3 ‖ p1 ≥ 0x7853` |
+| 4 | RegisterObject | context + BSTR + `&u16`(0x18) | object UUID 握手 |
+| 5 | GetDolbyEnabled | context + `&u16`(0x10) | on/off 读(0/1) |
+| 6 | SetDolbyEnabled | context + `u8`(0x10) | on/off 写(厂商返回恒真,靠读回判失败) |
+| 7 | GetActiveProfile | context + `&u32`(0x10) | 预设索引读 [0,5] |
+| 8 | SetActiveProfile | context + `u32`(0x10) | 预设写 |
+| 37 | GetSKU | context + `&BSTR`(0x10) | SKU 名串(BSTR) |
+
+**元数据**:MIDL 解释器表(proc format string / format offset / type format)逐字节取自 `DolbyRpcClient.dll` pkg 1.0.3(SHA-256 `removed-digest`),存于 `lctrl-hal-win/src/dolby_ndr_data.rs`;仅保留所用 opnum 的 proc string,type string 中厂商镜像指针槽置零(不可达)。BSTR 参数经 `FC_USER_MARSHAL`(type 偏移 `0x34`,quad index 0)封送,quad 表绑定 oleaut32 的 `BSTR_UserSize/Marshal/Unmarshal/Free`(厂商表 ordinal 283–286 的等价具名导出)。
+
+**单语法决定**:`RPC_CLIENT_INTERFACE.Flags` 置 0(厂商为 `0x06000000`)。厂商同时携带 NDR64 格式表;本客户端只携带 NDR32 表,若置多语法位,rpcrt4 会协商到 NDR64 并因缺少 NDR64 表而报 `RPC_S_INTERNAL_ERROR`(`0x6e6`)。置 0 后协商语法恒为 NDR v2.0,线上字节与厂商客户端一致。
+
+**异常处理**:rpcrt4 用 SEH 异常上报传输失败(厂商用 `__try/__except`)。Rust 无 SEH,故每次调用包在 vectored handler + `RtlCaptureContext`/`RtlRestoreContext` 守卫内,把 RPC 状态异常转成 `ChannelUnavailable` 错误;非 RPC 异常(真实故障)不吞。
+
+**实机只读实证**(2026-11-01,ezra/管理员,非 Vantage 进程,纯 Rust 通道):`connect=ok GetDolbyEnabled(op5)=0 GetActiveProfile(op7)=5 IsSpatialAudioSupported(op2)=1 GetSKU(op37)=1` —— 与 12.2 节厂商客户端基线逐值一致;`vantage audio dolby dynamic --dry-run` 输出 `previous enabled=false profile=Dynamic`。写路径(opnum 6/8)未在实机验证,仍走既有写入门禁。
 
 ## 13. SmartSense HPD 设置管道契约(2026-11-01,ThinkSmartSenseAddin.dll 1.0.0.77 IL + SmartSense.exe/LnvSST.dll 1.0.8.5 反汇编 + 实机枚举实证)
 
