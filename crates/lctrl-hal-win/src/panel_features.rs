@@ -74,6 +74,7 @@ const CTL_IMPL_MAJOR_VERSION: u32 = 1;
 
 const CTL_RESULT_SUCCESS: u32 = 0;
 const CTL_RESULT_ERROR_INVALID_PIXTX_BLOCK_NUMBER: u32 = 0x4800_000c;
+const CTL_RESULT_ERROR_INVALID_ARGUMENT: u32 = 0x4000_000b;
 
 const CTL_PIXTX_BLOCK_TYPE_1D_LUT: u32 = 1;
 const CTL_PIXTX_CONFIG_OPERTAION_TYPE_RESTORE_DEFAULT: u32 = 1;
@@ -594,6 +595,14 @@ impl IntelCtlApi for IntelControlLib {
         let result = unsafe {
             (self.handles.ctl_get_set_video_processing_feature)(self.primary_adapter, &mut feature)
         };
+        if result == CTL_RESULT_ERROR_INVALID_ARGUMENT {
+            // The driver advertises the feature (the capability query lists
+            // it) but rejects this state query: the state stays unknown
+            // instead of being invented.
+            return Err(LctrlError::Unsupported {
+                feature: "panel.super-resolution.state-query.rejected".to_string(),
+            });
+        }
         if result != CTL_RESULT_SUCCESS {
             return Err(LctrlError::ChannelUnavailable {
                 channel: format!(
