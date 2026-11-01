@@ -464,13 +464,38 @@ out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Se
 
 ## 14. Elevoc 降噪 RPC 契约(2026-11-01,ElevocControlSDK_x64.dll 1.0.1.1108.8f92a86 + ElevocControlService.exe 1.0.1.1142 反汇编实证)
 
-链路:`vantage audio noise-cancel → ElevocControlSDK_x64.dll C 导出 → ALPC ncalrpc:[ElevocRpcEndpoint] → ElevocControlService.exe(LocalSystem)`。接口 GUID `{6F761170-1054-4339-A573-063DD08C7E16}` v4.0,NDR32;单 opnum-0 通用分发,方法名在 JSON 请求信封内(elevoc_rpc_protocol)。手写纯 Rust NDR/JSON 栈成本高,实现走 vendor DLL FFI(同 Dolby 策略)。DLL 路径 `C:\ProgramData\Lenovo\Vantage\Addins\SmartNoiseCancelledAddin\*\ElevocControlSDK_x64.dll`,装载策略同 §12.2(缓存副本)。
+链路:`vantage audio noise-cancel → ALPC ncalrpc:[ElevocRpcEndpoint] → ElevocControlService.exe(LocalSystem)`。接口 GUID `{6F761170-1054-4339-A573-063DD08C7E16}` v4.0,NDR32;单 opnum-0 通用分发,方法名在 JSON 请求信封内(elevoc_rpc_protocol)。**实现为纯 Rust rpcrt4 客户端**(`lctrl-hal-win/src/noise.rs`,`NativeElevocRpc`):按 2026-11-01 依赖裁定,Lenovo 交付的 ElevocControlSDK_x64.dll 已禁止作为运行时依赖,DLL 发现/缓存机制移除;传输改为系统 `rpcrt4.dll` + `NdrClientCall3` 直打 opnum-0。
+
+### 14.0 纯 Rust 通道实现要点(ABI 稳定依据)
+
+- **绑定**:`RpcStringBindingComposeW(NULL,"ncalrpc",NULL,"ElevocRpcEndpoint")` → `RpcBindingFromStringBindingW`(与 SDK Initialize 9c0- 一致;无 AuthInfo,服务端无鉴权注册)。
+- **MIDL 表**:进程内复刻 SDK 的 `MIDL_STUBLESS_PROXY_INFO`@0x7bfa0 / `MIDL_STUB_DESC`@0x7c050 / `RPC_CLIENT_INTERFACE`@0x7bff0 / 过程+类型格式串 @0x7bf12、@0x7bf02(字节级一致)。vendor IfSpec 是 client+server 双用(DispatchTable→NdrServerCall2 thunk 供 RegCallback、InterpreterInfo→MIDL_SERVER_INFO);客户端调用路径不读这两项,复刻里 DispatchTable=NULL、InterpreterInfo 按标准 client 惯例指向自身 proxy info;SyntaxInfo 仅 NDR32(服务端只广告 NDR32,协商必中 SyntaxInfo[0])。**ABI 锚点 = IfSpec 接口 GUID+v4.0 + NDR32 v2.0**:服务端若改版本则协商/绑定失败,表现为 ChannelUnavailable 而非静默错译。
+- **异常面**:vendor `SafeRpcRequest` 7b0 以 `__try/__except` 将 RPC 异常换成返回码。复刻用 VEH+landing-pad(guard `NdrClientCall3`):异常线程还原到包装帧返回,异常码→ChannelUnavailable;正常路径零开销。
+- **请求缓冲**:与 vendor 相同的固定 0x400 wchar `[in,out,string]` 参数;请求 JSON 写出、响应落同一缓冲。
+
+### 14.1 调用序列(与 vendor Initialize/Login 逐步一致)
+
+`load()` = Initialize 等价物:bind 成功后按 vendor 顺序发(暖机结果全部忽略,与 SDK 一致):`GetMode{link:"app_downlink"}` → `GetFunctionsByEndpoint{endpoint:"app_downlink"}` → `GetHeadSetStatus` → **`GetAuthorizedTokens{elevoc_rpc_protocol:"RPC/2.2",token:<rand>,user:"removed-credential-literal"}`**(鉴权交换;`Content.auth_status==true` 或 `tokens` 含该 key 才算登录成功,否则各查询处理器返回 -1 "Please Init first")→ `GetConfigFileContent{buffer_len:0x1000}` → `GetFunctions` → `IsVoiceidSetted{endpoint}` → `GetFunctionsByEndpoint{endpoint:"speaker_extraction"}`。
+
+之后:`GetCurrentMode` ≡ `GetMode{link:"app_uplink",endpoint:<默认捕获端点>}` → `Content.mode` 名→0..5(未知名→0),再按 `GetAlgType` 的 `algroithm_type` 是否以 "AI" 开头升级 1→6/2→7(`find("AI")!=0` 即旧时域算法,vendor bb4;"Non-AI" 时域端点亦命中;**原记 "contains(token)" 系误判,已更正**)。`SetEffectMode(mode)` ≡ voiceid 门控(ret 4)→ 6/7→1/2 重映射 → 能力门控 → `SetAlgType{algroithm_type:"Non-AI"(原 mode 6/7)否则"AI"}`(结果被忽略)→ `SetMode{link:"uplink",mode:<名字>,CALLER:"SDK",proto,token,endpoint}`。`QueryVoiceIDStatus` ≡ `IsVoiceidSetted{endpoint}` → `is_voiceid_setted` 真→2 否→0。
+
+请求字段序字节级一致(vendor writer 字串序逐一对照):`GetAuthorizedTokens`=`{request,proto,token,user}`;`GetConfigFileContent`=`{request,buffer_len,proto,token}`;`GetMode`=`{request,link,endpoint?,proto,token}`;`SetMode`=`{request,link,mode,CALLER,proto,token,endpoint?}`;`SetAlgType`=`{request,algroithm_type,endpoint?,proto,token}`;`IsVoiceidSetted`/`GetFunctionsByEndpoint`/`GetAlgType`=`{request,endpoint,proto,token}`;`GetFunctions`/`GetHeadSetStatus`=`{request,proto,token}`。默认捕获端点经 COM `IMMDeviceEnumerator::GetDefaultAudioEndpoint(eCapture,eConsole)`+`IMMDevice::GetId` 取得(vendor 同法),无捕获设备时 endpoint 字段省略。
+
+### 14.2 导出与模式域
 
 导出(opnum/签名/RVA 已证):`SetEffectMode(int mode, const char* ep=NULL)` @0x322c0、`GetCurrentMode(const char* ep=NULL)` @0x2d7d0、`QueryVoiceIDStatus()` @0x311d0(0=未注册,2=已注册)、`SetDownLinkStatus(bool)` @0x31f60(扬声器侧)、`SetRawModeSupport(bool)` @0x32950。
 
 模式域(字符串槽 765):0=environmental(服务端默认,无独立 off)、1=shared、2=private、3=special、4=voiceid(需已注册否则 ret 4)、5=HQRecord;6/7=_td 旧别名,SDK 发送前重映射 1/2。`SetEffectMode` 返回码(545):1=成功、-1=RPC/默认端点失败、2=端点能力位不支持、4=VoiceID 未注册。能力门控位:GetMicAbilityByEndpoint bitmask(bit0=shared,bit1=private,bit2=special,bit3=voiceid,bit14=HQRecord)。
 
 持久化:HKCU\SOFTWARE\Lenovo\SmartEngine\modules\F4006(REG_SZ)是 Vantage 插件的只写镜像(noise_micro_mode=GetCurrentMode 结果、noise_speaker_mode=扬声器布尔、scene_enhance_mode);**服务不消费该键**,只写注册表无效(已证:仅 SENoiseCancellingPlugin64.dll 引用)。实机值:micro=1(shared)、speaker=0、scene=0。
+
+### 14.3 实机验证状态(2026-11-01)
+
+纯 Rust 客户端在 TB14P-EZRA 实机跑通 Initialize→Login→GetCurrentMode 全链路:`vantage audio noise-cancel shared --dry-run` → **previous mic mode=Shared, speaker=off, voice-id=enrolled**(`--json`:`{"mic_mode":"shared","voice_id_enrolled":true}`),与厂商 DLL 基线一致(同机 P/Invoke `GetCurrentMode` = 1 = shared);读操作零写入(实机复核 HKCU F4006 `noise_micro_mode=1`/`noise_speaker_mode=0` 未变)。
+
+**根因(已闭合)**:`RPC_CLIENT_INTERFACE::Flags`。厂商 ifspec 的取值是 `0x06000000`,该位型会把 rpcrt4 引到 NDR64-capable 分发路径;该路径需要厂商 DLL 自己 .rdata 里的 NDR64 格式表,而本客户端只携带 NDR32(v2.0)解释器表,于是 `NdrClientCall3` 在类型格式解释器里抛 `RPC_S_INTERNAL_ERROR (0x6e6)`(异常面由 VEH 兜住转 `ChannelUnavailable`,不崩溃)。把 `Flags` 改为 **0**(单一 NDR v2.0 语法)后同一套表、同一段 JSON、同一调用序列即成功;协商到的传输语法仍是 NDR32 v2.0,线上字节不变。12 变体 metadata sweep 实测:仅 `Flags=0` 是必要条件,`DispatchTable=NULL`、`InterpreterInfo` 取 `&ProxyInfo` 或 NULL、`nCount` 取 1 或 2 均不影响成功。
+
+过程中一并排除/修正:pHandle 间接层(SDK `rpcndr.h` 证实 `MIDL_STUB_DESC` +0x18 是 `IMPLICIT_HANDLE_INFO` 联合体,单间接即可;双间接会得到 `0x6a6 INVALID_BINDING`)、COM vtable 取址优先级(`(*(*o).vtbl).add(N)` → `*(*o).vtbl.add(N)`)、参数按值/按址两种传法、`mFlags=0x02000001`/`MIDLVersion=0x0801026e`/`Version=0x00060001`/过程与类型格式串字节、`SetAlgType` 先行请求、`GetAlgType` 的 td 判定(`find("AI")!=0`)。
 
 ## 11.4 修正与 11.6 阈值写方结论(2026-11-01,ThresholdRe2:BatterySetting.exe/WrapPlugin.dll/ThinkPowerPlugin.dll/AcpiVpc.sys/PowerBattery.dll 反汇编 + 实机 ACPI 探针)
 
