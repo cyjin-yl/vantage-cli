@@ -16,10 +16,9 @@
 //! proc/type format-string contract documented in the Windows SDK "RPC NDR
 //! Format Strings" reference — the same grammar reimplemented by the public
 //! Wine/ReactOS interpreter). No field below is transcribed from a vendor
-//! binary: each emission site names the grammar rule it implements. Where
-//! the output coincides byte-identical with the vendor stub's tables that is
-//! expected — the encoding is canonical and leaves no freedom for this
-//! signature.
+//! binary: each emission site names the grammar rule it implements. The
+//! proc/type format strings are interpreter metadata; matching wire
+//! semantics do not require every compiler to emit identical metadata.
 //!
 //! Layout of one proc-format-string record for a single-parameter
 //! procedure (sizes in parentheses are the on-disk field widths; the
@@ -130,6 +129,11 @@ impl WireType {
                 out.push(FC_CONSTANT_CONFORMANCE);
                 out.push(0x00);
                 out.extend_from_slice(&(max_count as i16).to_le_bytes());
+                // HasNewCorrDesc requires the /robust six-byte form.
+                // A constant is known before unmarshalling: Early=1,
+                // Split=IsIidIs=DontCheck=0. The remaining byte is reserved.
+                // https://learn.microsoft.com/en-us/windows/win32/rpc/correlation-descriptors-tfs
+                out.extend_from_slice(&1u16.to_le_bytes());
             }
         }
     }
@@ -320,8 +324,8 @@ fn emit_procedure(proc: &Procedure, type_offsets: &[u16], out: &mut Vec<u8>) {
 /// Declared wire bound of the JSON buffer, in wide chars. The interface's
 /// conformant string is sized by a compile-time constant (the service's
 /// stub unmarshals up to this many elements into its reply buffer);
-/// recovered value 0x5000. This is the *wire contract* bound — the local
-/// request buffer stays `RPC_BUF_CHARS` (0x400) wchars.
+/// recovered value 0x5000. The local in/out storage must cover this bound,
+/// including the terminating NUL, even when outgoing requests are shorter.
 pub const ELEVOC_WIRE_BOUND_WCHARS: u16 = 0x5000;
 
 /// Semantic description of the Elevoc opnum-0 stub:
@@ -408,7 +412,13 @@ mod tests {
         // Grammar rule: count = i16 @descriptor+2 | flag_byte1 << 16.
         let count = (i16::from_le_bytes([t[6], t[7]]) as i32) | ((t[5] as i32) << 16);
         assert_eq!(count, ELEVOC_WIRE_BOUND_WCHARS as i32);
-        assert_eq!(t.len() % 2, 0, "u16 reads stay aligned");
+        // HasNewCorrDesc advertises a six-byte correlation descriptor.
+        // The interpreter reads robust_flags after the four-byte count,
+        // even when every observed response is shorter than that bound.
+        let robust = t
+            .get(8..10)
+            .expect("robust correlation flags must not lie past the type table");
+        assert_eq!(u16::from_le_bytes([robust[0], robust[1]]), 1);
     }
 
     #[test]

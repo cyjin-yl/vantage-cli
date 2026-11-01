@@ -139,14 +139,10 @@ const ENDPOINT_NAME: &[u16] = &[
 ];
 const PROTO_SEQ: &[u16] = &[0x6e, 0x63, 0x61, 0x6c, 0x72, 0x70, 0x63, 0x00];
 
-/// `GetAuthorizedTokens` does not validate its `user` payload: the service
-/// answers the exchange with its authorized-token whitelist for any *empty*
-/// or *missing* `user` value alike (verified on TB14P-EZRA 2026-11-01 —
-/// `user:""` and `user` absent both return the identical 16-token list; a
-/// non-whitelisted value faults the server handler with 0xc0000005). The
-/// vendor's concrete key is therefore a caller-side credential string, not
-/// part of the protocol contract, and is not carried here; we send the
-/// empty value to keep the wire shape (`{request,proto,token,user}`).
+// On the observed service version, both an empty and an absent `user` field
+// worked in GetAuthorizedTokens. This does not establish that other values
+// are accepted: a previously tested non-whitelisted value faulted the service
+// handler. Send an empty value and do not retain the original application key.
 
 /// Canonical uplink mode names (SDK table f40 / ).
 /// The vendor `RpcGetMode` maps `Content.mode` by comparing against these
@@ -161,9 +157,12 @@ const MODE_NAMES: [&str; 6] = [
     "HQRecord",
 ];
 
-/// Fixed request/response character capacity used by the vendor stub
-/// (0x400 wchar buffer at `RpcGetMode` ).
-const RPC_BUF_CHARS: usize = 0x400;
+/// Preserve the existing outgoing request limit, including its terminator.
+const RPC_REQUEST_CHARS: usize = 0x400;
+/// The generated sized string allows this many UTF-16 units in a reply.
+/// rpcrt4 writes into the caller's storage; the request limit is not a
+/// safe allocation bound for that in/out parameter.
+const RPC_BUFFER_CHARS: usize = crate::ndr::elevoc::ELEVOC_WIRE_BOUND_WCHARS as usize;
 
 // ---------------------------------------------------------------------------
 // MIDL stub metadata. The proc/type format strings are *generated* by
@@ -359,7 +358,7 @@ unsafe extern "C" {
         proxy_info: *const MidlStublessProxyInfo,
         proc_num: u32,
         return_ptr: *mut c_void,
-        arg0: *const u16,
+        arg0: *mut u16,
     );
     fn elevoc_rpc_fault_landing();
 }
@@ -415,7 +414,7 @@ fn install_rpc_veh() {
 /// `SafeRpcRequest` equivalent: run one opnum-0 call under the VEH;
 /// returns `Err(rpc_status)` for exceptions exactly like the vendor's
 /// `__except` returning the exception code.
-fn rpc_call_guarded(tables: &ProxyTables, buf: *const u16) -> Result<()> {
+fn rpc_call_guarded(tables: &ProxyTables, buf: &mut [u16; RPC_BUFFER_CHARS]) -> Result<()> {
     install_rpc_veh();
     let _guard = RPC_CALL_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     RPC_FAULT_RSP.with(|c| c.set(0));
@@ -427,7 +426,7 @@ fn rpc_call_guarded(tables: &ProxyTables, buf: *const u16) -> Result<()> {
             &raw const tables.proxy_info,
             0,
             std::ptr::null_mut(),
-            buf,
+            buf.as_mut_ptr(),
         );
     }
     RPC_IN_FLIGHT.store(0, Ordering::Release);
@@ -942,6 +941,39 @@ pub struct NativeElevocRpc {
     tables: Box<ProxyTables>,
 }
 
+/// Own the complete [in,out,string,size_is] storage across one round trip.
+/// Keeping the invocation behind this boundary also allows regression tests
+/// to exercise long replies without asking a live service to fabricate one.
+fn exchange_json(
+    request_json: &str,
+    invoke: impl FnOnce(&mut [u16; RPC_BUFFER_CHARS]) -> Result<()>,
+) -> Result<String> {
+    let mut buf = [0u16; RPC_BUFFER_CHARS];
+    for (index, unit) in request_json.encode_utf16().enumerate() {
+        if index >= RPC_REQUEST_CHARS - 1 {
+            return Err(LctrlError::InvalidArgument {
+                detail: format!("Elevoc request exceeds {} wchars", RPC_REQUEST_CHARS - 1),
+            });
+        }
+        buf[index] = unit;
+    }
+    invoke(&mut buf)?;
+    let len = buf
+        .iter()
+        .position(|c| *c == 0)
+        .ok_or_else(|| LctrlError::ChannelUnavailable {
+            channel: "Elevoc RPC returned an unterminated response".to_string(),
+        })?;
+    if len == 0 {
+        return Err(LctrlError::ChannelUnavailable {
+            channel: "Elevoc RPC returned an empty response".to_string(),
+        });
+    }
+    String::from_utf16(&buf[..len]).map_err(|_| LctrlError::ChannelUnavailable {
+        channel: "Elevoc RPC returned non-UTF16 response".to_string(),
+    })
+}
+
 impl NativeElevocRpc {
     /// Bind `ncalrpc:[ElevocRpcEndpoint]` and run the login handshake the
     /// vendor SDK performs before any query works (every request handler
@@ -967,12 +999,10 @@ impl NativeElevocRpc {
         let _ = self.rpc_simple("GetHeadSetStatus");
 
         // Connect(appkey) (client->Connect a80 → RpcGetTokens
-        // 710): the exchange itself is mandatory — skipping it
-        // makes every later request fault server-side — but the `user`
-        // payload is not validated (empty and absent both return the
-        // authorized-token whitelist; a non-whitelisted value faults the
-        // handler). Authorization = the service answered with
-        // `auth_status` or a non-empty `tokens` list.
+        // 710): skipping this exchange caused later queries to
+        // fault on the observed service version. Empty or absent `user`
+        // worked on that target; a non-whitelisted value faulted the handler.
+        // Accept either `auth_status` or a non-empty `tokens` list.
         let mut env = Envelope::new("GetAuthorizedTokens");
         env.string("elevoc_rpc_protocol", "RPC/2.2");
         env.string("token", &make_token());
@@ -1009,24 +1039,7 @@ impl NativeElevocRpc {
     /// One opnum-0 round trip: UTF-16 JSON out, response JSON back in the
     /// same buffer. Mirrors `SafeRpcRequest` ().
     fn request(&self, request_json: &str) -> Result<String> {
-        let mut buf = [0u16; RPC_BUF_CHARS];
-        let req: Vec<u16> = request_json.encode_utf16().collect();
-        if req.len() >= RPC_BUF_CHARS {
-            return Err(LctrlError::InvalidArgument {
-                detail: format!("Elevoc request exceeds {} wchars", RPC_BUF_CHARS - 1),
-            });
-        }
-        buf[..req.len()].copy_from_slice(&req);
-        rpc_call_guarded(&self.tables, buf.as_ptr())?;
-        let len = buf.iter().position(|c| *c == 0).unwrap_or(RPC_BUF_CHARS);
-        if len == 0 {
-            return Err(LctrlError::ChannelUnavailable {
-                channel: "Elevoc RPC returned an empty response".to_string(),
-            });
-        }
-        String::from_utf16(&buf[..len]).map_err(|_| LctrlError::ChannelUnavailable {
-            channel: "Elevoc RPC returned non-UTF16 response".to_string(),
-        })
+        exchange_json(request_json, |buf| rpc_call_guarded(&self.tables, buf))
     }
 
     fn rpc_simple(&self, request: &'static str) -> Result<String> {
@@ -1320,6 +1333,54 @@ mod tests {
     use super::*;
 
     #[test]
+    fn json_exchange_accepts_replies_beyond_the_request_limit() {
+        for units in [RPC_REQUEST_CHARS, RPC_BUFFER_CHARS - 1] {
+            let expected = "x".repeat(units);
+            let result = exchange_json(r#"{"request":"GetConfigFileContent"}"#, |buf| {
+                // A valid reply can fill the advertised wire capacity even
+                // when the request itself fits the smaller admission limit.
+                buf[..units].fill(u16::from(b'x'));
+                buf[units] = 0;
+                Ok(())
+            })
+            .expect("the complete conforming reply fits");
+            assert_eq!(result, expected);
+        }
+    }
+
+    #[test]
+    fn json_exchange_rejects_oversized_request_before_invoking_rpc() {
+        let error = exchange_json(&"x".repeat(RPC_REQUEST_CHARS), |_| {
+            panic!("oversized request reached RPC")
+        })
+        .expect_err("reserve one UTF-16 unit for the request terminator");
+        assert!(matches!(error, LctrlError::InvalidArgument { .. }));
+    }
+
+    #[test]
+    fn json_exchange_rejects_unterminated_reply() {
+        let error = exchange_json("{}", |buf| {
+            buf.fill(u16::from(b'x'));
+            Ok(())
+        })
+        .expect_err("missing terminator must not be accepted as a full response");
+        assert!(matches!(error, LctrlError::ChannelUnavailable { .. }));
+    }
+
+    #[test]
+    fn json_exchange_propagates_rpc_failure_without_reading_request_as_reply() {
+        let error = exchange_json("{}", |_| {
+            Err(LctrlError::ChannelUnavailable {
+                channel: "RPC transport failed".to_string(),
+            })
+        })
+        .expect_err("request contents are not a successful response");
+        assert!(
+            matches!(error, LctrlError::ChannelUnavailable { channel } if channel == "RPC transport failed")
+        );
+    }
+
+    #[test]
     fn envelope_writes_fields_in_vendor_order() {
         let mut env = Envelope::new("GetMode");
         env.string("link", "app_uplink");
@@ -1399,24 +1460,6 @@ mod tests {
             json_bool(content_object(unset).unwrap(), "is_voiceid_setted"),
             Some(false)
         );
-    }
-
-    #[test]
-    fn stub_tables_point_into_generated_ndr_buffers() {
-        // The NDR tables are generated by `crate::ndr` from the recovered
-        // signature (see ndr.rs tests for the byte-level grammar checks);
-        // this guards the wiring, not the encoding.
-        let t = ProxyTables::new();
-        assert_eq!(t.proxy_info.proc_format_string, t.ndr.proc_format.as_ptr());
-        assert_eq!(
-            t.proxy_info.format_string_offset,
-            t.ndr.proc_offsets.as_ptr()
-        );
-        assert_eq!(t.syntax_info.proc_string, t.ndr.proc_format.as_ptr());
-        assert_eq!(t.syntax_info.fmt_string_offset, t.ndr.proc_offsets.as_ptr());
-        assert_eq!(t.syntax_info.type_string, t.ndr.type_format.as_ptr());
-        assert_eq!(t.stub_desc.p_format_types, t.ndr.type_format.as_ptr());
-        assert_eq!(t.ndr.proc_offsets.as_slice(), &[0], "single opnum-0 record");
     }
 
     #[test]

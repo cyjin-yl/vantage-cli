@@ -15,11 +15,9 @@
 //! `NDR_PROC_HEADER_EXTS64`, `NDR_PARAM_OIF`, `NDR_EHD_PRIMITIVE`,
 //! `NDR_EHD_CONTEXT`, and the `FORMAT_CHARACTER` alphabet.
 //!
-//! Because the grammar is canonical, the generated descriptors for the
-//! eight recovered signatures happen to coincide byte-identical with the
-//! proc strings the vendor stub carried; the type format string contains
-//! only the entries this transport references (the vendor table also
-//! described ~40 opnums this client never calls).
+//! The descriptors cover only the eight recovered signatures this transport
+//! uses. A successful call validates the tested interface and runtime, not
+//! compatibility with every implementation of the same RPC interface.
 //!
 //! ## Proc descriptor layout (-Oicf, explicit handle form)
 //!
