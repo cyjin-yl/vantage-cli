@@ -327,6 +327,28 @@ pub enum RefreshMode {
     Unknown(u16),
 }
 
+/// Eye-care (low blue light) level applied through a 1D pixel-transformation
+/// LUT. `Custom` reports a LUT that matches no known preset.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EyeCareLevel {
+    Off,
+    Mid,
+    High,
+    Custom,
+}
+
+impl fmt::Display for EyeCareLevel {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Off => f.write_str("off"),
+            Self::Mid => f.write_str("mid"),
+            Self::High => f.write_str("high"),
+            Self::Custom => f.write_str("custom"),
+        }
+    }
+}
+
 impl RefreshMode {
     #[must_use]
     pub const fn from_raw(raw: u16) -> Self {

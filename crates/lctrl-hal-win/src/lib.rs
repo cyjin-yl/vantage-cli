@@ -28,6 +28,8 @@ mod native_power_status;
 mod native_wmi;
 #[cfg(windows)]
 mod noise;
+#[cfg(windows)]
+mod panel_features;
 mod os_battery;
 mod p0;
 mod performance_p0;
@@ -103,6 +105,10 @@ pub use native_power_status::NativeSystemPowerStatus;
 pub use native_wmi::NativeWmi;
 #[cfg(windows)]
 pub use noise::{ElevocRpc, NativeElevocRpc, WindowsNoiseCancel};
+#[cfg(windows)]
+pub use panel_features::{
+    IntelControlLib, IntelCtlApi, WindowsPanelFeatures, classify_lut, eye_care_lut, identity_lut,
+};
 pub use os_battery::{OsBatteryChannel, SystemPowerStatusReader, WindowsOsBattery};
 pub use p0::{ChargeModeReader, GbmdChargeModeReader, UnverifiedChargeModeReader, WindowsBatteryP0};
 pub use usb::WindowsUsbPower;

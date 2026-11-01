@@ -437,3 +437,13 @@ out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Se
 模式域(字符串槽 765):0=environmental(服务端默认,无独立 off)、1=shared、2=private、3=special、4=voiceid(需已注册否则 ret 4)、5=HQRecord;6/7=_td 旧别名,SDK 发送前重映射 1/2。`SetEffectMode` 返回码(545):1=成功、-1=RPC/默认端点失败、2=端点能力位不支持、4=VoiceID 未注册。能力门控位:GetMicAbilityByEndpoint bitmask(bit0=shared,bit1=private,bit2=special,bit3=voiceid,bit14=HQRecord)。
 
 持久化:HKCU\SOFTWARE\Lenovo\SmartEngine\modules\F4006(REG_SZ)是 Vantage 插件的只写镜像(noise_micro_mode=GetCurrentMode 结果、noise_speaker_mode=扬声器布尔、scene_enhance_mode);**服务不消费该键**,只写注册表无效(已证:仅 SENoiseCancellingPlugin64.dll 引用)。实机值:micro=1(shared)、speaker=0、scene=0。
+
+## 15. 面板图像特性契约(2026-11-01,SEColorManagerPlugin64.dll/SmartColorAddin.dll/PlatformInterface.dll 反汇编 + IGCL 公版头 + 实机文件枚举)
+
+**护眼(已实现)**:原版链路 Lenovo SmartInteract `PlatformInterface.dll!IGCLInterfaceClient::SetColorTemperature(display, kelvin)` → 动态加载显卡驱动的 `IntelControlLib.dll`(IGCL,**非联想驱动组件,允许引用**)→ `ctlPixelTransformationSetConfig` 写 1D LUT;Off=restore-default。IGCL ABI 稳定性依据(用户裁定之首要判据):公版 SDK、所有结构带 Size+Version 字段、`ctlInit` 输出实现版本——实现 pin `CTL_API_VERSION(1,1)` 且运行时校验实现 major==1,不符即 fail-closed。LUT 数据依据:PlatformInterface 的 `RGBToTemperatureColor`+`kelvin_table`(std::map,360 键,1988K–19964K,.rdata 节点已恢复,证实原版为查表实现);UI 档位 Kelvin 值由 Vantage 运行时配置下发(静态不可恢复)→ Mid/High 暂用 Tanner-Helland 近似(Mid=5000K,High=4000K,标注 INFERRED),验收阶段用只读 GetConfig 与原版档位 LUT 比对后修正。驱动无稳定 get-config 时读回退化为进程内最近写入态(如实)。
+
+**超分(已实现)**:同库 `ctlGetSetVideoProcessingFeature`,FeatureType=SUPER_RESOLUTION(4),ValueType=CUSTOM,自定义结构 `ctl_video_processing_super_resolution_info_t{flag}`;flag:1=DISABLE、2=ENABLE_DEFAULT_SCENARIO。DC 模式原版强制关。Linux 无标准 DRM 等价 → 诚实 Unsupported。
+
+**色域(诚实 Unsupported,依赖被禁)**:原版链路 `SEColorManagerPlugin64.dll` → `MONITORCONTROL.dll`(SmartColor addin 1.1.4.32 交付,**联想交付组件,禁依赖**)→ `MonCtrl_GetMonitorColorGamutByIndex`(按名查索引)/`MonCtrl_SetMonitorColorGamut(monitor, index)`,配 `WcsSetDefaultColorProfile`+`InstallColorProfileW` 挂 ICM(ICM 包 9 个 TPLCD_8AD7_*.icm 位于 C:\ProgramData\Lenovo\SmartColorAddin\AddinData\icc\ColorCalibration\)。无 MONITORCONTROL 只剩 ICC 关联 ≠ 原版行为(面板原生色域未切),不平替 → Unsupported, recovered contract 存档于此待非联想路径。Linux 等价评估:colord。
+
+**Overdrive(诚实 Unsupported,硬件缺席)**:21VG 无 \\.\SPBTESTTOOL PnP 设备/INF,BIOSOD GetFeatureValue(0x1A0000) 返回 null —— 原版 UI 亦无此项。
