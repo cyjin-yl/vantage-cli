@@ -606,8 +606,8 @@ impl ProxyTables {
         });
         let t: &mut ProxyTables = &mut tables;
         t.stub_desc.rpc_interface_information = &raw const t.if_spec;
-        // `pHandle` = pointer to the implicit handle variable (vendor
-        // @0x98aa8 → &g_handle); single indirection.
+        // `pHandle` = pointer to the implicit handle variable; single
+        // indirection.
         t.stub_desc.p_handle = &raw const t.handle;
         t.stub_desc.p_format_types = t.ndr.type_format.as_ptr();
         t.proxy_info.p_stub_desc = &raw const t.stub_desc;
