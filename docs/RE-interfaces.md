@@ -1,6 +1,6 @@
-# 逆向接口规格（净室文档）· Windows 硬件控制通道
+# Windows 硬件控制接口规格与验证记录
 
-**方法**:静态分析 + 只读运行验证。规格由二进制分析产出,实现只依据本文档,不复制二进制代码。
+**方法**:静态分析 + 只读运行验证。本文件记录行为契约和验证来源;不包含原厂描述符字节表。历史实现曾直接参考并转录厂商描述表,后已从当前源码删除;仅改变文档形式或历史不能证明实施过独立净室隔离。
 **边界**:不修改厂商二进制、不注入进程、不绕过 ACL/VBS/HVCI、不刷固件、不写 BIOS 口令。
 
 ---
@@ -363,9 +363,9 @@ Counts/CurrentLimit[](mA)/ROS_Power[](mW)/Threshold[](%),实机 3 档 [7500,5000
 
 ## 11.4 修正与 11.6 阈值写方结论(2026-11-01,ThresholdRe2:BatterySetting.exe/WrapPlugin.dll/ThinkPowerPlugin.dll/AcpiVpc.sys/PowerBattery.dll 反汇编 + 实机 ACPI 探针)
 
-**11.4 修正**:PowerBattery.dll 的 temporary-mode 只读选择子为 0x23/0x21/0x31/0x41;§11.4 原记的 0x13/0x11 实为读回 3/1(实机)。写选择子**证实缺席**:BatteryManagementContract.dll 无 Set-BatteryTemporaryMode,BatterySetting 从不发送 0x148,固件侧写口未恢复→写保持门禁。
+**11.4 修正**:PowerBattery.dll 的 temporary-mode 只读选择子为 0x23/0x21/0x31/0x41;§11.4 原记的 0x13/0x11 实为读回 3/1(实机)。所分析客户端未发现对应写入调用,但不能证明固件没有其他写口;写选择子尚未恢复,保持未准入。
 
-**11.6 自定义充电阈值**:完整链 BatterySetting.exe → WrapPlugin.dll(thunk `*0x560718` @+0x4268b8)→ ThinkPowerPlugin.dll → PWRMGRV(ThinkPad Power Manager)SetChargeThreshold → PWMIF32V.DLL SM_SetCharge{Start,Stop}CapacityThreshold,持久化 HKLM\SOFTWARE\Lenovo\PWRMGRV\Data\Charge{Start,Stop}{Control,Percentage},读回仅注册表(默认 76/80)。**21VG 判定不支持**:PWMIF32V.DLL 缺席、PWRMGRV 键空、AcpiVpc 能力方法 MHQI(IOCTL 0x83102130/0x83102134)实机返回 win32=2(该固件 ACPI 方法不存在)。无 powrprof/GUID 路径参与。
+**11.6 自定义充电阈值**:已分析到 BatterySetting.exe → WrapPlugin.dll → ThinkPowerPlugin.dll → PWRMGRV/PWMIF32V 的 ThinkPad 路径,其读回为注册表。21VG 上观察到 PWMIF32V.DLL 缺席、PWRMGRV 键空、所测 MHQI 方法返回 win32=2;因此此已知路径不可用,但这些负向结果不能证明不存在任何其他写入通道。当前命令保持 Unsupported。
 
 **驱动 IOCTL→ACPI 全映射**(AcpiVpc.sys 15.11.30.14,驱动仅透传 4 字节选择子,写门控全在固件):0x20e8 SALS/HALS、0x20f8 GBMD、0x211c/0x2138 ITHC、0x2120 GBID、**0x212c SMTF(可写透传,语义未恢复,探测返回 0xFFFF→门禁)**、0x2130/0x2134 MHQI 读、0x2144/58/5c KBL*、**0x2148 BTMC**、0x214c BSIF、0x2150/0x2154 BNMC。
 
@@ -519,26 +519,26 @@ out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Se
 
 ## 15. 面板图像特性契约(2026-11-01,SEColorManagerPlugin64.dll/SmartColorAddin.dll/PlatformInterface.dll 反汇编 + IGCL 公版头 + 实机文件枚举)
 
-**护眼(已实现)**:原版链路 Lenovo SmartInteract `PlatformInterface.dll!IGCLInterfaceClient::SetColorTemperature(display, kelvin)` → 动态加载显卡驱动的 `IntelControlLib.dll`(IGCL,**非联想驱动组件,允许引用**)→ `ctlPixelTransformationSetConfig` 写 1D LUT;Off=restore-default。IGCL ABI 稳定性依据(用户裁定之首要判据):公版 SDK、所有结构带 Size+Version 字段、`ctlInit` 输出实现版本——实现 pin `CTL_API_VERSION(1,1)` 且运行时校验实现 major==1,不符即 fail-closed。LUT 数据依据:PlatformInterface 的 `RGBToTemperatureColor`+`kelvin_table`(std::map,360 键,1988K–19964K,.rdata 节点已恢复,证实原版为查表实现);UI 档位 Kelvin 值由 Vantage 运行时配置下发(静态不可恢复)→ Mid/High 暂用 Tanner-Helland 近似(Mid=5000K,High=4000K,标注 INFERRED),验收阶段用只读 GetConfig 与原版档位 LUT 比对后修正。驱动无稳定 get-config 时读回退化为进程内最近写入态(如实)。
+**护眼(尚未完成 ABI 对齐与验收)**:曾发现应用的 `SetColorTemperature` 走 `IntelControlLib.dll` 的 `ctlPixelTransformationSetConfig`。当前 Rust 绑定和此前探针的结构体布局与 Intel 公开定义不一致,因此读写行为及硬件适用性均未证实。代码中的 Mid=5000K、High=4000K 是近似推测,不证明与原版等价;不得将该通道视作已实现或进行硬件写入。
 
-**超分(已实现)**:同库 `ctlGetSetVideoProcessingFeature`,FeatureType=SUPER_RESOLUTION(4),ValueType=CUSTOM,自定义结构 `ctl_video_processing_super_resolution_info_t{flag}`;flag:1=DISABLE、2=ENABLE_DEFAULT_SCENARIO。DC 模式原版强制关。Linux 无标准 DRM 等价 → 诚实 Unsupported。
+**超分(尚未完成 ABI 对齐与验收)**:已找到 `ctlGetSetVideoProcessingFeature` 和 SUPER_RESOLUTION 接口,但当前自定义结构布局和查询参数尚未被目标驱动接受;不应把 dry-run 中的 unknown 状态视为有效读回或写入成功。Linux 无已验证的标准 DRM 等价实现。
 
 **色域(诚实 Unsupported,依赖被禁)**:原版链路 `SEColorManagerPlugin64.dll` → `MONITORCONTROL.dll`(SmartColor addin 1.1.4.32 交付,**联想交付组件,禁依赖**)→ `MonCtrl_GetMonitorColorGamutByIndex`(按名查索引)/`MonCtrl_SetMonitorColorGamut(monitor, index)`,配 `WcsSetDefaultColorProfile`+`InstallColorProfileW` 挂 ICM(ICM 包 9 个 TPLCD_8AD7_*.icm 位于 C:\ProgramData\Lenovo\SmartColorAddin\AddinData\icc\ColorCalibration\)。无 MONITORCONTROL 只剩 ICC 关联 ≠ 原版行为(面板原生色域未切),不平替 → Unsupported, recovered contract 存档于此待非联想路径。Linux 等价评估:colord。
 
 ### 15.1 21VG 实机 IGCL 探针结论(2026-11-01,只读)
 
-目标机 IGCL 组件:`C:\Windows\System32\DriverStore\FileRepository\iigd_dch.inf_amd64_*\IntelControlLib.dll`(两版 1.2.265 / 1.2.301.0;`ctlInit` 回 `SupportedVersion=0x00010001`)。导出名以实机为准:**`ctlClose`**(非 `ctlDestroy`);`ctlInit`/`ctlEnumerateDevices`/`ctlEnumerateDisplayOutputs`/`ctlPixelTransformationGetConfig`/`ctlPixelTransformationSetConfig`/`ctlGetSupportedVideoProcessingCapabilities`/`ctlGetSetVideoProcessingFeature` 均在。结构体按公版头:`ctl_init_args_t` 的 `ctl_application_id_t` 为 16 字节(Data1 u32/Data2 u16/Data3 u16/Data4[8]),写错会让 `ctlInit` 返 `CTL_RESULT_ERROR_UNSUPPORTED_VERSION(0x40000009)`。
+目标机 IGCL 组件:`C:\Windows\System32\DriverStore\FileRepository\iigd_dch.inf_amd64_*\IntelControlLib.dll`(两版 1.2.265 / 1.2.301.0;历史探针 `ctlInit` 回 `SupportedVersion=0x00010001`)。导出名为 `ctlClose`。注意 Intel 公布的 [`ctl_pixtx_pixel_format_t`](https://intel.github.io/drivers.gpu.control-library/Control/api.html#ctl-pixtx-pixel-format-t) 包含完整 `ctl_pixtx_color_primaries_t` 结构,当前代码及探针却将其写成 `u32`;`ctl_pixtx_config_t` 的公开联合体还包含比 1D LUT 更大的矩阵成员。版本主号匹配并不能证明这些布局兼容。历史 `ctlInit` 报 `0x4000000f` 是 INVALID_SIZE,不是 UNSUPPORTED_VERSION。
 
 探针(`crates/lctrl-hal-win/examples/pixtx_probe.rs`,只读)实测:
 
 | 查询 | 结果 | 结论 |
 |---|---|---|
-| `ctlEnumerateDevices` / `ctlEnumerateDisplayOutputs` | SUCCESS,各 1 个 | 内屏输出句柄可用 |
-| `ctlPixelTransformationGetConfig(CAPABILITY)`,1 block | SUCCESS,但 `NumBlocks=0` | **21VG 内屏无像素变换(1D LUT)管线** |
-| `ctlPixelTransformationGetConfig(CURRENT)` | `0x4800000c INVALID_PIXTX_BLOCK_NUMBER` | 无活动 LUT 可读 |
-| `ctlGetSupportedVideoProcessingCapabilities` | SUCCESS,7 项特性 | 适配器支持视频处理族 |
+| `ctlEnumerateDevices` / `ctlEnumerateDisplayOutputs` | SUCCESS,各 1 个 | 枚举到一个输出;未证明其与目标内屏身份绑定 |
+| `ctlPixelTransformationGetConfig(CAPABILITY)`,1 block | SUCCESS,探针字段显示 `NumBlocks=0` | **无结论:**探针结构布局不符公开 ABI |
+| `ctlPixelTransformationGetConfig(CURRENT)` | `0x4800000c INVALID_PIXTX_BLOCK_NUMBER` | 查询失败;不能证明硬件缺席或没有活动 LUT |
+| `ctlGetSupportedVideoProcessingCapabilities` | SUCCESS,7 项特性 | 未完成各特性枚举,不能证明 SR 在其中 |
 | `ctlGetSetVideoProcessingFeature(get SUPER_RESOLUTION)` | `0x4000000b INVALID_ARGUMENT` | 状态查询被驱动拒(尺寸/版本/参数语义未对齐)→ 状态报 unknown,不伪造 |
 
-因此 CLI 现状:`panel eye-care` → Unsupported(`panel.eye-care.no-pixel-transformation-pipeline`,硬件不适用);`panel super-resolution` → 状态 unknown,写路径保留但仍在写门禁内。护眼 Kelvin 档位(INFERRED)与 LUT 生成逻辑保留,供具备像素变换管线的面板使用。
+因此 CLI 当前 `panel eye-care` 返回的 Unsupported 原因不能作为硬件不适用证据;`panel super-resolution` 返回 unknown 也不代表控制可用。必须先修正并核对 ABI、绑定真实内屏、只读重测,再考虑由 owner 在场的独立写入验收。当前 CLI 还没有对所有未验收写路径强制物理确认门禁,不要执行面板控制命令(包括 dry-run)。
 
-**Overdrive(诚实 Unsupported,硬件缺席)**:21VG 无 \\.\SPBTESTTOOL PnP 设备/INF,BIOSOD GetFeatureValue(0x1A0000) 返回 null —— 原版 UI 亦无此项。
+**Overdrive(当前 Unsupported)**:21VG 上未观察到 `\\.\SPBTESTTOOL` PnP 设备/INF,所测 BIOSOD `0x1A0000` 返回 null。上述结果不足以证明不存在其他硬件控制通道。

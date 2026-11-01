@@ -39,8 +39,8 @@ BIOS 密码元数据、MagicBay 检测和 scan 清单共 **12 次实际运行,�
 | #3 OSD | 当前未附接真实 overlay/热键动作消费者 |
 | #4 能力/切换检查 | 原生矩阵可运行;平台依赖投影、实际服务绑定与替代就绪报告仍需修正 |
 | #5 电池/适配器 | C14:来源分组及实时电压/功率只读对照通过;健康/寿命、适配器额定功率等仍待逐字段验收 |
-| #6 充电/阈值 | 任意阈值经逆向证实 21VG 不支持:PWRMGRV/PWMIF32V 链缺席 + ACPI MHQI win32=2(RE-interfaces §11.6),能力行改为 Absent;C2 充电域读回(C26)已过 |
-| #7 夜间/临时充电 | 夜充写实现+只读验收已落地;临时模式只读已实现,写选择子证实缺席(0x23/0x21/0x31/0x41 为读,§11.4 修正),写保持门禁 |
+| #6 充电/阈值 | 21VG 未观察到 PWRMGRV/PWMIF32V 已知链,所测 MHQI 返回 win32=2;不能由此证明不存在其他通道。任意阈值仍 Unsupported;C26 仅记录充电域只读 |
+| #7 夜间/临时充电 | 夜充有写路径但只有只读验收;临时模式只读已实现,写选择子尚未恢复(§11.4)。未完成物理写入确认 |
 | #8 USB 供电 | 运行时覆盖(0x831020e8)实现并已接进组合根(原漏挂);BIOS 事务路径同链;写入验收待补 |
 | #9 电源计划 | 实际枚举成功;高级字段/名称一致性仍须按工单逐项验证 |
 | #10 性能模式 | C4:ITS V3 可读;写入缺版本绑定的已确认控制契约 |
@@ -56,7 +56,7 @@ BIOS 密码元数据、MagicBay 检测和 scan 清单共 **12 次实际运行,�
 | #20 键盘灯 | 当前目标机方法不可用;不得以静态灯光元数据提升写能力 |
 | #21 Win 锁/触控板 | C7 仅确认触控板恢复及非中断 smoke;新版禁用循环与 Win 锁尚未完成验收 |
 | #22 内屏刷新率 | C1 已验收;要求交互式会话,不以 SSH 无显示路径误判硬件不支持 |
-| #23 色彩/显示增强 | 逆向实现:护眼(IntelControlLib 1D LUT,IGCL ABI pin 1.2/1.1+运行时 major 校验)与超分(ctlGetSetVideoProcessingFeature);**实机只读探针(§15.1)**:21VG 内屏无像素变换管线(CAPABILITY 报 0 block、CURRENT 返 0x4800000c)→ `panel eye-care` 诚实 Unsupported(硬件不适用);SR 能力枚举 7 项但状态查询被驱动拒(0x4000000b)→ 状态报 unknown 不伪造。色域诚实 Unsupported(原版需联想交付的 MONITORCONTROL.dll,禁依赖);overdrive 21VG 硬件缺席。写入验收待 owner 物理确认 |
+| #23 色彩/显示增强 | 护眼和超分已有尝试性 IGCL 绑定,但 `CtlPixelFormat` 和 `CtlPixtxConfig` 与公开头文件布局不一致;旧探针返回 0 block/错误码不能证明该硬件没有管线,读写均未完成验证。超分状态此前报 unknown;色域目前 Unsupported,overdrive 目标设备未观察到。写入验收待 owner 物理确认,当前不得当作已完成 |
 | #24 运行时隐私 | 状态实际读取成功;逐层写入、独立读回及恢复证据须按版本保存 |
 | #25 SmartSense/HPD | 已逆向接入:sense 设置管道(RE-interfaces §13),`sense status/lock-on-leave/wake-on-approach/pause-video/attention-tracking` 实现+dry-run+注册表读回;attention-tracking 写后无持久化键(如实 write-only);键盘灯自动仍门禁(contract RPC 未恢复);写入验收待补 |
 | #26 Dolby | 纯 Rust rpcrt4/NDR 客户端不加载 DolbyRpcClient.dll,描述符由本仓库生成(RE-interfaces §0/§12),仍需 DolbyDAXAPI 服务。实机只读复验 connect=ok / GetDolbyEnabled=0 / GetActiveProfile=5 / IsSpatialAudioSupported=1 / GetSKU=1,与厂商 DLL 基线逐项一致;合并后复验(C35)`audio dolby … --dry-run` → previous enabled=false profile=Dynamic;写入验收待补 |
@@ -702,8 +702,8 @@ PL1/PL2/tau 与风扇模式在 Windows 仍为不可用——唯一在册 MSR 通
   `--yes perf mode geek` exit 3 拒绝。
 - 标签 `v1.0.0` 打于 main，Gitea 与 GitHub 同步；GitHub Release 页面随发布说明创建。
 
-边界声明：本版覆盖 21VG 全部适用功能（C1–C23）；充电写入、风扇与 PL 写入、
-BIOS 写入保持不可用/锁定（确证缺口，见 C2/C10/C23 边界），README 已如实列出。
+边界声明：C1–C23 只记录其各自限定的验收范围,并不证明已覆盖 21VG 全部适用功能。
+充电、风扇、PL、面板等写入仍须逐项核对门禁与独立物理验收,不得据此停用官方服务。
 
 ## C25 · WinMsrDev MSR 通道真机只读验收（写入保持门禁，部分）
 
