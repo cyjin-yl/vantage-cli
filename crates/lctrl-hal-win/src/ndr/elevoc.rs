@@ -4,10 +4,10 @@
 //! rpcrt4's marshaling engine interprets two byte tables per interface:
 //!
 //! * the **proc format string** — per-procedure headers followed by
-//! fixed-size parameter descriptors, reached per opnum through the
-//! `FmtStringOffset[]` table; and
+//!   fixed-size parameter descriptors, reached per opnum through the
+//!   `FmtStringOffset[]` table; and
 //! * the **type format string** — shared type descriptors addressed by
-//! byte offset from the parameter descriptors.
+//!   byte offset from the parameter descriptors.
 //!
 //! MIDL normally emits these tables from IDL. This module emits the same
 //! canonical encoding from a *semantic description* of the recovered

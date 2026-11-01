@@ -16,17 +16,17 @@
 //! Call sequence replicated from the vendor DLL (`Initialize`):
 //!
 //! 1. `RpcStringBindingComposeW("ncalrpc", NULL, "DaxRpcEndpoint")` —
-//! no object UUID on the binding (vendor-verified; the UUID is carried in
-//! the opnum-4 handshake instead).
+//!    no object UUID on the binding (vendor-verified; the UUID is carried in
+//!    the opnum-4 handshake instead).
 //! 2. `RpcBindingFromStringBindingW` → session binding handle (lazy bind).
 //! 3. `NdrClientCall3(proc 0)`: `[in] handle_t` binding → `[out]` session
-//! context token. All later procedures take that token as parameter 0;
-//! the runtime routes the call over the binding stored inside it.
+//!    context token. All later procedures take that token as parameter 0;
+//!    the runtime routes the call over the binding stored inside it.
 //! 4. `NdrClientCall3(proc 4)`: `[in]` object-UUID BSTR → `[out]` u16; the
-//! vendor ignores the result, so a failure is reported but not fatal.
-//! BSTR parameters marshal through `FC_USER_MARSHAL` quad index 0, which
-//! this module binds to oleaut32's `BSTR_User*` routines — identical to
-//! the vendor client's quad table.
+//!    vendor ignores the result, so a failure is reported but not fatal.
+//!    BSTR parameters marshal through `FC_USER_MARSHAL` quad index 0, which
+//!    this module binds to oleaut32's `BSTR_User*` routines — identical to
+//!    the vendor client's quad table.
 //!
 //! | procedure | opnum | args (after context token) | semantics |
 //! |-----------|-------|----------------------------|-----------|
