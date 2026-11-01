@@ -50,7 +50,7 @@ vantage --yes perf mode performance       # 执行、回读、确认
 |---|---|
 | 性能与电源 | `perf mode`、`tune epp`、`tune turbo`、`power scheme list/get/set`、`perf temp` |
 | 电池 | `battery status`、`battery adapter` |
-| 屏幕 | `panel rate`(刷新率)、`panel brightness`(亮度) |
+| 屏幕 | `panel rate`(刷新率)、`panel brightness`(亮度)、`panel eye-care`(护眼)、`panel super-resolution`(超分) |
 | 输入设备 | `touchpad status/on/off/recover`、`kbd backlight` |
 | 音频 | `audio dolby`(杜比开关/预设切换)、`audio noise-cancel`(降噪模式) |
 | 智能感知 | `sense status`、`sense lock-on-leave/wake-on-approach/pause-video/attention-tracking` |
@@ -84,11 +84,10 @@ vantage --yes perf mode performance       # 执行、回读、确认
 **🔬 逆向接入**(2026-11-01 经目标机二进制逆向验证契约,实现+测试已推送;充电域待 C 系列补验收,Dolby 已带实机只读探针):
 充电模式(GBMD 位掩码读回)、USB 关机供电运行时控制(0x831020e8)、夜间充电
 (0x83102150)、临时充电模式只读(0x83102148)、DBDC 电池限流表只读
-(`perf dbdc get`)、杜比音效开关/预设切换(`audio dolby`,经 DolbyRpcClient.dll
-ALPC 端点,只切换不重实现 DSP,实机探针:第三方进程可绑定)、降噪模式
-(`audio noise-cancel`,经 ElevocControlSDK ALPC 端点)、SmartSense 人体感知
-设置(`sense *`,经 com.lenovo.smartsense.settings 管道)。契约见
-docs/RE-interfaces.md §11–§14。
+(`perf dbdc get`)、杜比音效开关/预设切换(`audio dolby`)、降噪模式
+(`audio noise-cancel`)、SmartSense 人体感知设置(`sense *`)、护眼/超分
+(`panel eye-care`/`panel super-resolution`,经 Intel IGCL,驱动组件 ABI pin)。
+契约见 docs/RE-interfaces.md §11–§15。
 
 **⚠️ 有限验收**(部分路径验证,未全覆盖):遥测/温度流(C19)、本地驱动安装
 (`update local-driver`)。
@@ -103,6 +102,8 @@ docs/RE-interfaces.md §11–§14。
 | 厂商专属性能模式(极客模式等) | 该模式存在(联想 Vantage 提供),仅经联想专有驱动下发;HWP 请求 MSR 已在 WinMsrDev 选择子表内(0x772/0x774),但本机读回编码与 SDM 通用语义不一致,写入保持门禁直到物理确认 |
 | 修改 BIOS 设置 | 固件暂存机制未验证,写入锁定;读取正常 |
 | 智能感知键盘灯自动 | 需 Vantage contract RPC 通道,未恢复 |
+| 面板色域切换 | 原版依赖联想交付的 MONITORCONTROL.dll(SmartColor addin),按依赖裁定不引用;契约已存档(RE-interfaces §15) |
+| 面板 overdrive | 21VG 硬件缺席:无 SPBTESTTOOL 设备、BIOSOD 0x1A0000 读 null(RE-interfaces §15) |
 | BIOS 刷写、BIOS 口令 | 安全考虑,明确不支持;本地 `.inf` 驱动经 `update local-driver` 支持 |
 
 ## 安全模型

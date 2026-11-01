@@ -64,9 +64,9 @@ pub use magicbay::{
     MagicBayInventory, MagicBayKind, identify_magicbay,
 };
 pub use panel::{
-    GamutMode, LowLatencyMode, PanelAdapterId, PanelBrightness, PanelDisplayMode, PanelMode,
-    PanelRefreshCapability, PanelRefreshRequest, PanelRotation, PanelSupportBits, PanelTarget,
-    RefreshMode,
+    EyeCareLevel, GamutMode, LowLatencyMode, PanelAdapterId, PanelBrightness, PanelDisplayMode,
+    PanelMode, PanelRefreshCapability, PanelRefreshRequest, PanelRotation, PanelSupportBits,
+    PanelTarget, RefreshMode,
 };
 pub use performance::{
     DbdcProfile, DispatcherVersion, FanDescriptor, FanId, FanMode, FanStep, FanTable,

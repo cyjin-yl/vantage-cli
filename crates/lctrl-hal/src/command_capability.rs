@@ -979,7 +979,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             lctrl_core::required(Dependency::LenovoFirmwareWmi),
             lctrl_core::required(Dependency::LinuxDrm),
         ],
-        DispatchSupport::Unsupported("no verified panel color writer is attached"),
+        DispatchSupport::Unsupported("panel gamut switching in the original requires MONITORCONTROL.dll delivered inside the Lenovo SmartColor addin; Lenovo-delivered components are not a permitted dependency (docs/RE-interfaces.md §15)"),
     ),
     CommandCapability::new(
         CommandId::PANEL_SUPER_RESOLUTION,
@@ -988,10 +988,10 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             Readback::Unverified,
             Rollback::Unavailable,
         ),
-        FeatureBinding::Unprobed("panel.super-resolution.write"),
+        FeatureBinding::Capability("panel.super-resolution.write"),
         ServiceBinding::Unsupported,
         &[],
-        DispatchSupport::Unsupported("no verified SmartEngine writer is attached"),
+        DispatchSupport::Implemented,
     ),
     CommandCapability::new(
         CommandId::PANEL_OVERDRIVE,
@@ -1006,7 +1006,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             lctrl_core::required(Dependency::LenovoFirmwareWmi),
             lctrl_core::required(Dependency::LinuxDrm),
         ],
-        DispatchSupport::Unsupported("no verified overdrive writer is attached"),
+        DispatchSupport::Unsupported("overdrive is absent on this target: no SPBTESTTOOL PnP device and BIOSOD feature 0x1A0000 reads null (docs/RE-interfaces.md §15)"),
     ),
     CommandCapability::new(
         CommandId::PANEL_EYE_CARE,
@@ -1015,13 +1015,13 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             Readback::Unverified,
             Rollback::Unavailable,
         ),
-        FeatureBinding::Unprobed("panel.eye-care.write"),
+        FeatureBinding::Capability("panel.eye-care.write"),
         ServiceBinding::One(ServiceRole::Panel),
         &[
             lctrl_core::required(Dependency::LenovoFirmwareWmi),
             lctrl_core::required(Dependency::LinuxDrm),
         ],
-        DispatchSupport::Unsupported("no verified eye-care writer is attached"),
+        DispatchSupport::Implemented,
     ),
     CommandCapability::new(
         CommandId::PRIVACY_CAM,
