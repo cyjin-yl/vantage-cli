@@ -8,13 +8,12 @@
 //! semantically (see [`dolby`] and [`elevoc`]) and this module turns that
 //! description into the tables `NdrClientCall3` expects.
 //!
-//! The encodings follow the public DCE 1.1 NDR `-Oicf` grammar (the
-//! `NDR_PROC_HEADER_*` / `NDR_PARAM_OIF` / `FC_*` elements, as implemented by
-//! the public Wine and ReactOS headers). NDR encodings are canonical, so a
-//! correctly generated descriptor coincides with any other implementation of
-//! the same signature; what matters here is that the bytes are produced from
-//! our own description of the interface rather than transcribed from a
-//! proprietary image.
+//! The generators use public `-Oicf` format definitions for
+//! `NDR_PROC_HEADER_*`, `NDR_PARAM_OIF`, and `FC_*` elements. These are
+//! interpreter metadata, not the wire format itself:
+//! equivalent descriptors need not have the same layout. The tables here are
+//! generated from our own description of the interface rather than
+//! transcribed from a proprietary image.
 //!
 //! The constants below are the shared grammar elements used by both
 //! generators.

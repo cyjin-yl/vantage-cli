@@ -7,8 +7,8 @@
 
 ## 0. 依赖与常量边界(2026-11-01 用户裁定,适用于本文所有章节)
 
-1. **联想交付的软件不得作为运行时依赖**:Vantage addins 目录下的任何 payload(DolbyRpcClient.dll、ElevocControlSDK_x64.dll、XCASDK.dll、MONITORCONTROL.dll)一律不引用、不复制;只允许 Windows 系统组件(rpcrt4.dll、oleaut32.dll、mscms.dll、kernel32)。
-2. **接口常量不得转录**:仓库不得内嵌从厂商二进制逐字节抄来的接口描述表(MIDL proc/type format string、format-string offsets 等)。描述符由我们自己的 NDR 生成器,按公开 DCE/NDR 编码规则(MS-DTYP / DCE 1.1 type-format-string 语法),从"opnum → 参数类型与属性"的语义描述生成,并在代码中标注每个输出字段实现的规则。NDR 编码本身是规范化的,所以自建生成器对所用条目会与厂商编码一致——差别在于来源与作者是我们,不是抄来的 blob;仓库内不得出现厂商 SHA 或逐字复制的大字节数组。
+1. **联想交付的软件不得作为运行时依赖**:Vantage addins 目录下的 payload(DolbyRpcClient.dll、ElevocControlSDK_x64.dll、XCASDK.dll、MONITORCONTROL.dll)不引用、不复制。非联想驱动或应用组件可依第 3 条准入;使用系统 RPC 客户端并不消除对 RPC 服务端的依赖。
+2. **接口描述表不得转录**:当前源代码不得内嵌从厂商二进制逐字节抄来的 MIDL proc/type format string 或 format-string offsets。描述符由本仓库生成器按公开 NDR 格式语法,从恢复出的"opnum → 参数类型与属性"生成;接口标识符和参数语义仍由逆向获得。生成的格式串可能与其他实现相同,这不能单凭输出字节证明其来源。旧 Git 历史中曾提交过的表不因此自动消失;源码哈希作为分析证据保留。
 3. **非联想驱动/应用可引用,但 ABI 稳定是首要判据**:接口版本字段/结构布局必须稳定或带版本协商;引用时记录来源、版本与稳定依据,并评估 Linux 侧等价物(DRM/colord 等)。
 4. **行为与原版一致,不做平替**:复刻原版的调用序、信封、字段序与返回码语义;若只能得到不等价的结果,宁可诚实 Unsupported。
 
@@ -374,7 +374,7 @@ Counts/CurrentLimit[](mA)/ROS_Power[](mW)/Threshold[](%),实机 3 档 [7500,5000
 
 链路:`vantage audio dolby → 纯 Rust rpcrt4 NDR 客户端 → ALPC ncalrpc:[DaxRpcEndpoint] → DAX3API.exe(DolbyDAXAPI 服务,SYSTEM)`。接口 GUID `11c6212d-d5f3-4500-ab16-634dc63037be` v1.0,NDR v2.0,`RPC_IF_AUTOLISTEN | RPC_IF_ALLOW_LOCAL_ONLY`(仅本机);Object UUID `B94BA572-658F-40E6-861D-DFB7BB4001A8`。许可 APO DSP(DolbyAPOv*/DolbyAPOAIDE)只被 DAX3API 内部使用,vantage 只切换开关/预设,不重实现 DSP。
 
-**依赖裁定(2026-11-01 用户裁定:联想交付的软件一律禁依赖)**:原实现绑定 WindowsApps 包内的 `DolbyRpcClient.dll` 并把字节复制到 `%LOCALAPPDATA%` 缓存,现已整体删除。实现只依赖 `rpcrt4.dll` 与 `oleaut32.dll`(均为 Windows 系统组件),NDR 封送由 rpcrt4 解释器完成,接口描述符由本仓库自己的 NDR 生成器按公开 DCE/NDR 编码规则、从恢复出的形参签名生成(见 12.4),仓库不再内嵌任何厂商二进制转录的字节。
+**客户端依赖边界**:原实现绑定 WindowsApps 包内的 `DolbyRpcClient.dll` 并复制到 `%LOCALAPPDATA%` 缓存;当前源码已删除该装载和缓存。RPC 客户端使用系统组件 `rpcrt4.dll` 与 `oleaut32.dll`,接口描述符按恢复出的签名生成(见 12.4)。这不消除服务端依赖:调用仍需可用的 `DolbyDAXAPI` / `DAX3API.exe`;卸载 Vantage 后该服务是否保留尚未验证。
 
 ### 12.1 客户端导出(`DolbyRpcClient.dll`,按 thunk 字节验证,全部无调用方可见参数)
 
@@ -431,7 +431,7 @@ out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Se
 | 8 | SetActiveProfile | context + `u32`(0x10) | 预设写 |
 | 37 | GetSKU | context + `&BSTR`(0x10) | SKU 名串(BSTR) |
 
-**元数据**:MIDL 解释器表(proc format string / format offset / type format)由 `lctrl-hal-win/src/ndr.rs` 在编译期按公开 DCE 1.1 NDR `-Oicf`(x64)编码规则,从上表恢复出的形参签名**自行生成** —— 仓库不再内嵌任何从厂商二进制逐字节转录的描述表(生成规则逐字段注释于该模块头)。编码是规范化的:生成结果对所用 8 个 opnum 与厂商 proc string 逐字节一致;type format string 只含本通道引用的条目(context handle ×2、BSTR `FC_USER_MARSHAL` 及其 wire signature),厂商表其余描述未用 opnum 的条目不保留。BSTR 参数经 `FC_USER_MARSHAL`(quad index 0)封送,quad 表绑定 oleaut32 的 `BSTR_UserSize/Marshal/Unmarshal/Free`(厂商表 ordinal 283–286 的等价具名导出)。
+**元数据**:MIDL 解释器表(proc format string / format offset / type format)由 `lctrl-hal-win/src/ndr/dolby.rs` 在编译期按公开的 NDR `-Oicf`(x64)格式规则,从上表恢复出的形参签名生成。当前源码不再内嵌原先逐字节转录的描述表;类型表仅保留本通道引用的 context handle 和 BSTR 语义。BSTR 参数经 `FC_USER_MARSHAL`(quad index 0)封送,quad 表绑定系统 oleaut32 的 `BSTR_UserSize/Marshal/Unmarshal/Free`。`-Oicf` 是 RPC 运行时的解释器元数据格式,不应仅凭线协议兼容就断言不同编译器生成的表必定逐字节相同。
 
 **单语法决定**:`RPC_CLIENT_INTERFACE.Flags` 置 0(厂商为 `0x06000000`)。厂商同时携带 NDR64 格式表;本客户端只携带 NDR32 表,若置多语法位,rpcrt4 会协商到 NDR64 并因缺少 NDR64 表而报 `RPC_S_INTERNAL_ERROR`(`0x6e6`)。置 0 后协商语法恒为 NDR v2.0,线上字节与厂商客户端一致。
 
@@ -482,18 +482,18 @@ out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Se
 
 链路:`vantage audio noise-cancel → ALPC ncalrpc:[ElevocRpcEndpoint] → ElevocControlService.exe(LocalSystem)`。接口 GUID `{6F761170-1054-4339-A573-063DD08C7E16}` v4.0,NDR32;单 opnum-0 通用分发,方法名在 JSON 请求信封内(elevoc_rpc_protocol)。**实现为纯 Rust rpcrt4 客户端**(`lctrl-hal-win/src/noise.rs`,`NativeElevocRpc`):按 2026-11-01 依赖裁定,Lenovo 交付的 ElevocControlSDK_x64.dll 已禁止作为运行时依赖,DLL 发现/缓存机制移除;传输改为系统 `rpcrt4.dll` + `NdrClientCall3` 直打 opnum-0。
 
-**依赖边界说明**:运行时只依赖系统组件 `rpcrt4.dll`(+oleaut32 的 BSTR 封送导出);复刻进代码的 MIDL 解释器表/格式串是**逆向期从厂商二进制逐字节转录的接口常量**(来源与 SHA 见 14.0),不是对厂商软件的运行时依赖——卸载 Lenovo Vantage 后通道仍可用;接口常量随接口版本走(ABI 锚点见下),服务端改版本即绑定失败而非静默错译。
+**客户端依赖边界**:当前源码不再加载或复制 Elevoc SDK,也不再内嵌原先逐字节转录的描述表;客户端通过系统 `rpcrt4.dll` 调用。RPC 服务端仍是必需依赖:目标机实测 `ElevocService` 运行 `C:\Windows\System32\ElevocInstallDriver\ElevocControlService.exe`。卸载 Lenovo Vantage 后服务是否保留尚未验证;不能据此声称无需安装或保留该服务。
 
 ### 14.0 纯 Rust 通道实现要点(ABI 稳定依据)
 
 - **绑定**:`RpcStringBindingComposeW(NULL,"ncalrpc",NULL,"ElevocRpcEndpoint")` → `RpcBindingFromStringBindingW`(与 SDK Initialize 9c0- 一致;无 AuthInfo,服务端无鉴权注册)。
-- **MIDL 表(自生成,无任何字节转录)**:按 2026-11-01 依赖裁定,接口描述表不得从厂商二进制逐字节抄入仓库。过程/类型格式串改由 `lctrl-hal-win/src/ndr.rs` 的**自研 NDR 描述符生成器**依恢复出的签名语义生成:`void opnum0([in,out,string,size_is(0x5000)] wchar_t *json)`(请求 JSON 出、响应回同一 UTF-16 缓冲)。生成器逐字段实现公开的 `-Oicf` 格式串文法(`NDR_PROC_HEADER_RPC`(handle_type=FC_BIND_PRIMITIVE、Oi_HAS_RPCFLAGS|USE_NEW_INIT_ROUTINES)→ `NDR_PROC_PARTIAL_OIF_HEADER`(Oi2=ServerMustSize|ClientMustSize|HasExtensions)→ `NDR_PROC_HEADER_EXTS64`(Size=10、Flags2=HasNewCorrDesc|ClientCorrCheck|ServerCorrCheck)→ `NDR_PARAM_OIF`(attrs=MustSize|MustFree|IsIn|IsOut、stack_off=0、type_off=2);类型串 = `00 00` 保留前缀 + `FC_C_WSTRING FC_STRING_SIZED` + 常量符合度描述符 `FC_CONSTANT_CONFORMANCE`、count=0x5000)。编码是规范性的、对该签名无自由度,故与厂商表一致属预期但**非转录**;其余表(`MIDL_STUBLESS_PROXY_INFO`/`MIDL_STUB_DESC`/`RPC_CLIENT_INTERFACE`)为本实现按 SDK `rpcndr.h` 公开结构自建。vendor IfSpec 是 client+server 双用(DispatchTable→NdrServerCall2 thunk 供 RegCallback、InterpreterInfo→MIDL_SERVER_INFO);客户端调用路径不读这两项,本实现 DispatchTable=NULL、InterpreterInfo 按标准 client 惯例指向自身 proxy info;SyntaxInfo[0] 为 NDR32(服务端只广告 NDR32,协商必中)。**ABI 锚点 = IfSpec 接口 GUID+v4.0 + NDR32 v2.0**:服务端若改版本则协商/绑定失败,表现为 ChannelUnavailable 而非静默错译。
+- **MIDL 表**:当前源码由 `lctrl-hal-win/src/ndr/elevoc.rs` 的生成器按恢复出的签名 `void opnum0([in,out,string,size_is(0x5000)] wchar_t *json)` 生成描述符,不再保存原先转录的格式串。过程头启用 `HasNewCorrDesc` 和两端 correlation checks;因此 sized-string 的四字节常量符合度描述符后还必须生成两字节 `/robust` 标志(常量采用 early correlation)。结构体根据公开 `rpcndr.h` 定义构建。接口 GUID+v4.0 与 NDR32 v2.0 是当前测试版本的绑定依据,不是未来兼容性保证:服务端可能保留同一版本号但更改语义,必须针对更新版本重新验证。
 - **异常面**:vendor `SafeRpcRequest` 7b0 以 `__try/__except` 将 RPC 异常换成返回码。复刻用 VEH+landing-pad(guard `NdrClientCall3`):异常线程还原到包装帧返回,异常码→ChannelUnavailable;正常路径零开销。
-- **请求缓冲**:与 vendor 相同的固定 0x400 wchar `[in,out,string]` 参数;请求 JSON 写出、响应落同一缓冲。
+- **请求缓冲**:保留原有不超过 `0x3ff` 个 UTF-16 单元的请求限制;由于生成的 `[in,out,string,size_is(0x5000)]` 描述符允许更长响应,本地接收缓冲使用同一个 `0x5000` 单元上限,包括末尾 NUL。不声称此约束已验证恶意 RPC 服务端的全部异常情况。
 
 ### 14.1 调用序列(与 vendor Initialize/Login 逐步一致)
 
-`load()` = Initialize 等价物:bind 成功后按 vendor 顺序发(暖机结果全部忽略,与 SDK 一致):`GetMode{link:"app_downlink"}` → `GetFunctionsByEndpoint{endpoint:"app_downlink"}` → `GetHeadSetStatus` → **`GetAuthorizedTokens{elevoc_rpc_protocol:"RPC/2.2",token:<rand>,user:""}`**(鉴权交换本身必需——整跳该请求后一切请求在服务端处理函数内 fault 0xc0000005;但 `user` 载荷不被校验,见 §14.3 探针)→ `GetConfigFileContent{buffer_len:0x1000}` → `GetFunctions` → `IsVoiceidSetted{endpoint}` → `GetFunctionsByEndpoint{endpoint:"speaker_extraction"}`。
+`load()` = Initialize 等价物:bind 成功后按 vendor 顺序发(暖机结果全部忽略,与 SDK 一致):`GetMode{link:"app_downlink"}` → `GetFunctionsByEndpoint{endpoint:"app_downlink"}` → `GetHeadSetStatus` → **`GetAuthorizedTokens{elevoc_rpc_protocol:"RPC/2.2",token:<rand>,user:""}`**(目标机上曾观察跳过该交换后查询 fault;空 `user` 可用,其他值并非均已验证,见 §14.3)→ `GetConfigFileContent{buffer_len:0x1000}` → `GetFunctions` → `IsVoiceidSetted{endpoint}` → `GetFunctionsByEndpoint{endpoint:"speaker_extraction"}`。
 
 之后:`GetCurrentMode` ≡ `GetMode{link:"app_uplink",endpoint:<默认捕获端点>}` → `Content.mode` 名→0..5(未知名→0),再按 `GetAlgType` 的 `algroithm_type` 是否以 "AI" 开头升级 1→6/2→7(`find("AI")!=0` 即旧时域算法,vendor bb4;"Non-AI" 时域端点亦命中;**原记 "contains(token)" 系误判,已更正**)。`SetEffectMode(mode)` ≡ voiceid 门控(ret 4)→ 6/7→1/2 重映射 → 能力门控 → `SetAlgType{algroithm_type:"Non-AI"(原 mode 6/7)否则"AI"}`(结果被忽略)→ `SetMode{link:"uplink",mode:<名字>,CALLER:"SDK",proto,token,endpoint}`。`QueryVoiceIDStatus` ≡ `IsVoiceidSetted{endpoint}` → `is_voiceid_setted` 真→2 否→0。
 
@@ -509,9 +509,9 @@ out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Se
 
 ### 14.3 实机验证状态(2026-11-01)
 
-纯 Rust 客户端在 TB14P-EZRA 实机跑通 Initialize→Login→GetCurrentMode 全链路:`vantage audio noise-cancel shared --dry-run` → **previous mic mode=Shared, speaker=off, voice-id=enrolled**(`--json`:`{"mic_mode":"shared","voice_id_enrolled":true}`),与厂商 DLL 基线一致(同机 P/Invoke `GetCurrentMode` = 1 = shared);读操作零写入(实机复核 HKCU F4006 `noise_micro_mode=1`/`noise_speaker_mode=0` 未变)。**2026-11-01 第二轮复核:自生成 NDR 描述符(ndr.rs)替代表同样跑通同一基线,输出逐字一致。**
+纯 Rust 客户端在 TB14P-EZRA 实机跑通 Initialize→Login→GetCurrentMode 全链路:`vantage audio noise-cancel shared --dry-run` → **previous mic mode=Shared, speaker=off, voice-id=enrolled**(`--json`:`{"mic_mode":"shared","voice_id_enrolled":true}`),与厂商 DLL 基线一致(同机 P/Invoke `GetCurrentMode` = 1 = shared);读操作后实机复核 HKCU F4006 `noise_micro_mode=1`/`noise_speaker_mode=0` 未变。C35 记录了引入生成描述符之后的只读结果;它不证明所有请求均不会产生服务端副作用。
 
-**应用键结论(2026-11-01 只读探针实证,非必需)**:厂商 SDK 在 `GetAuthorizedTokens` 送 `user:"bb35ce79…"`,但该值不是协议契约——实机变体探针:`user:""` 与省略 `user` 字段均返回**同一份 16 项授权令牌白名单**(首项即厂商 key),`GetMode` 正常;`user:"deadbeef"`(非白名单值)使服务端处理函数 fault 0xc0000005(服务进程存活、后续调用正常——说明 key 被与白名单比对,错值会打挂该 handler);整跳 `GetAuthorizedTokens` 则后续 `GetMode` 一律 fault。故:交换必需、payload 不校验;判定条件放宽为 `auth_status==true` 或 `tokens` 非空。厂商 key 属**凭据字符串**(协议内一个可选字段值,非二进制描述符),且已证实可用空值替代,**仓库不再携带该常量**,发送 `user:""` 保持线形 `{request,proto,token,user}`。
+**应用键结论(2026-11-01 目标机只读探针)**:历史探针中,`user:""` 和省略字段均返回同一份令牌列表且 `GetMode` 正常;一次非白名单值使服务端处理函数 fault,跳过交换也导致后续查询 fault。当前实现不再携带原应用键,发送 `user:""`;此结论仅限已观察服务版本与测试值,不等于证明服务端对任意值均不校验。
 
 **根因(已闭合)**:`RPC_CLIENT_INTERFACE::Flags`。厂商 ifspec 的取值是 `0x06000000`,该位型会把 rpcrt4 引到 NDR64-capable 分发路径;该路径需要厂商 DLL 自己 .rdata 里的 NDR64 格式表,而本客户端只携带 NDR32(v2.0)解释器表,于是 `NdrClientCall3` 在类型格式解释器里抛 `RPC_S_INTERNAL_ERROR (0x6e6)`(异常面由 VEH 兜住转 `ChannelUnavailable`,不崩溃)。把 `Flags` 改为 **0**(单一 NDR v2.0 语法)后同一套表、同一段 JSON、同一调用序列即成功;协商到的传输语法仍是 NDR32 v2.0,线上字节不变。12 变体 metadata sweep 实测:仅 `Flags=0` 是必要条件,`DispatchTable=NULL`、`InterpreterInfo` 取 `&ProxyInfo` 或 NULL、`nCount` 取 1 或 2 均不影响成功。
 

@@ -90,6 +90,10 @@ vantage --yes perf mode performance       # 执行、回读、确认
 21VG 内屏无像素变换管线,护眼诚实 Unsupported、超分状态 unknown)。
 契约见 docs/RE-interfaces.md §11–§15。
 
+Dolby 和降噪客户端不再加载 Vantage 附加组件中的 DLL;它们仍分别要求
+`DolbyDAXAPI` 和 `ElevocService` 服务端可用。卸载 Vantage 后服务是否仍在,
+尚未验证;不要把客户端 DLL 无依赖等同于服务端无依赖。
+
 **⚠️ 有限验收**(部分路径验证,未全覆盖):遥测/温度流(C19)、本地驱动安装
 (`update local-driver`)。
 
