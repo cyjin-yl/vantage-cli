@@ -98,6 +98,16 @@ const LUT_SAMPLES: usize = 256;
 // IGCL ABI layouts (public igcl_api.h).
 // ---------------------------------------------------------------------------
 
+/// `ctl_application_id_t` = { u32 Data1; u16 Data2; u16 Data3; u8 Data4[8] }.
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct CtlApplicationId {
+    data1: u32,
+    data2: u16,
+    data3: u16,
+    data4: [u8; 8],
+}
+
 #[repr(C)]
 struct CtlInitArgs {
     size: u32,
@@ -105,7 +115,7 @@ struct CtlInitArgs {
     app_version: u32,
     flags: u32,
     supported_version: u32,
-    application_uid: [u8; 24],
+    application_uid: CtlApplicationId,
 }
 
 #[derive(Clone, Copy)]
@@ -260,7 +270,12 @@ impl IntelControlLib {
                 app_version: CTL_API_VERSIONS[0],
                 flags: 0,
                 supported_version: 0,
-                application_uid: [0; 24],
+                application_uid: CtlApplicationId {
+                    data1: 0,
+                    data2: 0,
+                    data3: 0,
+                    data4: [0; 8],
+                },
             };
             let mut result = u32::MAX;
             for candidate in CTL_API_VERSIONS {
