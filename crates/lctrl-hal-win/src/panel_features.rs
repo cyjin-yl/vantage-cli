@@ -73,6 +73,7 @@ const CTL_API_VERSIONS: [u32; 2] = [ctl_make_version(1, 2), ctl_make_version(1, 
 const CTL_IMPL_MAJOR_VERSION: u32 = 1;
 
 const CTL_RESULT_SUCCESS: u32 = 0;
+const CTL_RESULT_ERROR_INVALID_PIXTX_BLOCK_NUMBER: u32 = 0x4800_000c;
 
 const CTL_PIXTX_BLOCK_TYPE_1D_LUT: u32 = 1;
 const CTL_PIXTX_CONFIG_OPERTAION_TYPE_RESTORE_DEFAULT: u32 = 1;
@@ -503,6 +504,11 @@ impl IntelCtlApi for IntelControlLib {
         let result = unsafe {
             (self.handles.ctl_pixel_transformation_get_config)(self.primary_output, &mut config)
         };
+        if result == CTL_RESULT_ERROR_INVALID_PIXTX_BLOCK_NUMBER {
+            return Err(LctrlError::Unsupported {
+                feature: "panel.eye-care.no-pixel-transformation-pipeline".to_string(),
+            });
+        }
         if result != CTL_RESULT_SUCCESS {
             return Err(LctrlError::Unsupported {
                 feature: format!(
@@ -531,7 +537,7 @@ impl IntelCtlApi for IntelControlLib {
                     size: std::mem::size_of::<CtlPixtx1dLutConfig>() as u32,
                     version: 0,
                     sampling_type: CTL_PIXTX_LUT_SAMPLING_TYPE_UNIFORM,
-                    num_samples_per_channel: LUT_SAMPLES as u32,
+                    num_samples_per_channel: 0,
                     num_channels: 3,
                     p_sample_values: samples.as_mut_ptr(),
                     p_sample_positions: std::ptr::null_mut(),
@@ -550,6 +556,10 @@ impl IntelCtlApi for IntelControlLib {
         let result = unsafe {
             (self.handles.ctl_pixel_transformation_get_config)(self.primary_output, &mut config)
         };
+        if result == CTL_RESULT_ERROR_INVALID_PIXTX_BLOCK_NUMBER {
+            // The panel exposes no pixel-transformation block at all.
+            return Ok(false);
+        }
         if result != CTL_RESULT_SUCCESS {
             return Err(LctrlError::ChannelUnavailable {
                 channel: format!(
