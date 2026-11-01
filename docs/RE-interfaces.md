@@ -354,6 +354,15 @@ Linux 上同类能力由主线内核 `/dev/cpu/N/msr` 完整提供(见 `09-linux
 
 Counts/CurrentLimit[](mA)/ROS_Power[](mW)/Threshold[](%),实机 3 档 [7500,5000,4500]/[100,40,20]。写路径(`SetFeatureValue` + DBDC FeatureId)因 ID↔名映射未恢复保持门禁(§10.3 表)。
 
+## 11.4 修正与 11.6 阈值写方结论(2026-11-01,ThresholdRe2:BatterySetting.exe/WrapPlugin.dll/ThinkPowerPlugin.dll/AcpiVpc.sys/PowerBattery.dll 反汇编 + 实机 ACPI 探针)
+
+**11.4 修正**:PowerBattery.dll 的 temporary-mode 只读选择子为 0x23/0x21/0x31/0x41;§11.4 原记的 0x13/0x11 实为读回 3/1(实机)。写选择子**证实缺席**:BatteryManagementContract.dll 无 Set-BatteryTemporaryMode,BatterySetting 从不发送 0x148,固件侧写口未恢复→写保持门禁。
+
+**11.6 自定义充电阈值**:完整链 BatterySetting.exe → WrapPlugin.dll(thunk `*0x560718` @+0x4268b8)→ ThinkPowerPlugin.dll → PWRMGRV(ThinkPad Power Manager)SetChargeThreshold → PWMIF32V.DLL SM_SetCharge{Start,Stop}CapacityThreshold,持久化 HKLM\SOFTWARE\Lenovo\PWRMGRV\Data\Charge{Start,Stop}{Control,Percentage},读回仅注册表(默认 76/80)。**21VG 判定不支持**:PWMIF32V.DLL 缺席、PWRMGRV 键空、AcpiVpc 能力方法 MHQI(IOCTL 0x83102130/0x83102134)实机返回 win32=2(该固件 ACPI 方法不存在)。无 powrprof/GUID 路径参与。
+
+**驱动 IOCTL→ACPI 全映射**(AcpiVpc.sys 15.11.30.14,驱动仅透传 4 字节选择子,写门控全在固件):0x20e8 SALS/HALS、0x20f8 GBMD、0x211c/0x2138 ITHC、0x2120 GBID、**0x212c SMTF(可写透传,语义未恢复,探测返回 0xFFFF→门禁)**、0x2130/0x2134 MHQI 读、0x2144/58/5c KBL*、**0x2148 BTMC**、0x214c BSIF、0x2150/0x2154 BNMC。
+
+**极端省电(原版实现还原)**:原版不是固件通道,而是 AiTurbo DriverStore 包的 BatteryLife.exe **EcoQoS 进程限流守护**:powrprof DC 索引写 + PowerSetActiveScheme + 进程节流委派 AiPerfSvc.exe,持久化 HKLM\SOFTWARE\Lenovo\AiTurbo\BatteryLife;BatterySetting 内的 "ExtremeBatteryLife" 代码实为云遥测(WININET 上报 + rainbow 注册表)。按用户 2026-11-01 指示(逆向实现与原版一致,不平替):本功能须按 AiTurbo 原版契约(AiPerfSvc 委派/其注册表键)实现,禁止用通用 ProcessPowerThrottling 平替;契约未恢复前保持门禁。
 ## 12. Dolby DAX RPC 契约(2026-11-01,DolbyRpcClient.dll pkg 1.0.3 + DAX3API.exe 3.30904.943.0 反汇编 + 实机只读探针实证;实现改为纯 Rust rpcrt4 通道)
 
 链路:`vantage audio dolby → 纯 Rust rpcrt4 NDR 客户端 → ALPC ncalrpc:[DaxRpcEndpoint] → DAX3API.exe(DolbyDAXAPI 服务,SYSTEM)`。接口 GUID `11c6212d-d5f3-4500-ab16-634dc63037be` v1.0,NDR v2.0,`RPC_IF_AUTOLISTEN | RPC_IF_ALLOW_LOCAL_ONLY`(仅本机);Object UUID `B94BA572-658F-40E6-861D-DFB7BB4001A8`。许可 APO DSP(DolbyAPOv*/DolbyAPOAIDE)只被 DAX3API 内部使用,vantage 只切换开关/预设,不重实现 DSP。
@@ -497,15 +506,6 @@ out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Se
 
 过程中一并排除/修正:pHandle 间接层(SDK `rpcndr.h` 证实 `MIDL_STUB_DESC` +0x18 是 `IMPLICIT_HANDLE_INFO` 联合体,单间接即可;双间接会得到 `0x6a6 INVALID_BINDING`)、COM vtable 取址优先级(`(*(*o).vtbl).add(N)` → `*(*o).vtbl.add(N)`)、参数按值/按址两种传法、`mFlags=0x02000001`/`MIDLVersion=0x0801026e`/`Version=0x00060001`/过程与类型格式串字节、`SetAlgType` 先行请求、`GetAlgType` 的 td 判定(`find("AI")!=0`)。
 
-## 11.4 修正与 11.6 阈值写方结论(2026-11-01,ThresholdRe2:BatterySetting.exe/WrapPlugin.dll/ThinkPowerPlugin.dll/AcpiVpc.sys/PowerBattery.dll 反汇编 + 实机 ACPI 探针)
-
-**11.4 修正**:PowerBattery.dll 的 temporary-mode 只读选择子为 0x23/0x21/0x31/0x41;§11.4 原记的 0x13/0x11 实为读回 3/1(实机)。写选择子**证实缺席**:BatteryManagementContract.dll 无 Set-BatteryTemporaryMode,BatterySetting 从不发送 0x148,固件侧写口未恢复→写保持门禁。
-
-**11.6 自定义充电阈值**:完整链 BatterySetting.exe → WrapPlugin.dll(thunk `*0x560718` @+0x4268b8)→ ThinkPowerPlugin.dll → PWRMGRV(ThinkPad Power Manager)SetChargeThreshold → PWMIF32V.DLL SM_SetCharge{Start,Stop}CapacityThreshold,持久化 HKLM\SOFTWARE\Lenovo\PWRMGRV\Data\Charge{Start,Stop}{Control,Percentage},读回仅注册表(默认 76/80)。**21VG 判定不支持**:PWMIF32V.DLL 缺席、PWRMGRV 键空、AcpiVpc 能力方法 MHQI(IOCTL 0x83102130/0x83102134)实机返回 win32=2(该固件 ACPI 方法不存在)。无 powrprof/GUID 路径参与。
-
-**驱动 IOCTL→ACPI 全映射**(AcpiVpc.sys 15.11.30.14,驱动仅透传 4 字节选择子,写门控全在固件):0x20e8 SALS/HALS、0x20f8 GBMD、0x211c/0x2138 ITHC、0x2120 GBID、**0x212c SMTF(可写透传,语义未恢复,探测返回 0xFFFF→门禁)**、0x2130/0x2134 MHQI 读、0x2144/58/5c KBL*、**0x2148 BTMC**、0x214c BSIF、0x2150/0x2154 BNMC。
-
-**极端省电(原版实现还原)**:原版不是固件通道,而是 AiTurbo DriverStore 包的 BatteryLife.exe **EcoQoS 进程限流守护**:powrprof DC 索引写 + PowerSetActiveScheme + 进程节流委派 AiPerfSvc.exe,持久化 HKLM\SOFTWARE\Lenovo\AiTurbo\BatteryLife;BatterySetting 内的 "ExtremeBatteryLife" 代码实为云遥测(WININET 上报 + rainbow 注册表)。按用户 2026-11-01 指示(逆向实现与原版一致,不平替):本功能须按 AiTurbo 原版契约(AiPerfSvc 委派/其注册表键)实现,禁止用通用 ProcessPowerThrottling 平替;契约未恢复前保持门禁。
 ## 15. 面板图像特性契约(2026-11-01,SEColorManagerPlugin64.dll/SmartColorAddin.dll/PlatformInterface.dll 反汇编 + IGCL 公版头 + 实机文件枚举)
 
 **护眼(已实现)**:原版链路 Lenovo SmartInteract `PlatformInterface.dll!IGCLInterfaceClient::SetColorTemperature(display, kelvin)` → 动态加载显卡驱动的 `IntelControlLib.dll`(IGCL,**非联想驱动组件,允许引用**)→ `ctlPixelTransformationSetConfig` 写 1D LUT;Off=restore-default。IGCL ABI 稳定性依据(用户裁定之首要判据):公版 SDK、所有结构带 Size+Version 字段、`ctlInit` 输出实现版本——实现 pin `CTL_API_VERSION(1,1)` 且运行时校验实现 major==1,不符即 fail-closed。LUT 数据依据:PlatformInterface 的 `RGBToTemperatureColor`+`kelvin_table`(std::map,360 键,1988K–19964K,.rdata 节点已恢复,证实原版为查表实现);UI 档位 Kelvin 值由 Vantage 运行时配置下发(静态不可恢复)→ Mid/High 暂用 Tanner-Helland 近似(Mid=5000K,High=4000K,标注 INFERRED),验收阶段用只读 GetConfig 与原版档位 LUT 比对后修正。驱动无稳定 get-config 时读回退化为进程内最近写入态(如实)。
