@@ -56,7 +56,7 @@ BIOS 密码元数据、MagicBay 检测和 scan 清单共 **12 次实际运行,�
 | #20 键盘灯 | 当前目标机方法不可用;不得以静态灯光元数据提升写能力 |
 | #21 Win 锁/触控板 | C7 仅确认触控板恢复及非中断 smoke;新版禁用循环与 Win 锁尚未完成验收 |
 | #22 内屏刷新率 | C1 已验收;要求交互式会话,不以 SSH 无显示路径误判硬件不支持 |
-| #23 色彩/显示增强 | 护眼和超分已有尝试性 IGCL 绑定,但 `CtlPixelFormat` 和 `CtlPixtxConfig` 与公开头文件布局不一致;旧探针返回 0 block/错误码不能证明该硬件没有管线,读写均未完成验证。超分状态此前报 unknown;色域目前 Unsupported,overdrive 目标设备未观察到。写入验收待 owner 物理确认,当前不得当作已完成 |
+| #23 色彩/显示增强 | IGCL 结构已按公开头文件校正(布局由单测钉住);校正后像素变换块查询仍会让驱动越界写(目标机 5 次里 4 次堆损坏),故护眼通道关闭为 Unsupported,超分状态 unknown、写路径拒绝;此前"无像素变换管线"的读数来自错误结构,硬件适用性仍未知。色域 Unsupported(依赖被禁的 MONITORCONTROL.dll),overdrive 目标设备未观察到 |
 | #24 运行时隐私 | 状态实际读取成功;逐层写入、独立读回及恢复证据须按版本保存 |
 | #25 SmartSense/HPD | 已逆向接入:sense 设置管道(interfaces §13),`sense status/lock-on-leave/wake-on-approach/pause-video/attention-tracking` 实现+dry-run+注册表读回;attention-tracking 写后无持久化键(如实 write-only);键盘灯自动仍门禁(contract RPC 未恢复);写入验收待补 |
 | #26 Dolby | 纯 Rust rpcrt4/NDR 客户端不加载 DolbyRpcClient.dll,描述符由本仓库生成(interfaces §0/§12),仍需 DolbyDAXAPI 服务。实机只读复验 connect=ok / GetDolbyEnabled=0 / GetActiveProfile=5 / IsSpatialAudioSupported=1 / GetSKU=1,与厂商 DLL 基线逐项一致;合并后复验(C35)`audio dolby … --dry-run` → previous enabled=false profile=Dynamic;写入验收待补 |
