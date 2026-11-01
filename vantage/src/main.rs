@@ -343,6 +343,7 @@ fn run_checked(program: &str, args: &[&str]) -> lctrl_core::Result<()> {
 
 /// Channel diagnostics are opt-in: `VANTAGE_DEBUG=1` prints why an optional
 /// channel stayed unattached, so normal runs stay quiet.
+#[cfg(windows)]
 fn debug_note(message: &str) {
     if std::env::var_os("VANTAGE_DEBUG").is_some() {
         eprintln!("{message}");

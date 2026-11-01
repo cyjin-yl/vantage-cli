@@ -1,3 +1,5 @@
+#![cfg(windows)]
+// Windows-only integration test: the HAL only exposes this API on Windows.
 use lctrl_core::{ApplyMode, LctrlError, Result, SenseDistance, SenseState, SenseWait};
 use lctrl_hal::{SenseControl, SenseFeature};
 use lctrl_hal_win::{HpdSettingsStore, SensePipe, WindowsSenseControl};

@@ -19,13 +19,13 @@ mod scene_policy;
 mod sensing;
 mod update;
 
-pub use audio::{DolbyProfile, DolbyState, NoiseCancellationMode, NoiseCancelState};
+pub use audio::{DolbyProfile, DolbyState, NoiseCancelState, NoiseCancellationMode};
 pub use battery::{
     AdapterAuthentication, AdapterConnectorType, AdapterDetailValues, AdapterInfo, AdapterStatus,
     BatteryDate, BatteryElectricalObservation, BatteryHealth, BatterySourceIssue, BatteryTelemetry,
     ChargeMode, ChargeModeActual, ChargePrimitive, ChargeStatus, NightChargeState,
-    OsBatterySnapshot, TemporaryChargeState, UsbChargingState,
-    SystemPowerStatus, decode_charge_mode, decode_gbmd_charge_mode, plan_charge_mode,
+    OsBatterySnapshot, SystemPowerStatus, TemporaryChargeState, UsbChargingState,
+    decode_charge_mode, decode_gbmd_charge_mode, plan_charge_mode,
 };
 pub use bios::{
     BiosAppliedChange, BiosApplyEffect, BiosApplyPlan, BiosApplyResult, BiosAssistantCapabilities,

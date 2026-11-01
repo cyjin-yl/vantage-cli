@@ -3,8 +3,7 @@ use lctrl_hal::{BatteryElectricalSource, Hal};
 
 use crate::{
     EnergyDriver, GameZone, IoctlTransport, WmiObject, WmiTransport, WmiValue, active_instance,
-    power_overlay::NativePowerOverlay, power_overlay::PowerOverlayControl,
-    wmi_contract::ROOT_WMI,
+    power_overlay::NativePowerOverlay, power_overlay::PowerOverlayControl, wmi_contract::ROOT_WMI,
 };
 #[cfg(windows)]
 use crate::{WIN_MSR_TRANSPORT, WinMsrDev};
@@ -240,10 +239,8 @@ where
                 Some("EnergyDrv is not available for GBMD charge-mode readback".into())
             },
         )?;
-        let usb_charging_available = energy_available
-            && EnergyDriver::new(&self.ioctl)
-                .usb_charger_flags()
-                .is_ok();
+        let usb_charging_available =
+            energy_available && EnergyDriver::new(&self.ioctl).usb_charger_flags().is_ok();
         capabilities.record(
             "usb.charging",
             if usb_charging_available {
@@ -254,10 +251,8 @@ where
             (!usb_charging_available)
                 .then(|| "EnergyDrv USB charger query (0x831020e8/0x02) is unavailable".into()),
         )?;
-        let night_charge_available = energy_available
-            && EnergyDriver::new(&self.ioctl)
-                .night_charge_probe()
-                .is_ok();
+        let night_charge_available =
+            energy_available && EnergyDriver::new(&self.ioctl).night_charge_probe().is_ok();
         capabilities.record(
             "battery.night-charge",
             if night_charge_available {

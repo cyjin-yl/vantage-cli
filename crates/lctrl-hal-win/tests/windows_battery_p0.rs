@@ -143,7 +143,10 @@ fn dry_run_reads_but_never_writes() {
 #[test]
 fn target_conservation_uses_only_safe_gen2_commands_and_reads_back() {
     let ioctl = FakeIoctl::new([0_u32.to_le_bytes().to_vec(), 0_u32.to_le_bytes().to_vec()]);
-    let p0 = WindowsBatteryP0::new(ioctl, FakeReader::new([ChargeModeActual::Normal, ChargeModeActual::Conservation]));
+    let p0 = WindowsBatteryP0::new(
+        ioctl,
+        FakeReader::new([ChargeModeActual::Normal, ChargeModeActual::Conservation]),
+    );
 
     let report = p0
         .set_charge_mode(ChargeMode::Conservation, ApplyMode::Commit)
@@ -225,7 +228,10 @@ fn telemetry_uses_energy_driver_battery_detail() {
 
 #[test]
 fn current_charge_mode_preserves_conflict() {
-    let p0 = WindowsBatteryP0::new(FakeIoctl::new([]), FakeReader::new([ChargeModeActual::Conflict]));
+    let p0 = WindowsBatteryP0::new(
+        FakeIoctl::new([]),
+        FakeReader::new([ChargeModeActual::Conflict]),
+    );
     assert_eq!(p0.charge_mode().unwrap(), ChargeModeActual::Conflict);
 }
 

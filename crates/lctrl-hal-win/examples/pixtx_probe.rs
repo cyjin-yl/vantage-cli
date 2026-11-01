@@ -4,13 +4,20 @@
 //! eye-care readback path can be implemented against observed behaviour
 //! instead of guesses. Usage: `cargo run --example pixtx_probe`.
 
+#[cfg(not(windows))]
+fn main() {}
+
+#[cfg(windows)]
 use std::ffi::c_void;
+#[cfg(windows)]
 use std::os::windows::ffi::OsStrExt;
 
+#[cfg(windows)]
 const CTL_RESULT_SUCCESS: u32 = 0;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
+#[cfg(windows)]
 struct CtlApplicationId {
     data1: u32,
     data2: u16,
@@ -19,6 +26,7 @@ struct CtlApplicationId {
 }
 
 #[repr(C)]
+#[cfg(windows)]
 struct CtlInitArgs {
     size: u32,
     version: u8,
@@ -29,6 +37,7 @@ struct CtlInitArgs {
 }
 
 #[repr(C)]
+#[cfg(windows)]
 struct CtlPixelFormat {
     size: u32,
     version: u8,
@@ -44,6 +53,7 @@ struct CtlPixelFormat {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
+#[cfg(windows)]
 struct Ctl1dLutConfig {
     size: u32,
     version: u8,
@@ -56,12 +66,14 @@ struct Ctl1dLutConfig {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
+#[cfg(windows)]
 union CtlPixtxConfig {
     one_d_lut: Ctl1dLutConfig,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
+#[cfg(windows)]
 struct CtlBlockConfig {
     size: u32,
     version: u8,
@@ -71,6 +83,7 @@ struct CtlBlockConfig {
 }
 
 #[repr(C)]
+#[cfg(windows)]
 struct CtlPipeGetConfig {
     size: u32,
     version: u8,
@@ -81,6 +94,7 @@ struct CtlPipeGetConfig {
     p_block_configs: *mut CtlBlockConfig,
 }
 
+#[cfg(windows)]
 fn main() {
     let path = std::path::PathBuf::from(
         r"C:\Windows\System32\DriverStore\FileRepository\iigd_dch.inf_amd64_e55e939f4d7c3060\IntelControlLib.dll",
@@ -94,20 +108,26 @@ fn main() {
             b"ctlInit\0".as_ptr().cast(),
         ))
     };
-    let ctl_enumerate_devices: unsafe extern "C" fn(*mut c_void, *mut u32, *mut *mut c_void) -> u32 =
-        unsafe {
-            std::mem::transmute_copy(&windows_sys::Win32::System::LibraryLoader::GetProcAddress(
-                module,
-                b"ctlEnumerateDevices\0".as_ptr().cast(),
-            ))
-        };
-    let ctl_enumerate_outputs: unsafe extern "C" fn(*mut c_void, *mut u32, *mut *mut c_void) -> u32 =
-        unsafe {
-            std::mem::transmute_copy(&windows_sys::Win32::System::LibraryLoader::GetProcAddress(
-                module,
-                b"ctlEnumerateDisplayOutputs\0".as_ptr().cast(),
-            ))
-        };
+    let ctl_enumerate_devices: unsafe extern "C" fn(
+        *mut c_void,
+        *mut u32,
+        *mut *mut c_void,
+    ) -> u32 = unsafe {
+        std::mem::transmute_copy(&windows_sys::Win32::System::LibraryLoader::GetProcAddress(
+            module,
+            b"ctlEnumerateDevices\0".as_ptr().cast(),
+        ))
+    };
+    let ctl_enumerate_outputs: unsafe extern "C" fn(
+        *mut c_void,
+        *mut u32,
+        *mut *mut c_void,
+    ) -> u32 = unsafe {
+        std::mem::transmute_copy(&windows_sys::Win32::System::LibraryLoader::GetProcAddress(
+            module,
+            b"ctlEnumerateDisplayOutputs\0".as_ptr().cast(),
+        ))
+    };
     let ctl_get_config: unsafe extern "C" fn(*mut c_void, *mut CtlPipeGetConfig) -> u32 = unsafe {
         std::mem::transmute_copy(&windows_sys::Win32::System::LibraryLoader::GetProcAddress(
             module,
@@ -130,7 +150,10 @@ fn main() {
         },
     };
     let result = unsafe { ctl_init(&mut init, &mut api) };
-    println!("ctlInit result=0x{result:08x} supported=0x{:08x}", init.supported_version);
+    println!(
+        "ctlInit result=0x{result:08x} supported=0x{:08x}",
+        init.supported_version
+    );
     assert_eq!(result, CTL_RESULT_SUCCESS);
 
     let mut count: u32 = 0;
@@ -275,7 +298,9 @@ fn main() {
         let result = unsafe { ctl_get_config(output, &mut config) };
         println!(
             "getConfig query={query} result=0x{result:08x} num_blocks={} in_bits={} out_bits={}",
-            config.num_blocks, config.input_pixel_format.bits_per_color, config.output_pixel_format.bits_per_color
+            config.num_blocks,
+            config.input_pixel_format.bits_per_color,
+            config.output_pixel_format.bits_per_color
         );
         for (index, block) in blocks.iter().enumerate() {
             let lut = unsafe { block.config.one_d_lut };
@@ -330,13 +355,12 @@ fn main() {
         p_custom_value: *mut c_void,
         reserved_fields: [u32; 16],
     }
-    let ctl_get_sr: unsafe extern "C" fn(*mut c_void, *mut CtlVideoProcessingFeatureGetSet) -> u32 =
-        unsafe {
-            std::mem::transmute_copy(&windows_sys::Win32::System::LibraryLoader::GetProcAddress(
-                module,
-                b"ctlGetSetVideoProcessingFeature\0".as_ptr().cast(),
-            ))
-        };
+    let ctl_get_sr: unsafe extern "C" fn(*mut c_void, *mut CtlVideoProcessingFeatureGetSet) -> u32 = unsafe {
+        std::mem::transmute_copy(&windows_sys::Win32::System::LibraryLoader::GetProcAddress(
+            module,
+            b"ctlGetSetVideoProcessingFeature\0".as_ptr().cast(),
+        ))
+    };
     let mut sr_info = CtlVideoProcessingSuperResolutionInfo {
         size: std::mem::size_of::<CtlVideoProcessingSuperResolutionInfo>() as u32,
         version: 1,
@@ -401,7 +425,9 @@ fn main() {
     let ctl_get_caps: unsafe extern "C" fn(*mut c_void, *mut CtlVideoProcessingFeatureCaps) -> u32 = unsafe {
         std::mem::transmute_copy(&windows_sys::Win32::System::LibraryLoader::GetProcAddress(
             module,
-            b"ctlGetSupportedVideoProcessingCapabilities\0".as_ptr().cast(),
+            b"ctlGetSupportedVideoProcessingCapabilities\0"
+                .as_ptr()
+                .cast(),
         ))
     };
     let mut caps = CtlVideoProcessingFeatureCaps {
@@ -434,7 +460,8 @@ fn main() {
         reserved_fields: [0; 16],
     };
     let count = caps.num_supported_features;
-    let mut details: Vec<CtlVideoProcessingFeatureDetails> = (0..count.max(1)).map(|_| make_detail()).collect();
+    let mut details: Vec<CtlVideoProcessingFeatureDetails> =
+        (0..count.max(1)).map(|_| make_detail()).collect();
     caps.p_feature_details = details.as_mut_ptr().cast();
     caps.num_supported_features = count;
     let result = unsafe { ctl_get_caps(adapter, &mut caps) };

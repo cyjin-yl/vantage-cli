@@ -52,7 +52,10 @@ fn decode_gbmd_charge_mode_uses_the_vendor_bit_table() {
     // bitmask 0x00860004 (bits 2+17+18+23) therefore reports Quick, matching
     // the vendor registry cache value "Quick" on TB14P-EZRA.
     assert_eq!(decode_gbmd_charge_mode(0), ChargeModeActual::Normal);
-    assert_eq!(decode_gbmd_charge_mode(1 << 5), ChargeModeActual::Conservation);
+    assert_eq!(
+        decode_gbmd_charge_mode(1 << 5),
+        ChargeModeActual::Conservation
+    );
     assert_eq!(decode_gbmd_charge_mode(1 << 2), ChargeModeActual::Rapid);
     assert_eq!(
         decode_gbmd_charge_mode(0x0086_0004),

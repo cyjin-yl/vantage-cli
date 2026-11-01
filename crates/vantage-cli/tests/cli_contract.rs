@@ -344,11 +344,8 @@ fn usb_always_on_commits_through_the_service() {
     let hal = FakeHal::new("unused");
     let usb = ToggleUsb::on();
 
-    let output = execute_with_services(
-        cli,
-        CommandServices::new(&hal).with_usb(&usb),
-    )
-    .expect("usb always-on succeeds");
+    let output = execute_with_services(cli, CommandServices::new(&hal).with_usb(&usb))
+        .expect("usb always-on succeeds");
 
     assert_eq!(usb.writes.load(Ordering::SeqCst), 1);
     assert!(!usb.usb_charging().unwrap().ac_enabled);
@@ -357,16 +354,13 @@ fn usb_always_on_commits_through_the_service() {
 
 #[test]
 fn usb_charge_on_battery_dry_run_does_not_write() {
-    let cli =
-        Cli::try_parse_from(["vantage", "--dry-run", "usb", "charge-on-battery", "on"]).expect("parse");
+    let cli = Cli::try_parse_from(["vantage", "--dry-run", "usb", "charge-on-battery", "on"])
+        .expect("parse");
     let hal = FakeHal::new("unused");
     let usb = ToggleUsb::on();
 
-    let output = execute_with_services(
-        cli,
-        CommandServices::new(&hal).with_usb(&usb),
-    )
-    .expect("usb dry run succeeds");
+    let output = execute_with_services(cli, CommandServices::new(&hal).with_usb(&usb))
+        .expect("usb dry run succeeds");
 
     assert_eq!(usb.writes.load(Ordering::SeqCst), 1);
     assert!(!usb.usb_charging().unwrap().battery_enabled);

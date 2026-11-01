@@ -70,9 +70,9 @@ where
     /// USB charging flags word (`0x831020e8`/`0x02`): bits 6/7 AC
     /// supported/enabled, bits 14/15 battery-mode supported/enabled.
     pub fn usb_charger_flags(&self) -> Result<u32> {
-        let output = self
-            .transport
-            .call(IOCTL_USB_CHARGER, &UsbChargerSelector::QUERY.encode(), 4)?;
+        let output =
+            self.transport
+                .call(IOCTL_USB_CHARGER, &UsbChargerSelector::QUERY.encode(), 4)?;
         UsbChargerSelector::decode_flags(&output)
     }
 
@@ -99,9 +99,9 @@ where
 
     /// Night-charge status word (bit4 = on).
     pub fn night_charge_status(&self) -> Result<u32> {
-        let output = self
-            .transport
-            .call(IOCTL_NIGHT_CHARGE, &NightChargeSelector::STATUS.encode(), 4)?;
+        let output =
+            self.transport
+                .call(IOCTL_NIGHT_CHARGE, &NightChargeSelector::STATUS.encode(), 4)?;
         NightChargeSelector::decode_word(&output)
     }
 
@@ -111,15 +111,16 @@ where
         } else {
             NightChargeSelector::SET_OFF
         };
-        self.transport.call(IOCTL_NIGHT_CHARGE, &selector.encode(), 4)?;
+        self.transport
+            .call(IOCTL_NIGHT_CHARGE, &selector.encode(), 4)?;
         Ok(())
     }
 
     /// Temporary charge-mode status word (docs/02 §5 bit contract).
     pub fn temporary_charge_status(&self) -> Result<u32> {
-        let output = self
-            .transport
-            .call(IOCTL_TEMP_CHARGE, &TempChargeSelector::STATUS.encode(), 4)?;
+        let output =
+            self.transport
+                .call(IOCTL_TEMP_CHARGE, &TempChargeSelector::STATUS.encode(), 4)?;
         TempChargeSelector::decode_word(&output)
     }
 }

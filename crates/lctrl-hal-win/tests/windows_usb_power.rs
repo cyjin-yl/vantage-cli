@@ -72,13 +72,11 @@ fn set_ac_charging_writes_selector_and_verifies_readback() {
     let ioctl = FakeIoctl::new(0x0000_4040);
     let power = WindowsUsbPower::new(ioctl);
 
-    let report = power
-        .set_usb_ac_charging(true, ApplyMode::Commit)
-        .unwrap();
+    let report = power.set_usb_ac_charging(true, ApplyMode::Commit).unwrap();
     assert!(!report.previous().ac_enabled);
     assert!(report.requested().ac_enabled);
     assert!(report.actual().is_some_and(|state| state.ac_enabled));
-    assert_eq!(power.usb_charging().unwrap().ac_enabled, true);
+    assert!(power.usb_charging().unwrap().ac_enabled);
 }
 
 #[test]

@@ -432,6 +432,9 @@ fn streaming_command_error(kind: StreamKind) -> LctrlError {
 }
 
 /// Top-level `vantage` commands.
+// The command tree intentionally stays one flat enum: clap derives the CLI
+// surface from it and boxing the large variants would only move the bytes.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
 pub enum Command {
     /// Report platform, hardware identity, and discovered capabilities.
@@ -950,6 +953,8 @@ pub enum LteCommand {
     Apn { values: Vec<String> },
 }
 
+// Flat subcommand tree kept as one enum for the same reason as `Command`.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
 pub enum UpdateCommand {
     Check {
@@ -1001,6 +1006,8 @@ pub enum UpdateSchedule {
 /// Local (vendored `.inf`) driver update and rollback. The hardware ID binds to
 /// exactly one present PnP device; firmware classes are refused; the package
 /// signature is verified before install; dry-run performs no write.
+// Flat subcommand tree kept as one enum for the same reason as `Command`.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
 pub enum LocalDriverCommand {
     /// Install a locally admitted driver `.inf` bound to one hardware ID.
@@ -4659,9 +4666,9 @@ fn execute_osd(
             structured_output(
                 &serde_json::json!({ "hidden": was_visible }),
                 if was_visible {
-                    format!("osd hidden\n")
+                    "osd hidden\n".to_string()
                 } else {
-                    format!("no active osd overlay to hide\n")
+                    "no active osd overlay to hide\n".to_string()
                 },
             )
         }

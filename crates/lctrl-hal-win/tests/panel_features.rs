@@ -1,3 +1,5 @@
+#![cfg(windows)]
+// Windows-only integration test: the HAL only exposes this API on Windows.
 use lctrl_core::{ApplyMode, EyeCareLevel, LctrlError, Result};
 use lctrl_hal::PanelFeaturesControl;
 use lctrl_hal_win::{IntelCtlApi, WindowsPanelFeatures, classify_lut, eye_care_lut, identity_lut};

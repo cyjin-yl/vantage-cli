@@ -1,3 +1,5 @@
+#![cfg(windows)]
+// Windows-only integration test: the HAL only exposes this API on Windows.
 use lctrl_core::{ApplyMode, LctrlError, NoiseCancellationMode, Result};
 use lctrl_hal::NoiseCancelControl;
 use lctrl_hal_win::{ElevocRpc, WindowsNoiseCancel};

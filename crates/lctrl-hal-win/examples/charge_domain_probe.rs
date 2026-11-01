@@ -2,8 +2,13 @@
 //! charging flags, night-charge probe, and temporary charge mode from the
 //! live EnergyDrv channel. Never writes. Used for C-acceptance evidence.
 
+#[cfg(not(windows))]
+fn main() {}
+
+#[cfg(windows)]
 use lctrl_hal_win::{EnergyDriver, NativeIoctl};
 
+#[cfg(windows)]
 fn main() {
     let driver = EnergyDriver::new(&NativeIoctl);
 

@@ -1,8 +1,13 @@
 //! Read-only GAMEZONE probe: invokes getters and prints each observed outcome.
 //! Never calls a setter. Used for on-target acceptance evidence.
 
+#[cfg(not(windows))]
+fn main() {}
+
+#[cfg(windows)]
 use lctrl_hal_win::{GameZone, NativeWmi};
 
+#[cfg(windows)]
 fn main() {
     let zone = GameZone::new(NativeWmi);
     let probes: &[(&str, fn(&GameZone<NativeWmi>) -> lctrl_core::Result<u32>)] = &[

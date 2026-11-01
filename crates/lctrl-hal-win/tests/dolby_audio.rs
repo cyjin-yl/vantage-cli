@@ -1,3 +1,5 @@
+#![cfg(windows)]
+// Windows-only integration test: the HAL only exposes this API on Windows.
 use lctrl_core::{ApplyMode, DolbyProfile, LctrlError, Result};
 use lctrl_hal::AudioControl;
 use lctrl_hal_win::{DolbyRpc, WindowsDolbyAudio};

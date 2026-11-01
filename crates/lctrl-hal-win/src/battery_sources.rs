@@ -77,11 +77,7 @@ where
         self.vendor.night_charge()
     }
 
-    fn set_night_charge(
-        &self,
-        enabled: bool,
-        apply: ApplyMode,
-    ) -> Result<ChangeReport<bool>> {
+    fn set_night_charge(&self, enabled: bool, apply: ApplyMode) -> Result<ChangeReport<bool>> {
         self.vendor.set_night_charge(enabled, apply)
     }
 

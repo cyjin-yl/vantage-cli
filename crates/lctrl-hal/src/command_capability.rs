@@ -303,7 +303,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         FeatureBinding::Unprobed("battery.thresholds"),
         ServiceBinding::Unsupported,
         &[],
-        DispatchSupport::Unsupported("custom charge thresholds are unsupported on this target: the PWRMGRV/PWMIF32V chain is absent and the ACPI MHQI method is missing (RE-interfaces.md §11.6)"),
+        DispatchSupport::Unsupported(
+            "custom charge thresholds are unsupported on this target: the PWRMGRV/PWMIF32V chain is absent and the ACPI MHQI method is missing (RE-interfaces.md §11.6)",
+        ),
     ),
     CommandCapability::new(
         CommandId::BATTERY_EXTREME_LIFE,
@@ -315,7 +317,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         FeatureBinding::Capability("battery.extreme-life"),
         ServiceBinding::Unsupported,
         &[],
-        DispatchSupport::Unsupported("extreme-life must match the original AiTurbo EcoQoS daemon contract; a generic substitute is not implemented (RE-interfaces.md §11.6)"),
+        DispatchSupport::Unsupported(
+            "extreme-life must match the original AiTurbo EcoQoS daemon contract; a generic substitute is not implemented (RE-interfaces.md §11.6)",
+        ),
     ),
     CommandCapability::new(
         CommandId::BATTERY_NIGHT_CHARGE,
@@ -979,7 +983,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             lctrl_core::required(Dependency::LenovoFirmwareWmi),
             lctrl_core::required(Dependency::LinuxDrm),
         ],
-        DispatchSupport::Unsupported("panel gamut switching in the original requires MONITORCONTROL.dll delivered inside the Lenovo SmartColor addin; Lenovo-delivered components are not a permitted dependency (docs/RE-interfaces.md §15)"),
+        DispatchSupport::Unsupported(
+            "panel gamut switching in the original requires MONITORCONTROL.dll delivered inside the Lenovo SmartColor addin; Lenovo-delivered components are not a permitted dependency (docs/RE-interfaces.md §15)",
+        ),
     ),
     CommandCapability::new(
         CommandId::PANEL_SUPER_RESOLUTION,
@@ -1006,7 +1012,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             lctrl_core::required(Dependency::LenovoFirmwareWmi),
             lctrl_core::required(Dependency::LinuxDrm),
         ],
-        DispatchSupport::Unsupported("overdrive is absent on this target: no SPBTESTTOOL PnP device and BIOSOD feature 0x1A0000 reads null (docs/RE-interfaces.md §15)"),
+        DispatchSupport::Unsupported(
+            "overdrive is absent on this target: no SPBTESTTOOL PnP device and BIOSOD feature 0x1A0000 reads null (docs/RE-interfaces.md §15)",
+        ),
     ),
     CommandCapability::new(
         CommandId::PANEL_EYE_CARE,

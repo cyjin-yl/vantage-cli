@@ -1,3 +1,5 @@
+#![cfg(windows)]
+// Windows-only integration test: the HAL only exposes this API on Windows.
 use std::{
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},

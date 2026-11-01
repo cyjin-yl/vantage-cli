@@ -42,11 +42,7 @@ pub trait BatteryControl: Send + Sync {
             feature: "battery.night-charge".into(),
         })
     }
-    fn set_night_charge(
-        &self,
-        enabled: bool,
-        apply: ApplyMode,
-    ) -> Result<ChangeReport<bool>> {
+    fn set_night_charge(&self, enabled: bool, apply: ApplyMode) -> Result<ChangeReport<bool>> {
         let _ = (enabled, apply);
         Err(LctrlError::Unsupported {
             feature: "battery.night-charge".into(),
