@@ -731,6 +731,11 @@ impl<T: IntelCtlApi> PanelFeaturesControl for WindowsPanelFeatures<T> {
         level: EyeCareLevel,
         apply: ApplyMode,
     ) -> Result<ChangeReport<Option<EyeCareLevel>>> {
+        if !self.api.has_pixel_transformation()? {
+            return Err(LctrlError::Unsupported {
+                feature: "panel.eye-care.no-pixel-transformation-pipeline".to_string(),
+            });
+        }
         let previous = self.eye_care().ok().flatten();
         if apply == ApplyMode::DryRun {
             return Ok(ChangeReport::dry_run(previous, Some(level)));
