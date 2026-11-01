@@ -281,14 +281,15 @@ Linux 上同类能力由主线内核 `/dev/cpu/N/msr` 完整提供(见 `09-linux
   (`Fan_Set_FullSpeed` 除尘)用 VT_BOOL(u32 1/0)。
 - `LENOVO_OTHER_METHOD.GetFeatureValue(IDs: u32)` 返回 CIM_UINT32(0x1A),
   与 `value: u32` 的 `SetFeatureValue` 配对。
-  WSHardwarePlugin.dll / lde_module_fan.dll(x64,代码最干净)/ TconSDK.dll 等。
-  路径示例:`AcWMI::ExecMethodWMI`(Game/AcWMI.cpp)、`FunControlHelper.hpp`。
+- 相关方法名与调用封装出现在厂商的用户态组件中(如 GameSettingsPlugin.dll /
+  WSHardwarePlugin.dll / lde_module_fan.dll / TconSDK.dll);典型调用路径如
+  `AcWMI::ExecMethodWMI`(Game/AcWMI.cpp)与 `FunControlHelper.hpp`。
 
 ### 10.3 常量
 
-- SmartFan 模式值:**先前"0..3 四值"判断被修正**。WSGameSettingPlugin.dll
-  (rva 校正后)真正的跳转表在 rva 0x157E0,属于 `GetFnQModeEx(type)`  getter
-  (type 1..4),不是 setter;`DealWithSMfan` 直接操作**固件原始编码**,出现
+- SmartFan 模式值:**先前"0..3 四值"判断被修正**。WSGameSettingPlugin.dll 中
+  真正的模式跳转表属于 `GetFnQModeEx(type)` getter(type 1..4),不是 setter;
+  `DealWithSMfan` 直接操作**固件原始编码**,出现
   `cmp eax,0x7A` / `push 0x80; cmp ebx,0x80` 阈值比较(0x7A/0x80 语义未完全解析,
   可能是钳位阈值而非模式值)。唯一确证的语义:`RecordMode==2 && fnq==3` 为
   性能/电源特判。**实现中的 standard=0/silent=1/performance=2/custom=3 映射
@@ -326,10 +327,10 @@ Linux 上同类能力由主线内核 `/dev/cpu/N/msr` 完整提供(见 `09-linux
 | 子命令 | 语义 | 证据 |
 |---|---|---|
 | `0xFF` | 状态位掩码查询 | 实机 `0x00860004`(bits 2,17,18,23) |
-| `0x03` | 打开 storage(养护) | CStorageMode v+8 @0xc3d0 |
-| `0x05` | 关闭 storage | @0xc580 |
-| `0x07` | 打开 express(快充) | CExpressMode v+8 @0xbe90 |
-| `0x08` | 关闭 express | @0xbfb0 |
+| `0x03` | 打开 storage(养护) | CStorageMode vtable 槽位 +8 |
+| `0x05` | 关闭 storage | 同一 vtable 的关闭槽位 |
+| `0x07` | 打开 express(快充) | CExpressMode vtable 槽位 +8 |
+| `0x08` | 关闭 express | 同一 vtable 的关闭槽位 |
 
 **读回解码**:bit5=storage 开 → Storage;bit2=express 开 → Quick;否则 Normal。storage 支持在 x86 上=驱动可打开(无状态位);express 支持=bit17;Storage80 支持=bit23。写入后按同一解码轮询(50ms ×10)等待生效,然后写注册表缓存。
 
@@ -499,7 +500,7 @@ out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Se
 
 ### 14.2 模式域与返回码
 
-导出(opnum/签名/RVA 已证):`SetEffectMode(int mode, const char* ep=NULL)` @0x322c0、`GetCurrentMode(const char* ep=NULL)` @0x2d7d0、`QueryVoiceIDStatus()` @0x311d0(0=未注册,2=已注册)、`SetDownLinkStatus(bool)` @0x31f60(扬声器侧)、`SetRawModeSupport(bool)` @0x32950。
+接口方法与语义:`SetEffectMode(int mode, const char* ep=NULL)`、`GetCurrentMode(const char* ep=NULL)`、`QueryVoiceIDStatus()`(0=未注册,2=已注册)、`SetDownLinkStatus(bool)`(扬声器侧)、`SetRawModeSupport(bool)`。
 
 模式域:0=environmental(服务端默认,无独立 off)、1=shared、2=private、3=special、4=voiceid(需已注册否则 ret 4)、5=HQRecord;6/7=_td 旧别名,SDK 发送前重映射 1/2。`SetEffectMode` 返回码:1=成功、-1=RPC/默认端点失败、2=端点能力位不支持、4=VoiceID 未注册。能力门控位:GetMicAbilityByEndpoint bitmask(bit0=shared,bit1=private,bit2=special,bit3=voiceid,bit14=HQRecord)。
 
