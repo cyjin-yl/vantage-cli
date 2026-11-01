@@ -374,7 +374,7 @@ Counts/CurrentLimit[](mA)/ROS_Power[](mW)/Threshold[](%),实机 3 档 [7500,5000
 
 链路:`vantage audio dolby → 纯 Rust rpcrt4 NDR 客户端 → ALPC ncalrpc:[DaxRpcEndpoint] → DAX3API.exe(DolbyDAXAPI 服务,SYSTEM)`。接口 GUID `11c6212d-d5f3-4500-ab16-634dc63037be` v1.0,NDR v2.0,`RPC_IF_AUTOLISTEN | RPC_IF_ALLOW_LOCAL_ONLY`(仅本机);Object UUID `B94BA572-658F-40E6-861D-DFB7BB4001A8`。许可 APO DSP(DolbyAPOv*/DolbyAPOAIDE)只被 DAX3API 内部使用,vantage 只切换开关/预设,不重实现 DSP。
 
-**依赖裁定(2026-11-01 用户裁定:联想交付的软件一律禁依赖)**:原实现绑定 WindowsApps 包内的 `DolbyRpcClient.dll` 并把字节复制到 `%LOCALAPPDATA%` 缓存,现已整体删除。实现只依赖 `rpcrt4.dll` 与 `oleaut32.dll`(均为 Windows 系统组件),NDR 封送由 rpcrt4 解释器完成,元数据逐字节取自厂商客户端的 MIDL 表(见 12.4)。
+**依赖裁定(2026-11-01 用户裁定:联想交付的软件一律禁依赖)**:原实现绑定 WindowsApps 包内的 `DolbyRpcClient.dll` 并把字节复制到 `%LOCALAPPDATA%` 缓存,现已整体删除。实现只依赖 `rpcrt4.dll` 与 `oleaut32.dll`(均为 Windows 系统组件),NDR 封送由 rpcrt4 解释器完成,接口描述符由本仓库自己的 NDR 生成器按公开 DCE/NDR 编码规则、从恢复出的形参签名生成(见 12.4),仓库不再内嵌任何厂商二进制转录的字节。
 
 ### 12.1 客户端导出(`DolbyRpcClient.dll`,按 thunk 字节验证,全部无调用方可见参数)
 

@@ -59,8 +59,8 @@ BIOS 密码元数据、MagicBay 检测和 scan 清单共 **12 次实际运行,�
 | #23 色彩/显示增强 | 逆向实现:护眼(IntelControlLib 1D LUT,IGCL ABI pin 1.2/1.1+运行时 major 校验)与超分(ctlGetSetVideoProcessingFeature);**实机只读探针(§15.1)**:21VG 内屏无像素变换管线(CAPABILITY 报 0 block、CURRENT 返 0x4800000c)→ `panel eye-care` 诚实 Unsupported(硬件不适用);SR 能力枚举 7 项但状态查询被驱动拒(0x4000000b)→ 状态报 unknown 不伪造。色域诚实 Unsupported(原版需联想交付的 MONITORCONTROL.dll,禁依赖);overdrive 21VG 硬件缺席。写入验收待 owner 物理确认 |
 | #24 运行时隐私 | 状态实际读取成功;逐层写入、独立读回及恢复证据须按版本保存 |
 | #25 SmartSense/HPD | 已逆向接入:sense 设置管道(RE-interfaces §13),`sense status/lock-on-leave/wake-on-approach/pause-video/attention-tracking` 实现+dry-run+注册表读回;attention-tracking 写后无持久化键(如实 write-only);键盘灯自动仍门禁(contract RPC 未恢复);写入验收待补 |
-| #26 Dolby | 纯 Rust rpcrt4/NDR 通道(不再依赖联想交付的 DolbyRpcClient.dll,RE-interfaces §12):实机只读复验 connect=ok / GetDolbyEnabled=0 / GetActiveProfile=5 / IsSpatialAudioSupported=1 / GetSKU=1,与厂商 DLL 基线逐项一致;`audio dolby … --dry-run` 零写入;写入验收待补 |
-| #27 音频降噪 | 纯 Rust rpcrt4/NDR 通道(不再依赖 ElevocControlSDK,RE-interfaces §14):原版调用序 Initialize→Login→Get/Set 逐字段复刻;实机只读复验 `audio noise-cancel shared --dry-run` 读出 mic mode=Shared、speaker=off、voice-id=enrolled(与同机 P/Invoke GetCurrentMode=1 一致),F4006 键零变化;写入验收待补 |
+| #26 Dolby | 纯 Rust rpcrt4/NDR 通道(不依赖联想交付的 DolbyRpcClient.dll,也不内嵌其接口表;描述符由本仓库自建 NDR 生成器按公开 DCE/NDR 规则生成,RE-interfaces §0/§12):实机只读复验 connect=ok / GetDolbyEnabled=0 / GetActiveProfile=5 / IsSpatialAudioSupported=1 / GetSKU=1,与厂商 DLL 基线逐项一致;合并后复验(C35)`audio dolby … --dry-run` → previous enabled=false profile=Dynamic,零写入;写入验收待补 |
+| #27 音频降噪 | 纯 Rust rpcrt4/NDR 通道(不依赖 ElevocControlSDK,也不内嵌其接口表;描述符自建 NDR 生成器生成,RE-interfaces §0/§14):原版调用序 Initialize→Login→Get/Set 逐字段复刻;厂商应用密钥已删除(实测服务端不校验该值,`user:""` 返回同一份白名单,§14);实机只读复验 `audio noise-cancel shared --dry-run` 读出 mic mode=Shared、speaker=off、voice-id=enrolled(与同机 P/Invoke GetCurrentMode=1 一致),F4006 键零变化;合并后复验(C35)同值;写入验收待补 |
 | #28 BIOS 批量/元数据 | 原生事务源码与只读密码元数据已有;CLI 批量、风险和实际生效态验收待完成 |
 | #29 MagicBay LTE | 当前检测未见附件;实现缺口与附件未连接分别记录,不伪报完成 |
 | #30 MagicBay 摄像头 | 当前检测未见附件;UVC 实现及目标附件验收待完成 |
