@@ -74,6 +74,13 @@ const CTL_IMPL_MAJOR_VERSION: u32 = 1;
 
 const CTL_RESULT_SUCCESS: u32 = 0;
 const CTL_RESULT_ERROR_INVALID_PIXTX_BLOCK_NUMBER: u32 = 0x4800_000c;
+const CTL_RESULT_ERROR_INVALID_PIXTX_BLOCK_ID: u32 = 0x4800_000b;
+const CTL_RESULT_ERROR_INVALID_PIXTX_BLOCK_TYPE: u32 = 0x4800_000f;
+const CTL_RESULT_ERROR_INVALID_BOUND: u32 = 0x4000_0017;
+/// Upper bound on the LUT samples the driver may report per channel.
+const MAX_LUT_SAMPLES: usize = 8192;
+/// Number of block descriptors handed to the driver per query.
+const MAX_BLOCKS: usize = 4;
 const CTL_RESULT_ERROR_INVALID_ARGUMENT: u32 = 0x4000_000b;
 
 const CTL_PIXTX_BLOCK_TYPE_1D_LUT: u32 = 1;
@@ -487,6 +494,108 @@ impl Drop for IntelControlLib {
     }
 }
 
+/// Result of one pixel-transformation block query.
+struct BlockQuery {
+    /// Number of blocks the driver reported.
+    reported_blocks: u32,
+    /// Sample values the driver wrote (bounded by the allocation we made).
+    samples: Vec<f64>,
+}
+
+impl IntelControlLib {
+    /// Query the pixel-transformation blocks of the active output.
+    ///
+    /// The driver decides how many samples it writes, so the caller hands
+    /// over a generously sized buffer and leaves the sample count at zero.
+    /// Every count the driver reports is validated against that allocation
+    /// before use, so a mismatched contract cannot overflow the buffer.
+    fn query_blocks(&self, query_type: u32) -> Result<BlockQuery> {
+        let _guard = self.state.lock();
+        if self.primary_output.is_null() {
+            return Err(LctrlError::ChannelUnavailable {
+                channel: "IntelControlLib has no active display output".to_string(),
+            });
+        }
+        let mut samples = vec![0f64; MAX_LUT_SAMPLES * 3];
+        let mut blocks = vec![
+            CtlPixtxBlockConfig {
+                size: std::mem::size_of::<CtlPixtxBlockConfig>() as u32,
+                version: 0,
+                block_id: 0,
+                block_type: CTL_PIXTX_BLOCK_TYPE_1D_LUT,
+                config: CtlPixtxConfig {
+                    one_d_lut_config: CtlPixtx1dLutConfig {
+                        size: std::mem::size_of::<CtlPixtx1dLutConfig>() as u32,
+                        version: 0,
+                        sampling_type: CTL_PIXTX_LUT_SAMPLING_TYPE_UNIFORM,
+                        num_samples_per_channel: 0,
+                        num_channels: 3,
+                        p_sample_values: samples.as_mut_ptr(),
+                        p_sample_positions: std::ptr::null_mut(),
+                    },
+                },
+            };
+            MAX_BLOCKS
+        ];
+        let mut config = CtlPixtxPipeGetConfig {
+            size: std::mem::size_of::<CtlPixtxPipeGetConfig>() as u32,
+            version: 0,
+            query_type,
+            input_pixel_format: pixel_format(),
+            output_pixel_format: pixel_format(),
+            num_blocks: blocks.len() as u32,
+            p_block_configs: blocks.as_mut_ptr(),
+        };
+        let result = unsafe {
+            (self.handles.ctl_pixel_transformation_get_config)(self.primary_output, &mut config)
+        };
+        if result != CTL_RESULT_SUCCESS {
+            return Err(match result {
+                CTL_RESULT_ERROR_INVALID_PIXTX_BLOCK_ID
+                | CTL_RESULT_ERROR_INVALID_PIXTX_BLOCK_NUMBER
+                | CTL_RESULT_ERROR_INVALID_PIXTX_BLOCK_TYPE => LctrlError::Unsupported {
+                    feature: format!("panel.pixel-transformation.block-rejected(0x{result:08x})"),
+                },
+                CTL_RESULT_ERROR_INVALID_BOUND => LctrlError::Unsupported {
+                    feature: format!("panel.pixel-transformation.bound-rejected(0x{result:08x})"),
+                },
+                _ => LctrlError::ChannelUnavailable {
+                    channel: format!(
+                        "ctlPixelTransformationGetConfig failed (result 0x{result:08x})"
+                    ),
+                },
+            });
+        }
+        if config.num_blocks as usize > blocks.len() {
+            return Err(LctrlError::Unsupported {
+                feature: format!(
+                    "panel.pixel-transformation.too-many-blocks({} > {})",
+                    config.num_blocks,
+                    blocks.len()
+                ),
+            });
+        }
+        let written = blocks
+            .iter()
+            .map(|block| unsafe { block.config.one_d_lut_config }.num_samples_per_channel)
+            .max()
+            .unwrap_or(0) as usize;
+        if written.saturating_mul(3) > samples.len() {
+            return Err(LctrlError::Unsupported {
+                feature: format!(
+                    "panel.pixel-transformation.sample-count-too-large({written} > {})",
+                    samples.len() / 3
+                ),
+            });
+        }
+        samples.truncate(written.saturating_mul(3));
+        Ok(BlockQuery {
+            reported_blocks: config.num_blocks,
+            samples,
+        })
+    }
+}
+
 impl IntelCtlApi for IntelControlLib {
     fn primary_output(&self) -> Result<Option<*mut c_void>> {
         if self.primary_output.is_null() {
@@ -554,106 +663,25 @@ impl IntelCtlApi for IntelControlLib {
     }
 
     fn current_lut(&self) -> Result<[f64; LUT_SAMPLES * 3]> {
-        let _guard = self.state.lock();
-        if self.primary_output.is_null() {
-            return Err(LctrlError::ChannelUnavailable {
-                channel: "IntelControlLib has no active display output".to_string(),
-            });
-        }
-        let mut samples = vec![0f64; LUT_SAMPLES * 3];
-        let mut blocks = vec![CtlPixtxBlockConfig {
-            size: std::mem::size_of::<CtlPixtxBlockConfig>() as u32,
-            version: 0,
-            block_id: 0,
-            block_type: CTL_PIXTX_BLOCK_TYPE_1D_LUT,
-            config: CtlPixtxConfig {
-                one_d_lut_config: CtlPixtx1dLutConfig {
-                    size: std::mem::size_of::<CtlPixtx1dLutConfig>() as u32,
-                    version: 0,
-                    sampling_type: CTL_PIXTX_LUT_SAMPLING_TYPE_UNIFORM,
-                    num_samples_per_channel: LUT_SAMPLES as u32,
-                    num_channels: 3,
-                    p_sample_values: samples.as_mut_ptr(),
-                    p_sample_positions: std::ptr::null_mut(),
-                },
-            },
-        }];
-        let mut config = CtlPixtxPipeGetConfig {
-            size: std::mem::size_of::<CtlPixtxPipeGetConfig>() as u32,
-            version: 0,
-            query_type: CTL_PIXTX_CONFIG_QUERY_TYPE_CURRENT,
-            input_pixel_format: pixel_format(),
-            output_pixel_format: pixel_format(),
-            num_blocks: blocks.len() as u32,
-            p_block_configs: blocks.as_mut_ptr(),
-        };
-        let result = unsafe {
-            (self.handles.ctl_pixel_transformation_get_config)(self.primary_output, &mut config)
-        };
-        if result == CTL_RESULT_ERROR_INVALID_PIXTX_BLOCK_NUMBER {
-            return Err(LctrlError::Unsupported {
-                feature: "panel.eye-care.no-pixel-transformation-pipeline".to_string(),
-            });
-        }
-        if result != CTL_RESULT_SUCCESS {
+        let query = self.query_blocks(CTL_PIXTX_CONFIG_QUERY_TYPE_CURRENT)?;
+        let mut lut = [0f64; LUT_SAMPLES * 3];
+        let samples = query.samples;
+        let count = LUT_SAMPLES * 3;
+        if samples.len() < count {
             return Err(LctrlError::Unsupported {
                 feature: format!(
-                    "panel.eye-care.readback.ctlPixelTransformationGetConfig(0x{result:08x})"
+                    "panel.eye-care.readback.too-few-samples({} < {count})",
+                    samples.len()
                 ),
             });
         }
-        let mut lut = [0f64; LUT_SAMPLES * 3];
-        lut.copy_from_slice(&samples[..LUT_SAMPLES * 3]);
+        lut.copy_from_slice(&samples[..count]);
         Ok(lut)
     }
 
     fn has_pixel_transformation(&self) -> Result<bool> {
-        let _guard = self.state.lock();
-        if self.primary_output.is_null() {
-            return Ok(false);
-        }
-        let mut samples = vec![0f64; LUT_SAMPLES * 3];
-        let mut blocks = vec![CtlPixtxBlockConfig {
-            size: std::mem::size_of::<CtlPixtxBlockConfig>() as u32,
-            version: 0,
-            block_id: 0,
-            block_type: CTL_PIXTX_BLOCK_TYPE_1D_LUT,
-            config: CtlPixtxConfig {
-                one_d_lut_config: CtlPixtx1dLutConfig {
-                    size: std::mem::size_of::<CtlPixtx1dLutConfig>() as u32,
-                    version: 0,
-                    sampling_type: CTL_PIXTX_LUT_SAMPLING_TYPE_UNIFORM,
-                    num_samples_per_channel: 0,
-                    num_channels: 3,
-                    p_sample_values: samples.as_mut_ptr(),
-                    p_sample_positions: std::ptr::null_mut(),
-                },
-            },
-        }];
-        let mut config = CtlPixtxPipeGetConfig {
-            size: std::mem::size_of::<CtlPixtxPipeGetConfig>() as u32,
-            version: 0,
-            query_type: CTL_PIXTX_CONFIG_QUERY_TYPE_CAPABILITY,
-            input_pixel_format: pixel_format(),
-            output_pixel_format: pixel_format(),
-            num_blocks: blocks.len() as u32,
-            p_block_configs: blocks.as_mut_ptr(),
-        };
-        let result = unsafe {
-            (self.handles.ctl_pixel_transformation_get_config)(self.primary_output, &mut config)
-        };
-        if result == CTL_RESULT_ERROR_INVALID_PIXTX_BLOCK_NUMBER {
-            // The panel exposes no pixel-transformation block at all.
-            return Ok(false);
-        }
-        if result != CTL_RESULT_SUCCESS {
-            return Err(LctrlError::ChannelUnavailable {
-                channel: format!(
-                    "ctlPixelTransformationGetConfig(capability) failed (result 0x{result:08x})"
-                ),
-            });
-        }
-        Ok(config.num_blocks > 0)
+        let query = self.query_blocks(CTL_PIXTX_CONFIG_QUERY_TYPE_CAPABILITY)?;
+        Ok(query.reported_blocks > 0)
     }
 
     fn super_resolution_flag(&self) -> Result<u32> {
