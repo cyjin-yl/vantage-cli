@@ -101,7 +101,7 @@ impl NoiseCancellationMode {
 }
 
 /// Live noise-cancellation state read back from the Elevoc RPC endpoint
-/// (docs/RE-interfaces.md §14).
+/// (docs/interfaces.md §14).
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub struct NoiseCancelState {
     /// Uplink microphone mode (`GetCurrentMode`, SDK domain 0–7; the

@@ -58,7 +58,7 @@ impl SenseMode {
 /// Presence distance selector shared by approach and leave
 /// (`SET_APPROACH_DISTANCE`/`SET_LEAVE_DISTANCE`, pipe enum 0/1/2).
 /// Replaces the earlier speculative 15/30/50/80 cm mapping, which had no
-/// binary evidence (docs/RE-interfaces.md §13).
+/// binary evidence (docs/interfaces.md §13).
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SenseDistance {
@@ -120,7 +120,7 @@ impl SenseWait {
 
 /// Snapshot of the SmartSense HPD settings store
 /// (`HKLM\SYSTEM\CurrentControlSet\Services\SmartSense\Parameters\HPD`,
-/// all REG_DWORD; docs/RE-interfaces.md §13).
+/// all REG_DWORD; docs/interfaces.md §13).
 ///
 /// Fields are `Option` because the key may be absent when the SmartSense
 /// service has never run; absence is reported, never synthesized. Two

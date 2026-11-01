@@ -215,7 +215,7 @@ where
 /// Maps the semantic fan mode to the firmware `SetSmartFanMode` value.
 ///
 /// Placeholder inverse of [`FanMode::from_raw`] (standard=0, silent=1,
-/// performance=2, custom=3). Reverse engineering (RE-interfaces.md §10.3)
+/// performance=2, custom=3). Reverse engineering (interfaces.md §10.3)
 /// shows the vendor plugin operates on raw firmware encodings with 0x7A/0x80
 /// threshold comparisons, so this mapping is unconfirmed and partially
 /// refuted; the reference machine's provider rejects every GAMEZONE call,

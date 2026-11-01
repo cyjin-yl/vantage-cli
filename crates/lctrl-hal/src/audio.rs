@@ -8,7 +8,7 @@ use lctrl_core::{
 /// The transport is a pure-Rust `rpcrt4.dll` NDR client (ALPC
 /// `ncalrpc:[DaxRpcEndpoint]` against DAX3API.exe); no Lenovo-delivered
 /// binary is loaded. Only toggle/profile operations are exposed; the
-/// licensed APO DSP is never touched. See `docs/RE-interfaces.md` §12.
+/// licensed APO DSP is never touched. See `docs/interfaces.md` §12.
 pub trait AudioControl: Send + Sync {
     fn dolby_state(&self) -> Result<DolbyState>;
 
@@ -23,7 +23,7 @@ pub trait AudioControl: Send + Sync {
 }
 
 /// Noise-cancellation control through the vendor Elevoc RPC endpoint
-/// (docs/RE-interfaces.md §14). Only the microphone mode is exposed; the
+/// (docs/interfaces.md §14). Only the microphone mode is exposed; the
 /// DSP pipeline stays inside ElevocControlService.
 pub trait NoiseCancelControl: Send + Sync {
     fn noise_cancel_state(&self) -> Result<NoiseCancelState>;

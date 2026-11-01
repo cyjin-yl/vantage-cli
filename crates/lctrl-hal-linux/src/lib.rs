@@ -1,13 +1,13 @@
 //! Linux hardware abstraction backed only by standard sysfs nodes.
 //!
 //! This backend deliberately does not issue ACPI calls or invoke vendor
-//! utilities.  All paths are relative to the root supplied to [`LinuxHal`],
+//! utilities. All paths are relative to the root supplied to [`LinuxHal`],
 //! which keeps the implementation testable and makes a mounted sysroot
 //! possible.
 //!
 //! The Linux power-supply ABI reports energy in micro-watt-hours (`uWh`),
 //! voltage in micro-volts (`uV`), current in micro-amps (`uA`), and battery
-//! temperature in tenths of a degree Celsius (`deci-C`).  [`BatteryTelemetry`]
+//! temperature in tenths of a degree Celsius (`deci-C`). [`BatteryTelemetry`]
 //! exposes milli-units and tenths of a degree Kelvin, so this module converts
 //! `uWh / 1000 -> mWh`, `uV / 1000 -> mV`, `uA / 1000 -> mA`, and
 //! `deci-C + 273.2 -> deci-K` (rounded to the nearest representable tenth).
@@ -71,7 +71,7 @@ const DMI_FALLBACK_ROOT: &str = "sys/devices/virtual/dmi/id";
 const PERMISSION_NEED: &str = "root or configured udev rule";
 
 /// A Linux HAL whose sysfs root can be replaced by a fixture or a mounted
-/// namespace.  [`LinuxHal::new`] uses the host root (`/`).
+/// namespace. [`LinuxHal::new`] uses the host root (`/`).
 #[derive(Clone, Debug)]
 pub struct LinuxHal {
     root: PathBuf,
@@ -206,7 +206,7 @@ impl LinuxHal {
                 feature: "battery.conservation".into(),
             });
         }
-        // Both nodes are required for a safe, unambiguous mode state.  In
+        // Both nodes are required for a safe, unambiguous mode state. In
         // particular, conservation=0 cannot prove Normal when fast_charge is
         // not exposed by the running kernel.
         if !self.node_exists(FAST_CHARGE)? {

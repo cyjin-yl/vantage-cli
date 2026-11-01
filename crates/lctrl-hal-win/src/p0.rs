@@ -35,7 +35,7 @@ impl ChargeModeReader for UnverifiedChargeModeReader {
 ///
 /// The bit decode mirrors `PowerBattery.dll!CChargingMode::GetChargingMode`
 /// and its post-write poll loop (RE-proven against the exact target binaries,
-/// docs/RE-interfaces.md §10.3), so the same value the vendor waits on is the
+/// docs/interfaces.md §10.3), so the same value the vendor waits on is the
 /// value this controller verifies against.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct GbmdChargeModeReader<I>(I);

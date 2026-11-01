@@ -330,7 +330,7 @@ pub fn render_success(output: &CommandOutput, json: bool) -> String {
     output.render(json)
 }
 
-/// Render an error.  JSON mode is intentionally exactly the core error report
+/// Render an error. JSON mode is intentionally exactly the core error report
 /// (with no CLI-specific wrapper or additional fields).
 #[must_use]
 pub fn render_error(error: &LctrlError, json: bool) -> String {

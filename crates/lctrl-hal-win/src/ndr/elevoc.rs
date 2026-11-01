@@ -4,10 +4,10 @@
 //! rpcrt4's marshaling engine interprets two byte tables per interface:
 //!
 //! * the **proc format string** — per-procedure headers followed by
-//!   fixed-size parameter descriptors, reached per opnum through the
-//!   `FmtStringOffset[]` table; and
+//! fixed-size parameter descriptors, reached per opnum through the
+//! `FmtStringOffset[]` table; and
 //! * the **type format string** — shared type descriptors addressed by
-//!   byte offset from the parameter descriptors.
+//! byte offset from the parameter descriptors.
 //!
 //! MIDL normally emits these tables from IDL. This module emits the same
 //! canonical encoding from a *semantic description* of the recovered
@@ -25,18 +25,18 @@
 //! format is byte-packed, not C-struct aligned):
 //!
 //! ```text
-//! 0x00  handle_type            (u8)   FC_BIND_PRIMITIVE = implicit caller handle
-//! 0x01  Oi_flags               (u8)   Oi_HAS_RPCFLAGS | Oi_USE_NEW_INIT_ROUTINES
-//! 0x02  rpc_flags              (u32)  RPCF_* call attributes
-//! 0x06  proc_num               (u16)  procedure opnum
-//! 0x08  stack_size             (u16)  total argument-stack bytes
-//! 0x0a  constant_client_buf    (u16)  0 → interpreter must size
-//! 0x0c  constant_server_buf    (u16)  0 → interpreter must size
-//! 0x0e  Oi2 flags              (u8)   INTERPRETER_OPT_FLAGS
-//! 0x0f  number_of_params       (u8)
-//! 0x10  NDR_PROC_HEADER_EXTS64 (10B)  Win2000/x64 extension block
-//! 0x1a  NDR_PARAM_OIF[n]       (6B each: attrs u16, stack_offset u16,
-//!                                   type_offset/type_fc u16)
+//! 0x00 handle_type (u8) FC_BIND_PRIMITIVE = implicit caller handle
+//! 0x01 Oi_flags (u8) Oi_HAS_RPCFLAGS | Oi_USE_NEW_INIT_ROUTINES
+//! 0x02 rpc_flags (u32) RPCF_* call attributes
+//! 0x06 proc_num (u16) procedure opnum
+//! 0x08 stack_size (u16) total argument-stack bytes
+//! 0x0a constant_client_buf (u16) 0 → interpreter must size
+//! 0x0c constant_server_buf (u16) 0 → interpreter must size
+//! 0x0e Oi2 flags (u8) INTERPRETER_OPT_FLAGS
+//! 0x0f number_of_params (u8)
+//! 0x10 NDR_PROC_HEADER_EXTS64 (10B) Win2000/x64 extension block
+//! 0x1a NDR_PARAM_OIF[n] (6B each: attrs u16, stack_offset u16,
+//! type_offset/type_fc u16)
 //! ```
 
 use super::{
@@ -48,32 +48,32 @@ use super::{
 // The grammar elements used below live in the parent module; the mapping is:
 //
 // * `FC_BIND_PRIMITIVE` — implicit primitive binding: the call uses the
-//   `handle_t` the application created, reached through
-//   `MIDL_STUB_DESC.IMPLICIT_HANDLE_INFO::pHandle`. The vendor client binds
-//   `ncalrpc:[ElevocRpcEndpoint]` itself instead of letting MIDL auto-bind.
+// `handle_t` the application created, reached through
+// `MIDL_STUB_DESC.IMPLICIT_HANDLE_INFO::pHandle`. The vendor client binds
+// `ncalrpc:[ElevocRpcEndpoint]` itself instead of letting MIDL auto-bind.
 // * `FC_C_WSTRING` — conformant wide-character string (`[string] wchar_t`).
 // * `FC_STRING_SIZED` — the string descriptor is followed by an explicit
-//   conformance (size) descriptor instead of taking `MaxCount` from the
-//   marshalled `ActualCount`.
+// conformance (size) descriptor instead of taking `MaxCount` from the
+// marshalled `ActualCount`.
 // * `FC_CONSTANT_CONFORMANCE` (high nibble of the descriptor's flag byte) —
-//   the conformance value is a compile-time constant packed into the
-//   descriptor itself (`count = offset_lo16 | flag_byte1 << 16`), not read
-//   from another parameter or stack slot.
+// the conformance value is a compile-time constant packed into the
+// descriptor itself (`count = offset_lo16 | flag_byte1 << 16`), not read
+// from another parameter or stack slot.
 // * `OI_HAS_RPCFLAGS` — the `rpc_flags` u32 is present in the header.
 // * `OI_USE_NEW_INIT_ROUTINES` — the stub targets the post-Win2000
-//   interpreter entry points (`NdrClientCall3` era).
+// interpreter entry points (`NdrClientCall3` era).
 // * `OI2_HAS_EXTENSIONS` / `OI2_CLIENT_MUST_SIZE` / `OI2_SERVER_MUST_SIZE` —
-//   the client and server interpreters must run the sizing pass (no usable
-//   `constant_client_buffer_size` shortcut) and a `NDR_PROC_HEADER_EXTS64`
-//   extension block follows the OIF header.
+// the client and server interpreters must run the sizing pass (no usable
+// `constant_client_buffer_size` shortcut) and a `NDR_PROC_HEADER_EXTS64`
+// extension block follows the OIF header.
 // * `EXT2_HAS_NEW_CORR_DESC` / `EXT2_CLIENT_CORR_CHECK` /
-//   `EXT2_SERVER_CORR_CHECK` — new-style (post-Win2000) correlation
-//   descriptors are in use, which the `FC_CONSTANT_CONFORMANCE`-style
-//   encoding below requires, and both sides arm the correlation check.
+// `EXT2_SERVER_CORR_CHECK` — new-style (post-Win2000) correlation
+// descriptors are in use, which the `FC_CONSTANT_CONFORMANCE`-style
+// encoding below requires, and both sides arm the correlation check.
 // * `ATTR_MUST_SIZE` / `ATTR_MUST_FREE` / `ATTR_IS_IN` / `ATTR_IS_OUT` —
-//   the client interpreter must size this conformant payload, the server
-//   interpreter must size (and later free) it, and the parameter marshals
-//   on the request leg and unmarshals on the response leg.
+// the client interpreter must size this conformant payload, the server
+// interpreter must size (and later free) it, and the parameter marshals
+// on the request leg and unmarshals on the response leg.
 
 /// Parameter direction in the `[in]`/`[out]` sense.
 /// The full IDL domain is modelled; the Elevoc signature uses `InOut` and
@@ -315,7 +315,7 @@ fn emit_procedure(proc: &Procedure, type_offsets: &[u16], out: &mut Vec<u8>) {
 }
 
 // ---------------------------------------------------------------------------
-// The Elevoc endpoint signature (docs/RE-interfaces.md §14): one opnum-0
+// The Elevoc endpoint signature (docs/interfaces.md §14): one opnum-0
 // dispatcher whose only argument is a JSON buffer exchanged as a
 // `[in,out,string] wchar_t *`. The request JSON goes out as a UTF-16 string
 // and the response lands in the same buffer.

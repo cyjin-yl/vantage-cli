@@ -67,7 +67,7 @@ pub trait PanelBrightnessControl: Send + Sync {
 /// library (Intel IGCL on the reference target). Gamut switching is not part
 /// of this trait: on the reference target the original vendor path requires a
 /// Lenovo-delivered monitor-control DLL, which the replacement must not
-/// depend on (docs/RE-interfaces.md §15).
+/// depend on (docs/interfaces.md §15).
 pub trait PanelFeaturesControl: Send + Sync {
     /// Current eye-care level as observed from the active 1D LUT.
     /// `Ok(None)` means the driver cannot report the level (no readback);

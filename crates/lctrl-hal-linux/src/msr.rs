@@ -1,6 +1,6 @@
 //! Native model-specific register channel via `/dev/cpu/N/msr`.
 //!
-//! Spec source: `docs/RE-interfaces.md` §3.1 (selector→MSR map recovered from
+//! Spec source: `docs/interfaces.md` §3.1 (selector→MSR map recovered from
 //! the vendor driver) and Intel SDM. The Linux channel addresses the same
 //! registers directly by MSR address; no vendor component is involved.
 //!

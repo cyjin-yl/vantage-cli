@@ -21,7 +21,7 @@ const ROOT_CIMV2: &str = "ROOT\\CIMV2";
 const ROOT_WMI: &str = "ROOT\\WMI";
 const CANCELLATION_POLL: Duration = Duration::from_millis(10);
 
-/// Read-only Windows diagnostics built on public CIM/WMI classes.  The
+/// Read-only Windows diagnostics built on public CIM/WMI classes. The
 /// transport is shared with one bounded worker; no vendor diagnostics driver,
 /// SMART command, service control, or memory stress operation is used.
 pub struct WindowsSystemInventory<W> {
@@ -99,9 +99,9 @@ enum DiagnosticWorkerMessage {
 }
 
 /// One worker and a one-job queue bound the number of simultaneous WMI reads.
-/// A synchronous WMI provider cannot be forcibly interrupted.  Therefore a
+/// A synchronous WMI provider cannot be forcibly interrupted. Therefore a
 /// deadline/cancellation abandons the caller-visible item immediately and the
-/// worker exits that job at the next provider boundary.  At most one subsequent
+/// worker exits that job at the next provider boundary. At most one subsequent
 /// job can wait in the bounded queue; additional callers are rejected instead
 /// of spawning more threads or issuing concurrent reads.
 struct DiagnosticExecutor {
@@ -192,7 +192,7 @@ impl DiagnosticExecutor {
             ));
         }
 
-        // Only one caller may own the status/run slot.  Try-lock keeps a
+        // Only one caller may own the status/run slot. Try-lock keeps a
         // second caller bounded even when a provider is blocked.
         let _run_guard = match self.run_lock.try_lock() {
             Ok(guard) => guard,
@@ -1051,7 +1051,7 @@ fn evaluate_storage(objects: &[WmiObject], query: DiagnosticQuery) -> Diagnostic
             }),
         );
     } else if evaluation.outcome == Some(DiagnosticOutcome::Passed) {
-        // A good shallow Status is not a SMART pass.  Keep the overall item
+        // A good shallow Status is not a SMART pass. Keep the overall item
         // warning while retaining the real Status=OK measurement.
         evaluation.merge(
             DiagnosticOutcome::Warning,
@@ -1235,7 +1235,7 @@ fn evaluate_network(objects: &[WmiObject], query: DiagnosticQuery) -> Diagnostic
         evaluation.reason = None;
     }
     if !enabled_seen && disabled_seen && evaluation.outcome == Some(DiagnosticOutcome::Skipped) {
-        // All physical adapters were explicitly disabled.  This is not a
+        // All physical adapters were explicitly disabled. This is not a
         // failed connectivity test and no attempt is made to enable them.
     } else if enabled_seen && enabled_status_missing {
         evaluation.merge(

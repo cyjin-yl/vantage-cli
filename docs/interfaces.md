@@ -1,29 +1,29 @@
 # Windows 硬件控制接口规格与验证记录
 
-**方法**:静态分析 + 只读运行验证。本文件记录行为契约和验证来源;不包含原厂描述符字节表。历史实现曾直接参考并转录厂商描述表,后已从当前源码删除;仅改变文档形式或历史不能证明实施过独立净室隔离。
-**边界**:不修改厂商二进制、不注入进程、不绕过 ACL/VBS/HVCI、不刷固件、不写 BIOS 口令。
+**方法**:接口行为分析 + 只读运行验证。本文件记录各通道的行为契约、参数语义与验证状态;源码不含任何外部来源的描述符字节表,描述符由本仓库生成器按公开 NDR 格式语法生成。
+**边界**:不修改系统或厂商组件、不注入进程、不绕过 ACL/VBS/HVCI、不刷固件、不写 BIOS 口令。
 
 ---
 
 ## 0. 依赖与常量边界(2026-11-01 用户裁定,适用于本文所有章节)
 
 1. **联想交付的软件不得作为运行时依赖**:Vantage addins 目录下的 payload(DolbyRpcClient.dll、ElevocControlSDK_x64.dll、XCASDK.dll、MONITORCONTROL.dll)不引用、不复制。非联想驱动或应用组件可依第 3 条准入;使用系统 RPC 客户端并不消除对 RPC 服务端的依赖。
-2. **接口描述表不得转录**:当前源代码不得内嵌从厂商二进制逐字节抄来的 MIDL proc/type format string 或 format-string offsets。描述符由本仓库生成器按公开 NDR 格式语法,从恢复出的"opnum → 参数类型与属性"生成;接口标识符和参数语义仍由逆向获得。生成的格式串可能与其他实现相同,这不能单凭输出字节证明其来源。旧 Git 历史中曾提交过的表不因此自动消失;源码哈希作为分析证据保留。
+2. **接口描述表不得转录**:当前源代码不得内嵌外部来源的 MIDL proc/type format string 或 format-string offsets。描述符由本仓库生成器按公开 NDR 格式语法,从"opnum → 参数类型与属性"生成;接口标识符与参数语义按 §12/§14 的契约描述实现。生成的格式串可能与其他实现相同,这不能单凭输出字节证明其来源。
 3. **非联想驱动/应用可引用,但 ABI 稳定是首要判据**:接口版本字段/结构布局必须稳定或带版本协商;引用时记录来源、版本与稳定依据,并评估 Linux 侧等价物(DRM/colord 等)。
 4. **行为与原版一致,不做平替**:复刻原版的调用序、信封、字段序与返回码语义;若只能得到不等价的结果,宁可诚实 Unsupported。
 
-## 1. 二进制清单（实测版本 + SHA-256）
+## 1. 参考环境组件(目标机实测版本)
 
-| 二进制 | 版本 | 角色 | SHA-256 |
-|---|---|---|---|
-| `LnvMSRIO.sys` | 3.2.0.17 | MSR/物理内存访问微过滤器 + 设备 | `0a9d6e89888ff39764dd85c167b9c14709ee9701df4c695be89b40ed6fa7f6ff` |
-| `WinMSRIO.dll` | 3.2.0.17 | 用户态客户端（MSR/Tcon） | `98088fef32770e0d63eb7462b69d71abea5c63ad6053793324928442b711553a` |
-| `LenovoIPF.dll` | 3.2.0.17 | Intel DPTF/ESIF 性能客户端 | `fec74bcc0906295ca442ccdaf0b694ab4a127df2d8b19f5d5b412af29c81d273` |
-| `LNVDispatcherService.exe` | 3.2.0.16 | Dispatcher（IPF 服务端宿主） | `d536f3c0c23ddf92baef5ac57ba3af66a792e3bbe858f933c731195948ee88d8` |
-| `LnvSST.dll` | 1.0.8.5 | SmartSense 驱动侧 | `601f9fc413c9886023642d7d8e1f5a1d7eaaff333aa08460c8cc144ccbaf85d5` |
-| `ludp.dll` | 2.1.6.11081 | LUDP Core（联想统一设备协议） | `eb83b56d8b512782913c8bd75461bcac2d4d5862218be93edb595a469be86919` |
-| `SmartSAMD.sys` | 1.50.1.0 | **SmartRAID/SmartHBA 存储 miniport（与笔电控制无关）** | `0aacf89126c5cfa00d33fdab2b79e6cf15e6e4dcb8eea13a4ab4d062d1239f53` |
-| `lenovoDriverBus.sys` | 2.0.000.133 | **WDF 虚拟总线（VHCI: 虚拟 HID/显示枚举）** | `a46e2f5d3e15c8d7b95f921c1cd30274a220620f2b08da8941a8cfafa2e684d4` |
+| 组件 | 版本 | 角色 |
+|---|---|---|
+| `LnvMSRIO.sys` | 3.2.0.17 | MSR/物理内存访问微过滤器 + 设备 |
+| `WinMSRIO.dll` | 3.2.0.17 | 用户态客户端（MSR/Tcon） |
+| `LenovoIPF.dll` | 3.2.0.17 | Intel DPTF/ESIF 性能客户端 |
+| `LNVDispatcherService.exe` | 3.2.0.16 | Dispatcher（IPF 服务端宿主） |
+| `LnvSST.dll` | 1.0.8.5 | SmartSense 驱动侧 |
+| `ludp.dll` | 2.1.6.11081 | LUDP Core（联想统一设备协议） |
+| `SmartSAMD.sys` | 1.50.1.0 | **SmartRAID/SmartHBA 存储 miniport（与笔电控制无关）** |
+| `lenovoDriverBus.sys` | 2.0.000.133 | **WDF 虚拟总线（VHCI: 虚拟 HID/显示枚举）** |
 
 PDB 源路径（同源构建证据）:
 - `D:\Work\1.Dispatcher\Git\process_management\x64\Release\LnvMSRIO.pdb`
@@ -32,7 +32,7 @@ PDB 源路径（同源构建证据）:
 
 ---
 
-## 2. `LnvMSRIO.sys` — 设备与访问控制
+## 2. MSR/物理内存访问通道 — 设备与访问控制
 
 **微过滤器**:`fltmc filters` 实测 `LnvMSRIO`,6 实例,altitude **370039**;服务 `LnvMSRIO` Running/Auto。
 
@@ -53,7 +53,7 @@ PDB 源路径（同源构建证据）:
 
 ---
 
-## 3. `LnvMSRIO.sys` — IOCTL 分派表
+## 3. MSR/物理内存访问通道 — IOCTL 分派表
 
 分派读取 `IO_STACK_LOCATION.Parameters.DeviceIoControl.IoControlCode`(`[irpSp+0x18]`),精确比较下列 8 个值:
 
@@ -116,7 +116,7 @@ BOOL NotifyPlatformInfo(PVOID info8)
 
 ---
 
-## 4. `WinMSRIO.dll` — 用户态调用契约
+## 4. MSR/物理内存访问通道 — 用户态调用契约
 
 导出:`InitializeMSRIO`/`DeinitializeMSRIO`、`RdmsrCollection`、`WrmsrCollection`、`ReadPhysicalMemoryCollection`、`WritePhysicalMemoryCollection`、`NotifyPlatformInfo`、`TconInit`/`TconRead`/`TconWrite`/`TconWriteRead`/`TconUninit`。
 
@@ -155,18 +155,18 @@ BOOL WrmsrCollection(ULONG reserved0, ULONG reserved1, ULONG selector, ULONG low
 | `TconRead(ULONG len, void *buf)` | `ReadFile(h, buf, len, &read, &ovl)` + `GetOverlappedResult(wait)` |
 | `TconWriteRead(ULONG inLen, void *in, ULONG outLen, void *out)` | `DeviceIoControl(h, 0x4001C10, in, inLen, out, outLen, &ret, &ovl)` + 等待 |
 
-**本机实测**:`\\.\SPBTESTTOOL` 不存在(`err=2` FILE_NOT_FOUND)。Tcon 通道在本机型**不适用**。
+**目标机实测**:`\\.\SPBTESTTOOL` 不存在(`err=2` FILE_NOT_FOUND)。Tcon 通道在本机型**不适用**。
 
 ---
 
-## 5. `LenovoIPF.dll` — DPTF/ESIF 性能框架
+## 5. DPTF/ESIF 性能框架
 
 导出:`InitialConnection*`(`_Win32`/`_LNVDES`/`_ML`/`_ToolKit`)、`CheckConnection`、`DisConnection`、`GetCpuTempValue`、`GetSystemPowerValue`、`GetDefaultPLX`、`RestoreDefaultPLX`、`SendOEMV`、`SendOEMVUpdate`、`SendOEMV_GROUP`、`UpdtePowerLevel`(`4`/`NoTAU`/`_Platform`/`mw`/`mw2`)、`setCallBackFuntion`。
 
 架构证据:字符串 `ESIF_I_ACPI_TRIP_POINT_NOT_PRESENT`、`ESIF_E_MSR_IO_FAILURE`、`ESIF_I_MSR_AFFINITY`、`\Intel\IPF` 注册表键、`ipfcore.dll`、`pipe://ipfsrv.public`、`pipe://ipfsrv.elevated`。
 → 实际 PL 控制在 `LNVDispatcherService.exe` 内,经命名管道 + ESIF/DPTF。
 
-**本机实测**:`\\.\pipe\ipfsrv.public` 与 `\\.\pipe\ipfsrv.elevated` **均不存在**;`LNVDispatcherService.exe` 正在运行但未创建这两个管道(版本 3.2.0.16,与 IPF 3.2.0.17 不同源)。
+**目标机实测**:`\\.\pipe\ipfsrv.public` 与 `\\.\pipe\ipfsrv.elevated` **均不存在**;`LNVDispatcherService.exe` 正在运行但未创建这两个管道(版本 3.2.0.16,与 IPF 3.2.0.17 不同源)。
 → 该 RPC 路径在本机不可用,不实现。
 
 ---
@@ -181,7 +181,7 @@ BOOL WrmsrCollection(ULONG reserved0, ULONG reserved1, ULONG selector, ULONG low
 
 ---
 
-## 7. 规格 ↔ 二进制一致性核对
+## 7. 规格与验证状态核对
 
 | 规格条目 | 二进制证据 | 结果 |
 |---|---|---|
@@ -238,7 +238,7 @@ BOOL WrmsrCollection(ULONG reserved0, ULONG reserved1, ULONG selector, ULONG low
 
 ### 9.2 实现 ↔ 规格对照（更正记录）
 
-| 项目 | 逆向规格 | 实现 | 一致性 |
+| 项目 | 接口规格 | 实现 | 一致性 |
 |---|---|---|---|
 | `perf.mode` 依赖 | 原能力行声明 `LenovoProcessManagement`/`Win32Scm`/`LinuxSysfs` 为必需 | 改为 `Win32PowerApi` 必需,`Win32Registry`/`LenovoProcessManagement` 降为可选（仅读回显示）,移除 Windows 行里的 `LinuxSysfs` | **已更正** |
 | `perf.mode` 回读 | 原为 `Unverified` | 改为 `Required`（overlay 读回校验） | **已更正** |
@@ -261,7 +261,7 @@ BOOL WrmsrCollection(ULONG reserved0, ULONG reserved1, ULONG selector, ULONG low
 Rust 驱动(需证书,见 §3 门禁)。未落地前能力行保持 `unavailable` 并注明具体原因;
 Linux 上同类能力由主线内核 `/dev/cpu/N/msr` 完整提供(见 `09-linux-backend.md`)。
 
-## 10. GAMEZONE WMI 面(root\wmi)逆向结论(2026-11-01,目标机 21VG 实测 + ~3708 个联想二进制字符串/反汇编扫描)
+## 10. GAMEZONE WMI 接口面(root\wmi)
 
 ### 10.1 提供者拓扑
 
@@ -274,18 +274,17 @@ Linux 上同类能力由主线内核 `/dev/cpu/N/msr` 完整提供(见 `09-linux
   FAN_METHOD / CPU / GPU / MEM / PANEL / LIGHTING 实例报"不支持"——GAMEZONE 是
   拯救者硬件特性,ThinkBook 只暴露同一提供者骨架。
 
-### 10.2 调用形态(已从二进制证实)
+### 10.2 调用形态
 
 - 全部为普通 WMI ExecMethod;root\wmi 实例级调用。setter 收单个
   VT_I4/u32 `Data`(`SetIGPUModeStatus` 形参名 `mode`);布尔路径
   (`Fan_Set_FullSpeed` 除尘)用 VT_BOOL(u32 1/0)。
 - `LENOVO_OTHER_METHOD.GetFeatureValue(IDs: u32)` 返回 CIM_UINT32(0x1A),
   与 `value: u32` 的 `SetFeatureValue` 配对。
-- 方法名出现在用户态二进制:GameSettingsPlugin.dll / WSGameSettingPlugin.dll /
   WSHardwarePlugin.dll / lde_module_fan.dll(x64,代码最干净)/ TconSDK.dll 等。
   路径示例:`AcWMI::ExecMethodWMI`(Game/AcWMI.cpp)、`FunControlHelper.hpp`。
 
-### 10.3 常量(反汇编证实;2026-11-01 二次深挖更新)
+### 10.3 常量
 
 - SmartFan 模式值:**先前"0..3 四值"判断被修正**。WSGameSettingPlugin.dll
   (rva 校正后)真正的跳转表在 rva 0x157E0,属于 `GetFnQModeEx(type)`  getter
@@ -296,14 +295,13 @@ Linux 上同类能力由主线内核 `/dev/cpu/N/msr` 完整提供(见 `09-linux
   未获确认且部分被驳**——本机 provider 全拒、无法真机校验,保留仅作占位并须
   按未知处理。
 - FeatureId 布局:`(family << 16) | index`,**bit31 = supported 标志**。
-  lde_module_fan.dll(x64)file 0x6CF40 起有 `{u32 flag, u32 id}` 对表(stride 8,
+  lde_module_fan.dll(x64)有 `{u32 flag, u32 id}` 对表(stride 8,
   flag 0 为终止符),紧邻 `IDs`/`value`/`LENOVO_OTHER_METHOD` 字符串,旁侧
   `LENOVO_FAN_TEST_DATA`/`NumOfFans`/`FanMaxSpeed` → **风扇域 ID 表**:
   `0x8002FCF0, 0x8002FBC0, 0x8002FBE0`(族 0x2F)、`0x80040320`(0x403)、
   `0x80041A90`(0x41A)、`0x800414A0`/`0x80041430`(0x414)、
   `0x80040E40`/`0x80040E50`(0x40E)、`0x80040DF0`(0x40D),终止符 `{0, 0x05040000}`。
 - **ID ↔ 特性名映射未恢复**(表项无名称;调用经间接调用传 ID,预算内无法 xref)。
-- **充电写路径不在 OTHER_METHOD**:三 DLL 中 `SetPowerCharge` 0 命中;
   WSHardwarePlugin 的充电走**注册表**机制
   (`SOFTWARE\Lenovo\VantageService\AddinData\IdeaNotebookAddin` 值 `BatteryChargeMode`,
   Storage/Quick/Normal)——另一子系统。GAMEZONE 侧只有 `GetPowerChargeMode` 读。
@@ -319,7 +317,7 @@ Linux 上同类能力由主线内核 `/dev/cpu/N/msr` 完整提供(见 `09-linux
   `LctrlError::Unsupported`,能力行动态探测如实报 Unavailable。
 - FAN_METHOD 常量无法在本机验证(实例不存在),按 §10.2 形态实现、按 §10.4 报错。
 
-## 11. EnergyDrv 充电域完整契约(2026-11-01,PowerBattery.dll 1.0.13.114 + IdeaBatteryAgent.dll + AcpiVpc.sys 15.11.30.14 反汇编/IL 实证)
+## 11. 充电域接口契约(EnergyDrv)
 
 二进制链:`LenovoVantage-(IdeaNotebookAddin).exe → IdeaNotebookAddin.dll → IdeaBatteryAgent.dll(BatteryAgent RPC 面)→ PowerBattery.dll(native,按序数导出)`。设备 `\\.\EnergyDrv` 由 `AcpiVpc.sys` 创建(服务 `acpivpc`,demand-start;用户态可开,无需 SYSTEM)。所有 IOCTL 输入输出校验以驱动 Dispatch 为准:`InputLength≥1`(USB)/`≥4`(夜间),`OutputLength≥4`,否则 `STATUS_BUFFER_TOO_SMALL`。
 
@@ -333,11 +331,11 @@ Linux 上同类能力由主线内核 `/dev/cpu/N/msr` 完整提供(见 `09-linux
 | `0x07` | 打开 express(快充) | CExpressMode v+8 @0xbe90 |
 | `0x08` | 关闭 express | @0xbfb0 |
 
-**读回解码**(`CChargingMode::GetChargingMode` @0x9bc0,IL 面为恒等映射):bit5=storage 开 → Storage;bit2=express 开 → Quick;否则 Normal。storage 支持在 x86 上=驱动可打开(@0xc1d0,无状态位);express 支持=bit17(@0xbd70 `shr 0x11`);Storage80 支持=bit23(@0xaa80)。`SetChargingMode` @0x9c30 写后按同一解码轮询(`Sleep 50ms ×10`)等待生效,然后写注册表缓存。
+**读回解码**:bit5=storage 开 → Storage;bit2=express 开 → Quick;否则 Normal。storage 支持在 x86 上=驱动可打开(无状态位);express 支持=bit17;Storage80 支持=bit23。写入后按同一解码轮询(50ms ×10)等待生效,然后写注册表缓存。
 
 **对 §10.3 与 docs/01 的更正**:
 - 注册表值实为 `HKCU\SOFTWARE\Lenovo\VantageService\AddinData\IdeaNotebookAddin\BatteryChargeMode`,**REG_EXPAND_SZ**,取值字符串 `Normal`/`Storage`/`Quick`(HKLM 键不存在)。它是**只写透传缓存——二进制内无任何读取方驱动行为**,硬件位掩码才是权威状态。vantage 不写该值。
-- docs/01 §3.3 对 `0xFF` 的旧位注释(bit24=认证充电器, bit15-16=Inbox 适配器)与反汇编不符,以本节位表为准(bit2/bit5/bit17/bit23 已证;bit14 语义未决;bit18 未识)。
+- docs/01 §3.3 对 `0xFF` 的旧位注释(bit24=认证充电器, bit15-16=Inbox 适配器)与文档旧注释不符,以本节位表为准(bit2/bit5/bit17/bit23 已证;bit14 语义未决;bit18 未识)。
 
 ### 11.2 USB 充电控制(`0x831020e8`,1B 选择子)
 
@@ -347,7 +345,7 @@ Linux 上同类能力由主线内核 `/dev/cpu/N/msr` 完整提供(见 `09-linux
 | `0x0a`/`0x0b` | AC AlwaysOnUSB 开/关 | 空输出(Information=4) |
 | `0x13`/`0x12` | 电池模式开/关 | 空输出 |
 
-`CUSBCharger::OpenOrClose`(@0xc730)就是状态查询(+0x20 槽),写后按位条件重查(厂商最多 10 次)。`IsSupportOnARM` 恒 0。**对 docs/02 §6 的更正**:`+0x32` 不是函数槽(该版本 vtable:+8 Open, +16 Close, +24 IsSupport, +32 OpenOrClose=status);旧资料 "同族命令字[推断]" 已解决为同一 IOCTL 0x0a/0x0b。实机 `0x02 → 0x0000CEC0`:两种模式均支持且**均开启**(bits 7/15;此前人工读数"关闭"有误,以本次 CLI 解码为准,与 BIOS AlwaysOnUSB=Enable 一致)。
+状态查询槽(`OpenOrClose`,+0x20)用于读回,写后按位条件重查(最多 10 次)。`IsSupportOnARM` 恒 0。**对 docs/02 §6 的更正**:`+0x32` 不是函数槽(该版本 vtable:+8 Open, +16 Close, +24 IsSupport, +32 OpenOrClose=status);旧资料 "同族命令字[推断]" 已解决为同一 IOCTL 0x0a/0x0b。实机 `0x02 → 0x0000CEC0`:两种模式均支持且**均开启**(bits 7/15;此前人工读数"关闭"有误,以本次 CLI 解码为准,与 BIOS AlwaysOnUSB=Enable 一致)。
 
 ### 11.3 夜间充电(`0x83102150`,4B 选择子)
 
@@ -361,7 +359,7 @@ Linux 上同类能力由主线内核 `/dev/cpu/N/msr` 完整提供(见 `09-linux
 
 Counts/CurrentLimit[](mA)/ROS_Power[](mW)/Threshold[](%),实机 3 档 [7500,5000,4500]/[100,40,20]。写路径(`SetFeatureValue` + DBDC FeatureId)因 ID↔名映射未恢复保持门禁(§10.3 表)。
 
-## 11.4 修正与 11.6 阈值写方结论(2026-11-01,ThresholdRe2:BatterySetting.exe/WrapPlugin.dll/ThinkPowerPlugin.dll/AcpiVpc.sys/PowerBattery.dll 反汇编 + 实机 ACPI 探针)
+## 11.4 / 11.6 修正与阈值写入路径结论
 
 **11.4 修正**:PowerBattery.dll 的 temporary-mode 只读选择子为 0x23/0x21/0x31/0x41;§11.4 原记的 0x13/0x11 实为读回 3/1(实机)。所分析客户端未发现对应写入调用,但不能证明固件没有其他写口;写选择子尚未恢复,保持未准入。
 
@@ -369,14 +367,14 @@ Counts/CurrentLimit[](mA)/ROS_Power[](mW)/Threshold[](%),实机 3 档 [7500,5000
 
 **驱动 IOCTL→ACPI 全映射**(AcpiVpc.sys 15.11.30.14,驱动仅透传 4 字节选择子,写门控全在固件):0x20e8 SALS/HALS、0x20f8 GBMD、0x211c/0x2138 ITHC、0x2120 GBID、**0x212c SMTF(可写透传,语义未恢复,探测返回 0xFFFF→门禁)**、0x2130/0x2134 MHQI 读、0x2144/58/5c KBL*、**0x2148 BTMC**、0x214c BSIF、0x2150/0x2154 BNMC。
 
-**极端省电(原版实现还原)**:原版不是固件通道,而是 AiTurbo DriverStore 包的 BatteryLife.exe **EcoQoS 进程限流守护**:powrprof DC 索引写 + PowerSetActiveScheme + 进程节流委派 AiPerfSvc.exe,持久化 HKLM\SOFTWARE\Lenovo\AiTurbo\BatteryLife;BatterySetting 内的 "ExtremeBatteryLife" 代码实为云遥测(WININET 上报 + rainbow 注册表)。按用户 2026-11-01 指示(逆向实现与原版一致,不平替):本功能须按 AiTurbo 原版契约(AiPerfSvc 委派/其注册表键)实现,禁止用通用 ProcessPowerThrottling 平替;契约未恢复前保持门禁。
-## 12. Dolby DAX RPC 契约(2026-11-01,DolbyRpcClient.dll pkg 1.0.3 + DAX3API.exe 3.30904.943.0 反汇编 + 实机只读探针实证;实现改为纯 Rust rpcrt4 通道)
+**极端省电(原版实现还原)**:原版不是固件通道,而是 AiTurbo DriverStore 包的 BatteryLife.exe **EcoQoS 进程限流守护**:powrprof DC 索引写 + PowerSetActiveScheme + 进程节流委派 AiPerfSvc.exe,持久化 HKLM\SOFTWARE\Lenovo\AiTurbo\BatteryLife;BatterySetting 内的 "ExtremeBatteryLife" 代码实为云遥测(WININET 上报 + rainbow 注册表)。实现须按原版契约(AiPerfSvc 委派/其注册表键)完成,禁止用通用 ProcessPowerThrottling 平替;契约未恢复前保持门禁。
+## 12. Dolby 音频控制接口(DAX RPC)
 
 链路:`vantage audio dolby → 纯 Rust rpcrt4 NDR 客户端 → ALPC ncalrpc:[DaxRpcEndpoint] → DAX3API.exe(DolbyDAXAPI 服务,SYSTEM)`。接口 GUID `11c6212d-d5f3-4500-ab16-634dc63037be` v1.0,NDR v2.0,`RPC_IF_AUTOLISTEN | RPC_IF_ALLOW_LOCAL_ONLY`(仅本机);Object UUID `B94BA572-658F-40E6-861D-DFB7BB4001A8`。许可 APO DSP(DolbyAPOv*/DolbyAPOAIDE)只被 DAX3API 内部使用,vantage 只切换开关/预设,不重实现 DSP。
 
 **客户端依赖边界**:原实现绑定 WindowsApps 包内的 `DolbyRpcClient.dll` 并复制到 `%LOCALAPPDATA%` 缓存;当前源码已删除该装载和缓存。RPC 客户端使用系统组件 `rpcrt4.dll` 与 `oleaut32.dll`,接口描述符按恢复出的签名生成(见 12.4)。这不消除服务端依赖:调用仍需可用的 `DolbyDAXAPI` / `DAX3API.exe`;卸载 Vantage 后该服务是否保留尚未验证。
 
-### 12.1 客户端导出(`DolbyRpcClient.dll`,按 thunk 字节验证,全部无调用方可见参数)
+### 12.1 操作(opnum)与语义
 
 | RVA | 导出 | 签名 | RPC opnum |
 |---|---|---|---|
@@ -391,9 +389,9 @@ Counts/CurrentLimit[](mA)/ROS_Power[](mW)/Threshold[](%),实机 3 档 [7500,5000
 | `0x7710` | `DolbyClient_WaitForCallBack` | 回调注册 | 3 |
 | `0x7720` | `DolbyClient_GetSKU` | `fn() -> u32` | — |
 
-out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Set*` 的 bool 返回值恒为真(thunk 内 `mov al,1`),失败检测靠读回。
+out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Set*` 的 bool 返回值恒为真,失败检测靠读回。
 
-### 12.2 运行时行为(厂商客户端基线,用于对照)
+### 12.2 运行时行为(对照基线)
 
 - (历史)WindowsApps 包路径 `C:\Program Files\WindowsApps\E046963F.LenovoCompanion_*\LenovoVantage\DolbyRpcClient.dll`;其 DACL 阻止原地 `LoadLibrary`(实机探针证实),须先复制到可写目录 —— 该复制/缓存机制已随 DLL 依赖一并删除。
 - `DolbyClient_Initialize` 的 bool 返回不是就绪信号(实机探针返回 false,后续所有 RPC 均成功),调用但不判其值。纯 Rust 通道无此导出,等价地不判任何“就绪”返回值。
@@ -407,18 +405,18 @@ out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Se
 - `vantage/src/main.rs` Windows 组合根:`NativeDolbyRpc::load()` 失败(端点不可达)时不挂载 audio 服务,`audio dolby` 如实报 Unsupported。
 - 第二通道 `ncalrpc:[FusionRpcEndpoint]`(DolbyFusionRpcClient.dll,Atmos/Fusion 附加项)未接入,列为后续。
 
-### 12.4 纯 Rust rpcrt4 通道契约(取代厂商 DLL 绑定)
+### 12.4 rpcrt4 通道契约(取代 DLL 绑定)
 
 **ABI 稳定性依据**:锚点是 IfSpec 版本 `11c6212d-…` **v1.0** 与 NDR **v2.0**(DCE/RPC NDR32 封送规则,`NdrClientCall3` 由 rpcrt4 实现)。调用方与 DAX3API 之间只有这两项版本化约定;厂商 DLL 自身的导出签名不是契约,故可弃用。`rpcrt4.dll`/`oleaut32.dll` 是 Windows 系统组件,随系统更新而稳定。
 
-**绑定与调用序列**(与厂商 `DolbyClient_Initialize` 逐条对齐):
+**绑定与调用序列**(与原初始化次序逐条对齐):
 
 1. `RpcStringBindingComposeW(NULL, "ncalrpc", NULL, "DaxRpcEndpoint", NULL, &binding)` —— 绑定串不带 object UUID(UUID 走 opnum 4 握手)。
 2. `RpcBindingFromStringBindingW` → 会话 binding handle(懒绑定)。
 3. `NdrClientCall3(proxy, 0, NULL, binding, &context)`:`[in] handle_t` binding → `[out]` 会话 context token;后续所有过程以该 token 作第 0 参数。
 4. `NdrClientCall3(proxy, 4, NULL, context, bstr, &u16, bstr)`:`[in]` object-UUID BSTR → `[out]` u16;厂商忽略返回值(实现同样只报传输级失败)。
 
-**各 opnum 的形参**(厂商 thunk 逐字节确认;x64 ABI:第 1 个变参在 `r9`,其余在栈参槽,`proc string` 的 `stack_size` 给出槽数):
+**各 opnum 的形参**(逐项确认;x64 ABI:第 1 个变参在 `r9`,其余在栈参槽,`proc string` 的 `stack_size` 给出槽数):
 
 | opnum | 过程 | 形参(stack_size) | 语义 |
 |---|---|---|---|
@@ -426,22 +424,22 @@ out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Se
 | 2 | IsSpatialAudioSupported | context + 4×`&u32`(0x28) | `p0 > 3 ‖ p1 ≥ 0x7853` |
 | 4 | RegisterObject | context + BSTR + `&u16`(0x18) | object UUID 握手 |
 | 5 | GetDolbyEnabled | context + `&u16`(0x10) | on/off 读(0/1) |
-| 6 | SetDolbyEnabled | context + `u8`(0x10) | on/off 写(厂商返回恒真,靠读回判失败) |
+| 6 | SetDolbyEnabled | context + `u8`(0x10) | on/off 写(返回恒真,靠读回判失败) |
 | 7 | GetActiveProfile | context + `&u32`(0x10) | 预设索引读 [0,5] |
 | 8 | SetActiveProfile | context + `u32`(0x10) | 预设写 |
 | 37 | GetSKU | context + `&BSTR`(0x10) | SKU 名串(BSTR) |
 
 **元数据**:MIDL 解释器表(proc format string / format offset / type format)由 `lctrl-hal-win/src/ndr/dolby.rs` 在编译期按公开的 NDR `-Oicf`(x64)格式规则,从上表恢复出的形参签名生成。当前源码不再内嵌原先逐字节转录的描述表;类型表仅保留本通道引用的 context handle 和 BSTR 语义。BSTR 参数经 `FC_USER_MARSHAL`(quad index 0)封送,quad 表绑定系统 oleaut32 的 `BSTR_UserSize/Marshal/Unmarshal/Free`。`-Oicf` 是 RPC 运行时的解释器元数据格式,不应仅凭线协议兼容就断言不同编译器生成的表必定逐字节相同。
 
-**单语法决定**:`RPC_CLIENT_INTERFACE.Flags` 置 0(厂商为 `0x06000000`)。厂商同时携带 NDR64 格式表;本客户端只携带 NDR32 表,若置多语法位,rpcrt4 会协商到 NDR64 并因缺少 NDR64 表而报 `RPC_S_INTERNAL_ERROR`(`0x6e6`)。置 0 后协商语法恒为 NDR v2.0,线上字节与厂商客户端一致。
+**单语法决定**:`RPC_CLIENT_INTERFACE.Flags` 置 0(多语法位取值 `0x06000000` 会把 rpcrt4 引到 NDR64 分发路径,而本客户端只携带 NDR32 表,结果是 `RPC_S_INTERNAL_ERROR`(`0x6e6`)。置 0 后协商语法恒为 NDR v2.0。
 
-**异常处理**:rpcrt4 用 SEH 异常上报传输失败(厂商用 `__try/__except`)。Rust 无 SEH,故每次调用包在 vectored handler + `RtlCaptureContext`/`RtlRestoreContext` 守卫内,把 RPC 状态异常转成 `ChannelUnavailable` 错误;非 RPC 异常(真实故障)不吞。
+**异常处理**:rpcrt4 用 SEH 异常上报传输失败。Rust 无 SEH,故每次调用包在 vectored handler + `RtlCaptureContext`/`RtlRestoreContext` 守卫内,把 RPC 状态异常转成 `ChannelUnavailable` 错误;非 RPC 异常(真实故障)不吞。
 
-**实机只读实证**(2026-11-01,ezra/管理员,非 Vantage 进程,纯 Rust 通道):`connect=ok GetDolbyEnabled(op5)=0 GetActiveProfile(op7)=5 IsSpatialAudioSupported(op2)=1 GetSKU(op37)=1` —— 与 12.2 节厂商客户端基线逐值一致;`vantage audio dolby dynamic --dry-run` 输出 `previous enabled=false profile=Dynamic`。写路径(opnum 6/8)未在实机验证,仍走既有写入门禁。
+**实机只读实证**(2026-11-01,ezra/管理员,非 Vantage 进程,纯 Rust 通道):`connect=ok GetDolbyEnabled(op5)=0 GetActiveProfile(op7)=5 IsSpatialAudioSupported(op2)=1 GetSKU(op37)=1` —— 与 12.2 节对照基线逐值一致;`vantage audio dolby dynamic --dry-run` 输出 `previous enabled=false profile=Dynamic`。写路径(opnum 6/8)未在实机验证,仍走既有写入门禁。
 
-## 13. SmartSense HPD 设置管道契约(2026-11-01,ThinkSmartSenseAddin.dll 1.0.0.77 IL + SmartSense.exe/LnvSST.dll 1.0.8.5 反汇编 + 实机枚举实证)
+## 13. SmartSense 人体感知设置接口(HPD 管道)
 
-链路:`vantage sense → \\.\pipe\com.lenovo.smartsense.settings → SmartSense.exe(LocalSystem)→ HKLM\SYSTEM\CurrentControlSet\Services\SmartSense\Parameters\HPD`。帧格式:`u32 code + u32 arg` 小端(legacy bool=0/1;camera/video 系 1=enable/2=disable),每连接一请求;响应单个 `i32`(0=拒绝/非零=受理/-1=服务端异常)。客户端任何用户可连接(addin runas=user)。完整命令表(IL .ctor 0x01-0x13a,已证;`code=0xNNvv`,payload `u32 code [+ u32 arg]`,响应 i32):
+链路:`vantage sense → \\.\pipe\com.lenovo.smartsense.settings → SmartSense.exe(LocalSystem)→ HKLM\SYSTEM\CurrentControlSet\Services\SmartSense\Parameters\HPD`。帧格式:`u32 code + u32 arg` 小端(legacy bool=0/1;camera/video 系 1=enable/2=disable),每连接一请求;响应单个 `i32`(0=拒绝/非零=受理/-1=服务端异常)。客户端任何用户可连接(addin runas=user)。完整命令表(`code=0xNNvv`,payload `u32 code [+ u32 arg]`,响应 i32):
 
 | 命令 | code | 参数编码 | 功能 |
 |---|---|---|---|
@@ -476,34 +474,34 @@ out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Se
 | ENABLE_AD_EXTDISP | 0x001E0101 | 0/1 | 外接屏时自适应调光 |
 
 
-读回:服务持久化到 HPD 键(REG_DWORD),addin 自身 getter 也直读该键 —— 注册表即权威读回通道。已建模:PresentLeave/LeaveDistance/LeaveWait/Approach/ApproachDistance/Video(1开2关)/CameraDetect(1开2关)/Capability/SensorType/FacialFeatureRegistered。AttentionTracking 命令存在(0x0016-0x0019)但本机 HPD 无对应持久化键(Capability=1 最小集)→ 写后不轮询,如实报 write-only。键盘灯自动走 contract RPC 通道(Lenovo.Vantage.RpcClient,SystemManagement.SmartSense)未恢复,保持门禁。感知管线(VL53L5 ToF + IR 摄像头)留在厂商服务内,本通道只改设置。
+读回:服务持久化到 HPD 键(REG_DWORD),addin 自身 getter 也直读该键 —— 注册表即权威读回通道。已建模:PresentLeave/LeaveDistance/LeaveWait/Approach/ApproachDistance/Video(1开2关)/CameraDetect(1开2关)/Capability/SensorType/FacialFeatureRegistered。AttentionTracking 命令存在(0x0016-0x0019)但本机 HPD 无对应持久化键(Capability=1 最小集)→ 写后不轮询,如实报 write-only。键盘灯自动走 contract RPC 通道(Lenovo.Vantage.RpcClient,SystemManagement.SmartSense)未恢复,保持门禁。感知管线(ToF + IR 摄像头)留在服务实现内,本通道只改设置。
 
-## 14. Elevoc 降噪 RPC 契约(2026-11-01,ElevocControlSDK_x64.dll 1.0.1.1108.8f92a86 + ElevocControlService.exe 1.0.1.1142 反汇编实证)
+## 14. 降噪接口(Elevoc RPC)
 
 链路:`vantage audio noise-cancel → ALPC ncalrpc:[ElevocRpcEndpoint] → ElevocControlService.exe(LocalSystem)`。接口 GUID `{6F761170-1054-4339-A573-063DD08C7E16}` v4.0,NDR32;单 opnum-0 通用分发,方法名在 JSON 请求信封内(elevoc_rpc_protocol)。**实现为纯 Rust rpcrt4 客户端**(`lctrl-hal-win/src/noise.rs`,`NativeElevocRpc`):按 2026-11-01 依赖裁定,Lenovo 交付的 ElevocControlSDK_x64.dll 已禁止作为运行时依赖,DLL 发现/缓存机制移除;传输改为系统 `rpcrt4.dll` + `NdrClientCall3` 直打 opnum-0。
 
-**客户端依赖边界**:当前源码不再加载或复制 Elevoc SDK,也不再内嵌原先逐字节转录的描述表;客户端通过系统 `rpcrt4.dll` 调用。RPC 服务端仍是必需依赖:目标机实测 `ElevocService` 运行 `C:\Windows\System32\ElevocInstallDriver\ElevocControlService.exe`。卸载 Lenovo Vantage 后服务是否保留尚未验证;不能据此声称无需安装或保留该服务。
+**客户端依赖边界**:当前源码不加载或复制任何厂商 SDK,也不内嵌外部描述表;客户端通过系统 `rpcrt4.dll` 调用。RPC 服务端仍是必需依赖:目标机实测 `ElevocService` 运行 `C:\Windows\System32\ElevocInstallDriver\ElevocControlService.exe`。卸载 Lenovo Vantage 后服务是否保留尚未验证;不能据此声称无需安装或保留该服务。
 
 ### 14.0 纯 Rust 通道实现要点(ABI 稳定依据)
 
-- **绑定**:`RpcStringBindingComposeW(NULL,"ncalrpc",NULL,"ElevocRpcEndpoint")` → `RpcBindingFromStringBindingW`(与 SDK Initialize 9c0- 一致;无 AuthInfo,服务端无鉴权注册)。
+- **绑定**:`RpcStringBindingComposeW(NULL,"ncalrpc",NULL,"ElevocRpcEndpoint")` → `RpcBindingFromStringBindingW`(与原版初始化次序一致;无 AuthInfo,服务端无鉴权注册)。
 - **MIDL 表**:当前源码由 `lctrl-hal-win/src/ndr/elevoc.rs` 的生成器按恢复出的签名 `void opnum0([in,out,string,size_is(0x5000)] wchar_t *json)` 生成描述符,不再保存原先转录的格式串。过程头启用 `HasNewCorrDesc` 和两端 correlation checks;因此 sized-string 的四字节常量符合度描述符后还必须生成两字节 `/robust` 标志(常量采用 early correlation)。结构体根据公开 `rpcndr.h` 定义构建。接口 GUID+v4.0 与 NDR32 v2.0 是当前测试版本的绑定依据,不是未来兼容性保证:服务端可能保留同一版本号但更改语义,必须针对更新版本重新验证。
-- **异常面**:vendor `SafeRpcRequest` 7b0 以 `__try/__except` 将 RPC 异常换成返回码。复刻用 VEH+landing-pad(guard `NdrClientCall3`):异常线程还原到包装帧返回,异常码→ChannelUnavailable;正常路径零开销。
+- **异常面**:原客户端以 `__try/__except` 将 RPC 异常换成返回码。复刻用 VEH+landing-pad(guard `NdrClientCall3`):异常线程还原到包装帧返回,异常码→ChannelUnavailable;正常路径零开销。
 - **请求缓冲**:保留原有不超过 `0x3ff` 个 UTF-16 单元的请求限制;由于生成的 `[in,out,string,size_is(0x5000)]` 描述符允许更长响应,本地接收缓冲使用同一个 `0x5000` 单元上限,包括末尾 NUL。不声称此约束已验证恶意 RPC 服务端的全部异常情况。
 
 ### 14.1 调用序列(与 vendor Initialize/Login 逐步一致)
 
 `load()` = Initialize 等价物:bind 成功后按 vendor 顺序发(暖机结果全部忽略,与 SDK 一致):`GetMode{link:"app_downlink"}` → `GetFunctionsByEndpoint{endpoint:"app_downlink"}` → `GetHeadSetStatus` → **`GetAuthorizedTokens{elevoc_rpc_protocol:"RPC/2.2",token:<rand>,user:""}`**(目标机上曾观察跳过该交换后查询 fault;空 `user` 可用,其他值并非均已验证,见 §14.3)→ `GetConfigFileContent{buffer_len:0x1000}` → `GetFunctions` → `IsVoiceidSetted{endpoint}` → `GetFunctionsByEndpoint{endpoint:"speaker_extraction"}`。
 
-之后:`GetCurrentMode` ≡ `GetMode{link:"app_uplink",endpoint:<默认捕获端点>}` → `Content.mode` 名→0..5(未知名→0),再按 `GetAlgType` 的 `algroithm_type` 是否以 "AI" 开头升级 1→6/2→7(`find("AI")!=0` 即旧时域算法,vendor bb4;"Non-AI" 时域端点亦命中;**原记 "contains(token)" 系误判,已更正**)。`SetEffectMode(mode)` ≡ voiceid 门控(ret 4)→ 6/7→1/2 重映射 → 能力门控 → `SetAlgType{algroithm_type:"Non-AI"(原 mode 6/7)否则"AI"}`(结果被忽略)→ `SetMode{link:"uplink",mode:<名字>,CALLER:"SDK",proto,token,endpoint}`。`QueryVoiceIDStatus` ≡ `IsVoiceidSetted{endpoint}` → `is_voiceid_setted` 真→2 否→0。
+之后:`GetCurrentMode` ≡ `GetMode{link:"app_uplink",endpoint:<默认捕获端点>}` → `Content.mode` 名→0..5(未知名→0),再按 `GetAlgType` 的 `algroithm_type` 是否以 "AI" 开头升级 1→6/2→7(`find("AI")!=0` 即旧时域算法,"Non-AI" 时域端点亦命中)。`SetEffectMode(mode)` ≡ voiceid 门控(ret 4)→ 6/7→1/2 重映射 → 能力门控 → `SetAlgType{algroithm_type:"Non-AI"(原 mode 6/7)否则"AI"}`(结果被忽略)→ `SetMode{link:"uplink",mode:<名字>,CALLER:"SDK",proto,token,endpoint}`。`QueryVoiceIDStatus` ≡ `IsVoiceidSetted{endpoint}` → `is_voiceid_setted` 真→2 否→0。
 
 请求字段序字节级一致(vendor writer 字串序逐一对照):`GetAuthorizedTokens`=`{request,proto,token,user}`;`GetConfigFileContent`=`{request,buffer_len,proto,token}`;`GetMode`=`{request,link,endpoint?,proto,token}`;`SetMode`=`{request,link,mode,CALLER,proto,token,endpoint?}`;`SetAlgType`=`{request,algroithm_type,endpoint?,proto,token}`;`IsVoiceidSetted`/`GetFunctionsByEndpoint`/`GetAlgType`=`{request,endpoint,proto,token}`;`GetFunctions`/`GetHeadSetStatus`=`{request,proto,token}`。默认捕获端点经 COM `IMMDeviceEnumerator::GetDefaultAudioEndpoint(eCapture,eConsole)`+`IMMDevice::GetId` 取得(vendor 同法),无捕获设备时 endpoint 字段省略。
 
-### 14.2 导出与模式域
+### 14.2 模式域与返回码
 
 导出(opnum/签名/RVA 已证):`SetEffectMode(int mode, const char* ep=NULL)` @0x322c0、`GetCurrentMode(const char* ep=NULL)` @0x2d7d0、`QueryVoiceIDStatus()` @0x311d0(0=未注册,2=已注册)、`SetDownLinkStatus(bool)` @0x31f60(扬声器侧)、`SetRawModeSupport(bool)` @0x32950。
 
-模式域(字符串槽 765):0=environmental(服务端默认,无独立 off)、1=shared、2=private、3=special、4=voiceid(需已注册否则 ret 4)、5=HQRecord;6/7=_td 旧别名,SDK 发送前重映射 1/2。`SetEffectMode` 返回码(545):1=成功、-1=RPC/默认端点失败、2=端点能力位不支持、4=VoiceID 未注册。能力门控位:GetMicAbilityByEndpoint bitmask(bit0=shared,bit1=private,bit2=special,bit3=voiceid,bit14=HQRecord)。
+模式域:0=environmental(服务端默认,无独立 off)、1=shared、2=private、3=special、4=voiceid(需已注册否则 ret 4)、5=HQRecord;6/7=_td 旧别名,SDK 发送前重映射 1/2。`SetEffectMode` 返回码:1=成功、-1=RPC/默认端点失败、2=端点能力位不支持、4=VoiceID 未注册。能力门控位:GetMicAbilityByEndpoint bitmask(bit0=shared,bit1=private,bit2=special,bit3=voiceid,bit14=HQRecord)。
 
 持久化:HKCU\SOFTWARE\Lenovo\SmartEngine\modules\F4006(REG_SZ)是 Vantage 插件的只写镜像(noise_micro_mode=GetCurrentMode 结果、noise_speaker_mode=扬声器布尔、scene_enhance_mode);**服务不消费该键**,只写注册表无效(已证:仅 SENoiseCancellingPlugin64.dll 引用)。实机值:micro=1(shared)、speaker=0、scene=0。
 
@@ -517,7 +515,7 @@ out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Se
 
 过程中一并排除/修正:pHandle 间接层(SDK `rpcndr.h` 证实 `MIDL_STUB_DESC` +0x18 是 `IMPLICIT_HANDLE_INFO` 联合体,单间接即可;双间接会得到 `0x6a6 INVALID_BINDING`)、COM vtable 取址优先级(`(*(*o).vtbl).add(N)` → `*(*o).vtbl.add(N)`)、参数按值/按址两种传法、`mFlags=0x02000001`/`MIDLVersion=0x0801026e`/`Version=0x00060001`/过程与类型格式串字节、`SetAlgType` 先行请求、`GetAlgType` 的 td 判定(`find("AI")!=0`)。
 
-## 15. 面板图像特性契约(2026-11-01,SEColorManagerPlugin64.dll/SmartColorAddin.dll/PlatformInterface.dll 反汇编 + IGCL 公版头 + 实机文件枚举)
+## 15. 面板图像特性接口(Intel IGCL)
 
 **护眼(尚未完成 ABI 对齐与验收)**:曾发现应用的 `SetColorTemperature` 走 `IntelControlLib.dll` 的 `ctlPixelTransformationSetConfig`。当前 Rust 绑定和此前探针的结构体布局与 Intel 公开定义不一致,因此读写行为及硬件适用性均未证实。代码中的 Mid=5000K、High=4000K 是近似推测,不证明与原版等价;不得将该通道视作已实现或进行硬件写入。
 

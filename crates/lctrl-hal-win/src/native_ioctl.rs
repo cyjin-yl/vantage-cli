@@ -83,7 +83,7 @@ fn validate_request(code: u32, input: &[u8]) -> Result<bool> {
         },
         IOCTL_GENERIC_GET | IOCTL_BATTERY_CONFIG | IOCTL_BATTERY_DETAIL | IOCTL_GAPD => Ok(false),
         IOCTL_USB_CHARGER => match input {
-            // RE-proven contract (docs/RE-interfaces.md §11): only 0x02 is a
+            // RE-proven contract (docs/interfaces.md §11): only 0x02 is a
             // query; every other dispatched byte reaches the EC setter.
             [0x02] => Ok(false),
             [0x0a | 0x0b | 0x12 | 0x13] => Ok(true),

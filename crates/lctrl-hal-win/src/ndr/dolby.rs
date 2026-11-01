@@ -5,7 +5,7 @@
 //! *format-string offset table* indexed by `nProcNum`, and the *type format
 //! string* referenced by non-basetype parameters. This module **generates**
 //! those tables at compile time from a semantic description of the DAX
-//! interface signatures recovered in `docs/RE-interfaces.md` §12 — nothing
+//! interface signatures recovered in `docs/interfaces.md` §12 — nothing
 //! here is a blob copied out of a vendor binary.
 //!
 //! The encoding emitted is the canonical `-Oicf` (x64) grammar the RPC
@@ -23,18 +23,18 @@
 //!
 //! | offset | field | rule implemented |
 //! |--------|-------|------------------|
-//! | +0  u8  | handle_type    | 0 = explicit; a handle descriptor follows the header |
-//! | +1  u8  | Oi_flags       | `Oi_HAS_RPCFLAGS` (0x08) \| `Oi_USE_NEW_INIT_ROUTINES` (0x40) |
-//! | +2  u32 | rpc_flags      | 0 — no `[idempotent]`/`[broadcast]`/`[message]` attributes |
-//! | +6  u16 | proc_num       | the opnum this descriptor serves |
-//! | +8  u16 | stack_size     | 8 bytes per x64 stack slot (incl. the explicit `handle_t` slot) |
-//! | +10     | handle desc    | `FC_BIND_PRIMITIVE` 4 B for op0's `handle_t`, `FC_BIND_CONTEXT` 6 B for the session context handle |
-//! | +n  u16 | constant_client_buffer_size | Σ(4 + wire octets) over `[in]` params; variable `[in]` user-marshal params set `ClientMustSize` instead |
+//! | +0 u8 | handle_type | 0 = explicit; a handle descriptor follows the header |
+//! | +1 u8 | Oi_flags | `Oi_HAS_RPCFLAGS` (0x08) \| `Oi_USE_NEW_INIT_ROUTINES` (0x40) |
+//! | +2 u32 | rpc_flags | 0 — no `[idempotent]`/`[broadcast]`/`[message]` attributes |
+//! | +6 u16 | proc_num | the opnum this descriptor serves |
+//! | +8 u16 | stack_size | 8 bytes per x64 stack slot (incl. the explicit `handle_t` slot) |
+//! | +10 | handle desc | `FC_BIND_PRIMITIVE` 4 B for op0's `handle_t`, `FC_BIND_CONTEXT` 6 B for the session context handle |
+//! | +n u16 | constant_client_buffer_size | Σ(4 + wire octets) over `[in]` params; variable `[in]` user-marshal params set `ClientMustSize` instead |
 //! | +n+2 u16 | constant_server_buffer_size | Σ(24 + wire octets) over `[out]` params; variable `[out]` user-marshal params set `ServerMustSize` instead |
-//! | +n+4 u8 | Oi2Flags       | `HasExtensions` (0x40) plus the must-size bits |
+//! | +n+4 u8 | Oi2Flags | `HasExtensions` (0x40) plus the must-size bits |
 //! | +n+5 u8 | number_of_params | parameter descriptors emitted (the `handle_t` slot excluded) |
-//! | +n+6    | NDR_PROC_HEADER_EXTS64 | 10 bytes: size, `Flags2`, corr hints, notify index, `FloatArgMask` |
-//! | …       | 6-byte `NDR_PARAM_OIF` per param | `attr u16, stack_offset u16, (type_format_char u8 + pad) / (type_offset u16)` |
+//! | +n+6 | NDR_PROC_HEADER_EXTS64 | 10 bytes: size, `Flags2`, corr hints, notify index, `FloatArgMask` |
+//! | … | 6-byte `NDR_PARAM_OIF` per param | `attr u16, stack_offset u16, (type_format_char u8 + pad) / (type_offset u16)` |
 //!
 //! Parameter attribute bits follow `PARAM_ATTRIBUTES`; `[out]` scalars are
 //! `IsOut | IsSimpleRef | IsBasetype | ServerAllocSize(1)` (0x2150), `[in]`

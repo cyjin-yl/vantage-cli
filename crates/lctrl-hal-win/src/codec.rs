@@ -6,7 +6,7 @@ pub const IOCTL_GENERIC_GET: u32 = 0x8310_20c4;
 /// Previously allowlisted as a "generic GET variant" from docs/01 behavior
 /// analysis; RE of the exact target binaries (PowerBattery.dll 1.0.13.114,
 /// AcpiVpc.sys 15.11.30.14) proved `in[0] == 0x02` is the flags query and
-/// `0x0a/0x0b/0x12/0x13` are the setters (docs/RE-interfaces.md §11).
+/// `0x0a/0x0b/0x12/0x13` are the setters (docs/interfaces.md §11).
 pub const IOCTL_USB_CHARGER: u32 = 0x8310_20e8;
 pub const IOCTL_GBMD: u32 = 0x8310_20f8;
 pub const IOCTL_BATTERY_CONFIG: u32 = 0x8310_2120;
@@ -16,7 +16,7 @@ pub const IOCTL_GAPD: u32 = 0x8310_215c;
 /// 4-byte DWORD selectors).
 pub const IOCTL_NIGHT_CHARGE: u32 = 0x8310_2150;
 /// Temporary charge-mode probe (`PowerBattery.dll`, support `0x13`,
-/// status `0x11`; docs/RE-interfaces.md §11).
+/// status `0x11`; docs/interfaces.md §11).
 pub const IOCTL_TEMP_CHARGE: u32 = 0x8310_2148;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

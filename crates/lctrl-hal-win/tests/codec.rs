@@ -18,7 +18,7 @@ fn ioctl_constants_match_verified_literal_codes() {
 #[test]
 fn usb_charger_selectors_encode_as_exactly_one_byte() {
     // RE-proven selector bytes (PowerBattery.dll 1.0.13.114, AcpiVpc.sys
-    // 15.11.30.14; docs/RE-interfaces.md §11).
+    // 15.11.30.14; docs/interfaces.md §11).
     assert_eq!(UsbChargerSelector::QUERY.encode(), [0x02]);
     assert_eq!(UsbChargerSelector::AC_ON.encode(), [0x0a]);
     assert_eq!(UsbChargerSelector::AC_OFF.encode(), [0x0b]);

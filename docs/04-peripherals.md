@@ -352,7 +352,7 @@ RPC 客户端族(`DolbyRpcClient.dll` 原生 / `Lenovo.Vantage.DolbyRpcClient.dl
 
 > 实现说明(2026-11-01):联想交付的客户端 DLL 已被裁定为不可作为运行时依赖,
 > `audio dolby` 改为纯 Rust rpcrt4/NDR 客户端直打同一端点
-> (契约见 docs/RE-interfaces.md §12),下表描述的是原厂接口面,不是当前依赖。
+> (契约见 docs/interfaces.md §12),下表描述的是原厂接口面,不是当前依赖。
 
 | 接口 | 语义 |
 |---|---|

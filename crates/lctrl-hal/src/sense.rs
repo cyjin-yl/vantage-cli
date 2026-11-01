@@ -1,7 +1,7 @@
 use lctrl_core::{ApplyMode, ChangeReport, Result, SenseDistance, SenseState, SenseWait};
 
 /// One SmartSense settings-pipe command, mapped 1:1 to the recovered
-/// command table (docs/RE-interfaces.md §13).
+/// command table (docs/interfaces.md §13).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SenseFeature {
     /// `ENABLE_PRESENTLEAVE` (0x00090101), legacy 0/1 boolean.

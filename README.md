@@ -50,7 +50,7 @@ vantage --yes perf mode performance       # 执行、回读、确认
 |---|---|
 | 性能与电源 | `perf mode`、`tune epp`、`tune turbo`、`power scheme list/get/set`、`perf temp` |
 | 电池 | `battery status`、`battery adapter` |
-| 屏幕 | `panel rate`(刷新率)、`panel brightness`(亮度);护眼和超分尚未完成 ABI 对齐或真机写入验收,见 RE-interfaces §15.1 |
+| 屏幕 | `panel rate`(刷新率)、`panel brightness`(亮度);护眼和超分尚未完成 ABI 对齐或真机写入验收,见 interfaces §15.1 |
 | 输入设备 | `touchpad status/on/off/recover`、`kbd backlight` |
 | 音频 | `audio dolby`(杜比开关/预设切换)、`audio noise-cancel`(降噪模式) |
 | 智能感知 | `sense status`、`sense lock-on-leave/wake-on-approach/pause-video/attention-tracking` |
@@ -87,7 +87,7 @@ vantage --yes perf mode performance       # 执行、回读、确认
 (`perf dbdc get`)、杜比音效开关/预设切换(`audio dolby`)、降噪模式
 (`audio noise-cancel`)、SmartSense 人体感知设置(`sense *`)。护眼/超分的
 Intel IGCL 绑定存在 ABI 不匹配,现有探针不足以判定该机型的硬件能力。
-契约见 docs/RE-interfaces.md §11–§15。
+契约见 docs/interfaces.md §11–§15。
 
 Dolby 和降噪客户端不再加载 Vantage 附加组件中的 DLL;它们仍分别要求
 `DolbyDAXAPI` 和 `ElevocService` 服务端可用。卸载 Vantage 后服务是否仍在,
@@ -111,9 +111,9 @@ SmartSense 去掉 `--dry-run`。面板 IGCL 布局还未对齐,在修复前不�
 | 厂商专属性能模式(极客模式等) | 该模式存在(联想 Vantage 提供),仅经联想专有驱动下发;HWP 请求 MSR 已在 WinMsrDev 选择子表内(0x772/0x774),但本机读回编码与 SDM 通用语义不一致,写入保持门禁直到物理确认 |
 | 修改 BIOS 设置 | 固件暂存机制未验证,写入锁定;读取正常 |
 | 智能感知键盘灯自动 | 需 Vantage contract RPC 通道,未恢复 |
-| 面板色域切换 | 原版依赖联想交付的 MONITORCONTROL.dll(SmartColor addin),按依赖裁定不引用;契约已存档(RE-interfaces §15) |
-| 面板 overdrive | 未观察到所测 SPBTESTTOOL 设备,BIOSOD 0x1A0000 读 null;其他通道未证实(RE-interfaces §15) |
-| 面板护眼/超分(21VG) | 现有 IGCL 结构布局与公开头文件不一致;旧探针不能证明硬件不适用(RE-interfaces §15.1) |
+| 面板色域切换 | 原版依赖联想交付的 MONITORCONTROL.dll(SmartColor addin),按依赖裁定不引用;契约已存档(interfaces §15) |
+| 面板 overdrive | 未观察到所测 SPBTESTTOOL 设备,BIOSOD 0x1A0000 读 null;其他通道未证实(interfaces §15) |
+| 面板护眼/超分(21VG) | 现有 IGCL 结构布局与公开头文件不一致;旧探针不能证明硬件不适用(interfaces §15.1) |
 | BIOS 刷写、BIOS 口令 | 安全考虑,明确不支持;本地 `.inf` 驱动经 `update local-driver` 支持 |
 
 ## 安全模型
