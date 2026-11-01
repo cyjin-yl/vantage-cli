@@ -2542,10 +2542,12 @@ fn execute_usb(
                 feature: "usb.always-on".into(),
             })?;
             let report = usb.set_usb_ac_charging(enabled, apply)?;
-            structured_output(
-                &report,
-                format!("USB AC charging: {}\n", report.requested()),
-            )
+            // Say plainly whether the state was changed or only planned.
+            let (label, state) = match report.actual() {
+                Some(actual) => ("USB AC charging", actual),
+                None => ("USB AC charging (dry run, not applied)", report.requested()),
+            };
+            structured_output(&report, format!("{label}: {state}\n"))
         }
         UsbCommand::ChargeOnBattery { state, persistent } => {
             let enabled = matches!(state, Toggle::On);
