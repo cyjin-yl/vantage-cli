@@ -40,57 +40,41 @@
 //!                                   type_offset/type_fc u16)
 //! ```
 
-/// Implicit primitive binding (`FC_BIND_PRIMITIVE`): the call uses the
-/// `handle_t` the application created, reached through
-/// `MIDL_STUB_DESC.IMPLICIT_HANDLE_INFO::pHandle` — matches the vendor
-/// client, which binds `ncalrpc:[ElevocRpcEndpoint]` itself instead of
-/// letting MIDL auto-bind.
-const FC_BIND_PRIMITIVE: u8 = 0x32;
-/// `FC_C_WSTRING`: conformant wide-character string (`[string] wchar_t`).
-const FC_C_WSTRING: u8 = 0x25;
-/// `FC_STRING_SIZED`: the string descriptor is followed by an explicit
-/// conformance (size) descriptor instead of taking `MaxCount` from the
-/// marshalled `ActualCount`.
-const FC_STRING_SIZED: u8 = 0x44;
-/// `FC_CONSTANT_CONFORMANCE` (high nibble of the descriptor's flag byte):
-/// the conformance value is a compile-time constant packed into the
-/// descriptor itself (`count = offset_lo16 | flag_byte1 << 16`), not read
-/// from another parameter or stack slot.
-const FC_CONSTANT_CONFORMANCE: u8 = 0x40;
-
-/// `Oi_HAS_RPCFLAGS` — the `rpc_flags` u32 is present in the header.
-const OI_HAS_RPCFLAGS: u8 = 0x08;
-/// `Oi_USE_NEW_INIT_ROUTINES` — the stub targets the post-Win2000
-/// interpreter entry points (`NdrClientCall3` era).
-const OI_USE_NEW_INIT_ROUTINES: u8 = 0x40;
-
-// INTERPRETER_OPT_FLAGS (Oi2) bits.
-/// The client interpreter must run the sizing pass (no usable
-/// `constant_client_buffer_size` shortcut).
-const OI2_CLIENT_MUST_SIZE: u8 = 0x02;
-/// The server interpreter must run the sizing pass.
-const OI2_SERVER_MUST_SIZE: u8 = 0x01;
-/// A `NDR_PROC_HEADER_EXTS64` extension block follows the OIF header.
-const OI2_HAS_EXTENSIONS: u8 = 0x40;
-
-// INTERPRETER_OPT_FLAGS2 (EXTS64 `Flags2`) bits.
-/// New-style (post-Win2000) correlation descriptors are in use — required
-/// for the `FC_CONSTANT_CONFORMANCE`-style encoding emitted below.
-const EXT2_HAS_NEW_CORR_DESC: u8 = 0x01;
-/// The client side wants the correlation-check machinery armed.
-const EXT2_CLIENT_CORR_CHECK: u8 = 0x02;
-/// The server side wants the correlation-check machinery armed.
-const EXT2_SERVER_CORR_CHECK: u8 = 0x04;
-
-// PARAM_ATTRIBUTES bits.
-/// Client interpreter must size this parameter (conformant payload).
-const ATTR_MUST_SIZE: u16 = 0x0001;
-/// Server interpreter must size (and later free) this parameter.
-const ATTR_MUST_FREE: u16 = 0x0002;
-/// Parameter marshals on the request leg.
-const ATTR_IS_IN: u16 = 0x0008;
-/// Parameter unmarshals on the response leg.
-const ATTR_IS_OUT: u16 = 0x0010;
+use super::{
+    ATTR_IS_IN, ATTR_IS_OUT, ATTR_MUST_FREE, ATTR_MUST_SIZE, EXT2_CLIENT_CORR_CHECK,
+    EXT2_HAS_NEW_CORR_DESC, EXT2_SERVER_CORR_CHECK, FC_BIND_PRIMITIVE, FC_C_WSTRING,
+    FC_CONSTANT_CONFORMANCE, FC_STRING_SIZED, OI_HAS_RPCFLAGS, OI_USE_NEW_INIT_ROUTINES,
+    OI2_CLIENT_MUST_SIZE, OI2_HAS_EXTENSIONS, OI2_SERVER_MUST_SIZE,
+};
+// The grammar elements used below live in the parent module; the mapping is:
+//
+// * `FC_BIND_PRIMITIVE` — implicit primitive binding: the call uses the
+//   `handle_t` the application created, reached through
+//   `MIDL_STUB_DESC.IMPLICIT_HANDLE_INFO::pHandle`. The vendor client binds
+//   `ncalrpc:[ElevocRpcEndpoint]` itself instead of letting MIDL auto-bind.
+// * `FC_C_WSTRING` — conformant wide-character string (`[string] wchar_t`).
+// * `FC_STRING_SIZED` — the string descriptor is followed by an explicit
+//   conformance (size) descriptor instead of taking `MaxCount` from the
+//   marshalled `ActualCount`.
+// * `FC_CONSTANT_CONFORMANCE` (high nibble of the descriptor's flag byte) —
+//   the conformance value is a compile-time constant packed into the
+//   descriptor itself (`count = offset_lo16 | flag_byte1 << 16`), not read
+//   from another parameter or stack slot.
+// * `OI_HAS_RPCFLAGS` — the `rpc_flags` u32 is present in the header.
+// * `OI_USE_NEW_INIT_ROUTINES` — the stub targets the post-Win2000
+//   interpreter entry points (`NdrClientCall3` era).
+// * `OI2_HAS_EXTENSIONS` / `OI2_CLIENT_MUST_SIZE` / `OI2_SERVER_MUST_SIZE` —
+//   the client and server interpreters must run the sizing pass (no usable
+//   `constant_client_buffer_size` shortcut) and a `NDR_PROC_HEADER_EXTS64`
+//   extension block follows the OIF header.
+// * `EXT2_HAS_NEW_CORR_DESC` / `EXT2_CLIENT_CORR_CHECK` /
+//   `EXT2_SERVER_CORR_CHECK` — new-style (post-Win2000) correlation
+//   descriptors are in use, which the `FC_CONSTANT_CONFORMANCE`-style
+//   encoding below requires, and both sides arm the correlation check.
+// * `ATTR_MUST_SIZE` / `ATTR_MUST_FREE` / `ATTR_IS_IN` / `ATTR_IS_OUT` —
+//   the client interpreter must size this conformant payload, the server
+//   interpreter must size (and later free) it, and the parameter marshals
+//   on the request leg and unmarshals on the response leg.
 
 /// Parameter direction in the `[in]`/`[out]` sense.
 /// The full IDL domain is modelled; the Elevoc signature uses `InOut` and

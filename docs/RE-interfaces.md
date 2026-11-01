@@ -431,7 +431,7 @@ out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Se
 | 8 | SetActiveProfile | context + `u32`(0x10) | 预设写 |
 | 37 | GetSKU | context + `&BSTR`(0x10) | SKU 名串(BSTR) |
 
-**元数据**:MIDL 解释器表(proc format string / format offset / type format)逐字节取自 `DolbyRpcClient.dll` pkg 1.0.3(SHA-256 `removed-digest`),存于 `lctrl-hal-win/src/dolby_ndr_data.rs`;仅保留所用 opnum 的 proc string,type string 中厂商镜像指针槽置零(不可达)。BSTR 参数经 `FC_USER_MARSHAL`(type 偏移 `0x34`,quad index 0)封送,quad 表绑定 oleaut32 的 `BSTR_UserSize/Marshal/Unmarshal/Free`(厂商表 ordinal 283–286 的等价具名导出)。
+**元数据**:MIDL 解释器表(proc format string / format offset / type format)由 `lctrl-hal-win/src/ndr.rs` 在编译期按公开 DCE 1.1 NDR `-Oicf`(x64)编码规则,从上表恢复出的形参签名**自行生成** —— 仓库不再内嵌任何从厂商二进制逐字节转录的描述表(生成规则逐字段注释于该模块头)。编码是规范化的:生成结果对所用 8 个 opnum 与厂商 proc string 逐字节一致;type format string 只含本通道引用的条目(context handle ×2、BSTR `FC_USER_MARSHAL` 及其 wire signature),厂商表其余描述未用 opnum 的条目不保留。BSTR 参数经 `FC_USER_MARSHAL`(quad index 0)封送,quad 表绑定 oleaut32 的 `BSTR_UserSize/Marshal/Unmarshal/Free`(厂商表 ordinal 283–286 的等价具名导出)。
 
 **单语法决定**:`RPC_CLIENT_INTERFACE.Flags` 置 0(厂商为 `0x06000000`)。厂商同时携带 NDR64 格式表;本客户端只携带 NDR32 表,若置多语法位,rpcrt4 会协商到 NDR64 并因缺少 NDR64 表而报 `RPC_S_INTERNAL_ERROR`(`0x6e6`)。置 0 后协商语法恒为 NDR v2.0,线上字节与厂商客户端一致。
 

@@ -467,7 +467,7 @@ struct ProxyTables {
     handle: RpcHandle,
     /// Generated NDR proc/offset/type tables (`crate::ndr`); every pointer
     /// below must land inside these buffers.
-    ndr: crate::ndr::NdrDescriptors,
+    ndr: crate::ndr::elevoc::NdrDescriptors,
     stub_desc: MidlStubDesc,
     /// Standalone `RPC_SYNTAX_IDENTIFIER` the proxy advertises
     /// (`MIDL_STUBLESS_PROXY_INFO::pTransferSyntax`); the vendor keeps it
@@ -490,7 +490,7 @@ impl ProxyTables {
     fn new() -> Box<Self> {
         let mut tables = Box::new(ProxyTables {
             handle: std::ptr::null_mut(),
-            ndr: crate::ndr::generate(&crate::ndr::elevoc_stub_signature()),
+            ndr: crate::ndr::elevoc::generate(&crate::ndr::elevoc::elevoc_stub_signature()),
             stub_desc: MidlStubDesc {
                 rpc_interface_information: std::ptr::null(),
                 pfn_allocate: midl_alloc,
