@@ -122,6 +122,40 @@ struct CtlInitArgs {
     application_uid: CtlApplicationId,
 }
 
+/// `ctl_pixtx_color_primaries_t` — CIE 1931 chromaticity, carried inline in
+/// the pixel format (public `ctl_pixtx_pixel_format_t`).
+#[derive(Clone, Copy)]
+#[repr(C)]
+struct CtlColorPrimaries {
+    size: u32,
+    version: u8,
+    x_r: f64,
+    y_r: f64,
+    x_g: f64,
+    y_g: f64,
+    x_b: f64,
+    y_b: f64,
+    x_w: f64,
+    y_w: f64,
+}
+
+/// `ctl_pixtx_pixel_format_t`.
+#[derive(Clone, Copy)]
+#[repr(C)]
+struct CtlPixelFormat {
+    size: u32,
+    version: u8,
+    bits_per_color: u32,
+    is_float: bool,
+    encoding_type: u32,
+    color_space: u32,
+    color_model: u32,
+    color_primaries: CtlColorPrimaries,
+    max_brightness: f64,
+    min_brightness: f64,
+}
+
+/// `ctl_pixtx_1dlut_config_t`.
 #[derive(Clone, Copy)]
 #[repr(C)]
 struct CtlPixtx1dLutConfig {
@@ -134,11 +168,48 @@ struct CtlPixtx1dLutConfig {
     p_sample_positions: *mut f64,
 }
 
+/// `ctl_pixtx_3dlut_sample_t`.
+#[derive(Clone, Copy)]
+#[repr(C)]
+struct CtlPixtx3dLutSample {
+    red: f64,
+    green: f64,
+    blue: f64,
+}
+
+/// `ctl_pixtx_3dlut_config_t`.
+#[derive(Clone, Copy)]
+#[repr(C)]
+struct CtlPixtx3dLutConfig {
+    size: u32,
+    version: u8,
+    num_samples_per_channel: u32,
+    p_sample_values: *mut CtlPixtx3dLutSample,
+}
+
+/// `ctl_pixtx_matrix_config_t`.
+#[derive(Clone, Copy)]
+#[repr(C)]
+struct CtlPixtxMatrixConfig {
+    size: u32,
+    version: u8,
+    pre_offsets: [f64; 3],
+    post_offsets: [f64; 3],
+    matrix: [[f64; 3]; 3],
+}
+
+/// `ctl_pixtx_config_t` — the union carries every block payload the public
+/// header defines; its size therefore follows the largest member.
+#[derive(Clone, Copy)]
 #[repr(C)]
 union CtlPixtxConfig {
     one_d_lut_config: CtlPixtx1dLutConfig,
+    three_d_lut_config: CtlPixtx3dLutConfig,
+    matrix_config: CtlPixtxMatrixConfig,
 }
 
+/// `ctl_pixtx_block_config_t`.
+#[derive(Clone, Copy)]
 #[repr(C)]
 struct CtlPixtxBlockConfig {
     size: u32,
@@ -148,6 +219,8 @@ struct CtlPixtxBlockConfig {
     config: CtlPixtxConfig,
 }
 
+/// `ctl_pixtx_pipe_set_config_t`.
+#[derive(Clone, Copy)]
 #[repr(C)]
 struct CtlPixtxPipeSetConfig {
     size: u32,
@@ -158,20 +231,8 @@ struct CtlPixtxPipeSetConfig {
     p_block_configs: *mut CtlPixtxBlockConfig,
 }
 
-#[repr(C)]
-struct CtlPixelFormat {
-    size: u32,
-    version: u8,
-    bits_per_color: u32,
-    is_float: bool,
-    encoding_type: u32,
-    color_space: u32,
-    color_model: u32,
-    color_primaries: u32,
-    max_brightness: f64,
-    min_brightness: f64,
-}
-
+/// `ctl_pixtx_pipe_get_config_t`.
+#[derive(Clone, Copy)]
 #[repr(C)]
 struct CtlPixtxPipeGetConfig {
     size: u32,
@@ -183,14 +244,38 @@ struct CtlPixtxPipeGetConfig {
     p_block_configs: *mut CtlPixtxBlockConfig,
 }
 
+/// `ctl_property_range_info_uint_t`.
+#[derive(Clone, Copy)]
+#[repr(C)]
+struct CtlPropertyRangeInfoUint {
+    min_possible_value: u32,
+    max_possible_value: u32,
+    step_size: u32,
+    default_value: u32,
+}
+
+/// `ctl_property_info_uint_t`.
+#[derive(Clone, Copy)]
+#[repr(C)]
+struct CtlPropertyInfoUint {
+    default_enable: bool,
+    range_info: CtlPropertyRangeInfoUint,
+}
+
+/// `ctl_video_processing_super_resolution_info_t`.
+#[derive(Clone, Copy)]
 #[repr(C)]
 struct CtlVideoProcessingSuperResolutionInfo {
     size: u32,
     version: u8,
     super_resolution_flag: u32,
-    reserved: [u32; 36],
+    super_resolution_range_in_width: CtlPropertyInfoUint,
+    super_resolution_range_in_height: CtlPropertyInfoUint,
+    reserved_fields: [u32; 16],
 }
 
+/// `ctl_video_processing_feature_getset_t`.
+#[derive(Clone, Copy)]
 #[repr(C)]
 struct CtlVideoProcessingFeatureGetSet {
     size: u32,
@@ -577,7 +662,25 @@ impl IntelCtlApi for IntelControlLib {
             size: std::mem::size_of::<CtlVideoProcessingSuperResolutionInfo>() as u32,
             version: 0,
             super_resolution_flag: 0,
-            reserved: [0; 36],
+            super_resolution_range_in_width: CtlPropertyInfoUint {
+                default_enable: false,
+                range_info: CtlPropertyRangeInfoUint {
+                    min_possible_value: 0,
+                    max_possible_value: 0,
+                    step_size: 0,
+                    default_value: 0,
+                },
+            },
+            super_resolution_range_in_height: CtlPropertyInfoUint {
+                default_enable: false,
+                range_info: CtlPropertyRangeInfoUint {
+                    min_possible_value: 0,
+                    max_possible_value: 0,
+                    step_size: 0,
+                    default_value: 0,
+                },
+            },
+            reserved_fields: [0; 16],
         };
         let mut feature = CtlVideoProcessingFeatureGetSet {
             size: std::mem::size_of::<CtlVideoProcessingFeatureGetSet>() as u32,
@@ -619,7 +722,25 @@ impl IntelCtlApi for IntelControlLib {
             size: std::mem::size_of::<CtlVideoProcessingSuperResolutionInfo>() as u32,
             version: 0,
             super_resolution_flag: flag,
-            reserved: [0; 36],
+            super_resolution_range_in_width: CtlPropertyInfoUint {
+                default_enable: false,
+                range_info: CtlPropertyRangeInfoUint {
+                    min_possible_value: 0,
+                    max_possible_value: 0,
+                    step_size: 0,
+                    default_value: 0,
+                },
+            },
+            super_resolution_range_in_height: CtlPropertyInfoUint {
+                default_enable: false,
+                range_info: CtlPropertyRangeInfoUint {
+                    min_possible_value: 0,
+                    max_possible_value: 0,
+                    step_size: 0,
+                    default_value: 0,
+                },
+            },
+            reserved_fields: [0; 16],
         };
         let mut feature = CtlVideoProcessingFeatureGetSet {
             size: std::mem::size_of::<CtlVideoProcessingFeatureGetSet>() as u32,
@@ -819,7 +940,18 @@ fn pixel_format() -> CtlPixelFormat {
         encoding_type: 0,
         color_space: 0,
         color_model: 0,
-        color_primaries: 0,
+        color_primaries: CtlColorPrimaries {
+            size: 0,
+            version: 0,
+            x_r: 0.0,
+            y_r: 0.0,
+            x_g: 0.0,
+            y_g: 0.0,
+            x_b: 0.0,
+            y_b: 0.0,
+            x_w: 0.0,
+            y_w: 0.0,
+        },
         max_brightness: 0.0,
         min_brightness: 0.0,
     }
@@ -850,4 +982,81 @@ fn discover_intel_control_lib() -> Result<PathBuf> {
         .ok_or_else(|| LctrlError::ChannelUnavailable {
             channel: "IntelControlLib.dll not found in any iigd_dch.inf driver package".to_string(),
         })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::mem::{align_of, offset_of, size_of};
+
+    /// The IGCL structures are ABI: every field offset and the struct size
+    /// must match the published header, otherwise the driver rejects the
+    /// call (INVALID_SIZE / INVALID_ARGUMENT) instead of describing the
+    /// pipeline. These assertions pin the layout so a drift is caught here
+    /// and not on the target machine.
+    #[test]
+    fn igcl_struct_layouts_match_the_published_header() {
+        assert_eq!(size_of::<CtlColorPrimaries>(), 72);
+        assert_eq!(align_of::<CtlColorPrimaries>(), 8);
+        assert_eq!(offset_of!(CtlColorPrimaries, x_r), 8);
+
+        assert_eq!(size_of::<CtlPixelFormat>(), 120);
+        assert_eq!(align_of::<CtlPixelFormat>(), 8);
+        assert_eq!(offset_of!(CtlPixelFormat, bits_per_color), 8);
+        assert_eq!(offset_of!(CtlPixelFormat, color_primaries), 32);
+        assert_eq!(offset_of!(CtlPixelFormat, max_brightness), 104);
+
+        assert_eq!(size_of::<CtlPixtx1dLutConfig>(), 40);
+        assert_eq!(offset_of!(CtlPixtx1dLutConfig, sampling_type), 8);
+        assert_eq!(offset_of!(CtlPixtx1dLutConfig, p_sample_values), 24);
+
+        // The union follows its largest member (the 3x3 matrix payload).
+        assert_eq!(size_of::<CtlPixtxConfig>(), 80);
+        assert_eq!(align_of::<CtlPixtxConfig>(), 8);
+
+        assert_eq!(size_of::<CtlPixtxBlockConfig>(), 96);
+        assert_eq!(offset_of!(CtlPixtxBlockConfig, config), 16);
+
+        assert_eq!(size_of::<CtlPixtxPipeSetConfig>(), 32);
+        assert_eq!(offset_of!(CtlPixtxPipeSetConfig, p_block_configs), 24);
+
+        assert_eq!(size_of::<CtlPixtxPipeGetConfig>(), 272);
+        assert_eq!(offset_of!(CtlPixtxPipeGetConfig, input_pixel_format), 16);
+        assert_eq!(offset_of!(CtlPixtxPipeGetConfig, output_pixel_format), 136);
+        assert_eq!(offset_of!(CtlPixtxPipeGetConfig, num_blocks), 256);
+
+        assert_eq!(size_of::<CtlPropertyInfoUint>(), 20);
+        assert_eq!(size_of::<CtlVideoProcessingSuperResolutionInfo>(), 116);
+        assert_eq!(
+            offset_of!(
+                CtlVideoProcessingSuperResolutionInfo,
+                super_resolution_range_in_width
+            ),
+            12
+        );
+        assert_eq!(
+            offset_of!(
+                CtlVideoProcessingSuperResolutionInfo,
+                super_resolution_range_in_height
+            ),
+            32
+        );
+
+        assert_eq!(size_of::<CtlVideoProcessingFeatureGetSet>(), 120);
+        assert_eq!(offset_of!(CtlVideoProcessingFeatureGetSet, feature_type), 8);
+        assert_eq!(
+            offset_of!(CtlVideoProcessingFeatureGetSet, application_name),
+            16
+        );
+        assert_eq!(offset_of!(CtlVideoProcessingFeatureGetSet, value_type), 28);
+        assert_eq!(offset_of!(CtlVideoProcessingFeatureGetSet, value), 32);
+        assert_eq!(
+            offset_of!(CtlVideoProcessingFeatureGetSet, custom_value_size),
+            40
+        );
+        assert_eq!(
+            offset_of!(CtlVideoProcessingFeatureGetSet, p_custom_value),
+            48
+        );
+    }
 }
