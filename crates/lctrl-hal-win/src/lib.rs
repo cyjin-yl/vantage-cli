@@ -27,6 +27,8 @@ mod native_power_status;
 #[cfg(windows)]
 mod native_wmi;
 #[cfg(windows)]
+mod ndr;
+#[cfg(windows)]
 mod noise;
 mod os_battery;
 mod p0;
