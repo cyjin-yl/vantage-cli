@@ -59,8 +59,8 @@ BIOS 密码元数据、MagicBay 检测和 scan 清单共 **12 次实际运行,�
 | #23 色彩/显示增强 | 护眼(1D LUT via IntelControlLib,IGCL ABI pin v1.1+运行时校验)与超分(ctlGetSetVideoProcessingFeature)已逆向实现,dry-run/commit+进程内读回;色域诚实 Unsupported(原版需联想交付的 MONITORCONTROL.dll,禁依赖,契约存档 §15);overdrive 21VG 硬件缺席(§15);写入验收待 owner 物理确认 |
 | #24 运行时隐私 | 状态实际读取成功;逐层写入、独立读回及恢复证据须按版本保存 |
 | #25 SmartSense/HPD | 已逆向接入:sense 设置管道(RE-interfaces §13),`sense status/lock-on-leave/wake-on-approach/pause-video/attention-tracking` 实现+dry-run+注册表读回;attention-tracking 写后无持久化键(如实 write-only);键盘灯自动仍门禁(contract RPC 未恢复);写入验收待补 |
-| #26 Dolby | 2026-10-31 决策取消 cleanroom 约束后已逆向接入:DolbyRpcClient.dll ALPC 端点契约(RE-interfaces.md §12),`audio dolby` 实现+dry-run+读回;实机只读探针证实第三方进程可绑定(Dolby 关/预设 5/空间音频支持);写入验收待补 |
-| #27 音频降噪 | 已逆向接入:Elevoc RPC(RE-interfaces §14),`audio noise-cancel` 模式 0-4 + VoiceID 注册门控 + 能力位拒绝映射;删除无证据的 far-field 模式;F4006 注册表镜像只读展示(服务不消费,只写无效);写入验收待补 |
+| #26 Dolby | 纯 Rust rpcrt4/NDR 通道(不再依赖联想交付的 DolbyRpcClient.dll,RE-interfaces §12):实机只读复验 connect=ok / GetDolbyEnabled=0 / GetActiveProfile=5 / IsSpatialAudioSupported=1 / GetSKU=1,与厂商 DLL 基线逐项一致;`audio dolby … --dry-run` 零写入;写入验收待补 |
+| #27 音频降噪 | 纯 Rust rpcrt4/NDR 通道(不再依赖 ElevocControlSDK,RE-interfaces §14):原版调用序 Initialize→Login→Get/Set 逐字段复刻;实机只读复验 `audio noise-cancel shared --dry-run` 读出 mic mode=Shared、speaker=off、voice-id=enrolled(与同机 P/Invoke GetCurrentMode=1 一致),F4006 键零变化;写入验收待补 |
 | #28 BIOS 批量/元数据 | 原生事务源码与只读密码元数据已有;CLI 批量、风险和实际生效态验收待完成 |
 | #29 MagicBay LTE | 当前检测未见附件;实现缺口与附件未连接分别记录,不伪报完成 |
 | #30 MagicBay 摄像头 | 当前检测未见附件;UVC 实现及目标附件验收待完成 |
