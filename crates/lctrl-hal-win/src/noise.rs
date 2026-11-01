@@ -36,8 +36,8 @@ use std::time::Duration;
 use lctrl_core::{
     ApplyMode, ChangeReport, LctrlError, NoiseCancelState, NoiseCancellationMode, Result,
 };
-use lctrl_hal::poll_readback;
 use lctrl_hal::NoiseCancelControl;
+use lctrl_hal::poll_readback;
 
 /// Sealed seam over the service wire protocol so [`WindowsNoiseCancel`] stays
 /// testable without a running ElevocControlService.

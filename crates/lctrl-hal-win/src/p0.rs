@@ -52,7 +52,9 @@ where
     I: IoctlTransport,
 {
     fn read_charge_mode(&self) -> Result<ChargeModeActual> {
-        Ok(decode_gbmd_charge_mode(EnergyDriver::new(&self.0).gbmd_status()?))
+        Ok(decode_gbmd_charge_mode(
+            EnergyDriver::new(&self.0).gbmd_status()?,
+        ))
     }
 }
 
@@ -154,18 +156,13 @@ where
 
     fn night_charge(&self) -> Result<lctrl_core::NightChargeState> {
         let driver = EnergyDriver::new(&self.ioctl);
-        let mut state =
-            lctrl_core::NightChargeState::from_probe(driver.night_charge_probe()?);
+        let mut state = lctrl_core::NightChargeState::from_probe(driver.night_charge_probe()?);
         state.enabled =
             lctrl_core::NightChargeState::enabled_from_status(driver.night_charge_status()?);
         Ok(state)
     }
 
-    fn set_night_charge(
-        &self,
-        enabled: bool,
-        apply: ApplyMode,
-    ) -> Result<ChangeReport<bool>> {
+    fn set_night_charge(&self, enabled: bool, apply: ApplyMode) -> Result<ChangeReport<bool>> {
         let previous = lctrl_core::NightChargeState::enabled_from_status(
             EnergyDriver::new(&self.ioctl).night_charge_status()?,
         );

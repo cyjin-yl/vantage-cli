@@ -1,5 +1,5 @@
-mod battery;
 mod audio;
+mod battery;
 mod bios;
 mod capability;
 mod command_capability;

@@ -7,8 +7,13 @@
 //! present; the machine state cannot change because the written value
 //! equals the freshly observed baseline.
 
+#[cfg(not(windows))]
+fn main() {}
+
+#[cfg(windows)]
 use lctrl_hal_win::{MsrSelector, PLATFORM_ID_21VG, WIN_MSR_TRANSPORT, WinMsrDev};
 
+#[cfg(windows)]
 fn main() {
     let write = std::env::args().any(|arg| arg == "--write");
     let client = WinMsrDev::new(&WIN_MSR_TRANSPORT);

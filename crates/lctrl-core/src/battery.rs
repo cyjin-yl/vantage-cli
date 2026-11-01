@@ -138,7 +138,11 @@ impl std::fmt::Display for UsbChargingState {
             f,
             "ac {} ({}), battery-mode {} ({})",
             if self.ac_enabled { "on" } else { "off" },
-            if self.ac_supported { "supported" } else { "unsupported" },
+            if self.ac_supported {
+                "supported"
+            } else {
+                "unsupported"
+            },
             if self.battery_enabled { "on" } else { "off" },
             if self.battery_supported {
                 "supported"

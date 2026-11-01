@@ -66,7 +66,9 @@ where
         EnergyDriver::new(&self.ioctl).write_usb_charger(selector)?;
         let mut requested = previous;
         requested.ac_enabled = enabled;
-        let actual = poll_readback(&requested, 10, Duration::from_millis(50), || self.read_state())?;
+        let actual = poll_readback(&requested, 10, Duration::from_millis(50), || {
+            self.read_state()
+        })?;
         Ok(ChangeReport::committed(previous, requested, actual))
     }
 
@@ -89,7 +91,9 @@ where
         EnergyDriver::new(&self.ioctl).write_usb_charger(selector)?;
         let mut requested = previous;
         requested.battery_enabled = enabled;
-        let actual = poll_readback(&requested, 10, Duration::from_millis(50), || self.read_state())?;
+        let actual = poll_readback(&requested, 10, Duration::from_millis(50), || {
+            self.read_state()
+        })?;
         Ok(ChangeReport::committed(previous, requested, actual))
     }
 }

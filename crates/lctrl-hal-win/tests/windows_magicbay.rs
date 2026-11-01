@@ -1,3 +1,5 @@
+#![cfg(windows)]
+// Windows-only integration test: the HAL only exposes this API on Windows.
 use lctrl_core::MagicBayKind;
 use lctrl_hal_win::{coalesce_magicbay_devices, parse_magicbay_instance_id};
 

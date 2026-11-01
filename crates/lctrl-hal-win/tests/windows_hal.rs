@@ -1,3 +1,5 @@
+#![cfg(windows)]
+// Windows-only integration test: the HAL only exposes this API on Windows.
 use parking_lot::Mutex;
 
 use lctrl_core::{Availability, Platform};

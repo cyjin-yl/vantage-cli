@@ -48,14 +48,20 @@ impl WmiTransport for FakeWmi {
 #[test]
 fn getter_invokes_named_method_and_parses_data() {
     let fake = FakeWmi::default();
-    fake.output.lock().unwrap().insert("Data".into(), WmiValue::U32(3));
+    fake.output
+        .lock()
+        .unwrap()
+        .insert("Data".into(), WmiValue::U32(3));
     let zone = GameZone::new(&fake);
 
     assert_eq!(zone.thermal_mode().unwrap(), 3);
     let calls = fake.calls.lock().unwrap();
     assert_eq!(
         calls[0],
-        ("LENOVO_GAMEZONE_DATA".to_string(), "GetThermalMode".to_string())
+        (
+            "LENOVO_GAMEZONE_DATA".to_string(),
+            "GetThermalMode".to_string()
+        )
     );
 }
 
@@ -74,7 +80,10 @@ fn getter_parses_first_numeric_property_without_conventional_name() {
 #[test]
 fn setter_sends_single_u32_data_payload() {
     let fake = FakeWmi::default();
-    fake.output.lock().unwrap().insert("ReturnValue".into(), WmiValue::U32(0));
+    fake.output
+        .lock()
+        .unwrap()
+        .insert("ReturnValue".into(), WmiValue::U32(0));
     let zone = GameZone::new(&fake);
 
     zone.set_fan_cooling(2).unwrap();
@@ -97,7 +106,10 @@ fn setter_rejects_nonzero_return_value() {
 #[test]
 fn support_probe_uses_zero_for_supported() {
     let fake = FakeWmi::default();
-    fake.output.lock().unwrap().insert("Data".into(), WmiValue::U32(0));
+    fake.output
+        .lock()
+        .unwrap()
+        .insert("Data".into(), WmiValue::U32(0));
     let zone = GameZone::new(&fake);
 
     assert!(zone.is_supported(SupportProbe::FanCooling).unwrap());
@@ -107,7 +119,10 @@ fn support_probe_uses_zero_for_supported() {
 #[test]
 fn fan_table_passes_fan_and_sensor_ids() {
     let fake = FakeWmi::default();
-    fake.output.lock().unwrap().insert("Data".into(), WmiValue::U32(0));
+    fake.output
+        .lock()
+        .unwrap()
+        .insert("Data".into(), WmiValue::U32(0));
     let zone = GameZone::new(&fake);
 
     zone.fan_get_table(1, 0).unwrap();
@@ -118,12 +133,16 @@ fn fan_table_passes_fan_and_sensor_ids() {
 #[test]
 fn feature_plane_uses_other_method_class() {
     let fake = FakeWmi::default();
-    fake.output.lock().unwrap().insert("Data".into(), WmiValue::U32(7));
+    fake.output
+        .lock()
+        .unwrap()
+        .insert("Data".into(), WmiValue::U32(7));
     let zone = GameZone::new(&fake);
 
     assert_eq!(zone.feature_value(FeatureId::new(0x1000_0001)).unwrap(), 7);
     assert_eq!(fake.calls.lock().unwrap()[0].0, "LENOVO_OTHER_METHOD");
-    zone.set_feature_value(FeatureId::new(0x1000_0001), 1).unwrap();
+    zone.set_feature_value(FeatureId::new(0x1000_0001), 1)
+        .unwrap();
     assert_eq!(fake.calls.lock().unwrap()[1].1, "SetFeatureValue");
 }
 

@@ -2,8 +2,13 @@
 //! through the pure-Rust rpcrt4 transport and reports every read opnum.
 //! Never writes. Used to prove the pure-Rust client against live DAX3API.
 
+#[cfg(not(windows))]
+fn main() {}
+
+#[cfg(windows)]
 use lctrl_hal_win::{DolbyRpc, NativeDolbyRpc};
 
+#[cfg(windows)]
 fn main() {
     let rpc = match NativeDolbyRpc::load() {
         Ok(rpc) => rpc,

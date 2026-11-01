@@ -170,26 +170,34 @@ mod tests {
 
     #[test]
     fn rule_requires_a_documented_event_class() {
-        let action = SceneAction::SetFanMode { mode: FanMode::Silent };
+        let action = SceneAction::SetFanMode {
+            mode: FanMode::Silent,
+        };
         let rule = ScenePolicyRule::new(
             "scene.fan.silent".into(),
             "Silent fan scene".into(),
             "LENOVO_GAMEZONE_SMART_FAN_MODE_EVENT".into(),
             action,
-            Some(SceneAction::SetFanMode { mode: FanMode::Standard }),
+            Some(SceneAction::SetFanMode {
+                mode: FanMode::Standard,
+            }),
             "Fires on the smart-fan-mode event and requests the silent fan mode.".into(),
         )
         .expect("well-formed rule");
         assert_eq!(rule.event_class, "LENOVO_GAMEZONE_SMART_FAN_MODE_EVENT");
         // An empty event class is rejected.
-        assert!(ScenePolicyRule::new(
-            "x".into(),
-            "t".into(),
-            "".into(),
-            SceneAction::SetFanMode { mode: FanMode::Silent },
-            None,
-            "d".into(),
-        )
-        .is_err());
+        assert!(
+            ScenePolicyRule::new(
+                "x".into(),
+                "t".into(),
+                "".into(),
+                SceneAction::SetFanMode {
+                    mode: FanMode::Silent
+                },
+                None,
+                "d".into(),
+            )
+            .is_err()
+        );
     }
 }

@@ -1,3 +1,5 @@
+#![cfg(windows)]
+// Windows-only integration test: the HAL only exposes this API on Windows.
 use std::time::Duration;
 
 use lctrl_core::{
