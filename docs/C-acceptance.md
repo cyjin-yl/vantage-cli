@@ -56,7 +56,7 @@ BIOS 密码元数据、MagicBay 检测和 scan 清单共 **12 次实际运行,�
 | #20 键盘灯 | 当前目标机方法不可用;不得以静态灯光元数据提升写能力 |
 | #21 Win 锁/触控板 | C7 仅确认触控板恢复及非中断 smoke;新版禁用循环与 Win 锁尚未完成验收 |
 | #22 内屏刷新率 | C1 已验收;要求交互式会话,不以 SSH 无显示路径误判硬件不支持 |
-| #23 色彩/显示增强 | 当前写入口 Unsupported;按硬件/接口/授权分别核实,不是统一判不适用 |
+| #23 色彩/显示增强 | 护眼(1D LUT via IntelControlLib,IGCL ABI pin v1.1+运行时校验)与超分(ctlGetSetVideoProcessingFeature)已逆向实现,dry-run/commit+进程内读回;色域诚实 Unsupported(原版需联想交付的 MONITORCONTROL.dll,禁依赖,契约存档 §15);overdrive 21VG 硬件缺席(§15);写入验收待 owner 物理确认 |
 | #24 运行时隐私 | 状态实际读取成功;逐层写入、独立读回及恢复证据须按版本保存 |
 | #25 SmartSense/HPD | 已逆向接入:sense 设置管道(RE-interfaces §13),`sense status/lock-on-leave/wake-on-approach/pause-video/attention-tracking` 实现+dry-run+注册表读回;attention-tracking 写后无持久化键(如实 write-only);键盘灯自动仍门禁(contract RPC 未恢复);写入验收待补 |
 | #26 Dolby | 2026-10-31 决策取消 cleanroom 约束后已逆向接入:DolbyRpcClient.dll ALPC 端点契约(RE-interfaces.md §12),`audio dolby` 实现+dry-run+读回;实机只读探针证实第三方进程可绑定(Dolby 关/预设 5/空间音频支持);写入验收待补 |

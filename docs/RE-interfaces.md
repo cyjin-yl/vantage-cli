@@ -447,3 +447,12 @@ out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Se
 **驱动 IOCTL→ACPI 全映射**(AcpiVpc.sys 15.11.30.14,驱动仅透传 4 字节选择子,写门控全在固件):0x20e8 SALS/HALS、0x20f8 GBMD、0x211c/0x2138 ITHC、0x2120 GBID、**0x212c SMTF(可写透传,语义未恢复,探测返回 0xFFFF→门禁)**、0x2130/0x2134 MHQI 读、0x2144/58/5c KBL*、**0x2148 BTMC**、0x214c BSIF、0x2150/0x2154 BNMC。
 
 **极端省电(原版实现还原)**:原版不是固件通道,而是 AiTurbo DriverStore 包的 BatteryLife.exe **EcoQoS 进程限流守护**:powrprof DC 索引写 + PowerSetActiveScheme + 进程节流委派 AiPerfSvc.exe,持久化 HKLM\SOFTWARE\Lenovo\AiTurbo\BatteryLife;BatterySetting 内的 "ExtremeBatteryLife" 代码实为云遥测(WININET 上报 + rainbow 注册表)。按用户 2026-11-01 指示(逆向实现与原版一致,不平替):本功能须按 AiTurbo 原版契约(AiPerfSvc 委派/其注册表键)实现,禁止用通用 ProcessPowerThrottling 平替;契约未恢复前保持门禁。
+## 15. 面板图像特性契约(2026-11-01,SEColorManagerPlugin64.dll/SmartColorAddin.dll/PlatformInterface.dll 反汇编 + IGCL 公版头 + 实机文件枚举)
+
+**护眼(已实现)**:原版链路 Lenovo SmartInteract `PlatformInterface.dll!IGCLInterfaceClient::SetColorTemperature(display, kelvin)` → 动态加载显卡驱动的 `IntelControlLib.dll`(IGCL,**非联想驱动组件,允许引用**)→ `ctlPixelTransformationSetConfig` 写 1D LUT;Off=restore-default。IGCL ABI 稳定性依据(用户裁定之首要判据):公版 SDK、所有结构带 Size+Version 字段、`ctlInit` 输出实现版本——实现 pin `CTL_API_VERSION(1,1)` 且运行时校验实现 major==1,不符即 fail-closed。LUT 数据依据:PlatformInterface 的 `RGBToTemperatureColor`+`kelvin_table`(std::map,360 键,1988K–19964K,.rdata 节点已恢复,证实原版为查表实现);UI 档位 Kelvin 值由 Vantage 运行时配置下发(静态不可恢复)→ Mid/High 暂用 Tanner-Helland 近似(Mid=5000K,High=4000K,标注 INFERRED),验收阶段用只读 GetConfig 与原版档位 LUT 比对后修正。驱动无稳定 get-config 时读回退化为进程内最近写入态(如实)。
+
+**超分(已实现)**:同库 `ctlGetSetVideoProcessingFeature`,FeatureType=SUPER_RESOLUTION(4),ValueType=CUSTOM,自定义结构 `ctl_video_processing_super_resolution_info_t{flag}`;flag:1=DISABLE、2=ENABLE_DEFAULT_SCENARIO。DC 模式原版强制关。Linux 无标准 DRM 等价 → 诚实 Unsupported。
+
+**色域(诚实 Unsupported,依赖被禁)**:原版链路 `SEColorManagerPlugin64.dll` → `MONITORCONTROL.dll`(SmartColor addin 1.1.4.32 交付,**联想交付组件,禁依赖**)→ `MonCtrl_GetMonitorColorGamutByIndex`(按名查索引)/`MonCtrl_SetMonitorColorGamut(monitor, index)`,配 `WcsSetDefaultColorProfile`+`InstallColorProfileW` 挂 ICM(ICM 包 9 个 TPLCD_8AD7_*.icm 位于 C:\ProgramData\Lenovo\SmartColorAddin\AddinData\icc\ColorCalibration\)。无 MONITORCONTROL 只剩 ICC 关联 ≠ 原版行为(面板原生色域未切),不平替 → Unsupported, recovered contract 存档于此待非联想路径。Linux 等价评估:colord。
+
+**Overdrive(诚实 Unsupported,硬件缺席)**:21VG 无 \\.\SPBTESTTOOL PnP 设备/INF,BIOSOD GetFeatureValue(0x1A0000) 返回 null —— 原版 UI 亦无此项。

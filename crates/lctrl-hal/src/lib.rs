@@ -47,7 +47,8 @@ pub use performance::{
     DbdcControl, FanControl, PerformanceControl, PowerLimitKind, TemperatureControl, TuningControl,
 };
 pub use peripherals::{
-    KeyboardControl, PanelBrightnessControl, PanelControl, PrivacyControl, TouchpadControl,
+    KeyboardControl, PanelBrightnessControl, PanelControl, PanelFeaturesControl, PrivacyControl,
+    TouchpadControl,
 };
 pub use power::{PowerControl, ProcessorPowerControl, UsbControl};
 pub use process::ProcessControl;
