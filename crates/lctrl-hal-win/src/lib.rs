@@ -36,7 +36,9 @@ mod native_power;
 mod native_power_status;
 #[cfg(windows)]
 mod native_wmi;
-#[cfg(windows)]
+// The NDR descriptor generators are pure Rust with no platform types, so
+// they stay visible to the Linux CI job that compiles this crate.
+mod ndr;
 #[cfg(windows)]
 mod noise;
 mod os_battery;
