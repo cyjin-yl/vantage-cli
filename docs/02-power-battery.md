@@ -76,13 +76,13 @@
 
 | 子命令字节 | 语义 | 验证来源(PowerBattery 组件行为分析) |
 |---|---|---|
-| `0x03` | 历史资料称 gen1 养护开;**目标 21VG 存在运输模式风险，禁止发送** | `CStorageMode::OpenFeature` 120 |
-| `0x05` | 养护模式 **关**(gen1) | `CStorageMode::CloseFeature` 2d0 |
+| `0x03` | 历史资料称 gen1 养护开;**目标 21VG 存在运输模式风险，禁止发送** | `CStorageMode::OpenFeature` |
+| `0x05` | 养护模式 **关**(gen1) | `CStorageMode::CloseFeature` |
 | `0x0d`(13) | 养护模式 **开**,gen2 变体 | 历史组件资料;目标机仅确认请求被接受，未证实实际生效 |
 | `0x0f`(15) | 养护模式 **关**,gen2 变体 | `CStorageMode::CloseFeature`,同上条件连发 |
-| `0x07` | 快充(Rapid/Express)**开** | `CExpressMode::OpenFeature` be0 |
-| `0x08` | 快充 **关** | `CExpressMode::CloseFeature` d00 |
-| `0xff`(255) | **查询特性支持**(养护/快充的 `IsSupport` 与 ARM 变体共用) | `CExpressMode::IsSupport` ac0、`CStorageMode::IsSupportOnARM` f70 |
+| `0x07` | 快充(Rapid/Express)**开** | `CExpressMode::OpenFeature` |
+| `0x08` | 快充 **关** | `CExpressMode::CloseFeature` |
+| `0xff`(255) | **查询特性支持**(养护/快充的 `IsSupport` 与 ARM 变体共用) | `CExpressMode::IsSupport` 、`CStorageMode::IsSupportOnARM` |
 
 **目标机安全边界**:历史资料的 gen1/gen2 连发规则不适用于 21VG 验收;
 不得发送 `0x03`，也不得把状态字成功当成模式已切换。目标机现有实现因独立回读契约
