@@ -56,7 +56,7 @@ BIOS 密码元数据、MagicBay 检测和 scan 清单共 **12 次实际运行,�
 | #20 键盘灯 | 当前目标机方法不可用;不得以静态灯光元数据提升写能力 |
 | #21 Win 锁/触控板 | C7 仅确认触控板恢复及非中断 smoke;新版禁用循环与 Win 锁尚未完成验收 |
 | #22 内屏刷新率 | C1 已验收;要求交互式会话,不以 SSH 无显示路径误判硬件不支持 |
-| #23 色彩/显示增强 | 护眼(1D LUT via IntelControlLib,IGCL ABI pin v1.1+运行时校验)与超分(ctlGetSetVideoProcessingFeature)已逆向实现,dry-run/commit+进程内读回;色域诚实 Unsupported(原版需联想交付的 MONITORCONTROL.dll,禁依赖,契约存档 §15);overdrive 21VG 硬件缺席(§15);写入验收待 owner 物理确认 |
+| #23 色彩/显示增强 | 逆向实现:护眼(IntelControlLib 1D LUT,IGCL ABI pin 1.2/1.1+运行时 major 校验)与超分(ctlGetSetVideoProcessingFeature);**实机只读探针(§15.1)**:21VG 内屏无像素变换管线(CAPABILITY 报 0 block、CURRENT 返 0x4800000c)→ `panel eye-care` 诚实 Unsupported(硬件不适用);SR 能力枚举 7 项但状态查询被驱动拒(0x4000000b)→ 状态报 unknown 不伪造。色域诚实 Unsupported(原版需联想交付的 MONITORCONTROL.dll,禁依赖);overdrive 21VG 硬件缺席。写入验收待 owner 物理确认 |
 | #24 运行时隐私 | 状态实际读取成功;逐层写入、独立读回及恢复证据须按版本保存 |
 | #25 SmartSense/HPD | 已逆向接入:sense 设置管道(RE-interfaces §13),`sense status/lock-on-leave/wake-on-approach/pause-video/attention-tracking` 实现+dry-run+注册表读回;attention-tracking 写后无持久化键(如实 write-only);键盘灯自动仍门禁(contract RPC 未恢复);写入验收待补 |
 | #26 Dolby | 纯 Rust rpcrt4/NDR 通道(不再依赖联想交付的 DolbyRpcClient.dll,RE-interfaces §12):实机只读复验 connect=ok / GetDolbyEnabled=0 / GetActiveProfile=5 / IsSpatialAudioSupported=1 / GetSKU=1,与厂商 DLL 基线逐项一致;`audio dolby … --dry-run` 零写入;写入验收待补 |
