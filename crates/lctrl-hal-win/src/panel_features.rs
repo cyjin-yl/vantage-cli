@@ -1011,10 +1011,11 @@ mod tests {
         assert_eq!(offset_of!(CtlPixtx1dLutConfig, p_sample_values), 24);
 
         // The union follows its largest member (the 3x3 matrix payload).
-        assert_eq!(size_of::<CtlPixtxConfig>(), 80);
+        assert_eq!(size_of::<CtlPixtxMatrixConfig>(), 128);
+        assert_eq!(size_of::<CtlPixtxConfig>(), 128);
         assert_eq!(align_of::<CtlPixtxConfig>(), 8);
 
-        assert_eq!(size_of::<CtlPixtxBlockConfig>(), 96);
+        assert_eq!(size_of::<CtlPixtxBlockConfig>(), 144);
         assert_eq!(offset_of!(CtlPixtxBlockConfig, config), 16);
 
         assert_eq!(size_of::<CtlPixtxPipeSetConfig>(), 32);
