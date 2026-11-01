@@ -3,10 +3,10 @@
 //! `NdrClientCall3` marshals calls by interpreting three tables: the
 //! *procedure format string* (one descriptor per procedure), a compact
 //! *format-string offset table* indexed by `nProcNum`, and the *type format
-//! string* referenced by non-basetype parameters. This module **generates**
-//! those tables at compile time from a semantic description of the DAX
-//! interface signatures recovered in `docs/interfaces.md` §12 — nothing
-//! here is a blob copied out of a vendor binary.
+//!   string* referenced by non-basetype parameters. This module **generates**
+//!   those tables at compile time from a semantic description of the DAX
+//!   interface signatures recovered in `docs/interfaces.md` §12 — nothing
+//!   here is a blob copied out of a vendor binary.
 //!
 //! The encoding emitted is the canonical `-Oicf` (x64) grammar the RPC
 //! runtime interprets, as documented by the public DCE 1.1 NDR transfer
