@@ -5,10 +5,10 @@ use lctrl_core::{
 
 /// Dolby audio control through the vendor DAX RPC endpoint.
 ///
-/// The transport is the vendored `DolbyRpcClient.dll` C exports (ALPC
-/// `ncalrpc:[DaxRpcEndpoint]` against DAX3API.exe). Only toggle/profile
-/// operations are exposed; the licensed APO DSP is never touched.
-/// See `docs/RE-interfaces.md` §12.
+/// The transport is a pure-Rust `rpcrt4.dll` NDR client (ALPC
+/// `ncalrpc:[DaxRpcEndpoint]` against DAX3API.exe); no Lenovo-delivered
+/// binary is loaded. Only toggle/profile operations are exposed; the
+/// licensed APO DSP is never touched. See `docs/RE-interfaces.md` §12.
 pub trait AudioControl: Send + Sync {
     fn dolby_state(&self) -> Result<DolbyState>;
 
