@@ -5,6 +5,13 @@
 
 ---
 
+## 0. 依赖与常量边界(2026-11-01 用户裁定,适用于本文所有章节)
+
+1. **联想交付的软件不得作为运行时依赖**:Vantage addins 目录下的任何 payload(DolbyRpcClient.dll、ElevocControlSDK_x64.dll、XCASDK.dll、MONITORCONTROL.dll)一律不引用、不复制;只允许 Windows 系统组件(rpcrt4.dll、oleaut32.dll、mscms.dll、kernel32)。
+2. **接口常量不得转录**:仓库不得内嵌从厂商二进制逐字节抄来的接口描述表(MIDL proc/type format string、format-string offsets 等)。描述符由我们自己的 NDR 生成器,按公开 DCE/NDR 编码规则(MS-DTYP / DCE 1.1 type-format-string 语法),从"opnum → 参数类型与属性"的语义描述生成,并在代码中标注每个输出字段实现的规则。NDR 编码本身是规范化的,所以自建生成器对所用条目会与厂商编码一致——差别在于来源与作者是我们,不是抄来的 blob;仓库内不得出现厂商 SHA 或逐字复制的大字节数组。
+3. **非联想驱动/应用可引用,但 ABI 稳定是首要判据**:接口版本字段/结构布局必须稳定或带版本协商;引用时记录来源、版本与稳定依据,并评估 Linux 侧等价物(DRM/colord 等)。
+4. **行为与原版一致,不做平替**:复刻原版的调用序、信封、字段序与返回码语义;若只能得到不等价的结果,宁可诚实 Unsupported。
+
 ## 1. 二进制清单（实测版本 + SHA-256）
 
 | 二进制 | 版本 | 角色 | SHA-256 |
