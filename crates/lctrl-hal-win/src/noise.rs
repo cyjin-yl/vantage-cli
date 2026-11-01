@@ -589,7 +589,17 @@ impl ProxyTables {
                 rpc_protseq_endpoint: std::ptr::null(),
                 reserved: 0,
                 interpreter_info: std::ptr::null(),
-                flags: 0x0600_0000,
+                // `RPC_CLIENT_INTERFACE::Flags` must stay 0 here: the vendor
+                // ifspec carries 0x06000000, which makes rpcrt4 take the
+                // NDR64-capable dispatch path. That path needs the NDR64
+                // format tables the vendor DLL keeps in its own .rdata;
+                // with only the NDR32 (v2.0) interpreter tables this client
+                // carries, the call dies with RPC_S_INTERNAL_ERROR (0x6e6)
+                // inside the type-format interpreter. Flags = 0 selects the
+                // single NDR v2.0 syntax the service actually offers, and the
+                // marshalled wire bytes are unchanged (the negotiated
+                // transfer syntax is still NDR32 v2.0).
+                flags: 0,
                 _pad1: 0,
             },
         });
@@ -1416,6 +1426,10 @@ mod tests {
         assert_eq!(t.if_spec.interface_id.syntax_guid, ELEVOC_IF_GUID);
         assert_eq!(t.if_spec.interface_id.syntax_version.major_version, 4);
         assert_eq!(t.if_spec.interface_id.syntax_version.minor_version, 0);
+        // `Flags` must stay 0: the vendor value 0x06000000 drives rpcrt4
+        // onto the NDR64-capable path, which needs NDR64 format tables this
+        // client does not carry (the call then fails with 0x6e6).
+        assert_eq!(t.if_spec.flags, 0);
         assert_eq!(t.syntax_info.transfer_syntax.syntax_guid, NDR32_SYNTAX_GUID);
         assert_eq!(
             t.syntax_info.transfer_syntax.syntax_version.major_version,

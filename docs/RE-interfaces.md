@@ -457,9 +457,11 @@ out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Se
 
 ### 14.3 实机验证状态(2026-11-01)
 
-纯 Rust 客户端在 TB14P-EZRA 实机跑通 Initialize→Login→GetCurrentMode 全链路:把 vendor 自己的 MIDL 元数据(if_spec / MIDL_SYNTAX_INFO[2] / proc-format / fmt-offset / transfer-syntax 指针)临时接入后,`vantage audio noise-cancel shared --dry-run` 返回 **previous mic mode=Shared, speaker=off, voice-id=enrolled**(即 live mode=1、VoiceID 已注册),证明:绑定串、JSON 信封、字段序、调用序列、端点解析均与原版一致,且读操作零写入。
+纯 Rust 客户端在 TB14P-EZRA 实机跑通 Initialize→Login→GetCurrentMode 全链路:`vantage audio noise-cancel shared --dry-run` → **previous mic mode=Shared, speaker=off, voice-id=enrolled**(`--json`:`{"mic_mode":"shared","voice_id_enrolled":true}`),与厂商 DLL 基线一致(同机 P/Invoke `GetCurrentMode` = 1 = shared);读操作零写入(实机复核 HKCU F4006 `noise_micro_mode=1`/`noise_speaker_mode=0` 未变)。
 
-**未闭合项**:本仓库自建的 MIDL 表复刻仍使 `NdrClientCall3` 抛 `RPC_S_INTERNAL_ERROR (0x6e6)`(异常面已由 VEH 兜住并转 `ChannelUnavailable`,不崩溃)。已排除:pHandle 间接层(SDK `rpcndr.h` 证实 `MIDL_STUB_DESC` 0x18 处是 `IMPLICIT_HANDLE_INFO` 联合体,单间接即可)、COM vtable 取址、参数按值/按址两种传法、vendor 的 `mFlags=0x02000001`/`MIDLVersion=0x0801026e`/`Version=0x00060001`/过程与类型格式串字节。剩余差异集中在 if_spec 的 `DispatchTable`/`InterpreterInfo`(vendor 指向 RegCallback 服务端构件:0x7bfd0 → `NdrServerCall2` thunk、0x7bf60 → `MIDL_SERVER_INFO`)——纯客户端复刻这两个字段的语义尚未确定,故 `audio noise-cancel` 当前报 Unsupported 而非误报模式值。
+**根因(已闭合)**:`RPC_CLIENT_INTERFACE::Flags`。厂商 ifspec 的取值是 `0x06000000`,该位型会把 rpcrt4 引到 NDR64-capable 分发路径;该路径需要厂商 DLL 自己 .rdata 里的 NDR64 格式表,而本客户端只携带 NDR32(v2.0)解释器表,于是 `NdrClientCall3` 在类型格式解释器里抛 `RPC_S_INTERNAL_ERROR (0x6e6)`(异常面由 VEH 兜住转 `ChannelUnavailable`,不崩溃)。把 `Flags` 改为 **0**(单一 NDR v2.0 语法)后同一套表、同一段 JSON、同一调用序列即成功;协商到的传输语法仍是 NDR32 v2.0,线上字节不变。12 变体 metadata sweep 实测:仅 `Flags=0` 是必要条件,`DispatchTable=NULL`、`InterpreterInfo` 取 `&ProxyInfo` 或 NULL、`nCount` 取 1 或 2 均不影响成功。
+
+过程中一并排除/修正:pHandle 间接层(SDK `rpcndr.h` 证实 `MIDL_STUB_DESC` +0x18 是 `IMPLICIT_HANDLE_INFO` 联合体,单间接即可;双间接会得到 `0x6a6 INVALID_BINDING`)、COM vtable 取址优先级(`(*(*o).vtbl).add(N)` → `*(*o).vtbl.add(N)`)、参数按值/按址两种传法、`mFlags=0x02000001`/`MIDLVersion=0x0801026e`/`Version=0x00060001`/过程与类型格式串字节、`SetAlgType` 先行请求、`GetAlgType` 的 td 判定(`find("AI")!=0`)。
 
 ## 11.4 修正与 11.6 阈值写方结论(2026-11-01,ThresholdRe2:BatterySetting.exe/WrapPlugin.dll/ThinkPowerPlugin.dll/AcpiVpc.sys/PowerBattery.dll 反汇编 + 实机 ACPI 探针)
 
