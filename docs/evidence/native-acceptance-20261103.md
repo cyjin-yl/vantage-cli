@@ -166,7 +166,36 @@ host was running before this session and was not running afterwards — the auto
 launch routes above could not bring it back, so it needs a manual start from the
 Start menu ("Lenovo Vantage"). The addin and service side was never stopped.
 
-## 5. Scope of this evidence
+## 5. Review findings folded into this change
+
+A read-only review of the HPD transport returned three concrete defects; all three
+are fixed here, and the two behavioural ones carry Windows-only regression tests
+that were executed on the target (`cargo test -p lctrl-hal-win --test sense_control`
+→ 10 passed, 0 failed):
+
+1. The supplemental registry read was fatal and ran *before* the RPC read, so an
+   absent `HKLM\…\SmartSense\Parameters\HPD` key aborted the whole sense read and
+   kept the RPC channel unreachable. The registry read is now best-effort: the RPC
+   read always runs, the legacy fields are merged only when the projection exists,
+   and when neither source is available the channel failure is reported instead of
+   an empty state. `missing_registry_projection_does_not_block_the_rpc_read`.
+2. "The RPC does not advertise this feature" was derived from whether the *value*
+   could be decoded, so an advertised setting with an unexpected raw value was
+   refused with a false reason. Advertisement is now the op-5 capability bitset
+   (`SenseState.advertised`), which the availability check consults; the decoded
+   value stays independent. `an_advertised_feature_stays_available_when_its_value_cannot_be_modelled`.
+3. Two source comments pointed at `docs/evidence/rpc-transport-faults-20261103.md`,
+   which does not exist; they now point at this file.
+
+The review also raised one open question it could not settle from the tree: which
+byte of the authored NDR32 tables diverges from the vendor's — the context-handle
+entries of the type format string, the per-op proc format records, or the
+explicit-handle descriptor that opnum 0 uses (the shape the two faulting transports
+share and the working Elevoc transport does not). Settling it needs the vendor
+bytes at `LnvSST.dll` rva 0x33742 / `SmartSenseRpcClient.dll` rva 0x18612 diffed
+against the authored tables; it is not identified here.
+
+## 6. Scope of this evidence
 
 - Accepted on the target: `perf top`, `perf boost`, `perf throttle`,
   `--auto-restore` (driver-level priority, independently observed), charge-mode

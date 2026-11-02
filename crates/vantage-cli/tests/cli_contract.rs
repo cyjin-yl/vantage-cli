@@ -2385,6 +2385,7 @@ fn sense_auto_restore_rejects_an_unknown_attention_tracking_baseline_before_any_
     // back; the command must abort without mutating anything.
     let sense = FakeSense::new(SenseState {
         source: None,
+        advertised: None,
         lock_on_leave: Some(false),
         ..SenseState::default()
     });
@@ -2444,6 +2445,7 @@ fn sense_auto_restore_uses_the_multi_feature_initial_baseline() {
     let hal = FakeHal::new("21VG");
     let sense = FakeSense::new(SenseState {
         source: None,
+        advertised: None,
         lock_on_leave: Some(false),
         leave_distance: Some(SenseDistance::Near),
         ..SenseState::default()
@@ -2487,6 +2489,7 @@ fn sense_auto_restore_runs_after_a_readback_failure_and_preserves_the_error() {
     // reported unchanged.
     let sense = FakeSense::new(SenseState {
         source: None,
+        advertised: None,
         lock_on_leave: Some(false),
         leave_distance: Some(SenseDistance::Near),
         ..SenseState::default()
@@ -2541,6 +2544,7 @@ fn sense_auto_restore_reports_a_cleanup_failure_next_to_the_primary_error() {
     // combined error must carry both failures.
     let sense = FakeSense::new(SenseState {
         source: None,
+        advertised: None,
         lock_on_leave: Some(false),
         leave_distance: Some(SenseDistance::Near),
         ..SenseState::default()
@@ -2600,6 +2604,7 @@ fn sense_output_keeps_the_plain_report_shape_without_auto_restore() {
     let hal = FakeHal::new("21VG");
     let sense = FakeSense::new(SenseState {
         source: None,
+        advertised: None,
         pause_video: Some(false),
         ..SenseState::default()
     });

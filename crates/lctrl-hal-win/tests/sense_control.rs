@@ -96,6 +96,7 @@ fn fixture(
 ) {
     let state = Arc::new(Mutex::new(SenseState {
         source: None,
+        advertised: None,
         lock_on_leave: Some(false),
         leave_distance: Some(SenseDistance::Near),
         leave_wait: Some(SenseWait::Short),
@@ -220,4 +221,92 @@ fn unadvertised_rpc_feature_is_rejected_before_write() {
     assert!(matches!(error, LctrlError::Unsupported { .. }));
     assert!(rpc.calls.lock().is_empty());
     assert!(pipe.calls.lock().is_empty());
+}
+
+/// A store whose key is absent: the registry read must never be fatal.
+#[derive(Clone)]
+struct MissingStore;
+
+impl HpdSettingsStore for MissingStore {
+    fn read_state(&self) -> Result<SenseState> {
+        Err(LctrlError::ChannelUnavailable {
+            channel: "SmartSense HPD store is absent".into(),
+        })
+    }
+}
+
+#[test]
+fn missing_registry_projection_does_not_block_the_rpc_read() {
+    let state = Arc::new(Mutex::new(SenseState {
+        source: Some("hpd-rpc"),
+        advertised: Some(0x0010),
+        lock_on_leave: Some(true),
+        leave_distance: None,
+        leave_wait: None,
+        wake_on_approach: None,
+        approach_distance: None,
+        pause_video: None,
+        privacy_alert: None,
+        attention_tracking: None,
+        capability: Some(1),
+        sensor_type: Some(2),
+        facial_feature_registered: None,
+    }));
+    let rpc = FakeRpc {
+        calls: Arc::new(Mutex::new(Vec::new())),
+        state: state.clone(),
+        result: 0,
+    };
+    let pipe = FakePipe::new(state.clone(), 0);
+    let controller = WindowsSenseControl::new(rpc, pipe, MissingStore);
+
+    let observed = controller
+        .sense_state()
+        .expect("the RPC read must be reachable");
+
+    assert_eq!(observed.source, Some("hpd-rpc"));
+    assert_eq!(observed.lock_on_leave, Some(true));
+}
+
+#[test]
+fn an_advertised_feature_stays_available_when_its_value_cannot_be_modelled() {
+    // The op-5 bitset advertises the leave distance, but the current raw
+    // value is outside the modelled domain, so the field stays unknown.
+    let mut state = SenseState {
+        source: Some("hpd-rpc"),
+        advertised: Some(0x0080),
+        lock_on_leave: None,
+        leave_distance: None,
+        leave_wait: None,
+        wake_on_approach: None,
+        approach_distance: None,
+        pause_video: None,
+        privacy_alert: None,
+        attention_tracking: None,
+        capability: Some(1),
+        sensor_type: Some(2),
+        facial_feature_registered: None,
+    };
+    state.advertised = Some(0x0080);
+    let state = Arc::new(Mutex::new(state));
+    let rpc = FakeRpc {
+        calls: Arc::new(Mutex::new(Vec::new())),
+        state: state.clone(),
+        result: 0,
+    };
+    let pipe = FakePipe::new(state.clone(), 0);
+    let store = FakeStore {
+        state: state.clone(),
+        reads: Arc::new(Mutex::new(0)),
+    };
+    let controller = WindowsSenseControl::new(rpc, pipe, store);
+
+    let report = controller
+        .set_sense_feature(
+            SenseFeature::LeaveDistance(SenseDistance::Far),
+            ApplyMode::DryRun,
+        )
+        .expect("an advertised feature must not be refused as unsupported");
+
+    assert_eq!(report.requested().leave_distance, Some(SenseDistance::Far));
 }

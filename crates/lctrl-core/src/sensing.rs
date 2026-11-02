@@ -156,6 +156,15 @@ pub struct SenseState {
     /// live one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<&'static str>,
+    /// The HPD capability bitset (wire op 5) when the snapshot came from the
+    /// live RPC channel.
+    ///
+    /// Advertisement and value are separate facts: a feature whose bit is
+    /// set is advertised even when its current raw value cannot be modelled,
+    /// so a write must not be refused with "not advertised" just because the
+    /// value was unexpected.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub advertised: Option<u64>,
 }
 
 impl std::fmt::Display for SenseState {

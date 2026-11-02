@@ -427,7 +427,7 @@ fn main() {
     // access violation inside the marshaller on the current target build,
     // so the channel stays detached: `audio dolby` reports Unsupported
     // instead of taking the process down. See
-    // docs/evidence/rpc-transport-faults-20261103.md.
+    // docs/evidence/native-acceptance-20261103.md.
     let noise_cancel = match lctrl_hal_win::NativeElevocRpc::load() {
         Ok(rpc) => Some(lctrl_hal_win::WindowsNoiseCancel::new(rpc)),
         Err(error) => {
