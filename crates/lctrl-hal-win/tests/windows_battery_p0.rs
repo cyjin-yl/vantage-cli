@@ -141,23 +141,88 @@ fn dry_run_reads_but_never_writes() {
 }
 
 #[test]
-fn target_conservation_uses_only_safe_gen2_commands_and_reads_back() {
-    let ioctl = FakeIoctl::new([0_u32.to_le_bytes().to_vec(), 0_u32.to_le_bytes().to_vec()]);
-    let p0 = WindowsBatteryP0::new(
-        ioctl,
-        FakeReader::new([ChargeModeActual::Normal, ChargeModeActual::Conservation]),
-    );
+fn conservation_transition_and_restore_follow_device_subtype() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicU32, Ordering},
+    };
 
-    let report = p0
-        .set_charge_mode(ChargeMode::Conservation, ApplyMode::Commit)
-        .unwrap();
-    assert_eq!(report.actual(), Some(&ChargeMode::Conservation));
-    let calls = p0.ioctl().calls.lock();
-    assert_eq!(calls.len(), 2);
-    assert_eq!(calls[0].code, IOCTL_GBMD);
-    assert_eq!(calls[0].input, vec![0x08]);
-    assert_eq!(calls[1].input, vec![0x0d]);
-    assert!(calls.iter().all(|call| call.input != vec![0x03]));
+    struct Device {
+        state: Arc<AtomicU32>,
+        subtype2: bool,
+        pending: Mutex<Option<bool>>,
+    }
+
+    impl IoctlTransport for Device {
+        fn call(&self, code: u32, input: &[u8], _: usize) -> lctrl_core::Result<Vec<u8>> {
+            assert_eq!(code, IOCTL_GBMD);
+            match input {
+                [0xff] => return Ok(self.state.load(Ordering::SeqCst).to_le_bytes().to_vec()),
+                [0x08] => {
+                    self.state.fetch_and(!4, Ordering::SeqCst);
+                }
+                [0x07] => {
+                    self.state.fetch_or(4, Ordering::SeqCst);
+                }
+                [0x03] => {
+                    if self.subtype2 {
+                        *self.pending.lock() = Some(true);
+                    } else {
+                        self.state.fetch_or(0x20, Ordering::SeqCst);
+                    }
+                }
+                [0x05] => {
+                    if self.subtype2 {
+                        *self.pending.lock() = Some(false);
+                    } else {
+                        self.state.fetch_and(!0x20, Ordering::SeqCst);
+                    }
+                }
+                [0x0d] if self.subtype2 && self.pending.lock().take() == Some(true) => {
+                    self.state.fetch_or(0x20, Ordering::SeqCst);
+                }
+                [0x0f] if self.subtype2 && self.pending.lock().take() == Some(false) => {
+                    self.state.fetch_and(!0x20, Ordering::SeqCst);
+                }
+                _ => return Err(std::io::Error::other("wrong selector for device subtype").into()),
+            }
+            Ok(Vec::new())
+        }
+    }
+
+    struct Reader(Arc<AtomicU32>);
+    impl ChargeModeReader for Reader {
+        fn read_charge_mode(&self) -> lctrl_core::Result<ChargeModeActual> {
+            Ok(lctrl_core::decode_gbmd_charge_mode(
+                self.0.load(Ordering::SeqCst),
+            ))
+        }
+    }
+
+    // Bit23 is deliberately independent of the subtype selection bit14.
+    for (subtype2, bit23) in [(false, false), (false, true), (true, false), (true, true)] {
+        let capability = (u32::from(subtype2) << 14) | (u32::from(bit23) << 23);
+        let state = Arc::new(AtomicU32::new(capability | 4));
+        let p0 = WindowsBatteryP0::new(
+            Device {
+                state: Arc::clone(&state),
+                subtype2,
+                pending: Mutex::new(None),
+            },
+            Reader(Arc::clone(&state)),
+        );
+        let report = p0
+            .set_charge_mode(ChargeMode::Conservation, ApplyMode::Commit)
+            .unwrap();
+        assert_eq!(report.previous(), &ChargeMode::Rapid);
+        assert_eq!(report.actual(), Some(&ChargeMode::Conservation));
+        assert_eq!(state.load(Ordering::SeqCst), capability | 0x20);
+        let report = p0
+            .set_charge_mode(ChargeMode::Normal, ApplyMode::Commit)
+            .unwrap();
+        assert_eq!(report.actual(), Some(&ChargeMode::Normal));
+        assert_eq!(state.load(Ordering::SeqCst), capability);
+    }
 }
 
 #[test]
@@ -265,8 +330,9 @@ fn first_write_failure_after_effect_restores_prior_mode() {
         fn call(&self, code: u32, input: &[u8], _: usize) -> lctrl_core::Result<Vec<u8>> {
             assert_eq!(code, IOCTL_GBMD);
             match input {
+                [0xff] => return Ok(0_u32.to_le_bytes().to_vec()),
                 [0x08] => self.state.fetch_and(!2, Ordering::SeqCst),
-                [0x0f] => self.state.fetch_and(!1, Ordering::SeqCst),
+                [0x05] => self.state.fetch_and(!1, Ordering::SeqCst),
                 [0x07] => self.state.fetch_or(2, Ordering::SeqCst),
                 _ => panic!("unexpected charging command"),
             };
@@ -319,11 +385,12 @@ fn failed_recovery_keeps_both_errors_and_does_not_claim_restoration() {
         fn call(&self, code: u32, input: &[u8], _: usize) -> lctrl_core::Result<Vec<u8>> {
             assert_eq!(code, IOCTL_GBMD);
             match input {
+                [0xff] => Ok(0_u32.to_le_bytes().to_vec()),
                 [0x08] => {
                     self.0.fetch_and(!2, Ordering::SeqCst);
                     Err(std::io::Error::other("first dispatch lost").into())
                 }
-                [0x0f] => Err(std::io::Error::other("restore unavailable").into()),
+                [0x05] => Err(std::io::Error::other("restore unavailable").into()),
                 _ => panic!("unexpected charging command"),
             }
         }

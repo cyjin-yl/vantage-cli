@@ -114,7 +114,7 @@ Linux 后端的**大多数节点默认 `root:root 0644` 或 `root:root 0444`**,
 | 面板刷新率 | `LENОВО_PANEL_METHOD.Panel_Set_RefreshRate` | DRM `drm_mode_setcrtc` / `modetest` | 3.6 | §6.5 |
 | SmartColor / 色温 | `LENОВО_PANEL_METHOD.Panel_Set_Display_Mode` | DRM `ctm/gamma` + `icc` 用户态 | 5.10 | §6.6 |
 | HDR | `LENОВО_PANEL_METHOD.Panel_Set_HDR` | DRM `hdr_output_metadata` / `hdr_sink_metadata` | 5.10 | §6.6 |
-| 智能感应 (SmartSense / HPD) | `HumanPresenceDetectionRpcClient` + `ACPI\IDEA2002` | ❌ 需 `acpi_call` + `uvcvideo` 事件(§4.6) | — | §4.6 |
+| 智能感应 (SmartSense / HPD) | 自有 rpcrt4 HPD client + `ACPI\IDEA2002` 驱动服务端 | ❌ 无已验证的等价事件/设置通道(§4.6) | — | §4.6 |
 | BIOS 设置读写 | `Lenovo_SetBiosSetting` / `Lenovo_BiosSetting` | ❌ 全部需 `acpi_call` 直调 `_WMI` / `_DSM`(§4) | — | §4 |
 | 电源计划切换 (节能/平衡/高性能) | `PowerSetActiveScheme` | UPower `daemon-mode` + `intel_pstate` | 5.8 | §5 |
 | MBIM (LTE) | Windows MBN + `cxwmbclass` | ModemManager + libmbim | 5.10 | §7.1 |
@@ -369,8 +369,9 @@ Windows 侧 `SetBiosSetting` 内部通过 WMI UUID 分派到 ACPI,也是整字�
 
 ### 4.6 智能感应 (SmartSense / `ACPI\IDEA2002`) — 缺失功能
 
-Windows 侧:IR 摄像头由 `HumanPresenceDetection` 服务 + `HumanPresenceDetectionRpcClient.dll`
-管理,设备实例 `ACPI\IDEA2002`。
+Windows 侧:设备实例 `ACPI\IDEA2002` 的感知管线仍由驱动/SmartSense 服务承载;
+CLI 设置通道是自有 `rpcrt4 → ncalrpc:[HumanPresenceDetectionEndpoint]` 客户端,
+不加载 Lenovo 客户端 DLL(interfaces §13)。该本地 Windows RPC 契约不是 Linux 支持证据。
 
 Linux 侧:
 
@@ -380,8 +381,9 @@ Linux 侧:
   需自行轮询 IR 帧像素统计(帧亮度方差)或用 `gphoto2` 类工具。
 - **自动亮屏/锁屏**:通过 `logind` `HandleLidSwitch` + 用户态 daemon 替代。
 
-**证据**:`Vantage 设备组件内部接口说明` — Windows 侧 `ACPI\IDEA2002`
-设备实例与 `HumanPresenceDetectionRpcClient.dll` 通道。
+**证据**:Windows 侧 `ACPI\IDEA2002` 设备实例与
+[恢复的 HPD RPC 契约](evidence/hpd-rpc-re-20261102.md)。Linux 上的 IR 帧分析/锁屏策略
+只是可能的替代设计,不是已恢复的等价 HPD 设置或传感器事件实现。
 
 ### 4.7 Smart Fan 控制 — 完整风扇曲线的 Linux 实现
 

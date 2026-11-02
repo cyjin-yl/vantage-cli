@@ -327,12 +327,34 @@ Linux 上同类能力由主线内核 `/dev/cpu/N/msr` 完整提供(见 `09-linux
 | 子命令 | 语义 | 证据 |
 |---|---|---|
 | `0xFF` | 状态位掩码查询 | 实机 `0x00860004`(bits 2,17,18,23) |
-| `0x03` | 打开 storage(养护) | CStorageMode vtable 槽位 +8 |
-| `0x05` | 关闭 storage | 同一 vtable 的关闭槽位 |
+| `0x03` | 打开 storage(养护)的基础请求 | CStorageMode vftable `0x180017e78` 的 `+8`，RVA `0xc3d0` |
+| `0x05` | 关闭 storage 的基础请求 | 同一 vftable 的 `+0x10`，RVA `0xc580` |
+| `0x0d` / `0x0f` | subtype 2 的开/关追加请求，不是基础请求替代品 | 仅 `03` / `05` 成功且构造时 GBMD bit14 置位才追加 |
 | `0x07` | 打开 express(快充) | CExpressMode vtable 槽位 +8 |
 | `0x08` | 关闭 express | 同一 vtable 的关闭槽位 |
 
-**读回解码**:bit5=storage 开 → Storage;bit2=express 开 → Quick;否则 Normal。storage 支持在 x86 上=驱动可打开(无状态位);express 支持=bit17;Storage80 支持=bit23。写入后按同一解码轮询(50ms ×10)等待生效,然后写注册表缓存。
+**读回解码**：bit5=storage 开 → Storage；否则 bit2=express 开 → Quick；否则 Normal。
+安装 x64 DLL 的 storage IsSupport 只检查驱动能否打开；express 支持=bit17。
+构造函数 `0x9790` 查询 GBMD `[ff]`，bit14 清零为 subtype 1（`03/05`），置位为
+subtype 2（成功门控的 `03→0d` / `05→0f`）；不能按 bit23 分发。
+`SetChargingMode` 原生 mode 为 0=Normal、1=Storage、2=Quick，最多按该状态逻辑
+查询 10 轮，不匹配时 Sleep(50ms)，仅读回匹配目标时写注册表缓存；底层状态查询失败
+不应被客户端当成 Normal 成功。
+
+**Storage80 元数据**：bit23 仅是 advertised 位，不是完整能力。原版
+`DoesSupportStorage80`（RVA `0xaa80`）还要求有效的 `GetEmSpecVersion() >= 184`。
+版本查询（RVA `0x22d0`）发 `0x8310214c`，输入 DWORD `0x11`、输出 4B raw；
+IOCTL 失败或 raw bit0 清零时返回 `-1`，否则版本=`raw >> 4`。最小版本静态 DWORD
+位于 `.data` RVA `0x21174`，对应文件偏移 `0x1ef74`，字节 `b8 00 00 00`。
+旧探测输入4B零/raw=`0x00000002` 不是原版请求，不能解读成版本 2 或完整能力真；
+原生形态的有效版本读数未获得，完整 Storage80 能力仍未知而不是已证明不存在。
+
+**安全/效果边界**：当前 DLL 的 RTTI 与方法体确认 `03/05` 归 Storage，`07/08`
+归 Express；旧文档对 `03` 的运输模式禁令没有绑定到此路径的关机证据。目标原生
+consumer/生产 CLI 已有受限模式状态与恢复观察，见
+`docs/evidence/storage80-aiturbo-re-20261102.md`、
+`docs/evidence/conservation-cli-native-20261102.md` 和 C2。不得把这改写成所有固件/
+电源条件安全或 75%–80% 物理停充点已验收；独立官方 UI、物理门限、持久化均另论。
 
 **对 §10.3 与 docs/01 的更正**:
 - 注册表值实为 `HKCU\SOFTWARE\Lenovo\VantageService\AddinData\IdeaNotebookAddin\BatteryChargeMode`,**REG_EXPAND_SZ**,取值字符串 `Normal`/`Storage`/`Quick`(HKLM 键不存在)。它是**只写透传缓存——二进制内无任何读取方驱动行为**,硬件位掩码才是权威状态。vantage 不写该值。
@@ -368,7 +390,28 @@ Counts/CurrentLimit[](mA)/ROS_Power[](mW)/Threshold[](%),实机 3 档 [7500,5000
 
 **驱动 IOCTL→ACPI 全映射**(AcpiVpc.sys 15.11.30.14,驱动仅透传 4 字节选择子,写门控全在固件):0x20e8 SALS/HALS、0x20f8 GBMD、0x211c/0x2138 ITHC、0x2120 GBID、**0x212c SMTF(可写透传,语义未恢复,探测返回 0xFFFF→门禁)**、0x2130/0x2134 MHQI 读、0x2144/58/5c KBL*、**0x2148 BTMC**、0x214c BSIF、0x2150/0x2154 BNMC。
 
-**极端省电(原版实现还原)**:原版不是固件通道,而是 AiTurbo DriverStore 包的 BatteryLife.exe **EcoQoS 进程限流守护**:powrprof DC 索引写 + PowerSetActiveScheme + 进程节流委派 AiPerfSvc.exe,持久化 HKLM\SOFTWARE\Lenovo\AiTurbo\BatteryLife;BatterySetting 内的 "ExtremeBatteryLife" 代码实为云遥测(WININET 上报 + rainbow 注册表)。实现须按原版契约(AiPerfSvc 委派/其注册表键)完成,禁止用通用 ProcessPowerThrottling 平替;契约未恢复前保持门禁。
+### 11.7 极限续航（AiTurbo：完整运行态策略仍未替代）
+
+完整静态证据、精确 GUID/恢复 JSON、选择目录及剩余前置条件见
+[extreme-life-re-20261102.md](evidence/extreme-life-re-20261102.md)。官方 AI Turbo
+1.0.0.12311 包与留存的 BatteryLife/AiPerfSvc/Workman/LseFileMonitor 逐字节匹配。
+
+原版没有固定省电方案 GUID：它捕获当前活动方案，改三个 DC 索引（无线 3、幻灯片 1、
+PCIe 链路 2）再重应用同一方案。配置及 `PowerSchemeSetting` 恢复 JSON 位于
+**HKCU\Software\Lenovo\AiTurbo\BatteryLife**，不是 HKLM。`Enable` 和
+`EnableEcoQos` 独立处理；`WinJobList` 的已定位引用仅是停机时删除该键，不能据此称为
+已恢复的进程名单结构或猜造它的值。
+
+完整激活另受版本化 ITS/AC 来源和八项常驻策略控制，包含 Job CPU 硬上限、窗口最小化、
+关闭和进程终止，并非仅 EcoQoS 或充电阈值。内核执行器的 rate=80 是 class15
+`ENABLE|HARD_CAP` 的 0.8%，其同步进程创建回调负责父子 job 迁移；完整替代仍需项目
+自己拥有且适当签名的内核生命周期实现。原端口另有联想 ECDSA-P256 准入，不能以普通
+Windows 签名或新客户端复用；原 DLL/服务/驱动均不作为准入运行时依赖。
+
+公开 Windows API 足以表达单次方案/Job/EcoQoS 操作，不足以把一个通用节流循环宣称为
+完整开关。真实单个设置 UI 的写入映射、完整守护及独立原生效果/恢复验收仍是前置条件，
+当前 `battery extreme-life` 保持 Unsupported；不宣称 60% 停充或已经增加续航。
+
 ## 12. Dolby 音频控制接口(DAX RPC)
 
 链路:`vantage audio dolby → 纯 Rust rpcrt4 NDR 客户端 → ALPC ncalrpc:[DaxRpcEndpoint] → DAX3API.exe(DolbyDAXAPI 服务,SYSTEM)`。接口 GUID `11c6212d-d5f3-4500-ab16-634dc63037be` v1.0,NDR v2.0,`RPC_IF_AUTOLISTEN | RPC_IF_ALLOW_LOCAL_ONLY`(仅本机);Object UUID `B94BA572-658F-40E6-861D-DFB7BB4001A8`。许可 APO DSP(DolbyAPOv*/DolbyAPOAIDE)只被 DAX3API 内部使用,vantage 只切换开关/预设,不重实现 DSP。
@@ -438,14 +481,48 @@ out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Se
 
 **实机只读实证**(2026-11-01,ezra/管理员,非 Vantage 进程,纯 Rust 通道):`connect=ok GetDolbyEnabled(op5)=0 GetActiveProfile(op7)=5 IsSpatialAudioSupported(op2)=1 GetSKU(op37)=1` —— 与 12.2 节对照基线逐值一致;`vantage audio dolby dynamic --dry-run` 输出 `previous enabled=false profile=Dynamic`。写路径(opnum 6/8)未在实机验证,仍走既有写入门禁。
 
-## 13. SmartSense 人体感知设置接口(HPD 管道)
+## 13. SmartSense 人体感知设置接口(HPD RPC + 独立注册表读回)
 
-链路:`vantage sense → \\.\pipe\com.lenovo.smartsense.settings → SmartSense.exe(LocalSystem)→ HKLM\SYSTEM\CurrentControlSet\Services\SmartSense\Parameters\HPD`。帧格式:`u32 code + u32 arg` 小端(legacy bool=0/1;camera/video 系 1=enable/2=disable),每连接一请求;响应单个 `i32`(0=拒绝/非零=受理/-1=服务端异常)。客户端任何用户可连接(addin runas=user)。完整命令表(`code=0xNNvv`,payload `u32 code [+ u32 arg]`,响应 i32):
+### 13.1 当前 HPD 设置通道
+
+链路:`vantage sense → 系统 rpcrt4/NdrClientCall3 → ncalrpc:[HumanPresenceDetectionEndpoint] → LnvSST.dll(UMDF)`。
+接口 `{848A33AC-B5A7-4253-A54F-E0AC20648468}` v1.0;客户端只协商 NDR v2.0。
+`sense_rpc.rs` 自有绑定/context 生命周期,`ndr/hpd.rs` 按语义签名生成解释器表;
+不加载 Lenovo 交付的 SmartSenseRpcClient.dll,不内嵌逐字节抄录的 MIDL 表。
+驱动/服务端仍是必要依赖,不能将「移除客户端 SDK 依赖」解释成可卸载感知驱动。
+
+| wire opnum | 过程 | 形参(均先传 context) |
+|---|---|---|
+| 0 | Initialize | 显式 handle_t binding → out context;后续复用该 context |
+| 1 | ClientClose | in/out context;释放后再 RpcBindingFree |
+| 4 | GetVersion | out u32 |
+| 5 | GetCapability | out u64(完整 8 字节,不能按托管 enum 大小只给 4 字节) |
+| 6 | GetAllSetting(V1/V2 同一 wire op) | 15×out u32 + out wchar_t**;第 15 个标量是数组元素数;始终按 MIDL allocator 释放数组 |
+| 8 / 9 | WakeOnApproach / ApproachDistance | in u32:bool 0/1 或距离 0/1/2 |
+| 11 / 12 / 14 | LockOnLeave / LeaveWait / LeaveDistance | in u32:bool 0/1 或枚举 0/1/2 |
+| 16 | PauseVideo | in u32:0=off/1=on,**不是旧管道的 1/2** |
+
+所有这些主过程返回 i64 **Win32 状态**,0 才成功(非 HRESULT 规则);RPC SEH 传输异常转成
+ChannelUnavailable,非 RPC 程序故障不吞。读取按 op5 能力位投影 Option 字段,缺能力不是 false。
+写入不在 RPC 错误后重放或回退到旧 HPD 管道;成功状态后仍须独立注册表读回所改字段。
+源实现已切换,**本次未编译/运行,真实写入验收未据静态恢复自动升级为通过**。
+
+客户端不设置 SSPI auth,但不代表服务端匿名放行:端点 DACL 与 RpcImpersonateClient 的
+token/context 检查仍生效。恢复出的写权限可由 enabled Administrators、SYSTEM 或专用
+capability 满足;普通未签名进程的非提权写入不作承诺。精确五项 ACE、逐个 wire op、
+回调/保留调用边界与原生读/写/恢复步骤见 [HPD RPC 证据](evidence/hpd-rpc-re-20261102.md)。
+
+### 13.2 历史设置管道(仅保留独立的 privacy-alert / attention-tracking 写入)
+
+旧链路:`\\.\pipe\com.lenovo.smartsense.settings → SmartSense.exe(LocalSystem)`。
+帧格式:`u32 code + u32 arg` 小端(legacy bool=0/1;camera/video 系 1=enable/2=disable),
+每连接一请求;响应单个 i32(0=拒绝/非零=受理/-1=服务端异常)。下表是恢复出的历史命令表,
+不是当前六项 HPD RPC 操作的备用通道;此前 HPD 管道返回 0、值未变的实机记录仍保留为失败证据。
 
 厂商 `NamedPipeClientStream` 的 `Connect(3000)` 对应 `WaitNamedPipeW(...,3000)`;其
 `TokenImpersonationLevel.Anonymous` 对应 `CreateFileW` flags
 `SECURITY_SQOS_PRESENT|SECURITY_ANONYMOUS`(`0x00100000`)。2026-11-02 补齐了这两项
-传输契约,以及所有非零响应按受理处理;请求编码由 lctrl-hal 的 byte-exact 测试钉住。
+传输契约,以及所有非零响应按受理处理;保留两项 legacy 请求的编码仍有源码回归测试。
 这些 parity 修复不预设服务会受理此前返回 0 的功能,仍须独立注册表读回实机验收。
 
 | 命令 | code | 参数编码 | 功能 |
@@ -481,7 +558,14 @@ out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Se
 | ENABLE_AD_EXTDISP | 0x001E0101 | 0/1 | 外接屏时自适应调光 |
 
 
-读回:服务持久化到 HPD 键(REG_DWORD),addin 自身 getter 也直读该键 —— 注册表即权威读回通道。已建模:PresentLeave/LeaveDistance/LeaveWait/Approach/ApproachDistance/Video(1开2关)/CameraDetect(1开2关)/Capability/SensorType/FacialFeatureRegistered。AttentionTracking 命令存在(0x0016-0x0019)但本机 HPD 无对应持久化键(Capability=1 最小集)→ 写后不轮询,如实报 write-only。键盘灯自动走 contract RPC 通道(Lenovo.Vantage.RpcClient,SystemManagement.SmartSense)未恢复,保持门禁。感知管线(ToF + IR 摄像头)留在服务实现内,本通道只改设置。
+独立读回:服务持久化到 `HKLM\SYSTEM\CurrentControlSet\Services\SmartSense\Parameters\HPD`
+(REG_DWORD),addin 自身旧 getter 也直读该键。已建模 PresentLeave/LeaveDistance/LeaveWait/
+Approach/ApproachDistance/Video(1开2关)/CameraDetect(1开2关)/Capability/SensorType/
+FacialFeatureRegistered。RPC status 读只覆盖其确知字段,legacy privacy-alert/attention 字段
+由注册表补充;写后对所改字段作 10 次、间隔 50ms 的有界独立读回,不拿不同来源的无关元数据比较。
+AttentionTracking 命令存在(0x0016–0x0019),但本机无对应持久化键,维持明确的 write-only 边界;
+不能把 RPC CameraAssist(op13)冒充肩窥 PrivacyAlert。键盘灯自动所需 contract RPC 未恢复,
+保持门禁。感知管线(ToF + IR 摄像头)仍由驱动/服务实现,本通道只改设置。
 
 ## 14. 降噪接口(Elevoc RPC)
 

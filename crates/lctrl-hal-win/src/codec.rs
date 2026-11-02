@@ -19,9 +19,21 @@ pub const IOCTL_NIGHT_CHARGE: u32 = 0x8310_2150;
 /// status `0x11`; docs/interfaces.md §11).
 pub const IOCTL_TEMP_CHARGE: u32 = 0x8310_2148;
 /// EM Spec version (`PowerBattery.dll` `GetEmSpecVersion`, ACPI `BSIF`;
-/// docs/02 §9). Read-only; gates the `ChargeMode-Storage-80` mode string in
-/// the vendor decode.
+/// docs/02 §9). Read-only. The vendor request payload is
+/// [`EM_SPEC_VERSION_REQUEST`]; the reply is a raw word decoded by
+/// `EnergyDriver::em_spec_version` (bit0 validity, `raw >> 4` version).
 pub const IOCTL_EM_SPEC_VERSION: u32 = 0x8310_214c;
+/// Input DWORD the native `GetEmSpecVersion` (RVA 0x22d0) sends to
+/// [`IOCTL_EM_SPEC_VERSION`]. Four zero bytes are a different, non-vendor
+/// request and their reply must not be decoded as a version.
+pub const EM_SPEC_VERSION_REQUEST: u32 = 0x11;
+/// `EM_SPEC_VERSION_STORAGE_80` static DWORD in PowerBattery.dll 1.0.13.114
+/// (.data RVA 0x21174, file offset 0x1ef74; bytes `b8 00 00 00`).
+/// `DoesSupportStorage80` (RVA 0xaa80) requires
+/// `GetEmSpecVersion() >= 184` (signed `jge`) *and* GBMD bit23. The inspected
+/// disassembly has no direct writer to this DWORD; it is not the conservation
+/// dispatch condition.
+pub const EM_SPEC_VERSION_STORAGE_80_MIN: u32 = 0xb8;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct GbmdCommand(u8);
@@ -32,6 +44,10 @@ impl GbmdCommand {
     pub const CONSERVATION_OFF_GEN2: Self = Self(0x0f);
     pub const RAPID_ON: Self = Self(0x07);
     pub const RAPID_OFF: Self = Self(0x08);
+    /// Base storage-mode commands. Subtype 2 (GBMD bit14) additionally
+    /// requires the corresponding GEN2 command after this succeeds.
+    pub const CONSERVATION_ON: Self = Self(0x03);
+    pub const CONSERVATION_OFF: Self = Self(0x05);
 
     #[must_use]
     pub const fn encode(self) -> [u8; 1] {
@@ -42,11 +58,16 @@ impl GbmdCommand {
         decode_u32_exact(output, "GBMD")
     }
 
-    /// Storage80 support bit in the GBMD status word
-    /// (`PowerBattery.dll!DoesSupportStorage80`, docs/interfaces.md §11.1).
-    /// Live on 21VG: `0x00860004` has bit23 set.
+    /// The advertised Storage80 bit (bit23) in the GBMD status word, and
+    /// nothing more. This is *not* the vendor `DoesSupportStorage80` result:
+    /// that predicate (RVA 0xaa80) additionally requires
+    /// `GetEmSpecVersion() >= EM_SPEC_VERSION_STORAGE_80_MIN` (184), and the
+    /// native conservation write path (`CStorageMode`, selectors 03/05) never
+    /// consults bit23 at all. Live on 21VG: `0x00860004` has bit23 set while
+    /// the EM version gate is not established, so do not report Storage80 as
+    /// supported from this bit alone (docs/interfaces.md §11.1).
     #[must_use]
-    pub const fn storage80_supported(status: u32) -> bool {
+    pub const fn storage80_advertised(status: u32) -> bool {
         status & (1 << 23) != 0
     }
 }
@@ -223,18 +244,13 @@ fn require_len(output: &[u8], expected: usize, operation: &str) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{GbmdCommand, IOCTL_EM_SPEC_VERSION};
+    use super::GbmdCommand;
 
     #[test]
     fn storage80_bit23_matches_live_gbmd_status() {
         // Live 21VG GBMD status word (docs/interfaces.md §11.1).
-        assert!(GbmdCommand::storage80_supported(0x0086_0004));
-        assert!(!GbmdCommand::storage80_supported(0x0006_0004));
-        assert!(!GbmdCommand::storage80_supported(0));
-    }
-
-    #[test]
-    fn em_spec_version_ioctl_is_the_bsif_code() {
-        assert_eq!(IOCTL_EM_SPEC_VERSION, 0x8310_214c);
+        assert!(GbmdCommand::storage80_advertised(0x0086_0004));
+        assert!(!GbmdCommand::storage80_advertised(0x0006_0004));
+        assert!(!GbmdCommand::storage80_advertised(0));
     }
 }

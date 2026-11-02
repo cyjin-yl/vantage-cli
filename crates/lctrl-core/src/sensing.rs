@@ -56,7 +56,7 @@ impl SenseMode {
 }
 
 /// Presence distance selector shared by approach and leave
-/// (`SET_APPROACH_DISTANCE`/`SET_LEAVE_DISTANCE`, pipe enum 0/1/2).
+/// (HPD RPC ops 9/14 and the historical pipe enum 0/1/2).
 /// Replaces the earlier speculative 15/30/50/80 cm mapping, which had no
 /// binary evidence (docs/interfaces.md §13).
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
@@ -88,7 +88,7 @@ impl SenseDistance {
     }
 }
 
-/// Presence-leave wait selector (`SET_LEAVE_WAIT`, pipe enum 0/1/2).
+/// Presence-leave wait selector (HPD RPC op 12, enum 0/1/2).
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SenseWait {
@@ -118,14 +118,15 @@ impl SenseWait {
     }
 }
 
-/// Snapshot of the SmartSense HPD settings store
-/// (`HKLM\SYSTEM\CurrentControlSet\Services\SmartSense\Parameters\HPD`,
-/// all REG_DWORD; docs/interfaces.md §13).
+/// Normalized SmartSense HPD settings snapshot. The owned RPC getter is
+/// the live settings source; independent write readback uses the DWORD store
+/// `HKLM\SYSTEM\CurrentControlSet\Services\SmartSense\Parameters\HPD`
+/// (docs/interfaces.md §13).
 ///
-/// Fields are `Option` because the key may be absent when the SmartSense
-/// service has never run; absence is reported, never synthesized. Two
-/// encodings exist on the wire: legacy booleans are 0/1, the newer
-/// camera/video commands use 1=enable/2=disable — both are normalized here.
+/// Fields are `Option` when the RPC capability bit is absent or the
+/// independent store has never persisted the value; absence is never
+/// synthesized as false. RPC booleans are 0/1; the legacy registry/pipe
+/// camera/video convention is 1=enable/2=disable. Both are normalized here.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize)]
 pub struct SenseState {
     #[serde(skip_serializing_if = "Option::is_none")]

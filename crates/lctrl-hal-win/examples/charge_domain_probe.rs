@@ -1,6 +1,8 @@
 //! Read-only charge-domain probe: reports the GBMD charge-mode decode, USB
-//! charging flags, night-charge probe, temporary charge mode, the Storage80
-//! support bit, and the EM Spec version from the live EnergyDrv channel.
+//! charging flags, night-charge probe, temporary charge mode, the advertised
+//! Storage80 bit (bit23 only, not the full vendor predicate), the vendor
+//! storage subtype bit (bit14), and the decoded EM Spec version from the live
+//! EnergyDrv channel.
 //! Never writes. Used for C-acceptance evidence.
 
 #[cfg(not(windows))]
@@ -15,15 +17,20 @@ fn main() {
 
     match driver.gbmd_status() {
         Ok(raw) => println!(
-            "gbmd_status: 0x{raw:08x} -> charge mode {:?} (decode: bit5 storage, bit2 express) storage80_supported={}",
+            "gbmd_status: 0x{raw:08x} -> charge mode {:?} (decode: bit5 storage, bit2 express) storage80_bit23={} storage_subtype2_bit14={}",
             lctrl_core::decode_gbmd_charge_mode(raw),
-            lctrl_hal_win::GbmdCommand::storage80_supported(raw),
+            lctrl_hal_win::GbmdCommand::storage80_advertised(raw),
+            raw & (1 << 14) != 0,
         ),
         Err(error) => println!("gbmd_status: ERROR {error}"),
     }
 
     match driver.em_spec_version() {
-        Ok(raw) => println!("em_spec_version: 0x{raw:08x} ({raw})"),
+        Ok(version) => println!(
+            "em_spec_version: {version} (request DWORD 0x11, reply bit0 valid, version = raw >> 4) storage80_em_min={} em_gate_met={}",
+            lctrl_hal_win::EM_SPEC_VERSION_STORAGE_80_MIN,
+            version >= lctrl_hal_win::EM_SPEC_VERSION_STORAGE_80_MIN,
+        ),
         Err(error) => println!("em_spec_version: ERROR {error}"),
     }
 

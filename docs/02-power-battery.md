@@ -14,7 +14,7 @@
 |---|---|---|---|
 | 充电模式三态(常态/养护/快充) | ✔ | ✔(另有自定义阈值/极限续航) | `battery charge-mode {normal|conservation|rapid}` |
 | 自定义充电阈值(起充/停充百分比) | ✗ | ✔ | `battery thresholds <start%> <stop%>` |
-| 极限续航模式(60% 停充+节流) | ✗ | ✔ | `battery extreme-life {on|off}` |
+| 极限续航(运行态策略,非已证实的固定停充阈值) | 原始开关映射待绑定 | 旧资料列有此项 | `battery extreme-life {on|off}`（仍 Unsupported,见 §4.4） |
 | 夜间充电 | ✔ | ✗ | `battery night-charge {on|off}` |
 | 临时充电模式查询 | ✔ | ✗ | `battery temporary-mode` |
 | 电池信息(健康/循环/固件) | ✔ | ✔ | `battery status [--json]` |
@@ -63,41 +63,52 @@
 列出 21VG / ThinkBook 14 G8+ IPH，并将用户可见的“节能模式”描述为保持 75%–80%。
 旧资料中的约 50%–60% Storage 阈值与此不同;两种名称是否对应同一底层模式、目标机
 `ChargeModeStorage80` 位的语义和实际停充点均未独立验证，不能据此推断本机阈值。
-现有充电写入门禁不变。
-2026-11-02 实机只读确认：GBMD `0xFF` = `0x00860004`，bit23 置位，即
-`DoesSupportStorage80` 式能力判定为真（早期导入工单中"Storage80 能力位为 0"的说法已过时）；
-EM Spec 版本经 `0x8310214c` 实读为 2。证据：`docs/evidence/storage80-aiturbo-20261102.txt`。
-能力位存在不等于停充点已验收，写入门禁维持不变。
+物理门限验收仍未完成；driver-state 切换与恢复闭环按 C2 的具体证据单独裁定。
+2026-11-02 只读探测得到 GBMD `0xFF` = `0x00860004`，仅能确认 advertised
+bit23 置位。它不等于完整 `DoesSupportStorage80`：原版还要求有效的 EM 版本至少
+184（`0xb8`）。旧探测使用 4B 零输入并返回原始 DWORD `0x00000002`，不是原版
+`GetEmSpecVersion` 的 DWORD `0x11` 请求，且原始值 bit0 为 0，不能称作版本 2。
+该元数据纠正见 §9 与 `docs/evidence/storage80-aiturbo-re-20261102.md`；完整
+Storage80 能力保持未知，不能从 bit23、名称或无效版本回复推断支持/不支持或停充点。
 
-### 3.2 底层下发:GBMD 历史子命令资料(非目标机写入许可)
+### 3.2 底层下发:安装版本绑定的 GBMD 模式契约（非百分比阈值通道）
 
 下发统一经 `\\.\EnergyDrv` 的通用助手(官方内部名 `CDriverLib::DeviceIoControl`):
 `DeviceIoControl(hDrv, dwIoControlCode, inBuf, inSize, outBuf, outSize, &ret, NULL)`,同步调用。
 
 **核心命令字 `IOCTL 0x831020f8`(内部名 GBMD, Get/Set Battery Mode)**:
-- 输入缓冲区:**1 字节子命令**;输出缓冲区:**4 字节状态字**(0 = 成功)。
+- 输入缓冲区:**1 字节子命令**；`0xff` 查询输出 **4 字节状态掩码**。
+  原版写请求也提供 4B 输出缓冲，但目标观察的写回复为 0B，不把写缓冲当状态字解码；
+  实际状态由另一次 `0xff` 查询确定。
 - DeviceType `0x8310`(厂商自定),METHOD_BUFFERED,FILE_ANY_ACCESS。
 
 | 子命令字节 | 语义 | 验证来源(PowerBattery 组件行为分析) |
 |---|---|---|
-| `0x03` | 历史资料称 gen1 养护开;**目标 21VG 存在运输模式风险，禁止发送** | `CStorageMode::OpenFeature` |
-| `0x05` | 养护模式 **关**(gen1) | `CStorageMode::CloseFeature` |
-| `0x0d`(13) | 养护模式 **开**,gen2 变体 | 历史组件资料;目标机仅确认请求被接受，未证实实际生效 |
-| `0x0f`(15) | 养护模式 **关**,gen2 变体 | `CStorageMode::CloseFeature`,同上条件连发 |
+| `0x03` | Storage/养护开的基础请求 | `CStorageMode::OpenFeature` RVA `0xc3d0`，先发 `03` |
+| `0x05` | Storage/养护关的基础请求 | `CStorageMode::CloseFeature` RVA `0xc580`，先发 `05` |
+| `0x0d`(13) | subtype 2 的开追加请求，不是基础请求的替代品 | 仅 `03` 成功且 GBMD bit14 置位时追加 |
+| `0x0f`(15) | subtype 2 的关追加请求，不是基础请求的替代品 | 仅 `05` 成功且 GBMD bit14 置位时追加 |
 | `0x07` | 快充(Rapid/Express)**开** | `CExpressMode::OpenFeature` |
 | `0x08` | 快充 **关** | `CExpressMode::CloseFeature` |
-| `0xff`(255) | **查询特性支持**(养护/快充的 `IsSupport` 与 ARM 变体共用) | `CExpressMode::IsSupport` 、`CStorageMode::IsSupportOnARM` |
+| `0xff`(255) | 查询状态及能力位掩码 | Storage 状态 bit5、Express 状态 bit2、Express 支持 bit17、subtype 2 bit14；bit23 仅 advertised Storage80 位 |
 
-**目标机安全边界**:历史资料的 gen1/gen2 连发规则不适用于 21VG 验收;
-不得发送 `0x03`，也不得把状态字成功当成模式已切换。目标机现有实现因独立回读契约
-未验证而拒绝充电模式提交;已测 `0x0d`/`0x0f` 请求被接受但所测回读未变，见 C2。
+**分发与安全边界**：PowerBattery.dll 1.0.13.114 构造函数（RVA `0x9790`）按
+成功的 `0xff` 回复 bit14 选择 subtype 1/2；目标 `0x00860004` 的 bit14 为 0，
+对应仅发 `03/05`。此前单发 `0d/0f` 被接受但状态未变，不能拿来否定该基础请求链。
+旧版“21VG 的 `03` 是运输模式风险，禁止发送”没有绑定到此路径的关机/固件证据；
+安装 DLL 的 Storage 方法确实先发 `03`。目标原生 consumer 观察到
+`0x00860004 → [03] → 0x00860022 → [05] → 0x00860000`，未观察到关机，
+随后生产 CLI 恢复 Rapid 并另读 `0x00860004`。这纠正了选择子身份，不证明任意固件/
+电源状态下普遍安全，更不证明物理 75%–80% 停充点。生产 CLI 的模式/自动恢复闭环
+另见 `docs/evidence/conservation-cli-native-20261102.md`、C2；原始 consumer 的
+`05` 不等于完整恢复原 Rapid，不能冒充自动恢复成功。
 
 有已验证读回来源的控制器在写请求报错或读回失败时，连首个写请求也视为可能已生效，
 尝试恢复已捕获的前值并核验;恢复失败时保留主错误与恢复错误，状态标为未验证。
 由于传输错误未标识请求是否送达，恢复可能额外发出设置前值的写请求;首次读回失败或
 dry-run 不进入写入与恢复阶段。
-这不放宽目标机写入门禁，也不代表恢复逻辑已在真实固件上验收。错误字节序实验及
-其不能证明真实恢复的边界见 C15。
+成功模式切换/自动恢复的具体观察不代表真实固件失败、故障注入或崩溃恢复已验收。
+错误字节序实验及其不能证明真实恢复的边界见 C15。
 
 **适配器状态读取(实机闭环,原 U2 已解决)**:`IdeaNotebookAddin ToastUtils\AdapterInformation.cs`
 接口规格——适配器状态 = GBMD **子命令 `0xFF`** 的返回 DWORD:`bit24`=认证充电器能力,
@@ -108,32 +119,33 @@ dry-run 不进入写入与恢复阶段。
 
 ### 3.3 状态机与读写分离
 
+以下为安装 DLL 的 `SetChargingMode`（RVA `0x9c30`）路径，不是旧资料推断：
+
 ```
 SetChargingMode(mode):
-  if IsSupport()==0 且 IsSupportOnARM()==0: 跳过下发(仅写注册表)
-  switch mode:
-    0 Normal:  Storage.CloseFeature(); Express.CloseFeature()
-    1 Storage: Express.CloseFeature(); Storage.OpenFeature()   # 先关对侧
-    2 Quick:   Storage.CloseFeature(); Express.OpenFeature()
-    3 (内部):  Storage.OpenFeature(); Express.OpenFeature()    # 位拆模式,UI 从不上交
-  写注册表 BatteryChargeMode = {"Normal"|"Storage"|"Quick"}  ← 无论下发成败都写
+  0 Normal:  对支持且开启的 Storage、Express 依次 CloseFeature()
+  1 Storage: Storage.OpenFeature(); 成功后若 Express 支持且开启则 CloseFeature()
+  2 Quick:   Express.OpenFeature(); 成功后若 Storage 支持且开启则 CloseFeature()
+  其他 mode: 不进入上述写分支
+  以状态读取最多轮询 10 次，不匹配则 Sleep(50ms)
+  仅读回等于目标 mode 时写 BatteryChargeMode 注册表缓存
+  返回最后观察到的 mode
 ```
 
-**读写分离语义(重要)**:`CloseFeature`/`OpenFeature` 失败只产生日志
-(`"Close storage mode failed"` / `"Open rapid charge failed, GLE=%d"` 等),
-**不向上层抛错**;UI 展示的是「最后一次成功读到」的值。实现者应区分 `set` 的提交结果与
-`status` 的回读结果,并在 `set` 后延迟回读校验(官方在性能模式域的做法:50 ms × 10 轮询,
-见 03 文档;充电模式域官方未做回读校验,建议实现者补上)。
+`CloseFeature`/`OpenFeature` 记录日志并返回布尔结果；写请求成功不等于模式已生效。
+原版实际有充电模式回读轮询（`0x9fde..0xa085`），撤回旧文档“充电域未校验、无论成功
+失败都写缓存”的描述。客户端仍须传播请求/短回复错误、明确核对请求值和实际值；
+不能复制原版状态读取失败可能回落到 Normal 的行为而宣称验证成功。
 
-**回读 `GetChargingMode()` 返回 bitmask,不是枚举**:
+**native `GetChargingMode()`（RVA `0x9bc0`）先查 Storage，再查 Express**：
 
 | 返回值 | bit0 (Storage) | bit1 (Express) | 语义 |
 |---|---|---|---|
 | 0 | 0 | 0 | Normal |
 | 1 | 1 | 0 | Storage 开 |
 | 2 | 0 | 1 | Quick 开 |
-| 3 | 1 | 1 | 异常组合,UI 回显最近一次 |
-| `0xFFFFFFFF` | — | — | 读取失败(设备句柄/IO 错误) |
+| 两位都开 | 1 | 1 | native 先命中 Storage，返回 1；托管映射接受 bitmask 3 不证明 native 会返回 3 |
+| 状态查询失败 | — | — | native 不传播独立错误，可能回落为 0；客户端必须保持查询错误，不能据此确认 Normal |
 
 ### 3.4 持久化与恢复
 
@@ -172,7 +184,7 @@ PCManager `BatterySetting.exe` 提供四种充电策略(Vantage 仅有前三态�
 | 快速充电 | `CQuickChargingMode`/`CQuickChargingHelper` | 无上限,最大电流(= §3 的 Quick) |
 | 常规(自定义阈值) | `CRegularValuePowerSetting`/`CRegularValueItem` | 用户设定 (start%, stop%),低于 start 起充、到达 stop 停充 |
 | 养护 | `CStorageMode`/`CStorageChargingHelper` | 旧资料描述约 50%±5%;与目标机用户可见“节能模式”是否等价未证实 |
-| 极限续航 | `CExtremeBatteryLife`/`Group`/`Item` | 旧资料描述约 60% 停充及 CPU 节流;目标机通道和效果未证实 |
+| 极限续航 | `CExtremeBatteryLife`/`Group`/`Item`（旧资料名） | 不再把“60% 停充”作为已恢复契约；AiTurbo 的独立运行态策略与原始 UI 映射见 §4.4 |
 
 ### 4.2 阈值读写(2026-08-27 实机验证更新)
 
@@ -192,7 +204,8 @@ PCManager `BatterySetting.exe` 提供四种充电策略(Vantage 仅有前三态�
     GBMD `0xFF`、`0x83102120` 均无变化——cmd 6 对本机为无效应答(休眠遗留)。
   - **结论:本机尚未找到经实际生效和独立回读验证的任意百分比阈值写通道**。
     历史资料中 `0x0d/0x0f`、`7/8`、`5` 及 `0x83102134` 的模式不能仅凭请求被接受就
-    判定为可用;`0x03` 有运输模式风险，禁止发送。未验证的通道不暴露为成功操作。
+    判定为可用；`03/05` 模式路径及旧运输模式警告的纠正见 §3.2，它们不是任意百分比
+    阈值接口。未验证的阈值通道不暴露为成功操作。
 - 用户配置经 XML 序列化(TiXmlDocument),并另有加密二进制 `cfg.data`(AES 密文特征,
   位于 `ProgramData\devicecenter\cfg.data`)保存自定义阈值;实现者无需兼容该格式,自行持久化即可。
 - 参考工具:`pcm-cli.exe --charging-mode`(PCManager 自带 x86 CLI,含
@@ -206,6 +219,26 @@ PCManager `BatterySetting.exe` 提供四种充电策略(Vantage 仅有前三态�
 
 内置屏的独立 `panel brightness` 原语与安全边界见 04 §3.0；它不构成已完成的
 `power saver-once`，后者仍须对全部适用目标进行预检、完整计划、逐项回读和失败恢复。
+
+### 4.4 极限续航：原版组合策略,不是一次性省电原语
+
+精确版本及完整静态证据见
+[extreme-life-re-20261102.md](evidence/extreme-life-re-20261102.md)，
+完整进程目录/分组/证书标量规则见其配套 JSON。`battery extreme-life` 仍为 Unsupported。
+
+- BatteryLife 捕获当前活动电源方案，改变其三个 **DC** 索引：无线最大节能 3、
+  桌面幻灯片暂停 1、PCIe 链路最大节能 2，再重应用同一 GUID；不存在待提取的固定
+  “极限续航方案 GUID”。恢复 JSON 位于 **HKCU** 的 `PowerSchemeSetting`。
+- HKCU `Enable` 与 `EnableEcoQos` 是两个独立输入；真实单个 UI 开关怎样写入它们，
+  尚须目标匹配的设置前端绑定，不能猜成两者同时开/关。激活还取决于版本化 ITS
+  来源和 AC/DC，不可替换为 Windows overlay 枚举。
+- 完整策略包括进程关系选择、Job CPU 硬上限、EcoQoS/优先级、最小化窗口、关闭弹窗
+  和终止指定后台进程。原版 `off` 不会重新启动已终止进程或恢复关闭窗口。
+- 单次 Job 限流和电源 API 可公开实现，但完整父子 job 迁移使用同步内核进程创建
+  回调，仍需替代项目拥有且适当签名的执行器及用户会话守护；不准依赖联想交付的
+  驱动/服务或以轮询、通用 ProcessPowerThrottling、`power saver-once` 冒充完整等价。
+- `WinJobList` 已定位的操作仅为停机时删除 HKCU 键，未建立白/黑名单值结构；
+  不得为它编造配置。原生状态/效果验收未执行，也未证明任何 60% 停充或续航增益。
 
 ---
 
@@ -338,8 +371,14 @@ in=4B 零,out=10B `{u16 PID, u16 VID, u16 SystemPowerW, u16 CurrentChargerPowerW
 认证判定:GBMD `0xFF` DWORD 的 bit15-16(`AdapterType`)==1 ⇒ Lenovo 认证适配器;
 ==0 ⇒ Inbox(通用);==3 ⇒ SlowCharger(慢充)。
 
-**EM Spec 版本**:`GetEmSpecVersion()` → **IOCTL `0x8310214c`**(已验证),用于 §3.1 Storage80 判定。
-2026-11-02 实机读回：输入 4B 零、输出 4B 版本字，返回 `0x00000002`（EM Spec 版本 2）。
+**EM Spec 版本**：安装 PowerBattery.dll 的 `GetEmSpecVersion()`（RVA `0x22d0`）发
+**IOCTL `0x8310214c`**，输入 **DWORD `0x11`**、输出 4B raw。IOCTL 失败或 raw
+bit0 为 0 时 native 返回 `-1`；仅 raw bit0 为 1 时版本为 **`raw >> 4`**。
+`DoesSupportStorage80` 还要求该版本至少 **184（`0xb8`）** 与 GBMD bit23 置位。
+最小值绑定 `.data` RVA `0x21174`、文件偏移 `0x1ef74` 的 `b8 00 00 00`，不是猜测值。
+旧探测的 4B 零输入、raw=`0x00000002` 保留为原始观察，但不是原版请求，也不是已验证
+的版本 2；完整版本/Storage80 能力仍未知。修正后的原生形态只读重测因目标传输不可用
+待执行，不把读取失败或无效回复等同为能力不存在。
 
 ---
 
@@ -436,7 +475,8 @@ Linux 替代:upower D-Bus + udev + `/sys/class/power_supply` uevent(见 09 文�
    回读降级到 WMI/OS 路径。
 2. **读写分离**:官方 `set` 不保证生效,实现者应在 `set` 后回读并在 CLI 输出「请求值/实际值」。
 3. **39 Wh 电池**:快充必须按 §3.5 禁用,忽略用户请求并说明原因(安全策略)。
-4. **三态互斥**:任何 `charge-mode` 切换都必须先关对侧再开目标侧(§3.3 顺序)。
+4. **三态与恢复**：核对目标三态并保持错误可见；安装 DLL 的实际开/关顺序见 §3.3，
+   不能把旧“必先关对侧”的描述当作其反汇编证据。恢复必须还原捕获的原语义模式。
 5. **运行时覆盖 vs BIOS 默认**:USB 供电开关重启后回 BIOS 值;CLI 应同时提供
    `--persistent`(写 BIOS 设置,见 05 文档)选项。
 6. **并发**:Vantage 与 PCManager 写同一 EC 寄存器会互相覆盖;实现无需兼容二者并存,
@@ -450,7 +490,7 @@ Linux 替代:upower D-Bus + udev + `/sys/class/power_supply` uevent(见 09 文�
 battery status [--json]        # §7 来源分组、各自错误及当前 charge-mode(回读 bitmask)
 battery charge-mode MODE       # normal|conservation|rapid;先探测支持,§3.3 序列下发,回读校验
 battery thresholds S E         # PCManager 语义,§4.2;S<E,5≤S≤95,10≤E≤100
-battery extreme-life on|off    # §4.1 + §4.3 组合原语
+battery extreme-life on|off    # §4.4 完整常驻策略尚未实现；不是 §4.3 的同义开关
 battery night-charge on|off    # §5,先 0x83102150 探测
 battery temporary-mode         # §5 bitmask 原样输出
 battery adapter [--json]       # §8 全字段

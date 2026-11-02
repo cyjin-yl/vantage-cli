@@ -2,10 +2,9 @@
 //!
 //! Contract recovered from ThinkSmartSenseAddin.dll 1.0.0.77 (IL) and
 //! LnvSST.dll/SmartSense.exe 1.0.8.5 on TB14P-EZRA; see
-//! `docs/interfaces.md` §13. Writes go to the
-//! `\\.\pipe\com.lenovo.smartsense.settings` named pipe (raw little-endian
-//! `u32 code + u32 arg`, response `i32`: 0 = rejected, nonzero = queued,
-//! -1 = server exception); the service persists to
+//! `docs/interfaces.md` §13. HPD reads and writes use the owned system-RPC
+//! client in `sense_rpc`; privacy alert and attention tracking retain their
+//! separate legacy settings pipe. Independent write readback comes from
 //! `HKLM\SYSTEM\CurrentControlSet\Services\SmartSense\Parameters\HPD`, which
 //! is also the readback channel the addin itself uses for reads.
 
@@ -15,7 +14,9 @@ use std::time::Duration;
 use lctrl_core::{
     ApplyMode, ChangeReport, LctrlError, Result, SenseDistance, SenseState, SenseWait,
 };
-use lctrl_hal::{SenseControl, SenseFeature, encode_request, poll_readback};
+use lctrl_hal::{SenseControl, SenseFeature, encode_request, poll_readback_until};
+
+use crate::sense_rpc::HpdRpc;
 
 const PIPE_PATH: &str = r"\\.\pipe\com.lenovo.smartsense.settings";
 const HPD_KEY: &str = r"SYSTEM\CurrentControlSet\Services\SmartSense\Parameters\HPD";
@@ -34,19 +35,27 @@ pub trait HpdSettingsStore: Send + Sync {
     fn read_state(&self) -> Result<SenseState>;
 }
 
-pub struct WindowsSenseControl<P: SensePipe, S: HpdSettingsStore> {
+pub struct WindowsSenseControl<R: HpdRpc, P: SensePipe, S: HpdSettingsStore> {
+    rpc: R,
     pipe: P,
     store: S,
 }
 
-impl<P: SensePipe, S: HpdSettingsStore> WindowsSenseControl<P, S> {
+impl<R: HpdRpc, P: SensePipe, S: HpdSettingsStore> WindowsSenseControl<R, P, S> {
     #[must_use]
-    pub const fn new(pipe: P, store: S) -> Self {
-        Self { pipe, store }
+    pub const fn new(rpc: R, pipe: P, store: S) -> Self {
+        Self { rpc, pipe, store }
     }
 
     fn write_feature(&self, feature: SenseFeature) -> Result<()> {
-        let (code, arg) = feature.command();
+        if feature.rpc_command().is_some() {
+            return self.rpc.set_feature(feature);
+        }
+        let (code, arg) = feature
+            .pipe_command()
+            .ok_or_else(|| LctrlError::Unsupported {
+                feature: format!("no recovered SmartSense setter for {feature:?}"),
+            })?;
         match self.pipe.call(code, arg)? {
             0 => Err(LctrlError::FirmwareRejected {
                 detail: format!("SmartSense pipe rejected command 0x{code:08x} arg {arg}"),
@@ -61,9 +70,13 @@ impl<P: SensePipe, S: HpdSettingsStore> WindowsSenseControl<P, S> {
     }
 }
 
-impl<P: SensePipe, S: HpdSettingsStore> SenseControl for WindowsSenseControl<P, S> {
+impl<R: HpdRpc, P: SensePipe, S: HpdSettingsStore> SenseControl for WindowsSenseControl<R, P, S> {
     fn sense_state(&self) -> Result<SenseState> {
-        self.store.read_state()
+        let mut state = self.rpc.read_state()?;
+        let legacy = self.store.read_state()?;
+        state.privacy_alert = legacy.privacy_alert;
+        state.attention_tracking = legacy.attention_tracking;
+        Ok(state)
     }
 
     fn set_sense_feature(
@@ -71,17 +84,28 @@ impl<P: SensePipe, S: HpdSettingsStore> SenseControl for WindowsSenseControl<P, 
         feature: SenseFeature,
         apply: ApplyMode,
     ) -> Result<ChangeReport<SenseState>> {
-        let previous = self.store.read_state()?;
-        let mut requested = previous;
-        requested = apply_feature_to_state(feature, requested);
+        let previous = self.sense_state()?;
+        if feature.rpc_command().is_some() && !feature_available(feature, &previous) {
+            return Err(LctrlError::Unsupported {
+                feature: format!("HPD RPC does not advertise {feature:?}"),
+            });
+        }
+        let requested = apply_feature_to_state(feature, previous);
         if apply == ApplyMode::DryRun {
             return Ok(ChangeReport::dry_run(previous, requested));
         }
         self.write_feature(feature)?;
         let actual = if feature_readback_verifiable(feature) {
-            poll_readback(&requested, 10, Duration::from_millis(50), || {
-                self.store.read_state()
-            })?
+            // RPC capabilities and registry support metadata are distinct.
+            // Verify only the requested feature against the independent
+            // persistence channel, not unrelated fields from two snapshots.
+            poll_readback_until(
+                &requested,
+                10,
+                Duration::from_millis(50),
+                || self.store.read_state(),
+                |actual| feature_matches(feature, actual),
+            )?
         } else {
             // Attention tracking has no observed persistence key on this
             // model; the write is fire-and-verify-later, so report the
@@ -111,6 +135,31 @@ fn apply_feature_to_state(feature: SenseFeature, mut state: SenseState) -> Sense
 
 const fn feature_readback_verifiable(feature: SenseFeature) -> bool {
     !matches!(feature, SenseFeature::AttentionTracking(_))
+}
+
+const fn feature_available(feature: SenseFeature, state: &SenseState) -> bool {
+    match feature {
+        SenseFeature::LockOnLeave(_) => state.lock_on_leave.is_some(),
+        SenseFeature::LeaveDistance(_) => state.leave_distance.is_some(),
+        SenseFeature::LeaveWait(_) => state.leave_wait.is_some(),
+        SenseFeature::WakeOnApproach(_) => state.wake_on_approach.is_some(),
+        SenseFeature::ApproachDistance(_) => state.approach_distance.is_some(),
+        SenseFeature::PauseVideo(_) => state.pause_video.is_some(),
+        SenseFeature::PrivacyAlert(_) | SenseFeature::AttentionTracking(_) => true,
+    }
+}
+
+fn feature_matches(feature: SenseFeature, state: &SenseState) -> bool {
+    match feature {
+        SenseFeature::LockOnLeave(value) => state.lock_on_leave == Some(value),
+        SenseFeature::LeaveDistance(value) => state.leave_distance == Some(value),
+        SenseFeature::LeaveWait(value) => state.leave_wait == Some(value),
+        SenseFeature::WakeOnApproach(value) => state.wake_on_approach == Some(value),
+        SenseFeature::ApproachDistance(value) => state.approach_distance == Some(value),
+        SenseFeature::PauseVideo(value) => state.pause_video == Some(value),
+        SenseFeature::PrivacyAlert(value) => state.privacy_alert == Some(value),
+        SenseFeature::AttentionTracking(_) => true,
+    }
 }
 
 /// Native named-pipe transport. One connection per call, matching the

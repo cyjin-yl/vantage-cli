@@ -436,7 +436,7 @@ if handle == INVALID_HANDLE_VALUE {
 | `0x831020c0` | 通用 SET | 特性开关写入 | 12B `{cmd:u32, p1:u32, p2:u32}` | — | pcm-cli 组件行为分析,实机写入验证 |
 | `0x831020c4` | 通用 GET | 特性状态/能力查询 | 4B `cmd:u32` | 4B 状态 | **实机扫描**:cmd 0-4→0, 5→0x10, 6/7/8→1, 9→err87, 10-15→1, 16/17→0, 18/19→err87, 20→0, 21→1, 22-24→err87;pcm-cli 用 cmd 14 bit0 判定 |
 | `0x831020e8` | 通用 GET(变体) | 数值读取 | 4B `cmd:u32` | 4B | BatterySetting.exe 用 cmd 2/8/9;**实机**:cmd2→20160(0x4EC0),其余 cmd 回显输入 |
-| `0x831020f8` | `GBMD` | 历史电池模式资料:子命令 1B;`0x03` 对目标机有运输模式风险，禁止发送;`0x0d/0x0f` 请求被接受但未证实生效;查: `0xFF` | 1B 子命令 | 4B DWORD | Vantage 电源组件行为分析;**实机** `0xFF`→`0x00860004`(bit24=0 无认证充电器能力,bit15-16=0 Inbox 适配器);子命令 0/1/2 返回空 |
+| `0x831020f8` | `GBMD` | 安装 PowerBattery.dll 的 Storage 基础开/关为 `03/05`；bit14 subtype 2 在基础请求成功后追加 `0d/0f`，非替代选择子；查 `FF`。旧“03 是运输模式，禁止发送”无此路径关机证据，且不据纠正宣称普遍安全，详见 02 §3.2 | 1B 子命令 | 查询 4B DWORD；目标写回复为 0B，需另行查询 | 安装版本反汇编与受限 driver-state 观察见 `docs/evidence/storage80-aiturbo-re-20261102.md`；原基线 `FF`→`0x00860004`，不是物理停充点验收 |
 | `0x83102120` | 全局电池配置读 | 充电全局配置 | 4B 零 | 20B | WrapPlugin/pcm-cli 组件分析;**实机**→`B7 00…`(首字节 0xB7,位图语义[推断]) |
 | `0x8310212c` | 查询 | 未知状态 | 4B(样本用 `0xffff`) | 4B | WrapPlugin;**实机**→`FF FF 00 00` |
 | `0x83102130` | 查询(PCManager) | 电池模式/版本 DWORD | 4B | 4B | BatterySetting.exe;**实机** err=2(本机不支持) |

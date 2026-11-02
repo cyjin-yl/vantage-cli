@@ -1,10 +1,10 @@
 use lctrl_core::{LctrlError, Result};
 
 use crate::{
-    AdapterDetail, BatteryDetail83, GbmdCommand, GenericGet, IOCTL_BATTERY_CONFIG,
-    IOCTL_BATTERY_DETAIL, IOCTL_EM_SPEC_VERSION, IOCTL_GAPD, IOCTL_GBMD, IOCTL_GENERIC_GET,
-    IOCTL_NIGHT_CHARGE, IOCTL_TEMP_CHARGE, IOCTL_USB_CHARGER, NightChargeSelector,
-    TempChargeSelector, UsbChargerSelector, codec::decode_u32_exact,
+    AdapterDetail, BatteryDetail83, EM_SPEC_VERSION_REQUEST, GbmdCommand, GenericGet,
+    IOCTL_BATTERY_CONFIG, IOCTL_BATTERY_DETAIL, IOCTL_EM_SPEC_VERSION, IOCTL_GAPD, IOCTL_GBMD,
+    IOCTL_GENERIC_GET, IOCTL_NIGHT_CHARGE, IOCTL_TEMP_CHARGE, IOCTL_USB_CHARGER,
+    NightChargeSelector, TempChargeSelector, UsbChargerSelector, codec::decode_u32_exact,
 };
 
 pub trait IoctlTransport: Send + Sync {
@@ -131,14 +131,33 @@ where
         TempChargeSelector::decode_word(&output)
     }
 
-    /// EM Spec version word (`PowerBattery.dll` `GetEmSpecVersion`, ACPI
-    /// `BSIF`; docs/02 §9). Read-only capability input for the Storage80
-    /// charge mode: the vendor `ChargeMode-Storage-80` string is gated by
-    /// GBMD bit23 *and* this version. A failed read means the firmware does
-    /// not expose `BSIF`, not that the version is zero.
+    /// EM Spec version (`PowerBattery.dll` `GetEmSpecVersion` RVA 0x22d0,
+    /// ACPI `BSIF`; docs/02 section 9). Read-only.
+    ///
+    /// The native request is input DWORD `0x11`, not four zero bytes, and the
+    /// raw output word is not itself the version: bit0 clear means the
+    /// response carries no valid version (native returns -1), bit0 set means
+    /// the version is `raw >> 4`. A failed IOCTL is a transport error, not
+    /// version zero.
+    ///
+    /// This is only one half of the vendor `DoesSupportStorage80` predicate;
+    /// GBMD bit23 alone is not that predicate (see
+    /// `GbmdCommand::storage80_advertised`).
     pub fn em_spec_version(&self) -> Result<u32> {
-        let output = self.transport.call(IOCTL_EM_SPEC_VERSION, &[0; 4], 4)?;
-        decode_u32_exact(&output, "EM spec version")
+        let output = self.transport.call(
+            IOCTL_EM_SPEC_VERSION,
+            &EM_SPEC_VERSION_REQUEST.to_le_bytes(),
+            4,
+        )?;
+        let raw = decode_u32_exact(&output, "EM spec version")?;
+        if raw & 1 == 0 {
+            return Err(LctrlError::FirmwareRejected {
+                detail: format!(
+                    "EM spec version: BSIF response 0x{raw:08x} has bit0 clear (native GetEmSpecVersion returns -1)"
+                ),
+            });
+        }
+        Ok(raw >> 4)
     }
 }
 

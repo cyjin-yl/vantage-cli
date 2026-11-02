@@ -1,11 +1,10 @@
 //! Self-authored NDR descriptor generation.
 //!
-//! The RPC interfaces this crate speaks (the DAX control endpoint and the
-//! Elevoc control endpoint) are described by MIDL-generated interpreter
-//! tables: a proc format string, per-opnum offsets into it, and a type
+//! The DAX, Elevoc and HPD RPC interfaces this crate speaks are described by
+//! MIDL-generated interpreter tables: a proc format string, per-opnum offsets into it, and a type
 //! format string. Copying those tables out of a vendor binary would embed
-//! bytes we do not own, so both transports describe their used call surface
-//! semantically (see [`dolby`] and [`elevoc`]) and this module turns that
+//! bytes we do not own, so the transports describe their used call surface
+//! semantically (see [`dolby`], [`elevoc`] and [`hpd`]) and this module turns that
 //! description into the tables `NdrClientCall3` expects.
 //!
 //! The generators use public `-Oicf` format definitions for
@@ -15,7 +14,7 @@
 //! generated from our own description of the interface rather than
 //! transcribed from a proprietary image.
 //!
-//! The constants below are the shared grammar elements used by both
+//! The constants below are the shared grammar elements used by the
 //! generators.
 //!
 //! The generators are only called by the Windows transports, so on other
@@ -25,6 +24,7 @@
 
 pub mod dolby;
 pub mod elevoc;
+pub mod hpd;
 
 /// `FC_BIND_PRIMITIVE` — the procedure binds primitive (non-object) types.
 pub(crate) const FC_BIND_PRIMITIVE: u8 = 0x32;

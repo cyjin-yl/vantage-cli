@@ -2,8 +2,8 @@ use parking_lot::Mutex;
 
 use lctrl_core::LctrlError;
 use lctrl_hal_win::{
-    EnergyDriver, IOCTL_BATTERY_CONFIG, IOCTL_BATTERY_DETAIL, IOCTL_GAPD, IOCTL_GBMD,
-    IOCTL_GENERIC_GET, IoctlTransport,
+    EnergyDriver, IOCTL_BATTERY_CONFIG, IOCTL_BATTERY_DETAIL, IOCTL_EM_SPEC_VERSION, IOCTL_GAPD,
+    IOCTL_GBMD, IOCTL_GENERIC_GET, IoctlTransport,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -55,6 +55,54 @@ fn gbmd_status_uses_one_byte_query_and_four_byte_reply() {
             output_len: 4,
         }]
     );
+}
+
+#[test]
+fn em_spec_version_uses_vendor_request_and_decodes_valid_reply() {
+    let transport = FakeIoctl::with_replies([0x21u32.to_le_bytes().to_vec()]);
+    let driver = EnergyDriver::new(&transport);
+
+    assert_eq!(driver.em_spec_version().unwrap(), 2);
+    assert_eq!(
+        &*transport.calls.lock(),
+        &[Call {
+            code: IOCTL_EM_SPEC_VERSION,
+            input: vec![0x11, 0, 0, 0],
+            output_len: 4,
+        }]
+    );
+}
+
+#[test]
+fn em_spec_version_preserves_valid_zero_and_storage80_minimum() {
+    for (raw, expected) in [(0x01u32, 0), (0x0b81, 184)] {
+        let transport = FakeIoctl::with_replies([raw.to_le_bytes().to_vec()]);
+        let driver = EnergyDriver::new(&transport);
+
+        assert_eq!(driver.em_spec_version().unwrap(), expected);
+    }
+}
+
+#[test]
+fn em_spec_version_rejects_reply_without_valid_bit() {
+    let transport = FakeIoctl::with_replies([2u32.to_le_bytes().to_vec()]);
+    let driver = EnergyDriver::new(&transport);
+
+    assert!(matches!(
+        driver.em_spec_version(),
+        Err(LctrlError::FirmwareRejected { .. })
+    ));
+}
+
+#[test]
+fn em_spec_version_rejects_short_reply() {
+    let transport = FakeIoctl::with_replies([vec![0x21, 0, 0]]);
+    let driver = EnergyDriver::new(&transport);
+
+    assert!(matches!(
+        driver.em_spec_version(),
+        Err(LctrlError::FirmwareRejected { .. })
+    ));
 }
 
 #[test]

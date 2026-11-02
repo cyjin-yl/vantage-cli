@@ -661,7 +661,7 @@
       ],
       "completion": "not claimed complete",
       "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable",
-      "corrections_20261102": "2026-11-02 live-read correction: 导入工单验收行“Storage80 能力位为 0”已过时。本机 GBMD 0xFF 状态字实读为 0x00860004（bits 2,17,18,23），bit23 置位，即 DoesSupportStorage80 判定为真；Storage80 能力位不为 0，已可经 lctrl_hal_win::GbmdCommand::storage80_supported 查询。任意阈值写通道缺席的结论不受影响。"
+      "corrections_20261102": "2026-11-02 correction: 导入工单验收行“Storage80 能力位为 0”已过时，本机 GBMD 0xFF 实读 0x00860004（bits 2,17,18,23）仅确立 advertised bit23 置位，可经 lctrl_hal_win::GbmdCommand::storage80_advertised 查询。撤回先前由此宣称完整 DoesSupportStorage80 为真的解释：安装 DLL 还要求有效的 native EM 版本至少184（0xb8）。旧探测输入4B零/raw0x00000002不是原版输入DWORD0x11，也不是已验证版本2；原版仅在raw bit0置位时取raw>>4。完整 Storage80 能力仍未知，不宣称真或假；任意百分比阈值仍无已验证写通道。字节与RVA绑定见 storage80-aiturbo-re-20261102.md。"
     },
     {
       "issue": 7,
