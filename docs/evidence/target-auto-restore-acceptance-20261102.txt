@@ -1,0 +1,79 @@
+########## AUTO-RESTORE ##########
+--- vendor readback (baseline)
+  GetDolbyEnabled=False
+  GetActiveProfile=5
+  GetCurrentMode=0
+--- dolby movie with auto-restore : vantage --yes --auto-restore audio dolby movie
+dolby (applied): previous enabled=false profile=Dynamic, requested enabled=true profile=Movie, actual enabled=true profile=Movie
+restored dolby: enabled=false profile=Dynamic
+
+
+exit=0
+--- vendor readback (after auto-restore)
+  GetDolbyEnabled=False
+  GetActiveProfile=5
+  GetCurrentMode=0
+--- noise-cancel shared with auto-restore : vantage --yes --auto-restore audio noise-cancel shared
+noise-cancel (applied): previous mic mode=Off, speaker=off, voice-id enrolled, requested mic mode=Shared, actual mic mode=Shared, speaker=off, voice-id enrolled
+restored noise-cancel: mic mode Off
+
+
+exit=0
+--- vendor readback (after noise auto-restore)
+  GetDolbyEnabled=False
+  GetActiveProfile=5
+  GetCurrentMode=0
+--- charge-mode normal with auto-restore : vantage --yes --auto-restore battery charge-mode normal
+vantage.exe : conflicting vendor control application(s) detected: LenovoMagiCenterDetector.exe, Le
+novoPcManagerService.exe, LenovoVantage-(GenericMessagingAddin).exe, LenovoVantage-(GenericTelemet
+ryAddin).exe, LenovoVantage-(LenovoCompanionAppAddin).exe, LenovoVantage-(LenovoMachineFixSystemAd
+din).exe, LenovoVantage-(LenovoServiceBridgeAddin).exe, LenovoVantage-(SESmartBoostAddin).exe, Len
+ovoVantage-(SmartDisplayAddin).exe, LenovoVantage-(SmartInteractAddin).exe, LenovoVantage-(SmartNo
+iseCancelledAddin).exe, LenovoVantage-(SmartPanelAddin).exe, LenovoVantage-(SmartPerformanceUserAd
+din).exe, LenovoVantage-(SmartScenarioAddin).exe, LenovoVantage-(VantageCoreAddin).exe, LenovoVant
+age.exe, LenovoVantageService.exe
+    + CategoryInfo          : NotSpecified: (conflicting ven...tageService.exe:String) [], Remote 
+   Exception
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+charge mode: requested=normal actual=normal (previous=rapid)
+restored charge mode: rapid
+
+
+exit=0
+--- night-charge on with auto-restore : vantage --yes --auto-restore battery night-charge on
+vantage.exe : conflicting vendor control application(s) detected: LenovoMagiCenterDetector.exe, Le
+novoPcManagerService.exe, LenovoVantage-(GenericMessagingAddin).exe, LenovoVantage-(GenericTelemet
+ryAddin).exe, LenovoVantage-(LenovoCompanionAppAddin).exe, LenovoVantage-(LenovoMachineFixSystemAd
+din).exe, LenovoVantage-(LenovoServiceBridgeAddin).exe, LenovoVantage-(SESmartBoostAddin).exe, Len
+ovoVantage-(SmartDisplayAddin).exe, LenovoVantage-(SmartInteractAddin).exe, LenovoVantage-(SmartNo
+iseCancelledAddin).exe, LenovoVantage-(SmartPanelAddin).exe, LenovoVantage-(SmartPerformanceUserAd
+din).exe, LenovoVantage-(SmartScenarioAddin).exe, LenovoVantage-(VantageCoreAddin).exe, LenovoVant
+age.exe, LenovoVantageService.exe
+    + CategoryInfo          : NotSpecified: (conflicting ven...tageService.exe:String) [], Remote 
+   Exception
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+night charge: true
+restored night charge: enabled=false
+
+
+exit=0
+--- usb always-on off with auto-restore : vantage --yes --auto-restore usb always-on off
+USB AC charging: ac off (supported), battery-mode on (supported)
+restored USB AC charging: enabled=true
+
+
+exit=0
+--- usb charge-on-battery off with auto-restore : vantage --yes --auto-restore usb charge-on-battery off
+USB battery-mode charging: ac on (supported), battery-mode off (supported)
+restored USB battery charging: enabled=true
+
+
+exit=0
+--- probe (final)
+gbmd_status: 0x00860004 -> charge mode Rapid (decode: bit5 storage, bit2 express)
+usb_charger: 0x0000cec0 -> ac on (supported), battery-mode on (supported)
+night_charge probe: 0x00000011 -> supported=true (probe bit4 is not the live state; see status)
+night_charge status: 0x00000001 -> enabled=false
+temporary_charge: 0x00000001 -> TemporaryChargeState { raw: 1, permanent: true, plug_in: false, dynamic_lifespan: false }

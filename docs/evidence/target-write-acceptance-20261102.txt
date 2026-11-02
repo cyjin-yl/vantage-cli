@@ -1,0 +1,422 @@
+########## BASELINE ##########
+--- probe (baseline)
+gbmd_status: 0x00860004 -> charge mode Rapid (decode: bit5 storage, bit2 express)
+usb_charger: 0x0000cec0 -> ac on (supported), battery-mode on (supported)
+night_charge probe: 0x00000011 -> supported=true (probe bit4 is not the live state; see status)
+night_charge status: 0x00000001 -> enabled=false
+temporary_charge: 0x00000001 -> TemporaryChargeState { raw: 1, permanent: true, plug_in: false, dynamic_lifespan: false }
+--- HPD registry (baseline)
+  PresentLeave = 1
+  Approach = 1
+  Video = 1
+  Privacy = 
+  Capability = 1
+--- vendor readback (baseline)
+  GetDolbyEnabled=False
+  GetActiveProfile=5
+  GetCurrentMode=0
+--- charge-mode baseline : vantage --json battery charge-mode rapid
+vantage.exe : {"error":{"kind":"invalid_argument","message":"invalid argument: stop LenovoMagiCent
+erDetector.exe, LenovoPcManagerService.exe, LenovoVantage-(ConsumerAddin).exe, LenovoVantage-(Gene
+ricMessagingAddin).exe, LenovoVantage-(GenericTelemetryAddin).exe, LenovoVantage-(LenovoMachineFix
+SystemAddin).exe, LenovoVantage-(LenovoServiceBridgeAddin).exe, LenovoVantage-(SESmartBoostAddin).
+exe, LenovoVantage-(SmartDisplayAddin).exe, LenovoVantage-(SmartInteractAddin).exe, LenovoVantage-
+(SmartNoiseCancelledAddin).exe, LenovoVantage-(SmartPanelAddin).exe, LenovoVantage-(SmartPerforman
+ceUserAddin).exe, LenovoVantage-(SmartScenarioAddin).exe, LenovoVantage-(VantageCoreAddin).exe, Le
+novoVantage.exe, LenovoVantageService.exe before writing, or re-run with --yes to accept concurren
+t-control risk","detail":"stop LenovoMagiCenterDetector.exe, LenovoPcManagerService.exe, LenovoVan
+tage-(ConsumerAddin).exe, LenovoVantage-(GenericMessagingAddin).exe, LenovoVantage-(GenericTelemet
+ryAddin).exe, LenovoVantage-(LenovoMachineFixSystemAddin).exe, LenovoVantage-(LenovoServiceBridgeA
+ddin).exe, LenovoVantage-(SESmartBoostAddin).exe, LenovoVantage-(SmartDisplayAddin).exe, LenovoVan
+tage-(SmartInteractAddin).exe, LenovoVantage-(SmartNoiseCancelledAddin).exe, LenovoVantage-(SmartP
+anelAddin).exe, LenovoVantage-(SmartPerformanceUserAddin).exe, LenovoVantage-(SmartScenarioAddin).
+exe, LenovoVantage-(VantageCoreAddin).exe, LenovoVantage.exe, LenovoVantageService.exe before writ
+ing, or re-run with --yes to accept concurrent-control risk"}}
+At C:\Users\ezra\acceptance-20261102.ps1:11 char:12
++     $out = & $bin ($argv -split ' ') 2>&1 | Out-String
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ({"error":{"kind...control risk"}}:String) [], Remote 
+   Exception
+    + FullyQualifiedErrorId : NativeCommandError
+exit=2
+--- night-charge baseline : vantage --json battery night-charge
+vantage.exe : {"error":{"kind":"invalid_argument","message":"invalid argument: error: the followin
+g required arguments were not provided:\n  <STATE>\n\nUsage: vantage.exe battery night-charge <STA
+TE>\n\nFor more information, try '--help'.\n","detail":"error: the following required arguments we
+re not provided:\n  <STATE>\n\nUsage: vantage.exe battery night-charge <STATE>\n\nFor more informa
+tion, try '--help'.\n"}}
+At C:\Users\ezra\acceptance-20261102.ps1:11 char:12
++     $out = & $bin ($argv -split ' ') 2>&1 | Out-String
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ({"error":{"kind... '--help'.\n"}}:String) [], Remote 
+   Exception
+    + FullyQualifiedErrorId : NativeCommandError
+exit=2
+--- usb baseline : vantage --json --dry-run usb always-on off
+{"mode":"dry_run","previous":{"ac_enabled":true,"ac_supported":true,"battery_enabled":true,"battery_supported":true},"requested":{"ac_enabled":false,"ac_supported":true,"battery_enabled":true,"battery_supported":true}}
+exit=0
+########## charge-mode ##########
+--- charge-mode dry-run : vantage --dry-run battery charge-mode normal
+charge mode: requested=normal actual=dry-run (previous=rapid)
+exit=0
+--- charge-mode write : vantage battery --yes charge-mode normal
+vantage.exe : conflicting vendor control application(s) detected: LenovoMagiCenterDetector.exe, Le
+novoPcManagerService.exe, LenovoVantage-(ConsumerAddin).exe, LenovoVantage-(GenericMessagingAddin)
+.exe, LenovoVantage-(GenericTelemetryAddin).exe, LenovoVantage-(LenovoMachineFixSystemAddin).exe, 
+LenovoVantage-(LenovoServiceBridgeAddin).exe, LenovoVantage-(SESmartBoostAddin).exe, LenovoVantage
+-(SmartDisplayAddin).exe, LenovoVantage-(SmartInteractAddin).exe, LenovoVantage-(SmartNoiseCancell
+edAddin).exe, LenovoVantage-(SmartPanelAddin).exe, LenovoVantage-(SmartPerformanceUserAddin).exe, 
+LenovoVantage-(SmartScenarioAddin).exe, LenovoVantage-(VantageCoreAddin).exe, LenovoVantage.exe, L
+enovoVantageService.exe
+At C:\Users\ezra\acceptance-20261102.ps1:11 char:12
++     $out = & $bin ($argv -split ' ') 2>&1 | Out-String
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (conflicting ven...tageService.exe:String) [], Remote 
+   Exception
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+charge mode: requested=normal actual=normal (previous=rapid)
+exit=0
+--- probe (after charge-mode write)
+gbmd_status: 0x00860000 -> charge mode Normal (decode: bit5 storage, bit2 express)
+usb_charger: 0x0000cec0 -> ac on (supported), battery-mode on (supported)
+night_charge probe: 0x00000011 -> supported=true (probe bit4 is not the live state; see status)
+night_charge status: 0x00000001 -> enabled=false
+temporary_charge: 0x00000001 -> TemporaryChargeState { raw: 1, permanent: true, plug_in: false, dynamic_lifespan: false }
+--- charge-mode readback : vantage --json battery charge-mode
+vantage.exe : {"error":{"kind":"invalid_argument","message":"invalid argument: error: the followin
+g required arguments were not provided:\n  <MODE>\n\nUsage: vantage.exe battery charge-mode <MODE>
+\n\nFor more information, try '--help'.\n","detail":"error: the following required arguments were 
+not provided:\n  <MODE>\n\nUsage: vantage.exe battery charge-mode <MODE>\n\nFor more information, 
+try '--help'.\n"}}
+At C:\Users\ezra\acceptance-20261102.ps1:11 char:12
++     $out = & $bin ($argv -split ' ') 2>&1 | Out-String
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ({"error":{"kind... '--help'.\n"}}:String) [], Remote 
+   Exception
+    + FullyQualifiedErrorId : NativeCommandError
+exit=2
+--- charge-mode restore : vantage battery --yes charge-mode rapid
+vantage.exe : conflicting vendor control application(s) detected: LenovoMagiCenterDetector.exe, Le
+novoPcManagerService.exe, LenovoVantage-(ConsumerAddin).exe, LenovoVantage-(GenericMessagingAddin)
+.exe, LenovoVantage-(GenericTelemetryAddin).exe, LenovoVantage-(LenovoMachineFixSystemAddin).exe, 
+LenovoVantage-(LenovoServiceBridgeAddin).exe, LenovoVantage-(SESmartBoostAddin).exe, LenovoVantage
+-(SmartDisplayAddin).exe, LenovoVantage-(SmartInteractAddin).exe, LenovoVantage-(SmartNoiseCancell
+edAddin).exe, LenovoVantage-(SmartPanelAddin).exe, LenovoVantage-(SmartPerformanceUserAddin).exe, 
+LenovoVantage-(SmartScenarioAddin).exe, LenovoVantage-(VantageCoreAddin).exe, LenovoVantage.exe, L
+enovoVantageService.exe
+At C:\Users\ezra\acceptance-20261102.ps1:11 char:12
++     $out = & $bin ($argv -split ' ') 2>&1 | Out-String
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (conflicting ven...tageService.exe:String) [], Remote 
+   Exception
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+charge mode: requested=rapid actual=rapid (previous=normal)
+exit=0
+--- probe (after charge-mode restore)
+gbmd_status: 0x00860004 -> charge mode Rapid (decode: bit5 storage, bit2 express)
+usb_charger: 0x0000cec0 -> ac on (supported), battery-mode on (supported)
+night_charge probe: 0x00000011 -> supported=true (probe bit4 is not the live state; see status)
+night_charge status: 0x00000001 -> enabled=false
+temporary_charge: 0x00000001 -> TemporaryChargeState { raw: 1, permanent: true, plug_in: false, dynamic_lifespan: false }
+########## night charge ##########
+--- night-charge dry-run : vantage --dry-run battery night-charge on
+night charge: true
+exit=0
+--- night-charge write : vantage battery --yes night-charge on
+vantage.exe : conflicting vendor control application(s) detected: LenovoMagiCenterDetector.exe, Le
+novoPcManagerService.exe, LenovoVantage-(ConsumerAddin).exe, LenovoVantage-(GenericMessagingAddin)
+.exe, LenovoVantage-(GenericTelemetryAddin).exe, LenovoVantage-(LenovoMachineFixSystemAddin).exe, 
+LenovoVantage-(LenovoServiceBridgeAddin).exe, LenovoVantage-(SESmartBoostAddin).exe, LenovoVantage
+-(SmartDisplayAddin).exe, LenovoVantage-(SmartInteractAddin).exe, LenovoVantage-(SmartNoiseCancell
+edAddin).exe, LenovoVantage-(SmartPanelAddin).exe, LenovoVantage-(SmartPerformanceUserAddin).exe, 
+LenovoVantage-(SmartScenarioAddin).exe, LenovoVantage-(VantageCoreAddin).exe, LenovoVantage.exe, L
+enovoVantageService.exe
+At C:\Users\ezra\acceptance-20261102.ps1:11 char:12
++     $out = & $bin ($argv -split ' ') 2>&1 | Out-String
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (conflicting ven...tageService.exe:String) [], Remote 
+   Exception
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+night charge: true
+exit=0
+--- probe (after night-charge write)
+gbmd_status: 0x00860004 -> charge mode Rapid (decode: bit5 storage, bit2 express)
+usb_charger: 0x0000cec0 -> ac on (supported), battery-mode on (supported)
+night_charge probe: 0x00000011 -> supported=true (probe bit4 is not the live state; see status)
+night_charge status: 0x00000011 -> enabled=true
+temporary_charge: 0x00000001 -> TemporaryChargeState { raw: 1, permanent: true, plug_in: false, dynamic_lifespan: false }
+--- night-charge restore : vantage battery --yes night-charge off
+vantage.exe : conflicting vendor control application(s) detected: LenovoMagiCenterDetector.exe, Le
+novoPcManagerService.exe, LenovoVantage-(ConsumerAddin).exe, LenovoVantage-(GenericMessagingAddin)
+.exe, LenovoVantage-(GenericTelemetryAddin).exe, LenovoVantage-(LenovoMachineFixSystemAddin).exe, 
+LenovoVantage-(LenovoServiceBridgeAddin).exe, LenovoVantage-(SESmartBoostAddin).exe, LenovoVantage
+-(SmartDisplayAddin).exe, LenovoVantage-(SmartInteractAddin).exe, LenovoVantage-(SmartNoiseCancell
+edAddin).exe, LenovoVantage-(SmartPanelAddin).exe, LenovoVantage-(SmartPerformanceUserAddin).exe, 
+LenovoVantage-(SmartScenarioAddin).exe, LenovoVantage-(VantageCoreAddin).exe, LenovoVantage.exe, L
+enovoVantageService.exe
+At C:\Users\ezra\acceptance-20261102.ps1:11 char:12
++     $out = & $bin ($argv -split ' ') 2>&1 | Out-String
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (conflicting ven...tageService.exe:String) [], Remote 
+   Exception
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+night charge: false
+exit=0
+--- probe (after night-charge restore)
+gbmd_status: 0x00860004 -> charge mode Rapid (decode: bit5 storage, bit2 express)
+usb_charger: 0x0000cec0 -> ac on (supported), battery-mode on (supported)
+night_charge probe: 0x00000011 -> supported=true (probe bit4 is not the live state; see status)
+night_charge status: 0x00000001 -> enabled=false
+temporary_charge: 0x00000001 -> TemporaryChargeState { raw: 1, permanent: true, plug_in: false, dynamic_lifespan: false }
+########## usb always-on ##########
+--- usb always-on dry-run : vantage --dry-run usb always-on off
+USB AC charging (dry run, not applied): ac off (supported), battery-mode on (supported)
+exit=0
+--- usb always-on write : vantage usb --yes always-on off
+USB AC charging: ac off (supported), battery-mode on (supported)
+exit=0
+--- probe (after usb always-on write)
+gbmd_status: 0x00860004 -> charge mode Rapid (decode: bit5 storage, bit2 express)
+usb_charger: 0x0000ce40 -> ac off (supported), battery-mode on (supported)
+night_charge probe: 0x00000011 -> supported=true (probe bit4 is not the live state; see status)
+night_charge status: 0x00000001 -> enabled=false
+temporary_charge: 0x00000001 -> TemporaryChargeState { raw: 1, permanent: true, plug_in: false, dynamic_lifespan: false }
+--- usb always-on restore : vantage usb --yes always-on on
+USB AC charging: ac on (supported), battery-mode on (supported)
+exit=0
+--- probe (after usb always-on restore)
+gbmd_status: 0x00860004 -> charge mode Rapid (decode: bit5 storage, bit2 express)
+usb_charger: 0x0000cec0 -> ac on (supported), battery-mode on (supported)
+night_charge probe: 0x00000011 -> supported=true (probe bit4 is not the live state; see status)
+night_charge status: 0x00000001 -> enabled=false
+temporary_charge: 0x00000001 -> TemporaryChargeState { raw: 1, permanent: true, plug_in: false, dynamic_lifespan: false }
+########## usb charge-on-battery ##########
+--- usb battery dry-run : vantage --dry-run usb charge-on-battery off
+USB battery-mode charging: ac on (supported), battery-mode off (supported)
+exit=0
+--- usb battery write : vantage usb --yes charge-on-battery off
+USB battery-mode charging: ac on (supported), battery-mode off (supported)
+exit=0
+--- probe (after usb battery write)
+gbmd_status: 0x00860004 -> charge mode Rapid (decode: bit5 storage, bit2 express)
+usb_charger: 0x00004ec0 -> ac on (supported), battery-mode off (supported)
+night_charge probe: 0x00000011 -> supported=true (probe bit4 is not the live state; see status)
+night_charge status: 0x00000001 -> enabled=false
+temporary_charge: 0x00000001 -> TemporaryChargeState { raw: 1, permanent: true, plug_in: false, dynamic_lifespan: false }
+--- usb battery restore : vantage usb --yes charge-on-battery on
+USB battery-mode charging: ac on (supported), battery-mode on (supported)
+exit=0
+--- probe (after usb battery restore)
+gbmd_status: 0x00860004 -> charge mode Rapid (decode: bit5 storage, bit2 express)
+usb_charger: 0x0000cec0 -> ac on (supported), battery-mode on (supported)
+night_charge probe: 0x00000011 -> supported=true (probe bit4 is not the live state; see status)
+night_charge status: 0x00000001 -> enabled=false
+temporary_charge: 0x00000001 -> TemporaryChargeState { raw: 1, permanent: true, plug_in: false, dynamic_lifespan: false }
+########## dolby ##########
+--- dolby dry-run : vantage --dry-run audio dolby movie
+dolby (dry run): previous enabled=false profile=Dynamic, requested enabled=true profile=Movie
+exit=0
+--- dolby write : vantage audio --yes dolby movie
+dolby (applied): previous enabled=false profile=Dynamic, requested enabled=true profile=Movie, actual enabled=true profile=Movie
+exit=0
+--- vendor readback (after dolby write)
+  GetDolbyEnabled=True
+  GetActiveProfile=0
+  GetCurrentMode=0
+--- dolby restore profile : vantage audio --yes dolby dynamic
+dolby (applied): previous enabled=true profile=Movie, requested enabled=true profile=Dynamic, actual enabled=true profile=Dynamic
+exit=0
+--- dolby restore off : vantage audio --yes dolby off
+dolby (applied): previous enabled=true profile=Dynamic, requested enabled=false profile=Off, actual enabled=false profile=Dynamic
+exit=0
+--- vendor readback (after dolby restore)
+  GetDolbyEnabled=False
+  GetActiveProfile=5
+  GetCurrentMode=0
+########## noise cancel ##########
+--- noise dry-run : vantage --dry-run audio noise-cancel shared
+noise-cancel (dry run): previous mic mode=Off, speaker=off, voice-id enrolled, requested mic mode=Shared
+exit=0
+--- noise write : vantage audio --yes noise-cancel shared
+noise-cancel (applied): previous mic mode=Off, speaker=off, voice-id enrolled, requested mic mode=Shared, actual mic mode=Shared, speaker=off, voice-id enrolled
+exit=0
+--- vendor readback (after noise write)
+  GetDolbyEnabled=False
+  GetActiveProfile=5
+  GetCurrentMode=1
+--- noise restore : vantage audio --yes noise-cancel off
+noise-cancel (applied): previous mic mode=Shared, speaker=off, voice-id enrolled, requested mic mode=Off, actual mic mode=Off, speaker=off, voice-id enrolled
+exit=0
+--- vendor readback (after noise restore)
+  GetDolbyEnabled=False
+  GetActiveProfile=5
+  GetCurrentMode=0
+########## smartsense pause-video ##########
+--- sense dry-run : vantage --dry-run sense pause-video off
+smartsense (dry run): 1 feature(s), latest state: pending readback (previous: lock-on-leave=on wake-on-approach=on pause-video=on attention-tracking=unknown)
+exit=0
+--- sense write : vantage sense --yes pause-video off
+vantage.exe : firmware rejected request: SmartSense pipe rejected command 0x000d0101 arg 2
+At C:\Users\ezra\acceptance-20261102.ps1:11 char:12
++     $out = & $bin ($argv -split ' ') 2>&1 | Out-String
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (firmware reject...x000d0101 arg 2:String) [], Remote 
+   Exception
+    + FullyQualifiedErrorId : NativeCommandError
+exit=6
+--- HPD registry (after sense write)
+  PresentLeave = 1
+  Approach = 1
+  Video = 1
+  Privacy = 
+  Capability = 1
+--- sense restore : vantage sense --yes pause-video on
+vantage.exe : firmware rejected request: SmartSense pipe rejected command 0x000d0101 arg 1
+At C:\Users\ezra\acceptance-20261102.ps1:11 char:12
++     $out = & $bin ($argv -split ' ') 2>&1 | Out-String
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (firmware reject...x000d0101 arg 1:String) [], Remote 
+   Exception
+    + FullyQualifiedErrorId : NativeCommandError
+exit=6
+--- HPD registry (after sense restore)
+  PresentLeave = 1
+  Approach = 1
+  Video = 1
+  Privacy = 
+  Capability = 1
+########## firmware- and privilege-bound writes ##########
+--- fan auto : vantage perf fan auto
+vantage.exe : conflicting vendor control application(s) detected: LenovoMagiCenterDetector.exe, Le
+novoPcManagerService.exe, LenovoVantage-(BatteryWidgetAddin).exe, LenovoVantage-(GenericMessagingA
+ddin).exe, LenovoVantage-(GenericTelemetryAddin).exe, LenovoVantage-(IdeaNotebookAddin).exe, Lenov
+oVantage-(LenovoCompanionAppAddin).exe, LenovoVantage-(LenovoMachineFixSystemAddin).exe, LenovoVan
+tage-(LenovoServiceBridgeAddin).exe, LenovoVantage-(ModernPreloadAddin).exe, LenovoVantage-(SEHear
+tBeatAddin).exe, LenovoVantage-(SmartDisplayAddin).exe, LenovoVantage-(SmartInteractAddin).exe, Le
+novoVantage-(SmartNoiseCancelledAddin).exe, LenovoVantage-(SmartScenarioAddin).exe, LenovoVantage-
+(VantageCoreAddin).exe, LenovoVantage.exe, LenovoVantageService.exe
+At C:\Users\ezra\acceptance-20261102.ps1:11 char:12
++     $out = & $bin ($argv -split ' ') 2>&1 | Out-String
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (conflicting ven...tageService.exe:String) [], Remote 
+   Exception
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+invalid argument: stop LenovoMagiCenterDetector.exe, LenovoPcManagerService.exe, LenovoVantage-(Ba
+tteryWidgetAddin).exe, LenovoVantage-(GenericMessagingAddin).exe, LenovoVantage-(GenericTelemetryA
+ddin).exe, LenovoVantage-(IdeaNotebookAddin).exe, LenovoVantage-(LenovoCompanionAppAddin).exe, Len
+ovoVantage-(LenovoMachineFixSystemAddin).exe, LenovoVantage-(LenovoServiceBridgeAddin).exe, Lenovo
+Vantage-(ModernPreloadAddin).exe, LenovoVantage-(SEHeartBeatAddin).exe, LenovoVantage-(SmartDispla
+yAddin).exe, LenovoVantage-(SmartInteractAddin).exe, LenovoVantage-(SmartNoiseCancelledAddin).exe,
+ LenovoVantage-(SmartScenarioAddin).exe, LenovoVantage-(VantageCoreAddin).exe, LenovoVantage.exe, 
+LenovoVantageService.exe before writing, or re-run with --yes to accept concurrent-control risk
+exit=2
+--- pl1 : vantage perf pl1 20
+vantage.exe : conflicting vendor control application(s) detected: LenovoMagiCenterDetector.exe, Le
+novoPcManagerService.exe, LenovoVantage-(BatteryWidgetAddin).exe, LenovoVantage-(GenericMessagingA
+ddin).exe, LenovoVantage-(GenericTelemetryAddin).exe, LenovoVantage-(IdeaNotebookAddin).exe, Lenov
+oVantage-(LenovoCompanionAppAddin).exe, LenovoVantage-(LenovoMachineFixSystemAddin).exe, LenovoVan
+tage-(LenovoServiceBridgeAddin).exe, LenovoVantage-(ModernPreloadAddin).exe, LenovoVantage-(SEHear
+tBeatAddin).exe, LenovoVantage-(SmartDisplayAddin).exe, LenovoVantage-(SmartInteractAddin).exe, Le
+novoVantage-(SmartNoiseCancelledAddin).exe, LenovoVantage-(SmartScenarioAddin).exe, LenovoVantage-
+(VantageCoreAddin).exe, LenovoVantage.exe, LenovoVantageService.exe
+At C:\Users\ezra\acceptance-20261102.ps1:11 char:12
++     $out = & $bin ($argv -split ' ') 2>&1 | Out-String
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (conflicting ven...tageService.exe:String) [], Remote 
+   Exception
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+invalid argument: stop LenovoMagiCenterDetector.exe, LenovoPcManagerService.exe, LenovoVantage-(Ba
+tteryWidgetAddin).exe, LenovoVantage-(GenericMessagingAddin).exe, LenovoVantage-(GenericTelemetryA
+ddin).exe, LenovoVantage-(IdeaNotebookAddin).exe, LenovoVantage-(LenovoCompanionAppAddin).exe, Len
+ovoVantage-(LenovoMachineFixSystemAddin).exe, LenovoVantage-(LenovoServiceBridgeAddin).exe, Lenovo
+Vantage-(ModernPreloadAddin).exe, LenovoVantage-(SEHeartBeatAddin).exe, LenovoVantage-(SmartDispla
+yAddin).exe, LenovoVantage-(SmartInteractAddin).exe, LenovoVantage-(SmartNoiseCancelledAddin).exe,
+ LenovoVantage-(SmartScenarioAddin).exe, LenovoVantage-(VantageCoreAddin).exe, LenovoVantage.exe, 
+LenovoVantageService.exe before writing, or re-run with --yes to accept concurrent-control risk
+exit=2
+--- pl2 : vantage perf pl2 28
+vantage.exe : conflicting vendor control application(s) detected: LenovoMagiCenterDetector.exe, Le
+novoPcManagerService.exe, LenovoVantage-(BatteryWidgetAddin).exe, LenovoVantage-(GenericMessagingA
+ddin).exe, LenovoVantage-(GenericTelemetryAddin).exe, LenovoVantage-(IdeaNotebookAddin).exe, Lenov
+oVantage-(LenovoCompanionAppAddin).exe, LenovoVantage-(LenovoMachineFixSystemAddin).exe, LenovoVan
+tage-(LenovoServiceBridgeAddin).exe, LenovoVantage-(ModernPreloadAddin).exe, LenovoVantage-(SEHear
+tBeatAddin).exe, LenovoVantage-(SmartDisplayAddin).exe, LenovoVantage-(SmartInteractAddin).exe, Le
+novoVantage-(SmartNoiseCancelledAddin).exe, LenovoVantage-(SmartScenarioAddin).exe, LenovoVantage-
+(VantageCoreAddin).exe, LenovoVantage.exe, LenovoVantageService.exe
+At C:\Users\ezra\acceptance-20261102.ps1:11 char:12
++     $out = & $bin ($argv -split ' ') 2>&1 | Out-String
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (conflicting ven...tageService.exe:String) [], Remote 
+   Exception
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+invalid argument: stop LenovoMagiCenterDetector.exe, LenovoPcManagerService.exe, LenovoVantage-(Ba
+tteryWidgetAddin).exe, LenovoVantage-(GenericMessagingAddin).exe, LenovoVantage-(GenericTelemetryA
+ddin).exe, LenovoVantage-(IdeaNotebookAddin).exe, LenovoVantage-(LenovoCompanionAppAddin).exe, Len
+ovoVantage-(LenovoMachineFixSystemAddin).exe, LenovoVantage-(LenovoServiceBridgeAddin).exe, Lenovo
+Vantage-(ModernPreloadAddin).exe, LenovoVantage-(SEHeartBeatAddin).exe, LenovoVantage-(SmartDispla
+yAddin).exe, LenovoVantage-(SmartInteractAddin).exe, LenovoVantage-(SmartNoiseCancelledAddin).exe,
+ LenovoVantage-(SmartScenarioAddin).exe, LenovoVantage-(VantageCoreAddin).exe, LenovoVantage.exe, 
+LenovoVantageService.exe before writing, or re-run with --yes to accept concurrent-control risk
+exit=2
+########## FINAL STATE ##########
+--- probe (final)
+gbmd_status: 0x00860004 -> charge mode Rapid (decode: bit5 storage, bit2 express)
+usb_charger: 0x0000cec0 -> ac on (supported), battery-mode on (supported)
+night_charge probe: 0x00000011 -> supported=true (probe bit4 is not the live state; see status)
+night_charge status: 0x00000001 -> enabled=false
+temporary_charge: 0x00000001 -> TemporaryChargeState { raw: 1, permanent: true, plug_in: false, dynamic_lifespan: false }
+--- HPD registry (final)
+  PresentLeave = 1
+  Approach = 1
+  Video = 1
+  Privacy = 
+  Capability = 1
+--- vendor readback (final)
+  GetDolbyEnabled=False
+  GetActiveProfile=5
+  GetCurrentMode=0
+--- final charge-mode : vantage --json battery charge-mode rapid
+vantage.exe : {"error":{"kind":"invalid_argument","message":"invalid argument: stop LenovoMagiCent
+erDetector.exe, LenovoPcManagerService.exe, LenovoVantage-(BatteryWidgetAddin).exe, LenovoVantage-
+(ConsumerAddin).exe, LenovoVantage-(DeviceSettingsHeartbeatAddin).exe, LenovoVantage-(GenericMessa
+gingAddin).exe, LenovoVantage-(GenericTelemetryAddin).exe, LenovoVantage-(IdeaNotebookAddin).exe, 
+LenovoVantage-(LenovoAuthenticationAddin).exe, LenovoVantage-(LenovoCompanionAppAddin).exe, Lenovo
+Vantage-(LenovoHardwareScanAddin).exe, LenovoVantage-(LenovoMachineFixSystemAddin).exe, LenovoVant
+age-(LenovoProductivitySystemAddin).exe, LenovoVantage-(LenovoServiceBridgeAddin).exe, LenovoVanta
+ge-(ModernPreloadAddin).exe, LenovoVantage-(SEDiagnosisAddin).exe, LenovoVantage-(SEHeartBeatAddin
+).exe, LenovoVantage-(SESmartBoostAddin).exe, LenovoVantage-(SmartColorAddin).exe, LenovoVantage-(
+SmartDisplayAddin).exe, LenovoVantage-(SmartInteractAddin).exe, LenovoVantage-(SmartNoiseCancelled
+Addin).exe, LenovoVantage-(SmartPanelAddin).exe, LenovoVantage-(SmartPerformanceAddin).exe, Lenovo
+Vantage-(SmartPerformanceUserAddin).exe, LenovoVantage-(SmartScenarioAddin).exe, LenovoVantage-(Va
+ntageCoreAddin).exe, LenovoVantage.exe, LenovoVantageService.exe before writing, or re-run with --
+yes to accept concurrent-control risk","detail":"stop LenovoMagiCenterDetector.exe, LenovoPcManage
+rService.exe, LenovoVantage-(BatteryWidgetAddin).exe, LenovoVantage-(ConsumerAddin).exe, LenovoVan
+tage-(DeviceSettingsHeartbeatAddin).exe, LenovoVantage-(GenericMessagingAddin).exe, LenovoVantage-
+(GenericTelemetryAddin).exe, LenovoVantage-(IdeaNotebookAddin).exe, LenovoVantage-(LenovoAuthentic
+ationAddin).exe, LenovoVantage-(LenovoCompanionAppAddin).exe, LenovoVantage-(LenovoHardwareScanAdd
+in).exe, LenovoVantage-(LenovoMachineFixSystemAddin).exe, LenovoVantage-(LenovoProductivitySystemA
+ddin).exe, LenovoVantage-(LenovoServiceBridgeAddin).exe, LenovoVantage-(ModernPreloadAddin).exe, L
+enovoVantage-(SEDiagnosisAddin).exe, LenovoVantage-(SEHeartBeatAddin).exe, LenovoVantage-(SESmartB
+oostAddin).exe, LenovoVantage-(SmartColorAddin).exe, LenovoVantage-(SmartDisplayAddin).exe, Lenovo
+Vantage-(SmartInteractAddin).exe, LenovoVantage-(SmartNoiseCancelledAddin).exe, LenovoVantage-(Sma
+rtPanelAddin).exe, LenovoVantage-(SmartPerformanceAddin).exe, LenovoVantage-(SmartPerformanceUserA
+ddin).exe, LenovoVantage-(SmartScenarioAddin).exe, LenovoVantage-(VantageCoreAddin).exe, LenovoVan
+tage.exe, LenovoVantageService.exe before writing, or re-run with --yes to accept concurrent-contr
+ol risk"}}
+At C:\Users\ezra\acceptance-20261102.ps1:11 char:12
++     $out = & $bin ($argv -split ' ') 2>&1 | Out-String
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ({"error":{"kind...control risk"}}:String) [], Remote 
+   Exception
+    + FullyQualifiedErrorId : NativeCommandError
+exit=2
+--- final usb : vantage --json --dry-run usb always-on off
+{"mode":"dry_run","previous":{"ac_enabled":true,"ac_supported":true,"battery_enabled":true,"battery_supported":true},"requested":{"ac_enabled":false,"ac_supported":true,"battery_enabled":true,"battery_supported":true}}
+exit=0

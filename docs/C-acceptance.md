@@ -711,7 +711,8 @@ PL1/PL2/tau 与风扇模式在 Windows 仍为不可用——唯一在册 MSR 通
 随后用**与 CLI 无关的读回通道**核对,最后恢复原值并再次核对。独立读回通道:EnergyDrv/GBMD 与 USB 标志字
 (`charge_domain_probe` 独立读取)、HPD 注册表(`HKLM\SYSTEM\CurrentControlSet\Services\SmartSense\Parameters\HPD`)、
 厂商客户端只读探针(DolbyRpcClient.dll / ElevocControlSDK_x64.dll 的只读导出,供对照)。脚本与原始记录:
-`evidence/acceptance-20261102.ps1`、`evidence/acceptance-transcript-2.txt`、`evidence/acceptance-round3.txt`。
+`docs/evidence/target-write-acceptance-20261102.ps1`、
+`docs/evidence/target-write-acceptance-20261102.txt`、`docs/evidence/target-write-acceptance-round3-20261102.txt`。
 
 | 功能 | 写 | 独立回读 | 恢复 | 结论 |
 |---|---|---|---|---|
@@ -742,7 +743,7 @@ docs/interfaces.md §13/§15,属待开发项,不计入已验收。
 `auto_restore_puts_the_previous_usb_charging_state_back`)。
 
 目标机实测(脚本 `C:\Users\ezra\acc5.ps1`,记录
-`evidence/acceptance-auto-restore.txt`):
+`docs/evidence/target-auto-restore-acceptance-20261102.txt`):
 
 | 命令 | 写入 | 自动恢复 | 独立回读(厂商只读探针 / EnergyDrv 探针) |
 |---|---|---|---|

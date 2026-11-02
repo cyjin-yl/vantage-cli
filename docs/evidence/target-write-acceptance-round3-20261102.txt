@@ -1,0 +1,137 @@
+########## ROUND 3 ##########
+--- HPD (baseline)
+  PresentLeave = 1
+  Approach = 1
+  Video = 1
+  Capability = 1
+--- fan auto : vantage perf --yes fan auto
+vantage.exe : conflicting vendor control application(s) detected: LenovoMagiCenterDetector.exe, Le
+novoPcManagerService.exe, LenovoVantage-(GenericMessagingAddin).exe, LenovoVantage-(GenericTelemet
+ryAddin).exe, LenovoVantage-(LenovoMachineFixSystemAddin).exe, LenovoVantage-(LenovoServiceBridgeA
+ddin).exe, LenovoVantage-(ModernPreloadAddin).exe, LenovoVantage-(SESmartBoostAddin).exe, LenovoVa
+ntage-(SmartDisplayAddin).exe, LenovoVantage-(SmartInteractAddin).exe, LenovoVantage-(SmartNoiseCa
+ncelledAddin).exe, LenovoVantage-(SmartPanelAddin).exe, LenovoVantage-(SmartPerformanceUserAddin).
+exe, LenovoVantage-(SmartScenarioAddin).exe, LenovoVantage-(VantageCoreAddin).exe, LenovoVantage.e
+xe, LenovoVantageService.exe
+    + CategoryInfo          : NotSpecified: (conflicting ven...tageService.exe:String) [], Remote 
+   Exception
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+feature is unsupported: LENOVO_GAMEZONE_DATA.GetSmartFanMode
+
+exit=3
+--- fan manual : vantage perf --yes fan manual
+vantage.exe : conflicting vendor control application(s) detected: LenovoMagiCenterDetector.exe, Le
+novoPcManagerService.exe, LenovoVantage-(GenericMessagingAddin).exe, LenovoVantage-(GenericTelemet
+ryAddin).exe, LenovoVantage-(LenovoMachineFixSystemAddin).exe, LenovoVantage-(LenovoServiceBridgeA
+ddin).exe, LenovoVantage-(ModernPreloadAddin).exe, LenovoVantage-(SESmartBoostAddin).exe, LenovoVa
+ntage-(SmartDisplayAddin).exe, LenovoVantage-(SmartInteractAddin).exe, LenovoVantage-(SmartNoiseCa
+ncelledAddin).exe, LenovoVantage-(SmartPanelAddin).exe, LenovoVantage-(SmartPerformanceUserAddin).
+exe, LenovoVantage-(SmartScenarioAddin).exe, LenovoVantage-(VantageCoreAddin).exe, LenovoVantage.e
+xe, LenovoVantageService.exe
+    + CategoryInfo          : NotSpecified: (conflicting ven...tageService.exe:String) [], Remote 
+   Exception
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+feature is unsupported: LENOVO_GAMEZONE_DATA.GetSmartFanMode
+
+exit=3
+--- pl1 20 : vantage perf --yes pl1 20
+vantage.exe : conflicting vendor control application(s) detected: LenovoMagiCenterDetector.exe, Le
+novoPcManagerService.exe, LenovoVantage-(GenericMessagingAddin).exe, LenovoVantage-(GenericTelemet
+ryAddin).exe, LenovoVantage-(LenovoMachineFixSystemAddin).exe, LenovoVantage-(LenovoServiceBridgeA
+ddin).exe, LenovoVantage-(ModernPreloadAddin).exe, LenovoVantage-(SESmartBoostAddin).exe, LenovoVa
+ntage-(SmartDisplayAddin).exe, LenovoVantage-(SmartInteractAddin).exe, LenovoVantage-(SmartNoiseCa
+ncelledAddin).exe, LenovoVantage-(SmartPanelAddin).exe, LenovoVantage-(SmartPerformanceUserAddin).
+exe, LenovoVantage-(SmartScenarioAddin).exe, LenovoVantage-(VantageCoreAddin).exe, LenovoVantage.e
+xe, LenovoVantageService.exe
+    + CategoryInfo          : NotSpecified: (conflicting ven...tageService.exe:String) [], Remote 
+   Exception
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+feature is unsupported: tune.pl1
+
+exit=3
+--- pl2 28 : vantage perf --yes pl2 28
+vantage.exe : conflicting vendor control application(s) detected: LenovoMagiCenterDetector.exe, Le
+novoPcManagerService.exe, LenovoVantage-(GenericMessagingAddin).exe, LenovoVantage-(GenericTelemet
+ryAddin).exe, LenovoVantage-(LenovoMachineFixSystemAddin).exe, LenovoVantage-(LenovoServiceBridgeA
+ddin).exe, LenovoVantage-(ModernPreloadAddin).exe, LenovoVantage-(SESmartBoostAddin).exe, LenovoVa
+ntage-(SmartDisplayAddin).exe, LenovoVantage-(SmartInteractAddin).exe, LenovoVantage-(SmartNoiseCa
+ncelledAddin).exe, LenovoVantage-(SmartPanelAddin).exe, LenovoVantage-(SmartPerformanceUserAddin).
+exe, LenovoVantage-(SmartScenarioAddin).exe, LenovoVantage-(VantageCoreAddin).exe, LenovoVantage.e
+xe, LenovoVantageService.exe
+    + CategoryInfo          : NotSpecified: (conflicting ven...tageService.exe:String) [], Remote 
+   Exception
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+feature is unsupported: tune.pl2
+
+exit=3
+--- lock-on-leave dry-run : vantage --dry-run sense lock-on-leave off
+smartsense (dry run): 1 feature(s), latest state: pending readback (previous: lock-on-leave=on wake-on-approach=on pause-video=on attention-tracking=unknown)
+
+
+exit=0
+--- lock-on-leave write : vantage sense --yes lock-on-leave off
+vantage.exe : firmware rejected request: SmartSense pipe rejected command 0x00090101 arg 0
+    + CategoryInfo          : NotSpecified: (firmware reject...x00090101 arg 0:String) [], Remote 
+   Exception
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+exit=6
+--- HPD (after lock-on-leave write)
+  PresentLeave = 1
+  Approach = 1
+  Video = 1
+  Capability = 1
+--- lock-on-leave restore : vantage sense --yes lock-on-leave on
+vantage.exe : firmware rejected request: SmartSense pipe rejected command 0x00090101 arg 1
+    + CategoryInfo          : NotSpecified: (firmware reject...x00090101 arg 1:String) [], Remote 
+   Exception
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+exit=6
+--- HPD (after lock-on-leave restore)
+  PresentLeave = 1
+  Approach = 1
+  Video = 1
+  Capability = 1
+--- wake-on-approach dry-run : vantage --dry-run sense wake-on-approach off
+smartsense (dry run): 1 feature(s), latest state: pending readback (previous: lock-on-leave=on wake-on-approach=on pause-video=on attention-tracking=unknown)
+
+
+exit=0
+--- wake-on-approach write : vantage sense --yes wake-on-approach off
+vantage.exe : firmware rejected request: SmartSense pipe rejected command 0x00070101 arg 0
+    + CategoryInfo          : NotSpecified: (firmware reject...x00070101 arg 0:String) [], Remote 
+   Exception
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+exit=6
+--- HPD (after wake-on-approach write)
+  PresentLeave = 1
+  Approach = 1
+  Video = 1
+  Capability = 1
+--- wake-on-approach restore : vantage sense --yes wake-on-approach on
+vantage.exe : firmware rejected request: SmartSense pipe rejected command 0x00070101 arg 1
+    + CategoryInfo          : NotSpecified: (firmware reject...x00070101 arg 1:String) [], Remote 
+   Exception
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+exit=6
+--- HPD (after wake-on-approach restore)
+  PresentLeave = 1
+  Approach = 1
+  Video = 1
+  Capability = 1
+--- HPD (final)
+  PresentLeave = 1
+  Approach = 1
+  Video = 1
+  Capability = 1
