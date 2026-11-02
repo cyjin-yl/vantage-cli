@@ -51,32 +51,6 @@ pub trait HpdRpc: Send + Sync {
     fn set_feature(&self, feature: SenseFeature) -> Result<()>;
 }
 
-/// The HPD RPC transport is not attached on the observed target build: its
-/// hand-built NDR descriptor faults with an access violation inside the
-/// marshaller, which would take the whole CLI down. This transport reports
-/// the channel as unavailable so the sense service can fall back to the
-/// persisted registry projection and keep the legacy SmartSense pipe path
-/// working. See docs/evidence/native-acceptance-20261103.md.
-pub struct UnavailableHpdRpc;
-
-impl HpdRpc for UnavailableHpdRpc {
-    fn read_state(&self) -> Result<SenseState> {
-        Err(LctrlError::Unsupported {
-            feature:
-                "sense.hpd-rpc: the HPD RPC transport faults on this target and is not attached"
-                    .into(),
-        })
-    }
-
-    fn set_feature(&self, feature: SenseFeature) -> Result<()> {
-        Err(LctrlError::Unsupported {
-            feature: format!(
-                "sense.hpd-rpc: the HPD RPC transport faults on this target and is not attached ({feature:?})"
-            ),
-        })
-    }
-}
-
 /// Lazy HPD binding. Constructing the CLI's service graph performs no RPC;
 /// only a sensing command opens the context. No automatic call replay occurs.
 pub struct NativeHpdRpc {
@@ -183,13 +157,20 @@ unsafe extern "system" fn rpc_free(memory: *mut c_void) {
 /// metadata would let the runtime select an unsupported interpreter path.
 struct Meta {
     binding: *mut c_void,
-    context: usize,
     implicit_handle: *mut c_void,
     syntax: MIDL_SYNTAX_INFO,
     proxy: MIDL_STUBLESS_PROXY_INFO,
     interface: RPC_CLIENT_INTERFACE,
     stub: MIDL_STUB_DESC,
     server_info: MIDL_SERVER_INFO,
+    /// `[out]`/`[in,out]` context-handle storage for opnum 0/1. The
+    /// marshaller stores the client-side context bookkeeping into this
+    /// buffer through the `[out] context_handle*` descriptor — generously
+    /// sized and placed last so any NDR_CCONTEXT growth cannot overwrite
+    /// the interpreter metadata above. `context[0]` is the live context
+    /// token passed to subsequent opnums, matching the vendor thunk's
+    /// `client->context` read.
+    context: [u64; 16],
 }
 
 impl Meta {
@@ -312,7 +293,7 @@ impl Session {
                 status.set(NdrClientCall3(proxy, 0, ptr::null_mut(), binding, context).Simple);
             })?;
             server_status("Initialize", status.get())?;
-            if session.meta.context == 0 {
+            if session.meta.context[0] == 0 {
                 return Err(LctrlError::ChannelUnavailable {
                     channel: "HPD RPC Initialize succeeded without a context handle".into(),
                 });
@@ -329,7 +310,7 @@ impl Session {
         let mut value = 0u32;
         let status = Cell::new(0isize);
         let proxy = self.proxy();
-        let context = self.meta.context;
+        let context = self.meta.context[0] as usize;
         rpc_guarded("GetVersion", || unsafe {
             status.set(
                 NdrClientCall3(
@@ -350,7 +331,7 @@ impl Session {
         let mut value = 0u64;
         let status = Cell::new(0isize);
         let proxy = self.proxy();
-        let context = self.meta.context;
+        let context = self.meta.context[0] as usize;
         rpc_guarded("GetCapability", || unsafe {
             status.set(
                 NdrClientCall3(
@@ -372,7 +353,7 @@ impl Session {
         let mut array = AllocatedWchars(ptr::null_mut());
         let status = Cell::new(0isize);
         let proxy = self.proxy();
-        let context = self.meta.context;
+        let context = self.meta.context[0] as usize;
         let out = values.as_mut_ptr();
         rpc_guarded("GetAllSetting", || unsafe {
             status.set(
@@ -420,7 +401,7 @@ impl Session {
         };
         let status = Cell::new(0isize);
         let proxy = self.proxy();
-        let context = self.meta.context;
+        let context = self.meta.context[0] as usize;
         rpc_guarded(operation, || unsafe {
             status.set(NdrClientCall3(proxy, op, ptr::null_mut(), context, value as usize).Simple);
         })?;
@@ -431,7 +412,7 @@ impl Session {
 impl Drop for Session {
     fn drop(&mut self) {
         unsafe {
-            if self.meta.context != 0 {
+            if self.meta.context[0] != 0 {
                 let proxy = self.proxy();
                 let context = ptr::addr_of_mut!(self.meta.context) as usize;
                 // Like the native client's Close, cleanup must not replace
@@ -529,12 +510,21 @@ fn rpc_guarded(operation: &str, call: impl FnOnce()) -> Result<()> {
         });
     }
     unsafe {
-        let mut context = MaybeUninit::<CONTEXT>::zeroed();
-        (*context.as_mut_ptr()).ContextFlags = CONTEXT_ALL;
-        GUARD_CONTEXT.set(context.as_mut_ptr());
+        // RtlCaptureContext's body uses `fxsave [rcx+0x100]`, so the buffer
+        // must be 16-byte aligned. windows-sys' x64 CONTEXT is `#[repr(C)]`
+        // without an explicit alignment (the ABI type is DECLSPEC_ALIGN(16)),
+        // so a plain stack MaybeUninit can land at an 8-aligned address and
+        // crash inside ntdll before the guarded call runs (observed as
+        // 0xC0000005 at ntdll!fxsave on the target). Force the alignment.
+        #[repr(C, align(16))]
+        struct AlignedContext(CONTEXT);
+
+        let mut context = MaybeUninit::<AlignedContext>::zeroed();
+        (*context.as_mut_ptr()).0.ContextFlags = CONTEXT_ALL;
+        GUARD_CONTEXT.set(context.as_mut_ptr().cast());
         GUARD_CODE.set(0);
         GUARD_STATE.set(1);
-        RtlCaptureContext(context.as_mut_ptr());
+        RtlCaptureContext(context.as_mut_ptr().cast());
         if GUARD_STATE.get() == 1 {
             call();
             GUARD_STATE.set(0);

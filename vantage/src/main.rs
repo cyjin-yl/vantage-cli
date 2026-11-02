@@ -423,11 +423,16 @@ fn main() {
     let hotkey = lctrl_hal_win::NativeHotkey::new();
     let usb_power = lctrl_hal_win::WindowsUsbPower::new(lctrl_hal_win::NativeIoctl);
     // The Dolby client speaks the DAX contract over rpcrt4 (no Lenovo
-    // payload dependency), but its hand-built NDR descriptor faults with an
-    // access violation inside the marshaller on the current target build,
-    // so the channel stays detached: `audio dolby` reports Unsupported
-    // instead of taking the process down. See
-    // docs/evidence/native-acceptance-20261103.md.
+    // payload dependency). `load()` only composes the binding; a missing
+    // DAX3API surfaces when the first command runs, so the service is
+    // attached unconditionally and reports ChannelUnavailable per call.
+    let dolby = match lctrl_hal_win::NativeDolbyRpc::load() {
+        Ok(rpc) => Some(lctrl_hal_win::WindowsDolbyAudio::new(rpc)),
+        Err(error) => {
+            debug_note(&format!("dolby audio channel unavailable: {error}"));
+            None
+        }
+    };
     let noise_cancel = match lctrl_hal_win::NativeElevocRpc::load() {
         Ok(rpc) => Some(lctrl_hal_win::WindowsNoiseCancel::new(rpc)),
         Err(error) => {
@@ -465,6 +470,10 @@ fn main() {
         Some(noise_cancel) => services.with_noise_cancel(noise_cancel),
         None => services,
     };
+    let services = match &dolby {
+        Some(dolby) => services.with_audio(dolby),
+        None => services,
+    };
     // Panel image-quality features ride the graphics driver's Intel Control
     // Library (IGCL). The library ships with the Intel driver, so a missing
     // package only disables eye-care/super-resolution.
@@ -479,12 +488,12 @@ fn main() {
         Some(panel_features) => services.with_panel_features(panel_features),
         None => services,
     };
-    // The HPD RPC transport faults with an access violation inside the
-    // marshaller on the current target build, so it stays detached: the
-    // sense service reports the persisted registry projection (labelled as
-    // such) and keeps the legacy SmartSense pipe path working.
+    // The HPD RPC transport is live on the target: the NDR descriptor is
+    // accepted by the runtime and reads/writes through the SmartSense HPD
+    // endpoint. The service still falls back to the registry projection
+    // when the endpoint cannot be reached.
     let sense = lctrl_hal_win::WindowsSenseControl::new(
-        lctrl_hal_win::UnavailableHpdRpc,
+        lctrl_hal_win::NativeHpdRpc::new(),
         lctrl_hal_win::NativeSensePipe,
         lctrl_hal_win::NativeHpdStore,
     );
