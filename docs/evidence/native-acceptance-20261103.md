@@ -166,6 +166,42 @@ host was running before this session and was not running afterwards — the auto
 launch routes above could not bring it back, so it needs a manual start from the
 Start menu ("Lenovo Vantage"). The addin and service side was never stopped.
 
+**Update (2026-11-03, later the same day): root cause found and fixed.** The
+"permission denied" launch failure was an ACL defect on the package install
+directory, not a launch-routing problem. The deployment log shows a
+`Deployment Register` operation on the package at 17:43 that day — an
+`Add-AppxPackage -Register` attempt made during the automated-launch work —
+which rewrote `C:\Program Files\WindowsApps\E046963F.LenovoCompanion_10.2608.43.0_x64__k1h2ywk1493x8`
+(and the `_neutral_~_` resource folder) and stripped the stock explicit
+`APPLICATION PACKAGE AUTHORITY\ALL APPLICATION PACKAGES (OI)(CI)(RX)` and
+`APPLICATION PACKAGE AUTHORITY\所有受限制的应用程序包 (OI)(CI)(RX)` ACEs that
+every installed package carries (verified against a healthy sibling package).
+Without them the packaged process cannot read its own install directory and
+activation fails before `main` — identical to the user's Start-menu symptom.
+Repair: take ownership as Administrators, re-grant the two app-package
+authority ACEs plus `BUILTIN\Users:(OI)(CI)(RX)` recursively (`icacls /grant
+... /t` — `icacls /reset` was deliberately not used because 164 package files
+carry legitimate explicit child ACEs it would erase), then restore owner to
+`NT SERVICE\TrustedInstaller`. Result: the app now activates normally
+(`LenovoVantage` running in the interactive session, Runtime log events
+201/210/211, `Get-AppxPackage` Status=Ok) and the WebView2 dashboard renders.
+
+CDP is conclusively unobtainable for this app, and the mechanism is now
+understood rather than hypothesised: the WebView2 browser process command
+line shows Lenovo supplies its own `CoreWebView2EnvironmentOptions.
+AdditionalBrowserArguments` (`--autoplay-policy`, `--disable-features`, …),
+which per WebView2 rules causes the `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`
+environment variable and both `…\Policies\Microsoft\Edge\WebView2`
+registry paths (HKCU and HKLM) to be ignored — verified live: neither the
+flag on the browser process nor a listener on 9222 ever appeared. The
+UI-level conclusion was instead obtained through UI Automation run inside
+the interactive session (scheduled task, InteractiveToken logon): the
+"Lenovo Vantage" window (`LenovoVantageNativeShell` → `Chrome_WidgetWin_1`
+→ WebView `Document`) renders the live dashboard — ThinkBook 14 G8+ IPH,
+serial/BIOS version, network, CPU 22% / 2.76 GHz, storage 95%, memory 65%,
+battery 100% charged. All debug-arg registry keys, scheduled tasks, and
+temp scripts were removed afterwards; the Vantage UI is left running.
+
 ## 5. Review findings folded into this change
 
 A read-only review of the HPD transport returned three concrete defects; all three
