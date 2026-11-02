@@ -2,7 +2,10 @@
 // The IGCL panel channel only exists on Windows.
 use lctrl_core::{ApplyMode, EyeCareLevel, LctrlError, Result};
 use lctrl_hal::PanelFeaturesControl;
-use lctrl_hal_win::{IntelCtlApi, WindowsPanelFeatures, classify_lut, eye_care_lut, identity_lut};
+use lctrl_hal_win::{
+    IntelCtlApi, PixtxBlock, PixtxCapability, SuperResolutionCaps, WindowsPanelFeatures,
+    classify_lut, eye_care_lut, identity_lut,
+};
 use parking_lot::Mutex;
 use std::sync::Arc;
 
@@ -11,6 +14,7 @@ struct FakeCtl {
     sr_flag: Arc<Mutex<u32>>,
     sr_writes: Arc<Mutex<usize>>,
     reject_state: Arc<Mutex<bool>>,
+    pixtx: Arc<Mutex<Option<PixtxCapability>>>,
 }
 
 impl IntelCtlApi for FakeCtl {
@@ -32,6 +36,52 @@ impl IntelCtlApi for FakeCtl {
         *self.sr_flag.lock() = flag;
         Ok(())
     }
+
+    fn pixtx_capability(&self) -> Result<PixtxCapability> {
+        Ok(self.pixtx.lock().clone().unwrap_or_default())
+    }
+
+    fn super_resolution_capability(&self) -> Result<SuperResolutionCaps> {
+        Ok(SuperResolutionCaps::default())
+    }
+}
+
+#[test]
+fn pixtx_blocks_carry_the_1d_lut_geometry_only_for_1d_blocks() {
+    let fake = FakeCtl::default();
+    *fake.pixtx.lock() = Some(PixtxCapability {
+        blocks: vec![
+            PixtxBlock {
+                block_id: 0x0001_0001,
+                block_type: 1,
+                sampling_type: Some(0),
+                samples_per_channel: Some(256),
+                channels: Some(3),
+            },
+            PixtxBlock {
+                block_id: 0x0001_0002,
+                block_type: 3,
+                sampling_type: None,
+                samples_per_channel: None,
+                channels: None,
+            },
+        ],
+    });
+    let capability = fake.pixtx_capability().expect("capability");
+    assert_eq!(capability.blocks.len(), 2);
+    assert_eq!(capability.blocks[0].samples_per_channel, Some(256));
+    assert_eq!(capability.blocks[1].samples_per_channel, None);
+}
+
+#[test]
+fn an_empty_block_list_is_a_proven_absent_pipeline() {
+    let fake = FakeCtl::default();
+    assert!(
+        fake.pixtx_capability()
+            .expect("capability")
+            .blocks
+            .is_empty()
+    );
 }
 
 #[test]

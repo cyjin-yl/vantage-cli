@@ -64,6 +64,10 @@
 旧资料中的约 50%–60% Storage 阈值与此不同;两种名称是否对应同一底层模式、目标机
 `ChargeModeStorage80` 位的语义和实际停充点均未独立验证，不能据此推断本机阈值。
 现有充电写入门禁不变。
+2026-11-02 实机只读确认：GBMD `0xFF` = `0x00860004`，bit23 置位，即
+`DoesSupportStorage80` 式能力判定为真（早期导入工单中"Storage80 能力位为 0"的说法已过时）；
+EM Spec 版本经 `0x8310214c` 实读为 2。证据：`docs/evidence/storage80-aiturbo-20261102.txt`。
+能力位存在不等于停充点已验收，写入门禁维持不变。
 
 ### 3.2 底层下发:GBMD 历史子命令资料(非目标机写入许可)
 
@@ -335,6 +339,7 @@ in=4B 零,out=10B `{u16 PID, u16 VID, u16 SystemPowerW, u16 CurrentChargerPowerW
 ==0 ⇒ Inbox(通用);==3 ⇒ SlowCharger(慢充)。
 
 **EM Spec 版本**:`GetEmSpecVersion()` → **IOCTL `0x8310214c`**(已验证),用于 §3.1 Storage80 判定。
+2026-11-02 实机读回：输入 4B 零、输出 4B 版本字，返回 `0x00000002`（EM Spec 版本 2）。
 
 ---
 

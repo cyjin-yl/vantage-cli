@@ -7,11 +7,12 @@ use parking_lot::Mutex;
 use lctrl_core::{
     AdapterInfo, ApplyMode, Availability, CapabilitySet, ChangeReport, ChargeMode,
     ChargeModeActual, DeviceState, DolbyProfile, DolbyState, HardwareInfo, LctrlError, Platform,
+    SenseDistance, SenseState,
 };
 use lctrl_hal::{
     AudioControl, BatteryControl, BiosControl, ControlConflictDetection, DbdcControl, Hal,
-    PanelBrightnessControl, PerformanceControl, PowerControl, PrivacyControl, TemperatureControl,
-    UsbControl,
+    PanelBrightnessControl, PerformanceControl, PowerControl, PrivacyControl, SenseControl,
+    SenseFeature, TemperatureControl, UsbControl,
 };
 use serde_json::json;
 use vantage_cli::{
@@ -2289,4 +2290,348 @@ fn auto_restore_puts_the_previous_usb_charging_state_back() {
     assert!(usb.state.lock().ac_enabled, "AC charging is back on");
     assert_eq!(usb.writes.load(Ordering::SeqCst), 2);
     assert!(output.human.contains("restored USB AC charging"));
+}
+
+/// In-memory SmartSense endpoint with scripted committed-write failures.
+/// Failure indexes count committed writes only (the forward sequence and
+/// the restore share the same counter), and each scripted failure fires at
+/// most once.
+struct FakeSense {
+    state: Mutex<SenseState>,
+    writes: AtomicUsize,
+    /// One scripted failure per write index; `bool` = whether the write
+    /// takes effect in the state before the error is returned (models a
+    /// real readback failure after a committed driver write).
+    scripted_failures: Mutex<Vec<(usize, bool, LctrlError)>>,
+}
+
+impl FakeSense {
+    fn new(state: SenseState) -> Self {
+        Self {
+            state: Mutex::new(state),
+            writes: AtomicUsize::new(0),
+            scripted_failures: Mutex::new(Vec::new()),
+        }
+    }
+
+    /// Fail the `index`-th commit write (1-based) before it applies any state.
+    fn fail_write(self, index: usize, error: LctrlError) -> Self {
+        self.scripted_failures.lock().push((index, false, error));
+        self
+    }
+
+    /// Fail the `index`-th commit write after applying its requested state,
+    /// modelling a write that committed but whose independent readback
+    /// rejected the result.
+    fn fail_write_after_apply(self, index: usize, error: LctrlError) -> Self {
+        self.scripted_failures.lock().push((index, true, error));
+        self
+    }
+}
+
+fn apply_sense_feature_to(state: &mut SenseState, feature: SenseFeature) {
+    match feature {
+        SenseFeature::LockOnLeave(enabled) => state.lock_on_leave = Some(enabled),
+        SenseFeature::LeaveDistance(distance) => state.leave_distance = Some(distance),
+        SenseFeature::LeaveWait(wait) => state.leave_wait = Some(wait),
+        SenseFeature::WakeOnApproach(enabled) => state.wake_on_approach = Some(enabled),
+        SenseFeature::ApproachDistance(distance) => state.approach_distance = Some(distance),
+        SenseFeature::PauseVideo(enabled) => state.pause_video = Some(enabled),
+        SenseFeature::PrivacyAlert(enabled) => state.privacy_alert = Some(enabled),
+        SenseFeature::AttentionTracking(enabled) => state.attention_tracking = Some(enabled),
+    }
+}
+
+impl SenseControl for FakeSense {
+    fn sense_state(&self) -> lctrl_core::Result<SenseState> {
+        Ok(*self.state.lock())
+    }
+
+    fn set_sense_feature(
+        &self,
+        feature: SenseFeature,
+        apply: ApplyMode,
+    ) -> lctrl_core::Result<ChangeReport<SenseState>> {
+        let previous = *self.state.lock();
+        let mut requested = previous;
+        apply_sense_feature_to(&mut requested, feature);
+        if apply == ApplyMode::DryRun {
+            return Ok(ChangeReport::dry_run(previous, requested));
+        }
+        let write_index = self.writes.fetch_add(1, Ordering::SeqCst) + 1;
+        let scripted = {
+            let mut failures = self.scripted_failures.lock();
+            let position = failures
+                .iter()
+                .position(|(index, _, _)| *index == write_index);
+            position.map(|position| failures.remove(position))
+        };
+        if let Some((_, applied, error)) = scripted {
+            if applied {
+                *self.state.lock() = requested;
+            }
+            return Err(error);
+        }
+        *self.state.lock() = requested;
+        Ok(ChangeReport::committed(previous, requested, requested))
+    }
+}
+
+#[test]
+fn sense_auto_restore_rejects_an_unknown_attention_tracking_baseline_before_any_write() {
+    let hal = FakeHal::new("21VG");
+    // Attention tracking has no persisted key on this model, so the
+    // pre-write value is unknown and an auto-restore could never put it
+    // back; the command must abort without mutating anything.
+    let sense = FakeSense::new(SenseState {
+        lock_on_leave: Some(false),
+        ..SenseState::default()
+    });
+    let cli = Cli::try_parse_from([
+        "vantage",
+        "--auto-restore",
+        "sense",
+        "attention-tracking",
+        "on",
+    ])
+    .expect("parse attention-tracking command");
+
+    let error = execute_with_services(cli, CommandServices::new(&hal).with_sense(&sense))
+        .expect_err("an unrecoverable feature must reject auto-restore");
+
+    assert!(
+        matches!(error, LctrlError::InvalidArgument { .. }),
+        "unexpected error: {error:?}"
+    );
+    assert!(
+        error.to_string().contains("refused before write"),
+        "the rejection says no write happened: {error}"
+    );
+    assert_eq!(
+        sense.writes.load(Ordering::SeqCst),
+        0,
+        "preflight rejects before any mutation"
+    );
+    assert_eq!(sense.state.lock().attention_tracking, None);
+}
+
+#[test]
+fn sense_auto_restore_rejects_a_missing_persisted_value_before_any_write() {
+    let hal = FakeHal::new("21VG");
+    // The settings store has never persisted lock-on-leave (None
+    // baseline), the same refusal must apply to the plain features.
+    let sense = FakeSense::new(SenseState::default());
+    let cli = Cli::try_parse_from(["vantage", "--auto-restore", "sense", "lock-on-leave", "on"])
+        .expect("parse lock-on-leave command");
+
+    let error = execute_with_services(cli, CommandServices::new(&hal).with_sense(&sense))
+        .expect_err("an unknown baseline must reject auto-restore");
+
+    assert!(
+        matches!(error, LctrlError::InvalidArgument { .. }),
+        "unexpected error: {error:?}"
+    );
+    assert_eq!(
+        sense.writes.load(Ordering::SeqCst),
+        0,
+        "preflight rejects before any mutation"
+    );
+}
+
+#[test]
+fn sense_auto_restore_uses_the_multi_feature_initial_baseline() {
+    let hal = FakeHal::new("21VG");
+    let sense = FakeSense::new(SenseState {
+        lock_on_leave: Some(false),
+        leave_distance: Some(SenseDistance::Near),
+        ..SenseState::default()
+    });
+    let cli = Cli::try_parse_from([
+        "vantage",
+        "--auto-restore",
+        "sense",
+        "lock-on-leave",
+        "on",
+        "--distance",
+        "2",
+    ])
+    .expect("parse lock-on-leave command");
+
+    let output = execute_with_services(cli, CommandServices::new(&hal).with_sense(&sense))
+        .expect("lock-on-leave command succeeds");
+
+    let state = *sense.state.lock();
+    assert_eq!(
+        state.lock_on_leave,
+        Some(false),
+        "the initial baseline is restored, not the intermediate report.previous"
+    );
+    assert_eq!(state.leave_distance, Some(SenseDistance::Near));
+    assert_eq!(
+        sense.writes.load(Ordering::SeqCst),
+        4,
+        "two forward writes plus two restore writes"
+    );
+    assert!(output.human.contains("auto-restore"));
+    assert!(output.json["auto_restore"].is_string());
+}
+
+#[test]
+fn sense_auto_restore_runs_after_a_readback_failure_and_preserves_the_error() {
+    let hal = FakeHal::new("21VG");
+    // The second committed write applies its change but fails its
+    // readback; the committed prefix and the failed feature must both be
+    // returned to their initial values, and the original error is
+    // reported unchanged.
+    let sense = FakeSense::new(SenseState {
+        lock_on_leave: Some(false),
+        leave_distance: Some(SenseDistance::Near),
+        ..SenseState::default()
+    })
+    .fail_write_after_apply(
+        2,
+        LctrlError::VerifyMismatch {
+            requested: "leave distance far".into(),
+            actual: "leave distance near".into(),
+        },
+    );
+    let cli = Cli::try_parse_from([
+        "vantage",
+        "--auto-restore",
+        "sense",
+        "lock-on-leave",
+        "on",
+        "--distance",
+        "2",
+    ])
+    .expect("parse lock-on-leave command");
+
+    let error = execute_with_services(cli, CommandServices::new(&hal).with_sense(&sense))
+        .expect_err("the readback failure is reported");
+
+    assert!(
+        matches!(error, LctrlError::VerifyMismatch { .. }),
+        "the primary failure is preserved, got {error:?}"
+    );
+    let state = *sense.state.lock();
+    assert_eq!(
+        state.lock_on_leave,
+        Some(false),
+        "the committed prefix is restored"
+    );
+    assert_eq!(
+        state.leave_distance,
+        Some(SenseDistance::Near),
+        "the failed feature keeps its initial value"
+    );
+    assert_eq!(
+        sense.writes.load(Ordering::SeqCst),
+        4,
+        "two forward attempts plus one restore write per touched feature"
+    );
+}
+
+#[test]
+fn sense_auto_restore_reports_a_cleanup_failure_next_to_the_primary_error() {
+    let hal = FakeHal::new("21VG");
+    // The forward write fails and the first restore write fails too; the
+    // combined error must carry both failures.
+    let sense = FakeSense::new(SenseState {
+        lock_on_leave: Some(false),
+        leave_distance: Some(SenseDistance::Near),
+        ..SenseState::default()
+    })
+    .fail_write(
+        2,
+        LctrlError::FirmwareRejected {
+            detail: "pipe write failed".into(),
+        },
+    )
+    .fail_write(
+        3,
+        LctrlError::ChannelUnavailable {
+            channel: "settings pipe closed".into(),
+        },
+    );
+    let cli = Cli::try_parse_from([
+        "vantage",
+        "--auto-restore",
+        "sense",
+        "lock-on-leave",
+        "on",
+        "--distance",
+        "2",
+    ])
+    .expect("parse lock-on-leave command");
+
+    let error = execute_with_services(cli, CommandServices::new(&hal).with_sense(&sense))
+        .expect_err("the combined failure is reported");
+
+    let detail = match &error {
+        LctrlError::FirmwareRejected { detail } => detail,
+        other => panic!("unexpected error: {other:?}"),
+    };
+    assert!(
+        detail.contains("pipe write failed"),
+        "the primary failure is preserved: {detail}"
+    );
+    assert!(
+        detail.contains("auto-restore also failed"),
+        "the cleanup failure is included: {detail}"
+    );
+    assert!(
+        detail.contains("settings pipe closed"),
+        "the cleanup failure is included: {detail}"
+    );
+    assert_eq!(
+        sense.state.lock().lock_on_leave,
+        Some(true),
+        "the restore could not run, so the forward value stays"
+    );
+    assert_eq!(sense.writes.load(Ordering::SeqCst), 3);
+}
+
+#[test]
+fn sense_output_keeps_the_plain_report_shape_without_auto_restore() {
+    let hal = FakeHal::new("21VG");
+    let sense = FakeSense::new(SenseState {
+        pause_video: Some(false),
+        ..SenseState::default()
+    });
+    let cli = Cli::try_parse_from(["vantage", "sense", "pause-video", "on"])
+        .expect("parse pause-video command");
+
+    let output = execute_with_services(cli, CommandServices::new(&hal).with_sense(&sense))
+        .expect("pause-video command succeeds");
+
+    assert!(
+        output.json.get("auto_restore").is_none(),
+        "no auto_restore key is added without the flag"
+    );
+    assert!(
+        output.json.get("change").is_none(),
+        "the report stays the top-level payload"
+    );
+    assert_eq!(output.json["mode"], "commit");
+    assert_eq!(sense.writes.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn sense_auto_restore_stays_dry_in_a_dry_run() {
+    let hal = FakeHal::new("21VG");
+    // Even a feature with no persisted baseline is only simulated.
+    let sense = FakeSense::new(SenseState::default());
+    let cli = Cli::try_parse_from([
+        "vantage",
+        "--dry-run",
+        "--auto-restore",
+        "sense",
+        "attention-tracking",
+        "on",
+    ])
+    .expect("parse dry-run command");
+
+    execute_with_services(cli, CommandServices::new(&hal).with_sense(&sense))
+        .expect("dry run succeeds");
+    assert_eq!(sense.writes.load(Ordering::SeqCst), 0);
 }

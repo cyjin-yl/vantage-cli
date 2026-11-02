@@ -78,9 +78,9 @@ pub use bios::WindowsBiosController;
 pub use brightness::WindowsPanelBrightness;
 pub use codec::{
     AdapterDetail, BatteryDetail83, GbmdCommand, GenericGet, IOCTL_BATTERY_CONFIG,
-    IOCTL_BATTERY_DETAIL, IOCTL_GAPD, IOCTL_GBMD, IOCTL_GENERIC_GET, IOCTL_NIGHT_CHARGE,
-    IOCTL_TEMP_CHARGE, IOCTL_USB_CHARGER, NightChargeSelector, TempChargeSelector,
-    UsbChargerSelector,
+    IOCTL_BATTERY_DETAIL, IOCTL_EM_SPEC_VERSION, IOCTL_GAPD, IOCTL_GBMD, IOCTL_GENERIC_GET,
+    IOCTL_NIGHT_CHARGE, IOCTL_TEMP_CHARGE, IOCTL_USB_CHARGER, NightChargeSelector,
+    TempChargeSelector, UsbChargerSelector,
 };
 pub use conflict::WindowsControlConflictDetector;
 pub use diagnostics::WindowsSystemInventory;
@@ -156,7 +156,8 @@ pub use p0::{
 #[cfg(windows)]
 #[cfg(windows)]
 pub use panel_features::{
-    IntelControlLib, IntelCtlApi, WindowsPanelFeatures, classify_lut, eye_care_lut, identity_lut,
+    IntelControlLib, IntelCtlApi, PixtxBlock, PixtxCapability, SuperResolutionCaps,
+    WindowsPanelFeatures, classify_lut, eye_care_lut, identity_lut,
 };
 #[cfg(windows)]
 pub use performance_p0::{PerformanceRegistryReader, WindowsPerformanceP0, read_effective_mode};

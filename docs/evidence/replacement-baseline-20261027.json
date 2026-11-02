@@ -660,7 +660,8 @@
         "C2"
       ],
       "completion": "not claimed complete",
-      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable"
+      "hardware_applicability": "requires per-domain proof; command unsupported is not hardware inapplicable",
+      "corrections_20261102": "2026-11-02 live-read correction: 导入工单验收行“Storage80 能力位为 0”已过时。本机 GBMD 0xFF 状态字实读为 0x00860004（bits 2,17,18,23），bit23 置位，即 DoesSupportStorage80 判定为真；Storage80 能力位不为 0，已可经 lctrl_hal_win::GbmdCommand::storage80_supported 查询。任意阈值写通道缺席的结论不受影响。"
     },
     {
       "issue": 7,

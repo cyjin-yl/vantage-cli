@@ -442,6 +442,12 @@ out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Se
 
 链路:`vantage sense → \\.\pipe\com.lenovo.smartsense.settings → SmartSense.exe(LocalSystem)→ HKLM\SYSTEM\CurrentControlSet\Services\SmartSense\Parameters\HPD`。帧格式:`u32 code + u32 arg` 小端(legacy bool=0/1;camera/video 系 1=enable/2=disable),每连接一请求;响应单个 `i32`(0=拒绝/非零=受理/-1=服务端异常)。客户端任何用户可连接(addin runas=user)。完整命令表(`code=0xNNvv`,payload `u32 code [+ u32 arg]`,响应 i32):
 
+厂商 `NamedPipeClientStream` 的 `Connect(3000)` 对应 `WaitNamedPipeW(...,3000)`;其
+`TokenImpersonationLevel.Anonymous` 对应 `CreateFileW` flags
+`SECURITY_SQOS_PRESENT|SECURITY_ANONYMOUS`(`0x00100000`)。2026-11-02 补齐了这两项
+传输契约,以及所有非零响应按受理处理;请求编码由 lctrl-hal 的 byte-exact 测试钉住。
+这些 parity 修复不预设服务会受理此前返回 0 的功能,仍须独立注册表读回实机验收。
+
 | 命令 | code | 参数编码 | 功能 |
 |---|---|---|---|
 | ENABLE_SST | 0x00010101 | "True"→1 else 0 | SmartSense 总开关 |
@@ -530,10 +536,10 @@ out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Se
 
 **结构布局已按公开头文件校正**(此前把 `ctl_pixtx_color_primaries_t` 写成 `u32`、`ctl_pixtx_config_t` 只留 1D LUT 成员、`ctl_video_processing_super_resolution_info_t` 缺两个 range 字段——这会让驱动按更大的结构写入调用方栈帧)。校正后的布局由 `crates/lctrl-hal-win/src/panel_features.rs` 的布局测试逐字段钉住(大小与偏移)。
 
-**校正后仍然不可用**:像素变换块查询在结构正确的情况下依然让驱动写出我们结构之外的内容 —— 同一调用在目标机上 5 次里 4 次以 `0xC0000374`(堆损坏)结束、1 次侥幸返回 `0x4800000b`(`INVALID_PIXTX_BLOCK_ID`)。驱动同时把一个块 id 写回调用方数组(`0x0007FF01`),但把它作为 `BlockId` 传回仍被拒(`0x4800000b` / `0x40000017 INVALID_BOUND`)。结论:**块查询契约尚未恢复**,因此:
+**2026-11-02 契约与实机复验**:像素变换查询必须使用**显示输出句柄**,并固定请求与公开头文件匹配的 1.1 ABI;超分信息结构(116B)与 get/set 负载(92B)是不同结构。此前查询错用 adapter 句柄,不能用来判断块管线是否存在。修正后的独立只读探针成功枚举所选显示输出,返回 0 个 pixtx 块;超分 caps 查询仍返回 `0x4000000b`(`INVALID_ARGUMENT`)。见 `docs/evidence/igcl-readonly-probe-20261102.md`。因此:
 
-- `panel eye-care` 不再调用该接口,直接报 `Unsupported(panel.eye-care.pixel-transformation-query-unsupported)` —— 与其冒堆破坏风险,不如如实关闭;
+- `panel eye-care` 仍报 `Unsupported(panel.eye-care.pixel-transformation-query-unsupported)`;本次无块可配置,没有护眼 LUT 写入入口;
 - 超分状态查询被驱动以 `0x4000000b` 拒(`INVALID_ARGUMENT`),CLI 报 `unknown`;写路径同理拒绝(`panel.super-resolution.write-unverified`);
-- 之前"21VG 内屏无像素变换管线"的结论**不成立**(那次读数来自错误结构),硬件适用性仍然未知;校正后的正确布局与保留的布局测试,供后续恢复契约时使用。
+- 0 块结论只适用于本次所选显示输出与该驱动版本,不推断其他显示输出/未来驱动也没有能力。写路径不做猜测。
 
 **Overdrive(当前 Unsupported)**:21VG 上未观察到 `\\.\SPBTESTTOOL` PnP 设备/INF,所测 BIOSOD `0x1A0000` 返回 null。上述结果不足以证明不存在其他硬件控制通道。

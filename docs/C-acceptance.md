@@ -39,9 +39,9 @@ BIOS 密码元数据、MagicBay 检测和 scan 清单共 **12 次实际运行,�
 | #3 OSD | 当前未附接真实 overlay/热键动作消费者 |
 | #4 能力/切换检查 | 原生矩阵可运行;平台依赖投影、实际服务绑定与替代就绪报告仍需修正 |
 | #5 电池/适配器 | C14:来源分组及实时电压/功率只读对照通过;健康/寿命、适配器额定功率等仍待逐字段验收 |
-| #6 充电/阈值 | 21VG 未观察到 PWRMGRV/PWMIF32V 已知链,所测 MHQI 返回 win32=2;不能由此证明不存在其他通道。任意阈值仍 Unsupported;C26 仅记录充电域只读 |
-| #7 夜间/临时充电 | 夜充有写路径但只有只读验收;临时模式只读已实现,写选择子尚未恢复(§11.4)。未完成物理写入确认 |
-| #8 USB 供电 | 运行时覆盖(0x831020e8)实现并已接进组合根(原漏挂);BIOS 事务路径同链;写入验收待补 |
+| #6 充电/阈值 | 任意阈值仍 Unsupported。充电模式 dry-run→真实写→EnergyDrv 独立回读及 C29 自动恢复已验收(C28/C29)。live GBMD bit23 证明 Storage80 能力,EM Spec=2;Storage80 写选择子仍在恢复,不能把通用 Rapid/Normal 写当作 Storage80 验收 |
+| #7 夜间/临时充电 | 夜充真实写、独立回读及自动恢复已验收(C28/C29);临时模式写选择子尚未恢复,保持只读 |
+| #8 USB 供电 | AC/电池模式两态真实写、EnergyDrv 独立回读及自动恢复已验收(C28/C29) |
 | #9 电源计划 | 实际枚举成功;高级字段/名称一致性仍须按工单逐项验证 |
 | #10 性能模式 | C4:ITS V3 可读;写入缺版本绑定的已确认控制契约 |
 | #11 风扇 | 清单读取成功;真实 RPM/手动策略/曲线未完成;不可把元数据当实时转速 |
@@ -56,11 +56,11 @@ BIOS 密码元数据、MagicBay 检测和 scan 清单共 **12 次实际运行,�
 | #20 键盘灯 | 当前目标机方法不可用;不得以静态灯光元数据提升写能力 |
 | #21 Win 锁/触控板 | C7 仅确认触控板恢复及非中断 smoke;新版禁用循环与 Win 锁尚未完成验收 |
 | #22 内屏刷新率 | C1 已验收;要求交互式会话,不以 SSH 无显示路径误判硬件不支持 |
-| #23 色彩/显示增强 | IGCL 结构已按公开头文件校正(布局由单测钉住);校正后像素变换块查询仍会让驱动越界写(目标机 5 次里 4 次堆损坏),故护眼通道关闭为 Unsupported,超分状态 unknown、写路径拒绝;此前"无像素变换管线"的读数来自错误结构,硬件适用性仍未知。色域 Unsupported(依赖被禁的 MONITORCONTROL.dll),overdrive 目标设备未观察到 |
+| #23 色彩/显示增强 | 修正 pixtx 使用显示输出句柄与 1.1 ABI、超分 get/set 为 92B。独立只读探针在当前输出返回 0 块;超分 caps 仍 0x4000000b,写保持拒绝(证据 igcl-readonly-probe-20261102.md)。旧错误句柄/布局探针不再用于能力判断。色域 Unsupported(依赖被禁的 MONITORCONTROL.dll),overdrive 目标设备未观察到 |
 | #24 运行时隐私 | 状态实际读取成功;逐层写入、独立读回及恢复证据须按版本保存 |
 | #25 SmartSense/HPD | 已逆向接入:sense 设置管道(interfaces §13),`sense status/lock-on-leave/wake-on-approach/pause-video/attention-tracking` 实现+dry-run+注册表读回;attention-tracking 写后无持久化键(如实 write-only);键盘灯自动仍门禁(contract RPC 未恢复);写入验收待补 |
-| #26 Dolby | 纯 Rust rpcrt4/NDR 客户端不加载 DolbyRpcClient.dll,描述符由本仓库生成(interfaces §0/§12),仍需 DolbyDAXAPI 服务。实机只读复验 connect=ok / GetDolbyEnabled=0 / GetActiveProfile=5 / IsSpatialAudioSupported=1 / GetSKU=1,与厂商 DLL 基线逐项一致;合并后复验(C35)`audio dolby … --dry-run` → previous enabled=false profile=Dynamic;写入验收待补 |
-| #27 音频降噪 | 纯 Rust rpcrt4/NDR 客户端(不加载 ElevocControlSDK,也不内嵌其接口表;描述符由本仓库生成,interfaces §0/§14);仍需要 ElevocService。应用密钥已删除:目标机已观察 `user:""` 可通过交换,不能推断所有输入均获接受。实机只读复验 `audio noise-cancel shared --dry-run` 读出 mic mode=Shared、speaker=off、voice-id=enrolled,与同机基线一致;合并后复验(C35)同值;写入验收待补 |
+| #26 Dolby | 纯 Rust rpcrt4/NDR 客户端不加载 DolbyRpcClient.dll,描述符由本仓库生成(interfaces §0/§12),仍需 DolbyDAXAPI 服务。禁用/启用及 profile 的真实写、厂商 DLL 独立读回与 C29 自动恢复已验收(C28/C29) |
+| #27 音频降噪 | 纯 Rust rpcrt4/NDR 客户端(不加载 ElevocControlSDK,也不内嵌其接口表;描述符由本仓库生成,interfaces §0/§14);仍需要 ElevocService。模式真实写、厂商 SDK 独立读回与 C29 自动恢复已验收(C28/C29) |
 | #28 BIOS 批量/元数据 | 原生事务源码与只读密码元数据已有;CLI 批量、风险和实际生效态验收待完成 |
 | #29 MagicBay LTE | 当前检测未见附件;实现缺口与附件未连接分别记录,不伪报完成 |
 | #30 MagicBay 摄像头 | 当前检测未见附件;UVC 实现及目标附件验收待完成 |

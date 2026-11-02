@@ -1,6 +1,7 @@
 //! Read-only charge-domain probe: reports the GBMD charge-mode decode, USB
-//! charging flags, night-charge probe, and temporary charge mode from the
-//! live EnergyDrv channel. Never writes. Used for C-acceptance evidence.
+//! charging flags, night-charge probe, temporary charge mode, the Storage80
+//! support bit, and the EM Spec version from the live EnergyDrv channel.
+//! Never writes. Used for C-acceptance evidence.
 
 #[cfg(not(windows))]
 fn main() {}
@@ -14,10 +15,16 @@ fn main() {
 
     match driver.gbmd_status() {
         Ok(raw) => println!(
-            "gbmd_status: 0x{raw:08x} -> charge mode {:?} (decode: bit5 storage, bit2 express)",
-            lctrl_core::decode_gbmd_charge_mode(raw)
+            "gbmd_status: 0x{raw:08x} -> charge mode {:?} (decode: bit5 storage, bit2 express) storage80_supported={}",
+            lctrl_core::decode_gbmd_charge_mode(raw),
+            lctrl_hal_win::GbmdCommand::storage80_supported(raw),
         ),
         Err(error) => println!("gbmd_status: ERROR {error}"),
+    }
+
+    match driver.em_spec_version() {
+        Ok(raw) => println!("em_spec_version: 0x{raw:08x} ({raw})"),
+        Err(error) => println!("em_spec_version: ERROR {error}"),
     }
 
     match driver.usb_charger_flags() {

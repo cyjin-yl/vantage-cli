@@ -63,13 +63,14 @@ const fn ctl_make_version(major: u32, minor: u32) -> u32 {
     (major << 16) | (minor & 0x0000ffff)
 }
 
-/// Pinned IGCL API versions, tried in order. The public IGCL header ships
-/// 1.1; the Intel driver packages observed on the reference target implement
-/// 1.2. The negotiated version is verified against `SupportedVersion` after
-/// init and only the implementation *major* version is required to match, so
-/// a driver update cannot silently change the struct layouts we marshal
-/// (every struct carries `Size`/`Version` fields).
-const CTL_API_VERSIONS: [u32; 2] = [ctl_make_version(1, 2), ctl_make_version(1, 1)];
+/// Pinned IGCL API version. Every structure marshalled here follows the
+/// public 1.1 header, so 1.1 is what we ask for: requesting a newer version
+/// than the header we marshal against would be silent ABI drift. The
+/// negotiated version is verified against `SupportedVersion` after init and
+/// the implementation *major* version is required to match, so a driver
+/// update cannot silently change the struct layouts (every struct also
+/// carries its own `Size`/`Version` fields).
+const CTL_API_VERSIONS: [u32; 1] = [ctl_make_version(1, 1)];
 const CTL_IMPL_MAJOR_VERSION: u32 = 1;
 
 const CTL_RESULT_SUCCESS: u32 = 0;
@@ -290,6 +291,68 @@ struct CtlVideoProcessingSuperResolutionInfo {
     reserved_fields: [u32; 16],
 }
 
+/// `ctl_video_processing_super_resolution_t` — the **get/set** payload.
+///
+/// This is not the 116-byte `..._info_t` capability payload: Intel's own
+/// sample uses `sizeof(..._info_t)` for the capability query and
+/// `sizeof(..._t)` for get/set, and passing the capability struct to the
+/// get/set call is rejected with `INVALID_ARGUMENT`.
+#[derive(Clone, Copy)]
+#[repr(C)]
+struct CtlVideoProcessingSuperResolution {
+    size: u32,
+    version: u8,
+    super_resolution_flag: u32,
+    super_resolution_max_in_enabled: bool,
+    super_resolution_max_in_width: u32,
+    super_resolution_max_in_height: u32,
+    super_resolution_reboot_reset: bool,
+    reserved_fields: [u32; 15],
+    reserved_bytes: [u8; 3],
+}
+
+/// `ctl_property_info_enum_t` (the 64-bit member that gives the property
+/// info union its alignment).
+#[derive(Clone, Copy)]
+#[repr(C)]
+struct CtlPropertyInfoEnum {
+    supported_types: u64,
+    default_type: u32,
+}
+
+/// `ctl_property_info_t` union.
+#[derive(Clone, Copy)]
+#[repr(C)]
+union CtlPropertyInfo {
+    uint_info: CtlPropertyInfoUint,
+    enum_info: CtlPropertyInfoEnum,
+}
+
+/// `ctl_video_processing_feature_details_t`.
+#[derive(Clone, Copy)]
+#[repr(C)]
+struct CtlVideoProcessingFeatureDetails {
+    size: u32,
+    version: u8,
+    feature_type: u32,
+    value_type: u32,
+    value: CtlPropertyInfo,
+    custom_value_size: i32,
+    p_custom_value: *mut c_void,
+    reserved_fields: [u32; 16],
+}
+
+/// `ctl_video_processing_feature_caps_t`.
+#[derive(Clone, Copy)]
+#[repr(C)]
+struct CtlVideoProcessingFeatureCaps {
+    size: u32,
+    version: u8,
+    num_supported_features: u32,
+    p_feature_details: *mut CtlVideoProcessingFeatureDetails,
+    reserved_fields: [u32; 16],
+}
+
 /// `ctl_video_processing_feature_getset_t`.
 #[derive(Clone, Copy)]
 #[repr(C)]
@@ -325,6 +388,41 @@ struct IntelCtlHandles {
         unsafe extern "C" fn(*mut c_void, *mut CtlPixtxPipeGetConfig) -> u32,
     ctl_get_set_video_processing_feature:
         unsafe extern "C" fn(*mut c_void, *mut CtlVideoProcessingFeatureGetSet) -> u32,
+    ctl_get_supported_video_processing_capabilities:
+        unsafe extern "C" fn(*mut c_void, *mut CtlVideoProcessingFeatureCaps) -> u32,
+}
+
+/// Sanity bound on the block count a driver may report; a corrupt response
+/// must not turn into an unbounded allocation.
+const MAX_PIXTX_BLOCKS: u32 = 64;
+
+/// One pixel-transform block as reported by the driver.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PixtxBlock {
+    pub block_id: u32,
+    pub block_type: u32,
+    /// 1D LUT sampling geometry; only present for 1D LUT blocks, whose
+    /// union member keeps these fields at their own offsets.
+    pub sampling_type: Option<u32>,
+    pub samples_per_channel: Option<u32>,
+    pub channels: Option<u32>,
+}
+
+/// Pixel-transform pipeline capability of one display output. An empty
+/// `blocks` vector is a positive answer: this output has no pipeline.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PixtxCapability {
+    pub blocks: Vec<PixtxBlock>,
+}
+
+/// Super-resolution capability, from the *capability* payload.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SuperResolutionCaps {
+    pub flags: u32,
+    pub min_width: u32,
+    pub max_width: u32,
+    pub min_height: u32,
+    pub max_height: u32,
 }
 
 /// Trait seam over the IGCL transport so the feature layer is unit-testable.
@@ -336,10 +434,18 @@ pub trait IntelCtlApi: Send + Sync {
     fn super_resolution_flag(&self) -> Result<u32>;
     /// Request a super-resolution flag change.
     fn set_super_resolution_flag(&self, flag: u32) -> Result<()>;
+    /// Pixel-transform capability of the primary display output. Read-only:
+    /// the driver is asked for its capability, never for a configuration
+    /// change. Implemented with the *display output* handle, which is the
+    /// handle class this call requires.
+    fn pixtx_capability(&self) -> Result<PixtxCapability>;
+    /// Super-resolution capability as reported by the driver. Read-only.
+    fn super_resolution_capability(&self) -> Result<SuperResolutionCaps>;
 }
 
 /// Dynamically loaded IntelControlLib.dll from the graphics driver store.
 pub struct IntelControlLib {
+    path: PathBuf,
     handles: IntelCtlHandles,
     api: *mut c_void,
     primary_adapter: *mut c_void,
@@ -387,6 +493,12 @@ impl IntelControlLib {
                 *mut CtlVideoProcessingFeatureGetSet,
             ) -> u32 = export(handle, b"ctlGetSetVideoProcessingFeature\0")?;
 
+            let ctl_get_supported_video_processing_capabilities: unsafe extern "C" fn(
+                *mut c_void,
+                *mut CtlVideoProcessingFeatureCaps,
+            )
+                -> u32 = export(handle, b"ctlGetSupportedVideoProcessingCapabilities ")?;
+
             let handles = IntelCtlHandles {
                 _module: DllModule { handle },
                 ctl_init,
@@ -396,6 +508,7 @@ impl IntelControlLib {
                 ctl_pixel_transformation_set_config,
                 ctl_pixel_transformation_get_config,
                 ctl_get_set_video_processing_feature,
+                ctl_get_supported_video_processing_capabilities,
             };
             let mut api: *mut c_void = std::ptr::null_mut();
             let mut init = CtlInitArgs {
@@ -479,6 +592,7 @@ impl IntelControlLib {
             };
 
             Ok(Self {
+                path,
                 handles,
                 api,
                 primary_adapter,
@@ -509,6 +623,58 @@ impl IntelCtlApi for IntelControlLib {
 
     fn super_resolution_flag(&self) -> Result<u32> {
         let _guard = self.state.lock();
+        // Get/set takes `ctl_video_processing_super_resolution_t` (92
+        // bytes), not the 116-byte capability payload.
+        let mut config = CtlVideoProcessingSuperResolution {
+            size: std::mem::size_of::<CtlVideoProcessingSuperResolution>() as u32,
+            version: 0,
+            super_resolution_flag: 0,
+            super_resolution_max_in_enabled: false,
+            super_resolution_max_in_width: 0,
+            super_resolution_max_in_height: 0,
+            super_resolution_reboot_reset: false,
+            reserved_fields: [0; 15],
+            reserved_bytes: [0; 3],
+        };
+        let mut feature = CtlVideoProcessingFeatureGetSet {
+            size: std::mem::size_of::<CtlVideoProcessingFeatureGetSet>() as u32,
+            version: 0,
+            feature_type: CTL_VIDEO_PROCESSING_FEATURE_SUPER_RESOLUTION,
+            application_name: std::ptr::null(),
+            application_name_length: 0,
+            b_set: false,
+            value_type: CTL_PROPERTY_VALUE_TYPE_CUSTOM,
+            value: [0; 8],
+            custom_value_size: std::mem::size_of::<CtlVideoProcessingSuperResolution>() as i32,
+            p_custom_value: &mut config as *mut _ as *mut c_void,
+            reserved_fields: [0; 16],
+        };
+        let result = unsafe {
+            (self.handles.ctl_get_set_video_processing_feature)(self.primary_adapter, &mut feature)
+        };
+        if result == CTL_RESULT_ERROR_INVALID_ARGUMENT {
+            // The driver advertises the feature (the capability query lists
+            // it) but rejects this state query: the state stays unknown
+            // instead of being invented. The public header also warns that
+            // super-resolution needs activation by Intel, so a rejection is
+            // not proof that the hardware lacks the feature.
+            return Err(LctrlError::Unsupported {
+                feature: "panel.super-resolution.state-query.rejected".to_string(),
+            });
+        }
+        if result != CTL_RESULT_SUCCESS {
+            return Err(LctrlError::ChannelUnavailable {
+                channel: format!(
+                    "ctlGetSetVideoProcessingFeature(get SUPER_RESOLUTION) failed (result 0x{result:08x})"
+                ),
+            });
+        }
+        Ok(config.super_resolution_flag)
+    }
+
+    fn super_resolution_capability(&self) -> Result<SuperResolutionCaps> {
+        let _guard = self.state.lock();
+        // Capability queries use the 116-byte `..._info_t` payload.
         let mut info = CtlVideoProcessingSuperResolutionInfo {
             size: std::mem::size_of::<CtlVideoProcessingSuperResolutionInfo>() as u32,
             version: 0,
@@ -533,38 +699,143 @@ impl IntelCtlApi for IntelControlLib {
             },
             reserved_fields: [0; 16],
         };
-        let mut feature = CtlVideoProcessingFeatureGetSet {
-            size: std::mem::size_of::<CtlVideoProcessingFeatureGetSet>() as u32,
+        let mut details = CtlVideoProcessingFeatureDetails {
+            size: std::mem::size_of::<CtlVideoProcessingFeatureDetails>() as u32,
             version: 0,
             feature_type: CTL_VIDEO_PROCESSING_FEATURE_SUPER_RESOLUTION,
-            application_name: std::ptr::null(),
-            application_name_length: 0,
-            b_set: false,
             value_type: CTL_PROPERTY_VALUE_TYPE_CUSTOM,
-            value: [0; 8],
+            value: CtlPropertyInfo {
+                enum_info: CtlPropertyInfoEnum {
+                    supported_types: 0,
+                    default_type: 0,
+                },
+            },
             custom_value_size: std::mem::size_of::<CtlVideoProcessingSuperResolutionInfo>() as i32,
             p_custom_value: &mut info as *mut _ as *mut c_void,
             reserved_fields: [0; 16],
         };
-        let result = unsafe {
-            (self.handles.ctl_get_set_video_processing_feature)(self.primary_adapter, &mut feature)
+        let mut caps = CtlVideoProcessingFeatureCaps {
+            size: std::mem::size_of::<CtlVideoProcessingFeatureCaps>() as u32,
+            version: 0,
+            num_supported_features: 1,
+            p_feature_details: &mut details,
+            reserved_fields: [0; 16],
         };
-        if result == CTL_RESULT_ERROR_INVALID_ARGUMENT {
-            // The driver advertises the feature (the capability query lists
-            // it) but rejects this state query: the state stays unknown
-            // instead of being invented.
-            return Err(LctrlError::Unsupported {
-                feature: "panel.super-resolution.state-query.rejected".to_string(),
-            });
-        }
+        let result = unsafe {
+            (self.handles.ctl_get_supported_video_processing_capabilities)(
+                self.primary_adapter,
+                &mut caps,
+            )
+        };
         if result != CTL_RESULT_SUCCESS {
             return Err(LctrlError::ChannelUnavailable {
                 channel: format!(
-                    "ctlGetSetVideoProcessingFeature(get SUPER_RESOLUTION) failed (result 0x{result:08x})"
+                    "ctlGetSupportedVideoProcessingCapabilities(SUPER_RESOLUTION) failed (result 0x{result:08x})"
                 ),
             });
         }
-        Ok(info.super_resolution_flag)
+        Ok(SuperResolutionCaps {
+            flags: info.super_resolution_flag,
+            min_width: info
+                .super_resolution_range_in_width
+                .range_info
+                .min_possible_value,
+            max_width: info
+                .super_resolution_range_in_width
+                .range_info
+                .max_possible_value,
+            min_height: info
+                .super_resolution_range_in_height
+                .range_info
+                .min_possible_value,
+            max_height: info
+                .super_resolution_range_in_height
+                .range_info
+                .max_possible_value,
+        })
+    }
+
+    fn pixtx_capability(&self) -> Result<PixtxCapability> {
+        let _guard = self.state.lock();
+        if self.primary_output.is_null() {
+            return Err(LctrlError::ChannelUnavailable {
+                channel: "IntelControlLib reported no display output handle".into(),
+            });
+        }
+        let mut query = CtlPixtxPipeGetConfig {
+            size: std::mem::size_of::<CtlPixtxPipeGetConfig>() as u32,
+            version: 0,
+            query_type: CTL_PIXTX_CONFIG_QUERY_TYPE_CAPABILITY,
+            input_pixel_format: pixel_format(),
+            output_pixel_format: pixel_format(),
+            num_blocks: 0,
+            p_block_configs: std::ptr::null_mut(),
+        };
+        // The call needs the display *output* handle; an adapter handle here
+        // makes the driver walk unrelated internal objects.
+        let result = unsafe {
+            (self.handles.ctl_pixel_transformation_get_config)(self.primary_output, &mut query)
+        };
+        if result != CTL_RESULT_SUCCESS {
+            return Err(LctrlError::ChannelUnavailable {
+                channel: format!(
+                    "ctlPixelTransformationGetConfig(capability, no blocks) failed (result 0x{result:08x})"
+                ),
+            });
+        }
+        if query.num_blocks == 0 {
+            // A successful query with zero blocks is a positive answer: this
+            // output has no pixel-transform pipeline.
+            return Ok(PixtxCapability::default());
+        }
+        if query.num_blocks > MAX_PIXTX_BLOCKS {
+            return Err(LctrlError::ChannelUnavailable {
+                channel: format!(
+                    "driver reported an implausible pixel-transform block count {}",
+                    query.num_blocks
+                ),
+            });
+        }
+        let mut blocks = vec![empty_block_config(); query.num_blocks as usize];
+        // The driver validates the supplied capacity, so the count is passed
+        // back in even though it is annotated as an output field.
+        query.num_blocks = blocks.len() as u32;
+        query.p_block_configs = blocks.as_mut_ptr();
+        let result = unsafe {
+            (self.handles.ctl_pixel_transformation_get_config)(self.primary_output, &mut query)
+        };
+        if result != CTL_RESULT_SUCCESS {
+            return Err(LctrlError::ChannelUnavailable {
+                channel: format!(
+                    "ctlPixelTransformationGetConfig(capability, {} blocks) failed (result 0x{result:08x})",
+                    blocks.len()
+                ),
+            });
+        }
+        let mut capability = PixtxCapability::default();
+        for block in &blocks {
+            let (sampling_type, samples_per_channel, channels) =
+                if block.block_type == CTL_PIXTX_BLOCK_TYPE_1D_LUT {
+                    // The 1D member is only meaningful for a 1D block: the
+                    // union members keep their fields at different offsets.
+                    let lut = unsafe { block.config.one_d_lut_config };
+                    (
+                        Some(lut.sampling_type),
+                        Some(lut.num_samples_per_channel),
+                        Some(lut.num_channels),
+                    )
+                } else {
+                    (None, None, None)
+                };
+            capability.blocks.push(PixtxBlock {
+                block_id: block.block_id,
+                block_type: block.block_type,
+                sampling_type,
+                samples_per_channel,
+                channels,
+            });
+        }
+        Ok(capability)
     }
 
     fn set_super_resolution_flag(&self, flag: u32) -> Result<()> {
@@ -749,6 +1020,35 @@ fn pixel_format() -> CtlPixelFormat {
     }
 }
 
+/// A zeroed block descriptor: no LUT sample buffers are supplied, which is
+/// the documented shape for a *capability* query (the driver reports the
+/// geometry instead of transferring samples).
+fn empty_block_config() -> CtlPixtxBlockConfig {
+    CtlPixtxBlockConfig {
+        size: std::mem::size_of::<CtlPixtxBlockConfig>() as u32,
+        version: 0,
+        block_id: 0,
+        block_type: 0,
+        config: CtlPixtxConfig {
+            matrix_config: CtlPixtxMatrixConfig {
+                size: std::mem::size_of::<CtlPixtxMatrixConfig>() as u32,
+                version: 0,
+                pre_offsets: [0.0; 3],
+                post_offsets: [0.0; 3],
+                matrix: [[0.0; 3]; 3],
+            },
+        },
+    }
+}
+
+impl IntelControlLib {
+    /// Driver-store path of the loaded library, for diagnostics.
+    #[must_use]
+    pub fn library_path(&self) -> &std::path::Path {
+        &self.path
+    }
+}
+
 fn discover_intel_control_lib() -> Result<PathBuf> {
     let store = PathBuf::from(r"C:\Windows\System32\DriverStore\FileRepository");
     let entries = std::fs::read_dir(&store).map_err(|error| LctrlError::ChannelUnavailable {
@@ -819,6 +1119,46 @@ mod tests {
         assert_eq!(offset_of!(CtlPixtxPipeGetConfig, num_blocks), 256);
 
         assert_eq!(size_of::<CtlPropertyInfoUint>(), 20);
+        assert_eq!(offset_of!(CtlPropertyInfoUint, range_info), 4);
+        assert_eq!(size_of::<CtlPropertyRangeInfoUint>(), 16);
+        assert_eq!(size_of::<CtlPropertyInfo>(), 24);
+        assert_eq!(align_of::<CtlPropertyInfo>(), 8);
+        assert_eq!(size_of::<CtlVideoProcessingFeatureDetails>(), 120);
+        assert_eq!(offset_of!(CtlVideoProcessingFeatureDetails, value), 16);
+        assert_eq!(
+            offset_of!(CtlVideoProcessingFeatureDetails, custom_value_size),
+            40
+        );
+        assert_eq!(
+            offset_of!(CtlVideoProcessingFeatureDetails, p_custom_value),
+            48
+        );
+        assert_eq!(size_of::<CtlVideoProcessingFeatureCaps>(), 88);
+        assert_eq!(
+            offset_of!(CtlVideoProcessingFeatureCaps, num_supported_features),
+            8
+        );
+        assert_eq!(size_of::<CtlVideoProcessingSuperResolution>(), 92);
+        assert_eq!(align_of::<CtlVideoProcessingSuperResolution>(), 4);
+        assert_eq!(
+            offset_of!(CtlVideoProcessingSuperResolution, super_resolution_flag),
+            8
+        );
+        assert_eq!(
+            offset_of!(CtlVideoProcessingSuperResolution, reserved_bytes),
+            88
+        );
+        // Capability payload and get/set payload are different structs; the
+        // sizes must never become interchangeable again.
+        assert_ne!(
+            size_of::<CtlVideoProcessingSuperResolutionInfo>(),
+            size_of::<CtlVideoProcessingSuperResolution>()
+        );
+        // 1D and 3D LUT union members are not offset-compatible.
+        assert_ne!(
+            offset_of!(CtlPixtx1dLutConfig, p_sample_values),
+            offset_of!(CtlPixtx3dLutConfig, p_sample_values)
+        );
         assert_eq!(size_of::<CtlVideoProcessingSuperResolutionInfo>(), 116);
         assert_eq!(
             offset_of!(

@@ -1,0 +1,132 @@
+Storage80 / EM-spec / AiTurbo live read-only evidence — 2026-11-02
+Target: TB14P-EZRA (ThinkBook 14 G8+ / 21VG, Windows 11), user logged in and active.
+Method: read-only EnergyDrv probe + read-only PowerShell inventory over SSH.
+No hardware writes, no registry writes, no service/task changes of any kind.
+
+Source: work/vantage-machine-fix-20261030 @ c56a491 + this slice's edits
+(codec.rs storage80_supported bit23, IOCTL_EM_SPEC_VERSION 0x8310214c,
+EnergyDriver::em_spec_version, native_ioctl read-only whitelist, probe print).
+The five touched files on the target matched local HEAD byte-for-byte before
+the edited copies were scp'd to C:\Users\ezra\vantage-machine-fix-source.
+Build on target: cargo build --locked --offline -p lctrl-hal-win --example charge_domain_probe
+(cargo at C:\Users\ezra\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\cargo.exe,
+CARGO_TARGET_DIR=D:\YanduBuildCache\cargo-target), Finished in 5.29s.
+
+== D:\YanduBuildCache\cargo-target\debug\examples\charge_domain_probe.exe (verbatim) ==
+
+gbmd_status: 0x00860004 -> charge mode Rapid (decode: bit5 storage, bit2 express) storage80_supported=true
+em_spec_version: 0x00000002 (2)
+usb_charger: 0x0000cec0 -> ac on (supported), battery-mode on (supported)
+night_charge probe: 0x00000011 -> supported=true (probe bit4 is not the live state; see status)
+night_charge status: 0x00000001 -> enabled=false
+temporary_charge: 0x00000001 -> TemporaryChargeState { raw: 1, permanent: true, plug_in: false, dynamic_lifespan: false }
+
+Facts established:
+- GBMD 0xFF status = 0x00860004 (bits 2,17,18,23). bit23 SET =>
+  DoesSupportStorage80-style decode is TRUE on this machine. The imported
+  acceptance line "Storage80 能力位为 0" (replacement-baseline-20261027.json
+  domains[issue 6]) is stale; corrected with a dated correction field.
+- BSIF / GetEmSpecVersion IOCTL 0x8310214c (in = 4 zero bytes, out = 4-byte
+  word) SUCCEEDS and returns 0x00000002 (EM Spec version 2).
+- Charge mode currently decodes Rapid (bit2 express on).
+
+== AiTurbo / extreme-life inventory (verbatim) ==
+
+PS> Get-Service | Where-Object {$_.Name -match 'ai|turbo|perf'} | Format-Table Name,Status,StartType
+
+Name                              Status StartType
+----                              ------ ---------
+AiPerfSvc                        Running Automatic
+BaiduNetdiskUtility              Stopped    Manual
+CodexSandboxService.OpenAI.Codex Running Automatic
+douyin_performance_service       Running Automatic
+GraphicsPerfSvc                  Stopped    Manual
+PerfHost                         Stopped    Manual
+PimIndexMaintenanceSvc_156e0f    Running    Manual
+RetailDemo                       Stopped    Manual
+SysMain                          Running Automatic
+Tailscale                        Running Automatic
+WSAIFabricSvc                    Running Automatic
+
+PS> Get-ChildItem 'C:\Windows\System32\DriverStore\FileRepository' -Filter 'aiturbo.inf*' | ForEach-Object { Get-ChildItem $_.FullName -Recurse -Include *.exe,*.dll,*.sys | Select-Object FullName,Length }
+
+FullName
+--------
+C:\Windows\System32\DriverStore\FileRepository\aiturbo.inf_amd64_6a35ee167b41705a\AiPerfSvc.exe
+C:\Windows\System32\DriverStore\FileRepository\aiturbo.inf_amd64_6a35ee167b41705a\BatteryLife.exe
+C:\Windows\System32\DriverStore\FileRepository\aiturbo.inf_amd64_6a35ee167b41705a\Lenovo.Certif...
+C:\Windows\System32\DriverStore\FileRepository\aiturbo.inf_amd64_6a35ee167b41705a\LseFileMonito...
+C:\Windows\System32\DriverStore\FileRepository\aiturbo.inf_amd64_6a35ee167b41705a\Performance.exe
+C:\Windows\System32\DriverStore\FileRepository\aiturbo.inf_amd64_6a35ee167b41705a\PreloadDll.dll
+C:\Windows\System32\DriverStore\FileRepository\aiturbo.inf_amd64_6a35ee167b41705a\Workman.exe
+
+Same listing with full paths, sizes, versions (supplementary):
+
+C:\Windows\System32\DriverStore\FileRepository\aiturbo.inf_amd64_6a35ee167b41705a\AiPerfSvc.exe | 868864 bytes | 1.0.0.8
+C:\Windows\System32\DriverStore\FileRepository\aiturbo.inf_amd64_6a35ee167b41705a\BatteryLife.exe | 1230256 bytes | 1.0.0.11145
+C:\Windows\System32\DriverStore\FileRepository\aiturbo.inf_amd64_6a35ee167b41705a\Lenovo.CertificateValidation.Native.dll | 366592 bytes | 3.2.9.3
+C:\Windows\System32\DriverStore\FileRepository\aiturbo.inf_amd64_6a35ee167b41705a\LseFileMonitor.sys | 41384 bytes | 1.0.0.17
+C:\Windows\System32\DriverStore\FileRepository\aiturbo.inf_amd64_6a35ee167b41705a\Performance.exe | 2517416 bytes | 1.0.0.11121
+C:\Windows\System32\DriverStore\FileRepository\aiturbo.inf_amd64_6a35ee167b41705a\PreloadDll.dll | 607144 bytes | 1.0.0.1
+C:\Windows\System32\DriverStore\FileRepository\aiturbo.inf_amd64_6a35ee167b41705a\Workman.exe | 2128296 bytes | 1.0.0.1
+
+PS> Get-Process BatteryLife,AiPerfSvc -ErrorAction SilentlyContinue | Select-Object ProcessName,Id,Path
+
+ProcessName    Id Path
+-----------    -- ----
+AiPerfSvc    6292 C:\WINDOWS\System32\DriverStore\FileRepository\aiturbo.inf_amd64_6a35ee167b41...
+BatteryLife 15892 C:\Windows\System32\DriverStore\FileRepository\aiturbo.inf_amd64_6a35ee167b41...
+
+PS> Get-ItemProperty 'HKLM:\SOFTWARE\Lenovo\AiTurbo\BatteryLife' -ErrorAction SilentlyContinue | Format-List *
+
+(no output; key absent — Test-Path 'HKLM:\SOFTWARE\Lenovo\AiTurbo\BatteryLife' = False,
+Test-Path 'HKLM:\SOFTWARE\Lenovo\AiTurbo' = False)
+
+PS> Get-ScheduledTask | Where-Object {$_.TaskPath -like '*Lenovo*'} | Format-Table TaskPath,TaskName,State
+
+TaskPath                  TaskName                                         State
+--------                  -----                                         -----
+\Lenovo\                  LenovoMachineFixUser_OOBE_AUTO_Notification      Ready
+\Lenovo\UDC\              Lenovo UDC Diagnostic Scan                    Disabled
+\Lenovo\UDC\              Lenovo UDC Lazy Deployment                       Ready
+\Lenovo\UDC\              Lenovo UDC Maintainance Task                     Ready
+\Lenovo\UDC\              Lenovo UDC Monitor                               Ready
+\Lenovo\Vantage\          Lenovo.Vantage.ServiceMaintainance               Ready
+\Lenovo\Vantage\Schedule\ ConsumerAddinDailyScheduleTask                   Ready
+\Lenovo\Vantage\Schedule\ DailyTelemetryTransmission                       Ready
+\Lenovo\Vantage\Schedule\ GenericMessagingAddin                            Ready
+\Lenovo\Vantage\Schedule\ GenericMessagingAddin_Pulsation                  Ready
+\Lenovo\Vantage\Schedule\ HeartbeatAddinDailyScheduleTask                  Ready
+\Lenovo\Vantage\Schedule\ IdeaNotebookAddinDailyEvent                      Ready
+\Lenovo\Vantage\Schedule\ Lenovo.Vantage.SmartPerformance.MonthlyReport    Ready
+\Lenovo\Vantage\Schedule\ LenovoCompanionAppAddinDailyScheduleTask         Ready
+\Lenovo\Vantage\Schedule\ LenovoSupportContextEngineDaily                  Ready
+\Lenovo\Vantage\Schedule\ LenovoSupportHealthReportSchedule                Ready
+\Lenovo\Vantage\Schedule\ LenovoSystemUpdateAddin_WeeklyTask               Ready
+\Lenovo\Vantage\Schedule\ SettingsWidgetAddinDailyScheduleTask             Ready
+\Lenovo\Vantage\Schedule\ SmartPerformance.ExpireReminder                  Ready
+\Lenovo\Vantage\Schedule\ VantageCoreAddinDailyScheduleTask                Ready
+\Lenovo\Vantage\Schedule\ VantageCoreAddinIdleScheduleTask                 Ready
+\Lenovo\Vantage\Schedule\ VantageCoreAddinWeekScheduleTask                 Ready
+
+(No AiTurbo/BatteryLife-specific scheduled task; BatteryLife runs as a process.)
+
+== Arbitrary-threshold absence re-confirmation ==
+
+PS> Get-ItemProperty 'HKLM:\SOFTWARE\Lenovo\PWRMGRV\Data' -ErrorAction SilentlyContinue | Format-List *
+(no output)
+PWRMGRV-Data exists: False
+(HKLM:\SOFTWARE\Lenovo\PWRMGRV\Data is now entirely absent, not merely empty;
+no subkeys under HKLM:\SOFTWARE\Lenovo\PWRMGRV either.)
+
+PS> Get-ChildItem 'C:\Program Files','C:\Program Files (x86)' -Recurse -Filter 'PWMIF32V.DLL' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+(no matches)
+PWMIF32V search done
+
+PS> Test-Path 'C:\config.ini'
+False
+
+== PowerBattery.dll presence (for later selector-recovery disassembly) ==
+
+C:\ProgramData\Lenovo\Vantage\Addins\IdeaNotebookAddin\1.0.13.114\PowerBattery.dll | 145376 bytes | 1.0.13.114
+(Same version as the previously RE'd binary, docs/interfaces.md §11.)

@@ -53,7 +53,7 @@ pub use peripherals::{
 pub use power::{PowerControl, ProcessorPowerControl, UsbControl};
 pub use process::ProcessControl;
 pub use scene_policy::ScenePolicyControl;
-pub use sense::{SenseControl, SenseFeature};
+pub use sense::{SenseControl, SenseFeature, encode_request};
 pub use setting::{Setting, apply_setting};
 pub use update::LocalUpdateControl;
 pub use verify::{poll_readback, poll_readback_until};

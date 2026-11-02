@@ -39,6 +39,17 @@ impl SenseFeature {
     }
 }
 
+/// Encode one settings-pipe request frame exactly like the vendor
+/// `CMessageBuilder`: `u32 code` then `u32 arg`, both little-endian,
+/// nothing else. There is no length prefix and no handshake.
+#[must_use]
+pub fn encode_request(code: u32, arg: u32) -> [u8; 8] {
+    let mut frame = [0u8; 8];
+    frame[..4].copy_from_slice(&code.to_le_bytes());
+    frame[4..].copy_from_slice(&arg.to_le_bytes());
+    frame
+}
+
 /// SmartSense human-presence settings control.
 ///
 /// Transport: the `\\.\pipe\com.lenovo.smartsense.settings` named pipe owned
@@ -56,4 +67,76 @@ pub trait SenseControl: Send + Sync {
         feature: SenseFeature,
         apply: ApplyMode,
     ) -> Result<ChangeReport<SenseState>>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{SenseFeature, encode_request};
+    use lctrl_core::SenseDistance;
+
+    // Byte-exact frames verified against the ThinkSmartSenseAddin IL:
+    // `u32 code` + `u32 arg`, little-endian, no trailing bytes.
+    #[test]
+    fn lock_on_leave_frames_match_the_vendor_encoding() {
+        let (code, arg) = SenseFeature::LockOnLeave(true).command();
+        assert_eq!(code, 0x0009_0101);
+        assert_eq!(
+            encode_request(code, arg),
+            [0x01, 0x01, 0x09, 0x00, 0x01, 0x00, 0x00, 0x00]
+        );
+        let (code, arg) = SenseFeature::LockOnLeave(false).command();
+        assert_eq!(
+            encode_request(code, arg),
+            [0x01, 0x01, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00]
+        );
+    }
+
+    #[test]
+    fn wake_on_approach_frames_match_the_vendor_encoding() {
+        let (code, arg) = SenseFeature::WakeOnApproach(true).command();
+        assert_eq!(code, 0x0007_0101);
+        assert_eq!(
+            encode_request(code, arg),
+            [0x01, 0x01, 0x07, 0x00, 0x01, 0x00, 0x00, 0x00]
+        );
+        let (code, arg) = SenseFeature::WakeOnApproach(false).command();
+        assert_eq!(
+            encode_request(code, arg),
+            [0x01, 0x01, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00]
+        );
+    }
+
+    #[test]
+    fn pause_video_uses_the_one_two_convention_not_zero_one() {
+        let (code, arg) = SenseFeature::PauseVideo(true).command();
+        assert_eq!(code, 0x000D_0101);
+        assert_eq!(
+            encode_request(code, arg),
+            [0x01, 0x01, 0x0D, 0x00, 0x01, 0x00, 0x00, 0x00]
+        );
+        let (code, arg) = SenseFeature::PauseVideo(false).command();
+        assert_eq!(
+            encode_request(code, arg),
+            [0x01, 0x01, 0x0D, 0x00, 0x02, 0x00, 0x00, 0x00]
+        );
+    }
+
+    #[test]
+    fn distance_and_wait_commands_encode_their_raw_selector() {
+        let (code, arg) = SenseFeature::LeaveDistance(SenseDistance::Far).command();
+        assert_eq!(code, 0x0011_0101);
+        assert_eq!(
+            encode_request(code, arg),
+            [
+                0x01,
+                0x01,
+                0x11,
+                0x00,
+                SenseDistance::Far.raw() as u8,
+                0x00,
+                0x00,
+                0x00
+            ]
+        );
+    }
 }
