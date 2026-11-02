@@ -705,6 +705,33 @@ PL1/PL2/tau 与风扇模式在 Windows 仍为不可用——唯一在册 MSR 通
 边界声明：C1–C23 只记录其各自限定的验收范围,并不证明已覆盖 21VG 全部适用功能。
 充电、风扇、PL、面板等写入仍须逐项核对门禁与独立物理验收,不得据此停用官方服务。
 
+## C28 · 写入通道真机验收(2026-11-02,dry-run → 真实写 → 独立回读 → 恢复)
+
+方法:每项先 `--dry-run` 规划,再 `--yes`(Vantage 自身进程在运行,须接受并发控制风险)执行真实写,
+随后用**与 CLI 无关的读回通道**核对,最后恢复原值并再次核对。独立读回通道:EnergyDrv/GBMD 与 USB 标志字
+(`charge_domain_probe` 独立读取)、HPD 注册表(`HKLM\SYSTEM\CurrentControlSet\Services\SmartSense\Parameters\HPD`)、
+厂商客户端只读探针(DolbyRpcClient.dll / ElevocControlSDK_x64.dll 的只读导出,供对照)。脚本与原始记录:
+`evidence/acceptance-20261102.ps1`、`evidence/acceptance-transcript-2.txt`、`evidence/acceptance-round3.txt`。
+
+| 功能 | 写 | 独立回读 | 恢复 | 结论 |
+|---|---|---|---|---|
+| 充电模式 `battery charge-mode` | normal → exit 0 | GBMD `0x00860004`→`0x00860000`(Normal) | rapid → exit 0,GBMD 回 `0x00860004` | **已验收** |
+| 夜间充电 `battery night-charge` | on → exit 0 | night-charge 状态 `0x01`→`0x11`(enabled=true) | off → exit 0,回 `0x01` | **已验收** |
+| USB 供电 `usb always-on` | off → exit 0 | USB 标志字 `0xCEC0`→`0xCE40`(ac off) | on → exit 0,回 `0xCEC0` | **已验收** |
+| USB 电池模式 `usb charge-on-battery` | off → exit 0 | USB 标志字 `0xCEC0`→`0x4EC0`(battery-mode off) | on → exit 0,回 `0xCEC0` | **已验收** |
+| 杜比 `audio dolby` | movie → exit 0 | 厂商客户端:`GetDolbyEnabled=True`、`GetActiveProfile=0` | dynamic+off → exit 0,`GetDolbyEnabled=False`、`GetActiveProfile=5` | **已验收**(使用者当场听到声音变化) |
+| 降噪 `audio noise-cancel` | shared → exit 0 | 厂商 SDK:`GetCurrentMode=1` | off → exit 0,`GetCurrentMode=0` | **已验收** |
+
+修复(此前这些写入静默失败,现已在真机生效):USB 写选择子需要 4 字节输出缓冲(0 长度被驱动以
+ERROR_INSUFFICIENT_BUFFER 拒绝);GBMD 写回空的 4 字节槽,须由读回轮询判定;杜比禁用时设备保留预设,
+回读只比较 enable 位;降噪端点的能力清单不枚举模式名,误判为"不支持",改为由服务端返回码判定。
+
+未通过(如实记录,不是"已实现"):SmartSense 三项开关(lock-on-leave / wake-on-approach / pause-video)在管道层
+被拒(`0x00090101 arg 0/1`、`0x00070101 arg 0`、`0x000d0101 arg 1/2`),HPD 三个值均未改变,写入通道尚不可用;
+风扇 `perf fan auto|manual` 报 `unsupported: LENOVO_GAMEZONE_DATA.GetSmartFanMode`(本机型该提供者不暴露此方法);
+`perf pl1|pl2` 报 `unsupported: tune.pl1|pl2`(按依赖裁定不接联想专有 MSR 驱动)。三者的契约缺口见
+docs/interfaces.md §13/§15,属待开发项,不计入已验收。
+
 ## C25 · WinMsrDev MSR 通道真机只读验收（写入保持门禁，部分）
 
 **状态：只读路径已验收；写入路径保持门禁，等待独立物理确认。**

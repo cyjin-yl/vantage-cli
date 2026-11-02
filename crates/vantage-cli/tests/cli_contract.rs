@@ -6,10 +6,10 @@ use parking_lot::Mutex;
 
 use lctrl_core::{
     AdapterInfo, ApplyMode, Availability, CapabilitySet, ChangeReport, ChargeMode,
-    ChargeModeActual, DeviceState, HardwareInfo, LctrlError, Platform,
+    ChargeModeActual, DeviceState, DolbyProfile, DolbyState, HardwareInfo, LctrlError, Platform,
 };
 use lctrl_hal::{
-    BatteryControl, BiosControl, ControlConflictDetection, DbdcControl, Hal,
+    AudioControl, BatteryControl, BiosControl, ControlConflictDetection, DbdcControl, Hal,
     PanelBrightnessControl, PerformanceControl, PowerControl, PrivacyControl, TemperatureControl,
     UsbControl,
 };
@@ -482,6 +482,7 @@ fn stream_intervals_are_positive_and_specified_in_seconds() {
             json: false,
             dry_run: false,
             yes: false,
+            auto_restore: false,
             command,
         };
         assert!(matches!(
@@ -2112,4 +2113,180 @@ fn tune_restore_dry_run_neither_writes_nor_consumes_the_recovery_snapshot() {
     );
     assert!(!path.exists());
     unsafe { std::env::remove_var("VANTAGE_STATE_PATH") };
+}
+
+/// A Dolby endpoint that mirrors the vendor behaviour: switching Dolby off
+/// keeps the last selected profile.
+struct FakeAudio {
+    state: Mutex<DolbyState>,
+    writes: AtomicUsize,
+}
+
+impl FakeAudio {
+    fn new(enabled: bool, profile: DolbyProfile) -> Self {
+        Self {
+            state: Mutex::new(DolbyState {
+                enabled,
+                active_profile: profile,
+                sku: None,
+                spatial_supported: None,
+            }),
+            writes: AtomicUsize::new(0),
+        }
+    }
+}
+
+impl AudioControl for FakeAudio {
+    fn dolby_state(&self) -> lctrl_core::Result<DolbyState> {
+        Ok(*self.state.lock())
+    }
+
+    fn set_dolby_profile(
+        &self,
+        profile: DolbyProfile,
+        apply: ApplyMode,
+    ) -> lctrl_core::Result<ChangeReport<DolbyState>> {
+        if apply == ApplyMode::Commit {
+            self.writes.fetch_add(1, Ordering::SeqCst);
+        }
+        let previous = *self.state.lock();
+        let mut requested = previous;
+        match profile {
+            DolbyProfile::Off => requested.enabled = false,
+            selected => {
+                requested.enabled = true;
+                requested.active_profile = selected;
+            }
+        }
+        if apply == ApplyMode::Commit {
+            let mut state = self.state.lock();
+            state.enabled = requested.enabled;
+            if profile != DolbyProfile::Off {
+                state.active_profile = requested.active_profile;
+            }
+        }
+        Ok(if apply == ApplyMode::Commit {
+            ChangeReport::committed(previous, requested, requested)
+        } else {
+            ChangeReport::dry_run(previous, requested)
+        })
+    }
+}
+
+/// An endpoint whose readback never agrees with the requested profile, so a
+/// restore cannot be proven.
+struct StubbornAudio {
+    inner: FakeAudio,
+}
+
+impl AudioControl for StubbornAudio {
+    fn dolby_state(&self) -> lctrl_core::Result<DolbyState> {
+        let mut state = *self.inner.state.lock();
+        state.active_profile = DolbyProfile::Music;
+        Ok(state)
+    }
+
+    fn set_dolby_profile(
+        &self,
+        profile: DolbyProfile,
+        apply: ApplyMode,
+    ) -> lctrl_core::Result<ChangeReport<DolbyState>> {
+        self.inner.set_dolby_profile(profile, apply)
+    }
+}
+
+#[test]
+fn auto_restore_puts_the_previous_dolby_state_back() {
+    let hal = FakeHal::new("21VG");
+    let audio = FakeAudio::new(false, DolbyProfile::Dynamic);
+    let cli = Cli::try_parse_from([
+        "vantage",
+        "--yes",
+        "--auto-restore",
+        "audio",
+        "dolby",
+        "movie",
+    ])
+    .expect("parse dolby command");
+
+    let output = execute_with_services(cli, CommandServices::new(&hal).with_audio(&audio))
+        .expect("dolby command succeeds");
+
+    let state = *audio.state.lock();
+    assert!(!state.enabled, "Dolby stays off after the restore");
+    assert_eq!(
+        state.active_profile,
+        DolbyProfile::Dynamic,
+        "the previous profile is selected again"
+    );
+    // One write plus the two restore steps: select the previous profile,
+    // then switch Dolby off again.
+    assert_eq!(audio.writes.load(Ordering::SeqCst), 3);
+    assert!(output.human.contains("restored dolby"));
+    assert!(output.json["auto_restore"].is_string());
+}
+
+#[test]
+fn auto_restore_reports_a_state_that_cannot_be_proven() {
+    let hal = FakeHal::new("21VG");
+    let audio = StubbornAudio {
+        inner: FakeAudio::new(false, DolbyProfile::Dynamic),
+    };
+    let cli = Cli::try_parse_from([
+        "vantage",
+        "--yes",
+        "--auto-restore",
+        "audio",
+        "dolby",
+        "movie",
+    ])
+    .expect("parse dolby command");
+
+    let error = execute_with_services(cli, CommandServices::new(&hal).with_audio(&audio))
+        .expect_err("an unprovable restore is reported");
+    assert!(
+        matches!(error, LctrlError::FirmwareRejected { .. }),
+        "unexpected error: {error:?}"
+    );
+}
+
+#[test]
+fn auto_restore_stays_dry_in_a_dry_run() {
+    let hal = FakeHal::new("21VG");
+    let audio = FakeAudio::new(false, DolbyProfile::Dynamic);
+    let cli = Cli::try_parse_from([
+        "vantage",
+        "--dry-run",
+        "--auto-restore",
+        "audio",
+        "dolby",
+        "movie",
+    ])
+    .expect("parse dolby command");
+
+    execute_with_services(cli, CommandServices::new(&hal).with_audio(&audio))
+        .expect("dry run succeeds");
+    assert_eq!(audio.writes.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn auto_restore_puts_the_previous_usb_charging_state_back() {
+    let hal = FakeHal::new("21VG");
+    let usb = ToggleUsb::on();
+    let cli = Cli::try_parse_from([
+        "vantage",
+        "--yes",
+        "--auto-restore",
+        "usb",
+        "always-on",
+        "off",
+    ])
+    .expect("parse usb command");
+
+    let output = execute_with_services(cli, CommandServices::new(&hal).with_usb(&usb))
+        .expect("usb command succeeds");
+
+    assert!(usb.state.lock().ac_enabled, "AC charging is back on");
+    assert_eq!(usb.writes.load(Ordering::SeqCst), 2);
+    assert!(output.human.contains("restored USB AC charging"));
 }
