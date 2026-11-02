@@ -732,6 +732,30 @@ ERROR_INSUFFICIENT_BUFFER 拒绝);GBMD 写回空的 4 字节槽,须由读回轮�
 `perf pl1|pl2` 报 `unsupported: tune.pl1|pl2`(按依赖裁定不接联想专有 MSR 驱动)。三者的契约缺口见
 docs/interfaces.md §13/§15,属待开发项,不计入已验收。
 
+## C29 · 自动恢复(`--auto-restore`)真机验收(2026-11-02)
+
+新增全局开关 `--auto-restore`:写入在回读确认之后,把写入前的状态写回去,并对恢复
+结果再回读一次;恢复无法被证明时命令报错,而不是假装成功。干跑(`--dry-run`)不产生
+任何写入。单测:`crates/vantage-cli/tests/cli_contract.rs`
+(`auto_restore_puts_the_previous_dolby_state_back`、
+`auto_restore_reports_a_state_that_cannot_be_proven`、`auto_restore_stays_dry_in_a_dry_run`、
+`auto_restore_puts_the_previous_usb_charging_state_back`)。
+
+目标机实测(脚本 `C:\Users\ezra\acc5.ps1`,记录
+`evidence/acceptance-auto-restore.txt`):
+
+| 命令 | 写入 | 自动恢复 | 独立回读(厂商只读探针 / EnergyDrv 探针) |
+|---|---|---|---|
+| `audio dolby movie` | enabled=true profile=Movie | `restored dolby: enabled=false profile=Dynamic` | `GetDolbyEnabled=False`、`GetActiveProfile=5`(基线) |
+| `audio noise-cancel shared` | mic mode=Shared | `restored noise-cancel: mic mode Off` | `GetCurrentMode=0`(基线) |
+| `battery charge-mode normal` | actual=normal | `restored charge mode: rapid` | GBMD `0x00860004` → Rapid(基线) |
+| `battery night-charge on` | true | `restored night charge: enabled=false` | night-charge status `0x01`(基线) |
+| `usb always-on off` | ac off | `restored USB AC charging: enabled=true` | USB 标志字 `0xCEC0`(基线) |
+| `usb charge-on-battery off` | battery-mode off | `restored USB battery charging: enabled=true` | USB 标志字 `0xCEC0`(基线) |
+
+每条命令退出码 0,机器最终停在基线(充电模式 Rapid、USB 两态开、夜间充电关、杜比关且
+profile=Dynamic、降噪 Off)。
+
 ## C25 · WinMsrDev MSR 通道真机只读验收（写入保持门禁，部分）
 
 **状态：只读路径已验收；写入路径保持门禁，等待独立物理确认。**
