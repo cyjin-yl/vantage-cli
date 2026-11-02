@@ -54,6 +54,16 @@ impl ProcessApi for FakeProcessApi {
         Ok(self.inventory.lock().clone())
     }
 
+    fn resolve_target(&self, pid: u32) -> Result<ProcessTarget> {
+        let current = self.current.lock().clone();
+        if current.identity.pid != pid {
+            return Err(LctrlError::InvalidArgument {
+                detail: format!("no process with pid {pid}"),
+            });
+        }
+        ProcessTarget::new(current.identity, current.image_name)
+    }
+
     fn snapshot(&self, _identity: &ProcessIdentity) -> Result<ProcessSnapshot> {
         *self.snapshot_calls.lock() += 1;
         if *self.access_lost.lock() {

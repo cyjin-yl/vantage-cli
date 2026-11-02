@@ -151,6 +151,11 @@ pub struct SenseState {
     pub sensor_type: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub facial_feature_registered: Option<bool>,
+    /// Where the snapshot came from: the live HPD RPC channel or the
+    /// persisted registry projection. A degraded read must never look like a
+    /// live one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<&'static str>,
 }
 
 impl std::fmt::Display for SenseState {
@@ -166,6 +171,10 @@ impl std::fmt::Display for SenseState {
                 .map_or("unknown", |v| if v { "on" } else { "off" }),
             self.attention_tracking
                 .map_or("unknown", |v| if v { "on" } else { "off" }),
-        )
+        )?;
+        if let Some(source) = self.source {
+            write!(f, " source={source}")?;
+        }
+        Ok(())
     }
 }

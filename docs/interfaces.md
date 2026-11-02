@@ -446,7 +446,7 @@ out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Se
 ### 12.3 实现落点
 
 - `lctrl-hal-win/src/dolby.rs`:`NativeDolbyRpc`(纯 Rust rpcrt4 NDR 客户端)+ `WindowsDolbyAudio<R: DolbyRpc>`(dry-run/commit + 读回轮询,`poll_readback` 10×50ms)。trait 接缝 `DolbyRpc` 与 `vantage-cli` 表面未变。
-- `vantage/src/main.rs` Windows 组合根:`NativeDolbyRpc::load()` 失败(端点不可达)时不挂载 audio 服务,`audio dolby` 如实报 Unsupported。
+- `vantage/src/main.rs` Windows 组合根:audio 服务当前**不挂载**。2026-11-03 真机上该通道在 NDR 封送器内触发访问冲突(0xC0000005)并使整个 CLI 启动即崩溃,因此在描述符差异定位前一律摘除,`audio dolby` 如实报 Unsupported(见 `docs/evidence/native-acceptance-20261103.md`)。同机的 Elevoc 通道(§14)不受影响。
 - 第二通道 `ncalrpc:[FusionRpcEndpoint]`(DolbyFusionRpcClient.dll,Atmos/Fusion 附加项)未接入,列为后续。
 
 ### 12.4 rpcrt4 通道契约(取代 DLL 绑定)
@@ -490,6 +490,12 @@ out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Se
 `sense_rpc.rs` 自有绑定/context 生命周期,`ndr/hpd.rs` 按语义签名生成解释器表;
 不加载 Lenovo 交付的 SmartSenseRpcClient.dll,不内嵌逐字节抄录的 MIDL 表。
 驱动/服务端仍是必要依赖,不能将「移除客户端 SDK 依赖」解释成可卸载感知驱动。
+
+**当前状态(2026-11-03):**该通道在真机上调用时于 NDR 封送器内触发访问冲突
+(0xC0000005),与 §12 的 DAX 通道同型,因此未挂载进服务图:`sense status` 返回
+`HKLM\…\SmartSense\Parameters\HPD` 的持久化投影并标注 `source=hpd-registry-store`,
+HPD 写入命令如实报 Unsupported,§13.2 的 privacy-alert / attention-tracking 旧管道
+保持可用。描述符差异尚未定位,真机验收因此未完成。
 
 | wire opnum | 过程 | 形参(均先传 context) |
 |---|---|---|

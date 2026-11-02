@@ -637,6 +637,25 @@ vantage perf schedule throttle <pid>                   # 降低优先级 + 工�
 
 Linux 后端:用 `ps` / `/proc/<pid>/stat` 替代 PDH;`chrt` 设置调度策略;`cgset` / cgroups v2 `memory.max` 替代工作集收缩。
 
+### 6.5 当前实现状态(2026-11-02)
+
+命令面是 `vantage perf top|boost|throttle`(不是上文草拟的 `perf schedule …`):
+
+| 命令 | 已实现 | 未实现 |
+|---|---|---|
+| `perf top` | 公开 Win32 进程枚举(ToolHelp32)+ `GetProcessTimes` 双采样,按间隔 CPU 时间排序,默认 Top-10,报告被跳过的进程数 | 前台窗口关联、游戏白名单、PDH 分类维度 |
+| `perf boost` | 优先级 → AboveNormal;精确 PID + 创建时间身份守卫;写入后独立回读;`--auto-restore` 用同一快照复原 | `SetProcessPriorityBoost`、线程优先级、P/E 组亲和性选择 |
+| `perf throttle` | 优先级 → BelowNormal;同上身份守卫与独立回读 | `SetThreadPriority`、`SetProcessWorkingSetSizeEx` 工作集收缩 |
+
+公开 API 与原版不同的地方是刻意的:`CreateToolhelp32Snapshot` 取代
+`NtQuerySystemInformation(SystemProcessInformation)`,`GetProcessTimes` 取代 PDH 计数器,
+`SetPriorityClass` 取代 `SetProcessPriorityBoost`/`SetThreadPriority`;前者是稳定公开接口,
+不依赖未文档化的 ntdll 语义。**优先级之外的两个副作用(线程优先级、亲和性、工作集收缩)
+没有等价公开调用,故不实现,也不以近似动作冒充。**
+
+Linux 后端未接入:能力矩阵把 `perf.top/boost/throttle` 报为 Unavailable,命令返回
+Unsupported,而不是返回空结果。
+
 ---
 
 ## 7. PCManager 省电策略 — 系统电源设置 (Power API) 覆盖

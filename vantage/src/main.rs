@@ -423,12 +423,11 @@ fn main() {
     let hotkey = lctrl_hal_win::NativeHotkey::new();
     let usb_power = lctrl_hal_win::WindowsUsbPower::new(lctrl_hal_win::NativeIoctl);
     // The Dolby client speaks the DAX contract over rpcrt4 (no Lenovo
-    // payload dependency); when the DAX endpoint is unreachable the service
-    // stays unattached and `audio dolby` reports Unsupported instead of
-    // failing the whole CLI.
-    let audio = lctrl_hal_win::NativeDolbyRpc::load()
-        .map(lctrl_hal_win::WindowsDolbyAudio::new)
-        .ok();
+    // payload dependency), but its hand-built NDR descriptor faults with an
+    // access violation inside the marshaller on the current target build,
+    // so the channel stays detached: `audio dolby` reports Unsupported
+    // instead of taking the process down. See
+    // docs/evidence/rpc-transport-faults-20261103.md.
     let noise_cancel = match lctrl_hal_win::NativeElevocRpc::load() {
         Ok(rpc) => Some(lctrl_hal_win::WindowsNoiseCancel::new(rpc)),
         Err(error) => {
@@ -462,10 +461,6 @@ fn main() {
         .with_scene(&scene)
         .with_osd(&osd)
         .with_hotkey(&hotkey);
-    let services = match &audio {
-        Some(audio) => services.with_audio(audio),
-        None => services,
-    };
     let services = match &noise_cancel {
         Some(noise_cancel) => services.with_noise_cancel(noise_cancel),
         None => services,
@@ -484,12 +479,21 @@ fn main() {
         Some(panel_features) => services.with_panel_features(panel_features),
         None => services,
     };
+    // The HPD RPC transport faults with an access violation inside the
+    // marshaller on the current target build, so it stays detached: the
+    // sense service reports the persisted registry projection (labelled as
+    // such) and keeps the legacy SmartSense pipe path working.
     let sense = lctrl_hal_win::WindowsSenseControl::new(
-        lctrl_hal_win::NativeHpdRpc::new(),
+        lctrl_hal_win::UnavailableHpdRpc,
         lctrl_hal_win::NativeSensePipe,
         lctrl_hal_win::NativeHpdStore,
     );
-    let services = services.with_sense(&sense);
+    // Process telemetry and per-process policy control use the public Win32
+    // process APIs; every mutation re-verifies the process identity and is
+    // read back independently before it is reported as applied.
+    let process =
+        lctrl_hal_win::WindowsProcessController::new(lctrl_hal_win::NativeProcessApi::default());
+    let services = services.with_sense(&sense).with_process(&process);
     run(cli, services);
 }
 

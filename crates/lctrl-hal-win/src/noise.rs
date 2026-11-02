@@ -941,6 +941,10 @@ fn default_capture_endpoint() -> Option<String> {
 /// `GetConfigFileContent` → mic-state warm-ups → internal endpoint.
 pub struct NativeElevocRpc {
     tables: Box<ProxyTables>,
+    /// The login handshake runs on first use. Constructing the CLI's service
+    /// graph performs no RPC, so a third-party endpoint fault can never take
+    /// the process down before the requested command even runs.
+    login: std::sync::OnceLock<std::result::Result<(), String>>,
 }
 
 /// Own the complete [in,out,string,size_is] storage across one round trip.
@@ -984,15 +988,31 @@ impl NativeElevocRpc {
     pub fn load() -> Result<Self> {
         let mut tables = ProxyTables::new();
         bind(&mut tables.handle)?;
-        let rpc = Self { tables };
-        rpc.login()?;
-        Ok(rpc)
+        Ok(Self {
+            tables,
+            login: std::sync::OnceLock::new(),
+        })
+    }
+
+    /// Run the login handshake once, before the first query. A failed login
+    /// is remembered, so every later call reports the same reason.
+    fn ensure_login(&self) -> Result<()> {
+        let outcome = self.login.get_or_init(|| match self.login_now() {
+            Ok(()) => Ok(()),
+            Err(error) => Err(error.to_string()),
+        });
+        match outcome {
+            Ok(()) => Ok(()),
+            Err(message) => Err(LctrlError::ChannelUnavailable {
+                channel: message.clone(),
+            }),
+        }
     }
 
     /// `Login`: authorized-token exchange plus the SDK's warm-up
     /// queries in their original order. Warm-up failures are non-fatal, as in
     /// the SDK; only the authorization exchange gates login success.
-    fn login(&self) -> Result<()> {
+    fn login_now(&self) -> Result<()> {
         // Init warm-ups (client->Init): downlink mode probe,
         // endpoint ability probe, headset status.
         let endpoint = default_capture_endpoint().unwrap_or_default();
@@ -1181,6 +1201,7 @@ impl ElevocRpc for NativeElevocRpc {
     /// the vendor export does (init flag off / no default endpoint / RPC
     /// fault).
     fn current_mode(&self) -> Result<i32> {
+        self.ensure_login()?;
         let endpoint = default_capture_endpoint().unwrap_or_default();
         self.rpc_get_mode("app_uplink", &endpoint).or(Ok(-1))
     }
@@ -1189,6 +1210,7 @@ impl ElevocRpc for NativeElevocRpc {
     /// (6→1, 7→2), endpoint ability gate (2), then `SetMode`. Result codes
     /// map identically to the vendor export.
     fn set_effect_mode(&self, mode: u32) -> Result<()> {
+        self.ensure_login()?;
         if mode == 4 {
             match self.voice_id_status() {
                 Ok(2) => {}
@@ -1243,6 +1265,7 @@ impl ElevocRpc for NativeElevocRpc {
     /// failure (the SDK's headset-side query path collapses to the same
     /// envelope with the default endpoint).
     fn voice_id_status(&self) -> Result<i32> {
+        self.ensure_login()?;
         let endpoint = default_capture_endpoint().unwrap_or_default();
         self.rpc_is_voiceid_setted(&endpoint).or(Ok(-1))
     }

@@ -95,6 +95,7 @@ fn fixture(
     FakeStore,
 ) {
     let state = Arc::new(Mutex::new(SenseState {
+        source: None,
         lock_on_leave: Some(false),
         leave_distance: Some(SenseDistance::Near),
         leave_wait: Some(SenseWait::Short),

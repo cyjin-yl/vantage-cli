@@ -672,7 +672,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             lctrl_core::required(Dependency::Win32ProcessApi),
             lctrl_core::required(Dependency::LinuxProcfs),
         ],
-        DispatchSupport::Unsupported("process telemetry is not attached"),
+        DispatchSupport::Implemented,
     ),
     CommandCapability::new(
         CommandId::PERF_BOOST,
@@ -684,7 +684,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         FeatureBinding::Capability("perf.boost"),
         ServiceBinding::One(ServiceRole::Process),
         &[lctrl_core::required(Dependency::Win32ProcessApi)],
-        DispatchSupport::Unsupported("process policy control is not attached"),
+        DispatchSupport::Implemented,
     ),
     CommandCapability::new(
         CommandId::PERF_THROTTLE,
@@ -696,7 +696,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         FeatureBinding::Capability("perf.throttle"),
         ServiceBinding::One(ServiceRole::Process),
         &[lctrl_core::required(Dependency::Win32ProcessApi)],
-        DispatchSupport::Unsupported("process policy control is not attached"),
+        DispatchSupport::Implemented,
     ),
     CommandCapability::new(
         CommandId::TUNE_PROFILE_LIST,

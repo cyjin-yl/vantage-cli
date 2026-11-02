@@ -12,6 +12,7 @@ use lctrl_hal::{ProcessControl, poll_readback};
 /// immediately before mutating it.
 pub trait ProcessApi: Send + Sync {
     fn inventory(&self, limit: usize) -> Result<ProcessInventory>;
+    fn resolve_target(&self, pid: u32) -> Result<ProcessTarget>;
     fn snapshot(&self, identity: &lctrl_core::ProcessIdentity) -> Result<ProcessSnapshot>;
     fn set_priority_class(
         &self,
@@ -294,6 +295,10 @@ where
         Ok(inventory)
     }
 
+    fn resolve_target(&self, pid: u32) -> Result<ProcessTarget> {
+        self.api.resolve_target(pid)
+    }
+
     fn process_snapshot(&self, target: &ProcessTarget) -> Result<ProcessSnapshot> {
         self.validated_snapshot(target)
     }
@@ -466,7 +471,8 @@ mod native {
 
     use lctrl_core::{
         LctrlError, ProcessIdentity, ProcessInventory, ProcessInventoryEntry, ProcessPriorityClass,
-        ProcessSnapshot, ProcessState, ProcessWorkingSet, Result, validate_process_top_limit,
+        ProcessSnapshot, ProcessState, ProcessTarget, ProcessWorkingSet, Result,
+        validate_process_top_limit,
     };
     use windows_sys::Win32::{
         Foundation::{CloseHandle, FILETIME, GetLastError, HANDLE, INVALID_HANDLE_VALUE},
@@ -576,6 +582,15 @@ mod native {
     impl ProcessApi for NativeProcessApi {
         fn inventory(&self, limit: usize) -> Result<ProcessInventory> {
             self.sampled_inventory(limit)
+        }
+
+        fn resolve_target(&self, pid: u32) -> Result<ProcessTarget> {
+            // The creation time is read from the live process, so the target
+            // carries the identity that later mutations re-verify.
+            let process = ProcessHandle::open_any(pid, PROCESS_QUERY_LIMITED_INFORMATION)?;
+            let image_path = query_process_image_path(process.raw())?;
+            let image_name = image_name_from_path(&image_path)?.to_owned();
+            ProcessTarget::new(process.identity, image_name)
         }
 
         fn snapshot(&self, identity: &ProcessIdentity) -> Result<ProcessSnapshot> {

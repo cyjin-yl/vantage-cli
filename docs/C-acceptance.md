@@ -51,15 +51,15 @@ BIOS 密码元数据、MagicBay 检测和 scan 清单共 **12 次实际运行,�
 | #15 GPU 模式/功耗墙 | 独立枚举仅见 Intel Arc B390 实体 GPU 和两个 ROOT 虚拟显示适配器;不得将虚拟适配器算独显,控制面按具体硬件继续门控 |
 | #16 EPP/睿频 | C5/C6 已有真实写入/独立注册表回读/恢复;矩阵的 turbo 声明仍与执行器不一致 |
 | #17 PL1/PL2/tau | 尚无可供精确写入与独立回读的目标机契约;不绕过 HVCI |
-| #18 进程管理 | 原生事务执行器已有源码;CLI、恢复日志和真实拓扑策略未闭环 |
+| #18 进程管理 | Windows 进程通道已接入 CLI(`perf top/boost/throttle`):PID + 创建时间身份守卫、优先级写入后独立回读、`--auto-restore` 复原。2026-11-03 真机验收通过(dry-run 无副作用、写入后独立观察为 AboveNormal/BelowNormal、恢复回到本次快照值),见 [真机记录](evidence/native-acceptance-20261103.md)。线程优先级、亲和性选择、工作集收缩、游戏白名单与前台识别仍未实现;Linux 后端未接入,能力矩阵报 Unavailable |
 | #19 profile/省电事务 | 现有部分手动执行/restore;完整目标、配方及复合动作仍须完成。极限续航已恢复真实策略,但同步内核 Job 生命周期与目标版本单一 UI 开关映射尚缺准入前提,命令仍 Unsupported;不以电源计划/EcoQoS 部分动作冒充验收。见 [完整边界](evidence/extreme-life-re-20261102.md) |
 | #20 键盘灯 | 当前目标机方法不可用;不得以静态灯光元数据提升写能力 |
 | #21 Win 锁/触控板 | C7 仅确认触控板恢复及非中断 smoke;新版禁用循环与 Win 锁尚未完成验收 |
 | #22 内屏刷新率 | C1 已验收;要求交互式会话,不以 SSH 无显示路径误判硬件不支持 |
 | #23 色彩/显示增强 | 修正 pixtx 使用显示输出句柄与 1.1 ABI、超分 get/set 为 92B。独立只读探针在当前输出返回 0 块;超分 caps 仍 0x4000000b,写保持拒绝(证据 igcl-readonly-probe-20261102.md)。旧错误句柄/布局探针不再用于能力判断。色域 Unsupported(依赖被禁的 MONITORCONTROL.dll),overdrive 目标设备未观察到 |
 | #24 运行时隐私 | 状态实际读取成功;逐层写入、独立读回及恢复证据须按版本保存 |
-| #25 SmartSense/HPD | HPD 已改接纯 Rust rpcrt4 客户端,自生成 NDR 描述符,不加载 Lenovo 客户端 DLL;离开锁屏/接近唤醒/视频暂停使用真实 RPC op11/8/16,不回退旧拒绝管道。见 [RPC 契约与验收步骤](evidence/hpd-rpc-re-20261102.md)。独立注册表读回及原值恢复的真机验收仍待执行;当前 SSH 传输故障,不能把编译/测试当作验收。attention-tracking 保留独立旧通道与 write-only 边界;键盘灯自动仍未完成 |
-| #26 Dolby | 纯 Rust rpcrt4/NDR 客户端不加载 DolbyRpcClient.dll,描述符由本仓库生成(interfaces §0/§12),仍需 DolbyDAXAPI 服务。禁用/启用及 profile 的真实写、厂商 DLL 独立读回与 C29 自动恢复已验收(C28/C29) |
+| #25 SmartSense/HPD | HPD 为纯 Rust rpcrt4 客户端,自生成 NDR 描述符,不加载 Lenovo 客户端 DLL;但真机调用在封送器内触发访问冲突(0xC0000005),该通道已从服务图中摘除,`sense status` 返回持久化注册表投影并标注 `source=hpd-registry-store`,旧管道路径保留。RPC 通道的真机验收未完成,描述符差异尚未定位。见 [RPC 契约](evidence/hpd-rpc-re-20261102.md)与[真机记录](evidence/native-acceptance-20261103.md)。attention-tracking 保留独立旧通道与 write-only 边界;键盘灯自动仍未完成 |
+| #26 Dolby | 纯 Rust rpcrt4/NDR 客户端不加载 DolbyRpcClient.dll,描述符由本仓库生成(interfaces §0/§12)。2026-11-01 的禁用/启用及 profile 真实写、厂商 DLL 独立读回与 C29 自动恢复已验收(C28/C29);但 2026-11-03 真机上同一调用在封送器内触发访问冲突并使整个 CLI 启动即崩溃,该通道已摘除,`audio dolby` 如实报 Unsupported。描述符差异尚未定位。见 [真机记录](evidence/native-acceptance-20261103.md) |
 | #27 音频降噪 | 纯 Rust rpcrt4/NDR 客户端(不加载 ElevocControlSDK,也不内嵌其接口表;描述符由本仓库生成,interfaces §0/§14);仍需要 ElevocService。模式真实写、厂商 SDK 独立读回与 C29 自动恢复已验收(C28/C29) |
 | #28 BIOS 批量/元数据 | 原生事务源码与只读密码元数据已有;CLI 批量、风险和实际生效态验收待完成 |
 | #29 MagicBay LTE | 当前检测未见附件;实现缺口与附件未连接分别记录,不伪报完成 |
@@ -289,7 +289,7 @@ dry-run 的实际运行,不能证明写入、事件、OSD 或自动化完成。
 | 域 | 接入内容 | 当前证据 | 仍需的真机验收 |
 |---|---|---|---|
 | #4 能力矩阵 | `vantage capability/info/doctor` 改为按 `CommandServices` 实际服务绑定评估,输出 read/write/readback/rollback 轴、官方依赖清单与替代就绪报告 | 源码 + 单测 | 目标机重跑矩阵,确认服务绑定与实际执行路径一致 |
-| #18 进程调度 | `perf top/boost/throttle/restore/trim`:精确 PID + 创建时间身份守卫、拓扑派生的 P/E 亲和性掩码、用户态可恢复日志、显式一次性内存整理 | 源码 + 单测 | 目标机对自有进程实际读写优先级/亲和性并恢复;不得对关键系统进程操作 |
+| #18 进程调度 | `perf top`:间隔 CPU 采样排序;`perf boost/throttle`:仅优先级(原版为 AboveNormal/BelowNormal),精确 PID + 创建时间身份守卫,写入后独立回读,`--auto-restore` 用同一快照复原。亲和性、工作集收缩、游戏白名单与前台识别尚未接入 | 源码 + 单测(CLI 契约 10 项 + Windows 事务/回读/回滚) | 目标机对自有进程实际读写优先级并恢复;不得对关键系统进程操作 |
 | #38 Wi-Fi | `wifi security/history/policy`:改用公开 WlanApi 读取当前认证/加密,历史仅存本地且默认脱敏 | 源码 + 单测 | 目标机读取当前连接的认证/加密并与系统显示核对;未连接/权限拒绝需如实报告 |
 | #1 事件/watch | 有实验性 WMI 订阅与轮询路径 | 源码,未完成运行验证 | 实际变化、错误传播、断线重连、Ctrl+C/释放及 MagicBay 300 ms 重查 |
 | #2 自动策略 | 有求值引擎、配置模型与尚在检查的 daemon 集成 | 引擎单测,运行闭环未验收 | 不得把 UTC 冒充本地时间、硬件前值或未执行的回退当成功;完整场景切换和恢复待验证 |
