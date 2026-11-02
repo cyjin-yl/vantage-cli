@@ -57,7 +57,7 @@ use std::time::Duration;
 
 use lctrl_core::{ApplyMode, ChangeReport, DolbyProfile, DolbyState, LctrlError, Result};
 use lctrl_hal::AudioControl;
-use lctrl_hal::poll_readback;
+use lctrl_hal::poll_readback_until;
 
 /// Sealed seam over the DAX RPC session so [`WindowsDolbyAudio`] stays
 /// testable without a running DAX3API.
@@ -130,9 +130,19 @@ impl<R: DolbyRpc> AudioControl for WindowsDolbyAudio<R> {
             self.rpc.set_dolby_enabled(true)?;
             self.rpc.set_active_profile(u32::from(profile.raw()))?;
         }
-        let actual = poll_readback(&requested, 10, Duration::from_millis(50), || {
-            self.read_state()
-        })?;
+        // Disabling leaves the preset on the device, so only the enable flag
+        // is compared in that case; otherwise both fields must match.
+        let actual = poll_readback_until(
+            &requested,
+            10,
+            Duration::from_millis(50),
+            || self.read_state(),
+            |observed| {
+                observed.enabled == requested.enabled
+                    && (profile == DolbyProfile::Off
+                        || observed.active_profile == requested.active_profile)
+            },
+        )?;
         Ok(ChangeReport::committed(previous, requested, actual))
     }
 }

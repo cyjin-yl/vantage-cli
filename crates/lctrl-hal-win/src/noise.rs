@@ -1221,15 +1221,9 @@ impl ElevocRpc for NativeElevocRpc {
             });
         }
         let mode_name = MODE_NAMES[remapped as usize];
-        // Ability gate: the SDK checks the mode name against the endpoint's
-        // `supported_functions` list before sending (ret 2 when absent).
-        if let Ok(supported) = self.rpc_get_functions_by_endpoint(&endpoint) {
-            if !supported.is_empty() && !supported.iter().any(|f| f == mode_name) {
-                return Err(LctrlError::Unsupported {
-                    feature: format!("noise-cancel mode {mode} is not supported by this endpoint"),
-                });
-            }
-        }
+        // The endpoint's capability list does not enumerate the mode names,
+        // so it cannot gate the request; the service answers with result 2
+        // when the mode is unsupported, which the caller maps to Unsupported.
         // `SetEffectMode` then announces the algorithm family: Non-AI for
         // the td-alias inputs / → SetAlgType), AI for
         // everything else. The result is ignored by the vendor.

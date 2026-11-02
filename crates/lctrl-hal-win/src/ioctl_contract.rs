@@ -34,6 +34,11 @@ where
 
     pub(crate) fn write_gbmd(&self, command: GbmdCommand) -> Result<()> {
         let output = self.transport.call(IOCTL_GBMD, &command.encode(), 4)?;
+        if output.is_empty() {
+            // The write slot answers with no data; the caller verifies the
+            // transition by reading the GBMD status back.
+            return Ok(());
+        }
         let status = GbmdCommand::decode_status(&output)?;
         if status == 0 {
             return Ok(());
@@ -82,8 +87,10 @@ where
     /// error (a rejected request does not prove the device ignored it, but no
     /// post-write verification happens here — callers re-query flags).
     pub(crate) fn write_usb_charger(&self, selector: UsbChargerSelector) -> Result<()> {
+        // The write slots answer with a four-byte word (Information = 4); a
+        // zero-length output buffer is refused with ERROR_INSUFFICIENT_BUFFER.
         self.transport
-            .call(IOCTL_USB_CHARGER, &selector.encode(), 0)?;
+            .call(IOCTL_USB_CHARGER, &selector.encode(), 4)?;
         Ok(())
     }
 

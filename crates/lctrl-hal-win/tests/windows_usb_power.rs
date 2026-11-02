@@ -30,7 +30,9 @@ impl IoctlTransport for FakeIoctl {
                 Ok(self.flags.load(Ordering::SeqCst).to_le_bytes().to_vec())
             }
             selector @ (0x0a | 0x0b | 0x12 | 0x13) => {
-                assert_eq!(output_len, 0, "setters take no output buffer");
+                // The write slots answer with a four-byte word; a shorter
+                // output buffer is refused by the driver.
+                assert_eq!(output_len, 4, "setters take a four-byte output buffer");
                 self.calls.lock().push((selector, 1));
                 // The EC applies the change; a later query observes it. The
                 // live target applies asynchronously, so model that by only
