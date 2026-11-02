@@ -56,7 +56,7 @@ pub trait HpdRpc: Send + Sync {
 /// marshaller, which would take the whole CLI down. This transport reports
 /// the channel as unavailable so the sense service can fall back to the
 /// persisted registry projection and keep the legacy SmartSense pipe path
-/// working. See docs/evidence/rpc-transport-faults-20261103.md.
+/// working. See docs/evidence/native-acceptance-20261103.md.
 pub struct UnavailableHpdRpc;
 
 impl HpdRpc for UnavailableHpdRpc {
@@ -133,6 +133,7 @@ impl HpdRpc for NativeHpdRpc {
             // (output 1) is a separate support value, not the op-5 bitset.
             Ok(SenseState {
                 source: Some("hpd-rpc"),
+                advertised: Some(capability),
                 lock_on_leave: has(0x0010).then_some(values[5] != 0),
                 leave_distance: has(0x0080)
                     .then(|| SenseDistance::from_raw(values[8]))

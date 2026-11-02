@@ -72,18 +72,28 @@ impl<R: HpdRpc, P: SensePipe, S: HpdSettingsStore> WindowsSenseControl<R, P, S> 
 
 impl<R: HpdRpc, P: SensePipe, S: HpdSettingsStore> SenseControl for WindowsSenseControl<R, P, S> {
     fn sense_state(&self) -> Result<SenseState> {
-        let legacy = self.store.read_state()?;
+        // The registry projection supplements the live RPC read; a missing
+        // key must not abort the read before the RPC channel is reached.
+        let legacy = self.store.read_state().ok();
         match self.rpc.read_state() {
             Ok(mut state) => {
-                state.privacy_alert = legacy.privacy_alert;
-                state.attention_tracking = legacy.attention_tracking;
+                if let Some(legacy) = &legacy {
+                    state.privacy_alert = legacy.privacy_alert;
+                    state.attention_tracking = legacy.attention_tracking;
+                }
                 Ok(state)
             }
             // The live HPD channel is unavailable. The persisted registry
             // projection still describes the configured state, and it is
             // labelled as such so a degraded read never looks like a live
             // one.
-            Err(_) => Ok(legacy),
+            Err(error) => match legacy {
+                Some(legacy) => Ok(legacy),
+                // Neither the live channel nor the persisted projection is
+                // available: report the channel failure instead of an empty
+                // state that would read as "nothing is configured".
+                None => Err(error),
+            },
         }
     }
 
@@ -146,6 +156,15 @@ const fn feature_readback_verifiable(feature: SenseFeature) -> bool {
 }
 
 const fn feature_available(feature: SenseFeature, state: &SenseState) -> bool {
+    // On the RPC channel, advertisement is the op-5 capability bitset. A
+    // feature whose bit is set stays available even when its current raw
+    // value cannot be modelled; refusing it as "not advertised" would
+    // contradict the bitset the transport just read.
+    if let Some(bits) = state.advertised {
+        if let Some(bit) = feature_capability_bit(feature) {
+            return bits & bit != 0;
+        }
+    }
     match feature {
         SenseFeature::LockOnLeave(_) => state.lock_on_leave.is_some(),
         SenseFeature::LeaveDistance(_) => state.leave_distance.is_some(),
@@ -154,6 +173,19 @@ const fn feature_available(feature: SenseFeature, state: &SenseState) -> bool {
         SenseFeature::ApproachDistance(_) => state.approach_distance.is_some(),
         SenseFeature::PauseVideo(_) => state.pause_video.is_some(),
         SenseFeature::PrivacyAlert(_) | SenseFeature::AttentionTracking(_) => true,
+    }
+}
+
+/// The op-5 capability bit that advertises each RPC-backed setting.
+const fn feature_capability_bit(feature: SenseFeature) -> Option<u64> {
+    match feature {
+        SenseFeature::LockOnLeave(_) => Some(0x0010),
+        SenseFeature::LeaveDistance(_) => Some(0x0080),
+        SenseFeature::LeaveWait(_) => Some(0x0020),
+        SenseFeature::WakeOnApproach(_) => Some(0x0002),
+        SenseFeature::ApproachDistance(_) => Some(0x0004),
+        SenseFeature::PauseVideo(_) => Some(0x0200),
+        SenseFeature::PrivacyAlert(_) | SenseFeature::AttentionTracking(_) => None,
     }
 }
 
@@ -285,6 +317,7 @@ impl HpdSettingsStore for NativeHpdStore {
     fn read_state(&self) -> Result<SenseState> {
         Ok(SenseState {
             source: Some("hpd-registry-store"),
+            advertised: None,
             lock_on_leave: read_bool(HPD_KEY, "PresentLeave", BoolEncoding::Legacy01)?,
             leave_distance: read_u32(HPD_KEY, "LeaveDistance")?.and_then(SenseDistance::from_raw),
             leave_wait: read_u32(HPD_KEY, "LeaveWait")?.and_then(SenseWait::from_raw),
