@@ -384,9 +384,11 @@ fn main() {
     }
     let hal =
         lctrl_hal_win::NativeWindowsHal::new(lctrl_hal_win::NativeWmi, lctrl_hal_win::NativeIoctl);
+    // The charge mode is read back through the GBMD status word, so a
+    // write is verified against the firmware instead of being assumed.
     let vendor_battery = lctrl_hal_win::WindowsBatteryP0::new(
         lctrl_hal_win::NativeIoctl,
-        lctrl_hal_win::UnverifiedChargeModeReader,
+        lctrl_hal_win::GbmdChargeModeReader::new(lctrl_hal_win::NativeIoctl),
     );
     let os_battery = lctrl_hal_win::WindowsOsBattery::new(
         lctrl_hal_win::NativeWmi,
