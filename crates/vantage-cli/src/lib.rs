@@ -364,6 +364,10 @@ pub struct Cli {
     /// Confirm a risky operation after reviewing its impact and recovery path.
     #[arg(long, global = true)]
     pub yes: bool,
+    /// Restore the state a write replaced once the write is applied and
+    /// verified, so the device ends up where it started.
+    #[arg(long, global = true)]
+    pub auto_restore: bool,
 
     #[command(subcommand)]
     pub command: Command,
@@ -1385,10 +1389,10 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
         } => execute_battery_adapter(services.battery),
         Command::Battery {
             command: Some(BatteryCommand::ChargeMode { mode }),
-        } => execute_charge_mode(services.battery, mode, apply),
+        } => execute_charge_mode(services.battery, mode, apply, cli.auto_restore),
         Command::Battery {
             command: Some(BatteryCommand::NightCharge { state }),
-        } => execute_night_charge(services.battery, state, apply),
+        } => execute_night_charge(services.battery, state, apply, cli.auto_restore),
         Command::Battery {
             command: Some(BatteryCommand::TemporaryMode),
         } => execute_temporary_charge(services.battery),
@@ -1429,9 +1433,13 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
         Command::Perf {
             command: Some(PerfCommand::Dbdc { command }),
         } => execute_dbdc(services.dbdc, command.unwrap_or(DbdcCommand::Get)),
-        Command::Audio { command } => {
-            execute_audio(services.audio, services.noise_cancel, command, apply)
-        }
+        Command::Audio { command } => execute_audio(
+            services.audio,
+            services.noise_cancel,
+            command,
+            apply,
+            cli.auto_restore,
+        ),
         Command::Sense { command } => execute_sense(services.sense, command, apply),
         Command::Bios {
             command: Some(command),
@@ -1446,6 +1454,7 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
             apply,
             confirmed,
             interactive,
+            cli.auto_restore,
         ),
         Command::Kbd {
             command: Some(KbdCommand::Backlight { level, effect }),
@@ -1839,6 +1848,7 @@ fn execute_charge_mode(
     battery: Option<&dyn BatteryControl>,
     mode: ChargeModeArg,
     apply: ApplyMode,
+    auto_restore: bool,
 ) -> CommandResult {
     let battery = battery.ok_or_else(|| LctrlError::Unsupported {
         feature: "battery.charge-mode".into(),
@@ -1849,7 +1859,12 @@ fn execute_charge_mode(
         ChargeModeArg::Rapid => ChargeMode::Rapid,
     };
     let report = battery.set_charge_mode(mode, apply)?;
-    structured_output(
+    let restore = if auto_restore && apply == ApplyMode::Commit {
+        Some(restore_charge_mode(battery, *report.previous())?)
+    } else {
+        None
+    };
+    output_with_restore(
         &report,
         format!(
             "charge mode: requested={} actual={} (previous={})\n",
@@ -1859,6 +1874,7 @@ fn execute_charge_mode(
                 .map_or("dry-run".into(), ToString::to_string),
             report.previous()
         ),
+        restore.as_deref(),
     )
 }
 
@@ -1866,13 +1882,23 @@ fn execute_night_charge(
     battery: Option<&dyn BatteryControl>,
     state: Toggle,
     apply: ApplyMode,
+    auto_restore: bool,
 ) -> CommandResult {
     let battery = battery.ok_or_else(|| LctrlError::Unsupported {
         feature: "battery.night-charge".into(),
     })?;
     let enabled = matches!(state, Toggle::On);
     let report = battery.set_night_charge(enabled, apply)?;
-    structured_output(&report, format!("night charge: {}\n", report.requested()))
+    let restore = if auto_restore && apply == ApplyMode::Commit {
+        Some(restore_night_charge(battery, *report.previous())?)
+    } else {
+        None
+    };
+    output_with_restore(
+        &report,
+        format!("night charge: {}\n", report.requested()),
+        restore.as_deref(),
+    )
 }
 
 fn execute_temporary_charge(battery: Option<&dyn BatteryControl>) -> CommandResult {
@@ -2232,15 +2258,154 @@ fn execute_dbdc(dbdc: Option<&dyn DbdcControl>, command: DbdcCommand) -> Command
     }
 }
 
+/// Put the state a write replaced back, then read it back to prove the
+/// restore took effect. A restore that does not read back as the captured
+/// state is reported instead of being papered over.
+fn restore_dolby_state(
+    audio: &dyn AudioControl,
+    previous: &DolbyState,
+) -> lctrl_core::Result<String> {
+    // The endpoint keeps the last selected profile when Dolby is switched
+    // off, so the profile is selected first and the enable bit afterwards.
+    audio.set_dolby_profile(previous.active_profile, ApplyMode::Commit)?;
+    if !previous.enabled {
+        audio.set_dolby_profile(DolbyProfile::Off, ApplyMode::Commit)?;
+    }
+    let actual = audio.dolby_state()?;
+    let profile_matches = previous.active_profile == DolbyProfile::Off
+        || actual.active_profile == previous.active_profile;
+    if actual.enabled != previous.enabled || !profile_matches {
+        return Err(LctrlError::FirmwareRejected {
+            detail: format!(
+                "dolby restore mismatch: expected enabled={} profile={:?}, actual enabled={} profile={:?}",
+                previous.enabled, previous.active_profile, actual.enabled, actual.active_profile
+            ),
+        });
+    }
+    Ok(format!(
+        "restored dolby: enabled={} profile={:?}",
+        actual.enabled, actual.active_profile
+    ))
+}
+
+fn restore_noise_cancel_state(
+    noise_cancel: &dyn NoiseCancelControl,
+    previous: &NoiseCancelState,
+) -> lctrl_core::Result<String> {
+    noise_cancel.set_noise_cancel_mode(previous.mic_mode, ApplyMode::Commit)?;
+    let actual = noise_cancel.noise_cancel_state()?;
+    if actual.mic_mode != previous.mic_mode {
+        return Err(LctrlError::FirmwareRejected {
+            detail: format!(
+                "noise-cancel restore mismatch: expected mic mode {:?}, actual {:?}",
+                previous.mic_mode, actual.mic_mode
+            ),
+        });
+    }
+    Ok(format!(
+        "restored noise-cancel: mic mode {:?}",
+        actual.mic_mode
+    ))
+}
+
+fn restore_charge_mode(
+    battery: &dyn BatteryControl,
+    previous: ChargeMode,
+) -> lctrl_core::Result<String> {
+    battery.set_charge_mode(previous, ApplyMode::Commit)?;
+    let actual = battery.charge_mode()?;
+    let matches = matches!(
+        (actual, previous),
+        (ChargeModeActual::Normal, ChargeMode::Normal)
+            | (ChargeModeActual::Conservation, ChargeMode::Conservation)
+            | (ChargeModeActual::Rapid, ChargeMode::Rapid)
+    );
+    if !matches {
+        return Err(LctrlError::FirmwareRejected {
+            detail: format!("charge-mode restore mismatch: expected {previous}, actual {actual}"),
+        });
+    }
+    Ok(format!("restored charge mode: {actual}"))
+}
+
+fn restore_night_charge(
+    battery: &dyn BatteryControl,
+    previous: bool,
+) -> lctrl_core::Result<String> {
+    battery.set_night_charge(previous, ApplyMode::Commit)?;
+    let actual = battery.night_charge()?;
+    if actual.enabled != previous {
+        return Err(LctrlError::FirmwareRejected {
+            detail: format!(
+                "night-charge restore mismatch: expected enabled={previous}, actual enabled={}",
+                actual.enabled
+            ),
+        });
+    }
+    Ok(format!("restored night charge: enabled={}", actual.enabled))
+}
+
+fn restore_usb_ac(usb: &dyn UsbControl, previous: bool) -> lctrl_core::Result<String> {
+    usb.set_usb_ac_charging(previous, ApplyMode::Commit)?;
+    let actual = usb.usb_charging()?;
+    if actual.ac_enabled != previous {
+        return Err(LctrlError::FirmwareRejected {
+            detail: format!(
+                "USB AC charging restore mismatch: expected enabled={previous}, actual enabled={}",
+                actual.ac_enabled
+            ),
+        });
+    }
+    Ok(format!(
+        "restored USB AC charging: enabled={}",
+        actual.ac_enabled
+    ))
+}
+
+fn restore_usb_battery(usb: &dyn UsbControl, previous: bool) -> lctrl_core::Result<String> {
+    usb.set_usb_battery_charging(previous, ApplyMode::Commit)?;
+    let actual = usb.usb_charging()?;
+    if actual.battery_enabled != previous {
+        return Err(LctrlError::FirmwareRejected {
+            detail: format!(
+                "USB battery charging restore mismatch: expected enabled={previous}, actual enabled={}",
+                actual.battery_enabled
+            ),
+        });
+    }
+    Ok(format!(
+        "restored USB battery charging: enabled={}",
+        actual.battery_enabled
+    ))
+}
+
+/// Report a write together with the restore that followed it.
+fn output_with_restore<T: Serialize>(
+    report: &T,
+    human: String,
+    restore: Option<&str>,
+) -> CommandResult {
+    match restore {
+        Some(text) => {
+            let payload = serde_json::json!({ "change": report, "auto_restore": text });
+            structured_output(&payload, format!("{human}{text}\n"))
+        }
+        None => structured_output(report, human),
+    }
+}
+
 fn execute_audio(
     audio: Option<&dyn AudioControl>,
     noise_cancel: Option<&dyn NoiseCancelControl>,
     command: Option<AudioCommand>,
     apply: ApplyMode,
+    auto_restore: bool,
 ) -> CommandResult {
     match command {
-        Some(AudioCommand::Dolby { profile }) => execute_dolby(audio, profile, apply),
-        Some(AudioCommand::NoiseCancel { mode }) => execute_noise_cancel(noise_cancel, mode, apply),
+        Some(AudioCommand::Dolby { profile }) => execute_dolby(audio, profile, apply, auto_restore),
+        Some(AudioCommand::NoiseCancel { mode }) => {
+            execute_noise_cancel(noise_cancel, mode, apply, auto_restore)
+        }
         None => Err(LctrlError::InvalidArgument {
             detail: "an audio subcommand is required".into(),
         }),
@@ -2251,6 +2416,7 @@ fn execute_noise_cancel(
     noise_cancel: Option<&dyn NoiseCancelControl>,
     mode: NoiseCancelArg,
     apply: ApplyMode,
+    auto_restore: bool,
 ) -> CommandResult {
     let noise_cancel = noise_cancel.ok_or_else(|| LctrlError::Unsupported {
         feature: "audio.noise-cancel".into(),
@@ -2263,7 +2429,16 @@ fn execute_noise_cancel(
         NoiseCancelArg::VoiceId => NoiseCancellationMode::VoiceId,
     };
     let report = noise_cancel.set_noise_cancel_mode(target, apply)?;
-    structured_output(&report, format_noise_cancel_change(&report))
+    let restore = if auto_restore && apply == ApplyMode::Commit {
+        Some(restore_noise_cancel_state(noise_cancel, report.previous())?)
+    } else {
+        None
+    };
+    output_with_restore(
+        &report,
+        format_noise_cancel_change(&report),
+        restore.as_deref(),
+    )
 }
 
 fn format_noise_cancel_change(report: &lctrl_core::ChangeReport<NoiseCancelState>) -> String {
@@ -2288,6 +2463,7 @@ fn execute_dolby(
     audio: Option<&dyn AudioControl>,
     profile: DolbyProfileArg,
     apply: ApplyMode,
+    auto_restore: bool,
 ) -> CommandResult {
     let audio = audio.ok_or_else(|| LctrlError::Unsupported {
         feature: "audio.dolby".into(),
@@ -2302,7 +2478,12 @@ fn execute_dolby(
         DolbyProfileArg::Dynamic => DolbyProfile::Dynamic,
     };
     let report = audio.set_dolby_profile(target, apply)?;
-    structured_output(&report, format_dolby_change(&report))
+    let restore = if auto_restore && apply == ApplyMode::Commit {
+        Some(restore_dolby_state(audio, report.previous())?)
+    } else {
+        None
+    };
+    output_with_restore(&report, format_dolby_change(&report), restore.as_deref())
 }
 
 fn format_dolby_change(report: &lctrl_core::ChangeReport<DolbyState>) -> String {
@@ -2451,6 +2632,7 @@ fn execute_usb(
     apply: ApplyMode,
     confirmed: bool,
     interactive: bool,
+    auto_restore: bool,
 ) -> CommandResult {
     match command {
         UsbCommand::AlwaysOn { state, persistent } => {
@@ -2483,7 +2665,12 @@ fn execute_usb(
                 Some(actual) => ("USB AC charging", actual),
                 None => ("USB AC charging (dry run, not applied)", report.requested()),
             };
-            structured_output(&report, format!("{label}: {state}\n"))
+            let restore = if auto_restore && apply == ApplyMode::Commit {
+                Some(restore_usb_ac(usb, report.previous().ac_enabled)?)
+            } else {
+                None
+            };
+            output_with_restore(&report, format!("{label}: {state}\n"), restore.as_deref())
         }
         UsbCommand::ChargeOnBattery { state, persistent } => {
             let enabled = matches!(state, Toggle::On);
@@ -2507,9 +2694,15 @@ fn execute_usb(
                 feature: "usb.charge-on-battery".into(),
             })?;
             let report = usb.set_usb_battery_charging(enabled, apply)?;
-            structured_output(
+            let restore = if auto_restore && apply == ApplyMode::Commit {
+                Some(restore_usb_battery(usb, report.previous().battery_enabled)?)
+            } else {
+                None
+            };
+            output_with_restore(
                 &report,
                 format!("USB battery-mode charging: {}\n", report.requested()),
+                restore.as_deref(),
             )
         }
     }
