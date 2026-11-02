@@ -56,4 +56,4 @@ pub use scene_policy::ScenePolicyControl;
 pub use sense::{SenseControl, SenseFeature};
 pub use setting::{Setting, apply_setting};
 pub use update::LocalUpdateControl;
-pub use verify::poll_readback;
+pub use verify::{poll_readback, poll_readback_until};
