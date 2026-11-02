@@ -997,7 +997,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         FeatureBinding::Capability("panel.super-resolution.write"),
         ServiceBinding::Unsupported,
         &[],
-        DispatchSupport::Implemented,
+        DispatchSupport::Unsupported(
+            "the driver rejects the super-resolution state query, so the write contract is unverified (docs/interfaces.md §15.1)",
+        ),
     ),
     CommandCapability::new(
         CommandId::PANEL_OVERDRIVE,
@@ -1029,7 +1031,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             lctrl_core::required(Dependency::LenovoFirmwareWmi),
             lctrl_core::required(Dependency::LinuxDrm),
         ],
-        DispatchSupport::Implemented,
+        DispatchSupport::Unsupported(
+            "the Intel pixel-transformation block contract is not honoured by this driver, so the channel stays closed (docs/interfaces.md §15.1)",
+        ),
     ),
     CommandCapability::new(
         CommandId::PRIVACY_CAM,
