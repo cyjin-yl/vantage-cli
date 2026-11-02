@@ -204,21 +204,25 @@ pub struct NativeHpdStore;
 
 impl HpdSettingsStore for NativeHpdStore {
     fn read_state(&self) -> Result<SenseState> {
-        let mut state = SenseState::default();
-        state.lock_on_leave = read_bool(HPD_KEY, "PresentLeave", BoolEncoding::Legacy01)?;
-        state.leave_distance =
-            read_u32(HPD_KEY, "LeaveDistance")?.and_then(SenseDistance::from_raw);
-        state.leave_wait = read_u32(HPD_KEY, "LeaveWait")?.and_then(SenseWait::from_raw);
-        state.wake_on_approach = read_bool(HPD_KEY, "Approach", BoolEncoding::Legacy01)?;
-        state.approach_distance =
-            read_u32(HPD_KEY, "ApproachDistance")?.and_then(SenseDistance::from_raw);
-        state.pause_video = read_bool(HPD_KEY, "Video", BoolEncoding::OneTwo)?;
-        state.privacy_alert = read_bool(HPD_KEY, "CameraDetect", BoolEncoding::OneTwo)?;
-        state.capability = read_u32(HPD_KEY, "Capability")?;
-        state.sensor_type = read_u32(HPD_KEY, "SensorType")?;
-        state.facial_feature_registered =
-            read_bool(HPD_KEY, "FacialFeatureRegistered", BoolEncoding::Legacy01)?;
-        Ok(state)
+        Ok(SenseState {
+            lock_on_leave: read_bool(HPD_KEY, "PresentLeave", BoolEncoding::Legacy01)?,
+            leave_distance: read_u32(HPD_KEY, "LeaveDistance")?.and_then(SenseDistance::from_raw),
+            leave_wait: read_u32(HPD_KEY, "LeaveWait")?.and_then(SenseWait::from_raw),
+            wake_on_approach: read_bool(HPD_KEY, "Approach", BoolEncoding::Legacy01)?,
+            approach_distance: read_u32(HPD_KEY, "ApproachDistance")?
+                .and_then(SenseDistance::from_raw),
+            pause_video: read_bool(HPD_KEY, "Video", BoolEncoding::OneTwo)?,
+            privacy_alert: read_bool(HPD_KEY, "CameraDetect", BoolEncoding::OneTwo)?,
+            // No registry value backs this feature on this model.
+            attention_tracking: None,
+            capability: read_u32(HPD_KEY, "Capability")?,
+            sensor_type: read_u32(HPD_KEY, "SensorType")?,
+            facial_feature_registered: read_bool(
+                HPD_KEY,
+                "FacialFeatureRegistered",
+                BoolEncoding::Legacy01,
+            )?,
+        })
     }
 }
 

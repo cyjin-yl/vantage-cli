@@ -12,6 +12,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{LazyLock, Mutex};
 
+use crate::wide::wide;
 use lctrl_core::Result;
 use lctrl_hal::{OsdControl, OsdOutcome};
 use windows_sys::Win32::{
@@ -34,6 +35,10 @@ struct StaticClass(WNDCLASSEXW);
 unsafe impl Send for StaticClass {}
 unsafe impl Sync for StaticClass {}
 
+const OSD_CLASS_NAME: &[u16] = &wide!("vantage_osd_class");
+const OSD_WINDOW_TITLE: &[u16] = &wide!("vantage-osd");
+const OSD_FONT_FACE: &[u16] = &wide!("Consolas");
+
 static CLS: LazyLock<StaticClass> = LazyLock::new(|| {
     let hinstance = unsafe { GetModuleHandleW(std::ptr::null()) };
     let cls = WNDCLASSEXW {
@@ -47,7 +52,7 @@ static CLS: LazyLock<StaticClass> = LazyLock::new(|| {
         hCursor: unsafe { GetStockObject(3) } as *mut _, // OIC_ARROW
         hbrBackground: std::ptr::null_mut(),
         lpszMenuName: std::ptr::null(),
-        lpszClassName: b"vantage_osd_class\0".as_ptr() as *const _,
+        lpszClassName: OSD_CLASS_NAME.as_ptr(),
         hIconSm: std::ptr::null_mut(),
     };
     unsafe {
@@ -138,7 +143,7 @@ fn show_overlay() -> std::result::Result<(), String> {
         let hwnd = CreateWindowExW(
             WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE,
             CLS.0.lpszClassName,
-            b"vantage-osd\0".as_ptr() as *const _,
+            OSD_WINDOW_TITLE.as_ptr(),
             WS_POPUP | WS_CLIPSIBLINGS | WS_VISIBLE,
             x,
             y,
@@ -212,7 +217,7 @@ unsafe extern "system" fn osd_wndproc(
                         0,
                         0,
                         0,
-                        b"Consolas\0".as_ptr() as *const _,
+                        OSD_FONT_FACE.as_ptr(),
                     );
                     SelectObject(hwnd, font);
                     DrawTextW(

@@ -52,8 +52,6 @@ pub fn run(events: Receiver<DaemonEvent>) -> Result<()> {
         let stop = Arc::clone(&stop);
         let last_events = Arc::clone(&last_events);
         let subscribers = Arc::clone(&subscribers);
-        let scene_policy = scene_policy;
-        let osd = osd;
         thread::spawn(move || {
             while !stop.load(Ordering::Acquire) {
                 match events.recv_timeout(Duration::from_millis(100)) {

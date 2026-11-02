@@ -194,24 +194,7 @@ mod rpc {
         data4: [0x9f, 0xe8, 0x08, 0x00, 0x2b, 0x10, 0x48, 0x60],
     };
 
-    /// Build a NUL-terminated UTF-16 literal at compile time.
-    /// Literals used here are ASCII, so one u16 per input byte suffices.
-    macro_rules! wide {
-        ($s:literal) => {{
-            const LEN: usize = $s.len() + 1;
-            const fn widen() -> [u16; LEN] {
-                let bytes = $s.as_bytes();
-                let mut out = [0u16; LEN];
-                let mut i = 0;
-                while i < bytes.len() {
-                    out[i] = bytes[i] as u16;
-                    i += 1;
-                }
-                out
-            }
-            widen()
-        }};
-    }
+    use crate::wide::wide;
 
     /// Object UUID offered to the server in the opnum-4 handshake, passed as
     /// a BSTR exactly like the vendor client.
@@ -317,7 +300,9 @@ mod rpc {
 
     impl DaxMeta {
         pub(super) fn new() -> Box<Self> {
-            let mut meta: Box<Self> = unsafe { Box::new_zeroed().assume_init() };
+            // Every field is a raw pointer, integer or POD RPC record, so an
+            // all-zero bit pattern is a valid starting point.
+            let mut meta: Box<Self> = Box::new(unsafe { std::mem::zeroed() });
 
             // Single transfer syntax: NDR v2.0. The vendor descriptor also
             // declares NDR64, but this client carries only the NDR32

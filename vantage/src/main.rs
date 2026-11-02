@@ -427,7 +427,7 @@ fn main() {
     // stays unattached and `audio dolby` reports Unsupported instead of
     // failing the whole CLI.
     let audio = lctrl_hal_win::NativeDolbyRpc::load()
-        .map(|rpc| lctrl_hal_win::WindowsDolbyAudio::new(rpc))
+        .map(lctrl_hal_win::WindowsDolbyAudio::new)
         .ok();
     let noise_cancel = match lctrl_hal_win::NativeElevocRpc::load() {
         Ok(rpc) => Some(lctrl_hal_win::WindowsNoiseCancel::new(rpc)),

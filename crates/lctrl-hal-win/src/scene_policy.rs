@@ -52,8 +52,7 @@ impl NativeScenePolicy {
     /// The complete declared ruleset. Each rule binds one documented Lenovo WMI
     /// event class to one allowlisted action and its rollback.
     fn ruleset() -> Vec<ScenePolicyRule> {
-        let mut rules = Vec::new();
-        rules.push(
+        let rules = vec![
             ScenePolicyRule::new(
                 "scene.gamezone.performance".into(),
                 "Game Zone → Performance".into(),
@@ -67,8 +66,7 @@ impl NativeScenePolicy {
                 "Fires when a Game Zone session starts; requests the performance mode and reads back the performance state. Rollback returns to balanced.".into(),
             )
             .expect("well-formed rule"),
-        );
-        rules.push(
+
             ScenePolicyRule::new(
                 "scene.gamezone.fan.fullspeed".into(),
                 "Game Zone → Full-speed fan".into(),
@@ -82,8 +80,7 @@ impl NativeScenePolicy {
                 "Fires on the smart-fan-mode event; requests the full-speed fan mode and reads back the fan mode. Rollback returns to standard. Gated when the fan write channel is unavailable.".into(),
             )
             .expect("well-formed rule"),
-        );
-        rules.push(
+
             ScenePolicyRule::new(
                 "scene.aidemo.power.silent".into(),
                 "AI Demo → Silent power".into(),
@@ -97,8 +94,7 @@ impl NativeScenePolicy {
                 "Fires on an AI-scenario event; requests the quiet performance mode and reads back the performance state. Rollback returns to balanced.".into(),
             )
             .expect("well-formed rule"),
-        );
-        rules.push(
+
             ScenePolicyRule::new(
                 "scene.panel.high-refresh".into(),
                 "High-refresh panel scene".into(),
@@ -108,7 +104,7 @@ impl NativeScenePolicy {
                 "Fires on a Game Zone start; requests a 120 Hz panel mode (validated by the display driver before commit) and reads back the current mode. Rollback returns to 60 Hz.".into(),
             )
             .expect("well-formed rule"),
-        );
+        ];
         rules
     }
 }

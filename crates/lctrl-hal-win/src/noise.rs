@@ -474,7 +474,9 @@ struct ProxyTables {
     transfer_syntax: RpcSyntaxIdentifier,
     syntax_info: MidlSyntaxInfo,
     /// Second `MIDL_SYNTAX_INFO` record (NDR64); the two records are
-    /// adjacent so `pSyntaxInfo` indexes them as an array.
+    /// adjacent so `pSyntaxInfo` indexes them as an array. Only the RPC
+    /// runtime dereferences it, so Rust never reads the field.
+    #[allow(dead_code)]
     syntax_info2: MidlSyntaxInfo,
     proxy_info: MidlStublessProxyInfo,
     if_spec: RpcClientInterface,

@@ -115,27 +115,6 @@ impl WmiReply {
     }
 }
 
-impl WmiReply {
-    fn get_single(&self) -> Result<WmiObject> {
-        match self {
-            Self::Objects(objects) => {
-                objects
-                    .first()
-                    .cloned()
-                    .ok_or_else(|| LctrlError::ChannelUnavailable {
-                        channel: "fake returned no WMI object".into(),
-                    })
-            }
-            Self::Unsupported => Err(LctrlError::Unsupported {
-                feature: "test WMI class".into(),
-            }),
-            Self::PermissionDenied => Err(LctrlError::PermissionDenied {
-                need: "administrator".into(),
-            }),
-        }
-    }
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct Query {
     namespace: String,
