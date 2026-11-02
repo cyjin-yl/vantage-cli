@@ -21,14 +21,21 @@ night_charge probe: 0x00000011 -> supported=true (probe bit4 is not the live sta
 night_charge status: 0x00000001 -> enabled=false
 temporary_charge: 0x00000001 -> TemporaryChargeState { raw: 1, permanent: true, plug_in: false, dynamic_lifespan: false }
 
-Facts established:
-- GBMD 0xFF status = 0x00860004 (bits 2,17,18,23). bit23 SET =>
-  DoesSupportStorage80-style decode is TRUE on this machine. The imported
-  acceptance line "Storage80 能力位为 0" (replacement-baseline-20261027.json
-  domains[issue 6]) is stale; corrected with a dated correction field.
-- BSIF / GetEmSpecVersion IOCTL 0x8310214c (in = 4 zero bytes, out = 4-byte
-  word) SUCCEEDS and returns 0x00000002 (EM Spec version 2).
-- Charge mode currently decodes Rapid (bit2 express on).
+Interpretation correction after exact PowerBattery.dll disassembly (2026-11-02):
+- The output above is retained verbatim, including its old misleading labels.
+  GBMD 0xFF status = 0x00860004 (bits 2,17,18,23) establishes only that
+  advertised bit23 is SET, not the full native DoesSupportStorage80 result.
+- The observed 0x8310214c request used input = four zero bytes and returned
+  raw DWORD 0x00000002. Native GetEmSpecVersion instead sends DWORD 0x11;
+  IOCTL failure or raw bit0 clear yields -1, and only raw bit0 set yields
+  version = raw >> 4. Thus this probe does NOT establish "EM Spec version 2".
+- Native DoesSupportStorage80 additionally compares the decoded version
+  against 184 (0xb8, .data RVA 0x21174/file offset 0x1ef74) before querying
+  GBMD bit23. The full capability is UNKNOWN, not established true or false.
+- Charge mode decoded Rapid (bit2 express on); GBMD bit14 was clear, which
+  maps to native CStorageMode subtype 1, independently of bit23.
+- A corrected native-shaped read-only EM probe is pending target transport
+  availability. See storage80-aiturbo-re-20261102.md for the byte/RVA binding.
 
 == AiTurbo / extreme-life inventory (verbatim) ==
 

@@ -24,7 +24,7 @@ vantage
 │   ├── status [--json]                    # 02 §7 + §8(信息+适配器+模式回读)
 │   ├── charge-mode {normal|conservation|rapid}      # 02 §3
 │   ├── thresholds <start%> <stop%>                  # 02 §4.2
-│   ├── extreme-life {on|off}                        # 02 §4.1/4.3
+│   ├── extreme-life {on|off}                        # 02 §4.4；完整常驻策略未准入,非一次性 saver
 │   ├── night-charge {on|off}                        # 02 §5
 │   ├── temporary-mode                                 # 02 §5
 │   ├── adapter [--json]                             # 02 §8

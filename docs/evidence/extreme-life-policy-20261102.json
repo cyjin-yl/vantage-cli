@@ -1,0 +1,3567 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "retained_binary_static_policy",
+  "runtime_effect_verified": false,
+  "source_package": {
+    "version": "1.0.0.12311",
+    "catalog_id": "950615e5-5491-4d9e-b0e8-caf9bb0f0f0e",
+    "cab_sha256": "f3750d4b91e6888b1f32e706f1cf9a75a3baf33c29ba39bc597e464748afa6e8"
+  },
+  "source_files": [
+    {
+      "name": "BatteryLife.exe",
+      "sha256": "b41dc6b8f63222fcd0127d043bac9e969be8e0140604afcdc63b5129923ea87d",
+      "image_base": "0x140000000"
+    },
+    {
+      "name": "AiPerfSvc.exe",
+      "sha256": "dd41ce1f482b18ec0e59f6082023e1af9d15884fd94b1f75ca7f0b9c467ca19a",
+      "image_base": "0x140000000"
+    },
+    {
+      "name": "Workman.exe",
+      "sha256": "5909c8d9ca10cf5ffccefbdb78b7567c165e5c6a28a7f555ea9dc81f8c3ae2ce",
+      "image_base": "0x140000000"
+    },
+    {
+      "name": "LseFileMonitor.sys",
+      "sha256": "f7e1de322aa3bd1e6b0ae9c1b5beb9dda402b2264a8ff3c1e4d028ed131a9ab4",
+      "image_base": "0x140000000"
+    },
+    {
+      "name": "Lenovo.CertificateValidation.Native.dll",
+      "sha256": "7b368db17c74de6a44461b86d14fa2ecb0502960a69cd616116bc2a28d1639f7",
+      "image_base": "0x180000000",
+      "loader_pe_image_sha256": "5b6aac903aa06f0346c03e5fd4f96a4bfc7e6d8085f6506a97bbe8cc1eea893f"
+    }
+  ],
+  "process_seed_catalog": {
+    "constructor_rva": "0x6a970-0x6f6d5",
+    "matching": "exact basename; constructor order with last assignment winning; values are not exemptions",
+    "ordered_assignments": [
+      {
+        "load_rva": "0x6a987",
+        "literal_rva": "0xefa10",
+        "assignment_rva": "0x6a9b2",
+        "image_basename": "qyclient.exe",
+        "category": 0
+      },
+      {
+        "load_rva": "0x6a9c3",
+        "literal_rva": "0xef9f0",
+        "assignment_rva": "0x6a9ee",
+        "image_basename": "qyplayer.exe",
+        "category": 0
+      },
+      {
+        "load_rva": "0x6a9ff",
+        "literal_rva": "0xefa90",
+        "assignment_rva": "0x6aa2a",
+        "image_basename": "qiyiservice.exe",
+        "category": 0
+      },
+      {
+        "load_rva": "0x6aa3b",
+        "literal_rva": "0xefad8",
+        "assignment_rva": "0x6aa66",
+        "image_basename": "qqlive.exe",
+        "category": 1
+      },
+      {
+        "load_rva": "0x6aa77",
+        "literal_rva": "0xefb60",
+        "assignment_rva": "0x6aaa2",
+        "image_basename": "qqliveservice.exe",
+        "category": 1
+      },
+      {
+        "load_rva": "0x6aab3",
+        "literal_rva": "0xf3b98",
+        "assignment_rva": "0x6aade",
+        "image_basename": "qqlivelcservice.exe",
+        "category": 1
+      },
+      {
+        "load_rva": "0x6aaef",
+        "literal_rva": "0xefcd0",
+        "assignment_rva": "0x6ab1a",
+        "image_basename": "mgtv.exe",
+        "category": 38
+      },
+      {
+        "load_rva": "0x6ab2b",
+        "literal_rva": "0xefce8",
+        "assignment_rva": "0x6ab56",
+        "image_basename": "芒果tv.exe",
+        "category": 38
+      },
+      {
+        "load_rva": "0x6ab67",
+        "literal_rva": "0xf3bc0",
+        "assignment_rva": "0x6ab92",
+        "image_basename": "youku.exe",
+        "category": 39
+      },
+      {
+        "load_rva": "0x6aba3",
+        "literal_rva": "0xefc48",
+        "assignment_rva": "0x6abce",
+        "image_basename": "douyin.exe",
+        "category": 2
+      },
+      {
+        "load_rva": "0x6abdf",
+        "literal_rva": "0xefc80",
+        "assignment_rva": "0x6ac0a",
+        "image_basename": "douyin_guard.exe",
+        "category": 2
+      },
+      {
+        "load_rva": "0x6ac1b",
+        "literal_rva": "0xf3c10",
+        "assignment_rva": "0x6ac46",
+        "image_basename": "potplayermini64.exe",
+        "category": 41
+      },
+      {
+        "load_rva": "0x6ac57",
+        "literal_rva": "0xf3c38",
+        "assignment_rva": "0x6ac82",
+        "image_basename": "douyulive.exe",
+        "category": 43
+      },
+      {
+        "load_rva": "0x6ac93",
+        "literal_rva": "0xf3bd8",
+        "assignment_rva": "0x6acbe",
+        "image_basename": "cbox.exe",
+        "category": 44
+      },
+      {
+        "load_rva": "0x6accf",
+        "literal_rva": "0xf3bf0",
+        "assignment_rva": "0x6acfa",
+        "image_basename": "videoplayer.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6ad0b",
+        "literal_rva": "0xefc60",
+        "assignment_rva": "0x6ad36",
+        "image_basename": "douyin_tray.exe",
+        "category": 2
+      },
+      {
+        "load_rva": "0x6ad47",
+        "literal_rva": "0xefc80",
+        "assignment_rva": "0x6ad72",
+        "image_basename": "douyin_guard.exe",
+        "category": 2
+      },
+      {
+        "load_rva": "0x6ad83",
+        "literal_rva": "0xefc48",
+        "assignment_rva": "0x6adae",
+        "image_basename": "douyin.exe",
+        "category": 2
+      },
+      {
+        "load_rva": "0x6adbf",
+        "literal_rva": "0xefbb0",
+        "assignment_rva": "0x6adea",
+        "image_basename": "wps.exe",
+        "category": 4
+      },
+      {
+        "load_rva": "0x6adfb",
+        "literal_rva": "0xefc28",
+        "assignment_rva": "0x6ae26",
+        "image_basename": "wpscloudsvr.exe",
+        "category": 4
+      },
+      {
+        "load_rva": "0x6ae37",
+        "literal_rva": "0xefe08",
+        "assignment_rva": "0x6ae62",
+        "image_basename": "msedge.exe",
+        "category": 5
+      },
+      {
+        "load_rva": "0x6ae73",
+        "literal_rva": "0xf3c90",
+        "assignment_rva": "0x6ae9e",
+        "image_basename": "iexplorer.exe",
+        "category": 5
+      },
+      {
+        "load_rva": "0x6aeaf",
+        "literal_rva": "0xf3cb0",
+        "assignment_rva": "0x6aeda",
+        "image_basename": "chrome.exe",
+        "category": 6
+      },
+      {
+        "load_rva": "0x6aeeb",
+        "literal_rva": "0xf3c58",
+        "assignment_rva": "0x6af16",
+        "image_basename": "360se.exe",
+        "category": 10
+      },
+      {
+        "load_rva": "0x6af27",
+        "literal_rva": "0xf3c70",
+        "assignment_rva": "0x6af52",
+        "image_basename": "360chromex.exe",
+        "category": 10
+      },
+      {
+        "load_rva": "0x6af63",
+        "literal_rva": "0xf3d00",
+        "assignment_rva": "0x6af8e",
+        "image_basename": "360chrome.exe",
+        "category": 10
+      },
+      {
+        "load_rva": "0x6af9f",
+        "literal_rva": "0xf3d20",
+        "assignment_rva": "0x6afca",
+        "image_basename": "360aibrowser.exe",
+        "category": 10
+      },
+      {
+        "load_rva": "0x6afdb",
+        "literal_rva": "0xf3cc8",
+        "assignment_rva": "0x6b006",
+        "image_basename": "slbservice.exe",
+        "category": 7
+      },
+      {
+        "load_rva": "0x6b017",
+        "literal_rva": "0xf3ce8",
+        "assignment_rva": "0x6b042",
+        "image_basename": "slbsafe.exe",
+        "category": 7
+      },
+      {
+        "load_rva": "0x6b053",
+        "literal_rva": "0xf3d80",
+        "assignment_rva": "0x6b07e",
+        "image_basename": "slbsmartsearch.exe",
+        "category": 7
+      },
+      {
+        "load_rva": "0x6b08f",
+        "literal_rva": "0xf3da8",
+        "assignment_rva": "0x6b0ba",
+        "image_basename": "slbrowser.exe",
+        "category": 7
+      },
+      {
+        "load_rva": "0x6b0cb",
+        "literal_rva": "0xf3d48",
+        "assignment_rva": "0x6b0f6",
+        "image_basename": "qqbrowser.exe",
+        "category": 8
+      },
+      {
+        "load_rva": "0x6b107",
+        "literal_rva": "0xf3d68",
+        "assignment_rva": "0x6b132",
+        "image_basename": "libao.exe",
+        "category": 9
+      },
+      {
+        "load_rva": "0x6b143",
+        "literal_rva": "0xf3df8",
+        "assignment_rva": "0x6b16e",
+        "image_basename": "firefox.exe",
+        "category": 12
+      },
+      {
+        "load_rva": "0x6b17f",
+        "literal_rva": "0xf3e10",
+        "assignment_rva": "0x6b1aa",
+        "image_basename": "sogouexplorer.exe",
+        "category": 11
+      },
+      {
+        "load_rva": "0x6b1bb",
+        "literal_rva": "0xf3dc8",
+        "assignment_rva": "0x6b1e6",
+        "image_basename": "xmind.exe",
+        "category": 13
+      },
+      {
+        "load_rva": "0x6b1f7",
+        "literal_rva": "0xf3de0",
+        "assignment_rva": "0x6b222",
+        "image_basename": "outlook.exe",
+        "category": 14
+      },
+      {
+        "load_rva": "0x6b233",
+        "literal_rva": "0xf3e88",
+        "assignment_rva": "0x6b25e",
+        "image_basename": "olk.exe",
+        "category": 14
+      },
+      {
+        "load_rva": "0x6b26f",
+        "literal_rva": "0xf3e98",
+        "assignment_rva": "0x6b29a",
+        "image_basename": "weixin.exe",
+        "category": 15
+      },
+      {
+        "load_rva": "0x6b2ab",
+        "literal_rva": "0xf3e38",
+        "assignment_rva": "0x6b2d6",
+        "image_basename": "lenovoappstore.exe",
+        "category": 16
+      },
+      {
+        "load_rva": "0x6b2e7",
+        "literal_rva": "0xf3e60",
+        "assignment_rva": "0x6b312",
+        "image_basename": "winstore.app.exe",
+        "category": 17
+      },
+      {
+        "load_rva": "0x6b323",
+        "literal_rva": "0xf3ee8",
+        "assignment_rva": "0x6b34e",
+        "image_basename": "thunder.exe",
+        "category": 18
+      },
+      {
+        "load_rva": "0x6b35f",
+        "literal_rva": "0xf3f00",
+        "assignment_rva": "0x6b38a",
+        "image_basename": "fastpdf.exe",
+        "category": 19
+      },
+      {
+        "load_rva": "0x6b39b",
+        "literal_rva": "0xf3eb0",
+        "assignment_rva": "0x6b3c6",
+        "image_basename": "360huabao.exe",
+        "category": 20
+      },
+      {
+        "load_rva": "0x6b3d7",
+        "literal_rva": "0xf3ed0",
+        "assignment_rva": "0x6b402",
+        "image_basename": "lefile.exe",
+        "category": 21
+      },
+      {
+        "load_rva": "0x6b413",
+        "literal_rva": "0xf3f68",
+        "assignment_rva": "0x6b43e",
+        "image_basename": "drvmain.exe",
+        "category": 22
+      },
+      {
+        "load_rva": "0x6b44f",
+        "literal_rva": "0xf3f80",
+        "assignment_rva": "0x6b47a",
+        "image_basename": "drvsysissue.exe",
+        "category": 22
+      },
+      {
+        "load_rva": "0x6b48b",
+        "literal_rva": "0xf3f18",
+        "assignment_rva": "0x6b4b6",
+        "image_basename": "driverbooster.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6b4c7",
+        "literal_rva": "0xf3f40",
+        "assignment_rva": "0x6b4f2",
+        "image_basename": "quarkclouddrive.exe",
+        "category": 23
+      },
+      {
+        "load_rva": "0x6b503",
+        "literal_rva": "0xf3fe0",
+        "assignment_rva": "0x6b52e",
+        "image_basename": "mailmaster.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6b53f",
+        "literal_rva": "0xf4000",
+        "assignment_rva": "0x6b56a",
+        "image_basename": "Foxmail.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6b57b",
+        "literal_rva": "0xf3fa0",
+        "assignment_rva": "0x6b5a6",
+        "image_basename": "messagebox.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6b5b7",
+        "literal_rva": "0xf3fc0",
+        "assignment_rva": "0x6b5e2",
+        "image_basename": "alirender.exe",
+        "category": 24
+      },
+      {
+        "load_rva": "0x6b5f3",
+        "literal_rva": "0xf4060",
+        "assignment_rva": "0x6b61e",
+        "image_basename": "alworkbench.exe",
+        "category": 24
+      },
+      {
+        "load_rva": "0x6b62f",
+        "literal_rva": "0xf4080",
+        "assignment_rva": "0x6b65a",
+        "image_basename": "139mail.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6b66b",
+        "literal_rva": "0xf4018",
+        "assignment_rva": "0x6b696",
+        "image_basename": "360mobilemgr.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6b6a7",
+        "literal_rva": "0xf4040",
+        "assignment_rva": "0x6b6d2",
+        "image_basename": "atrusttray.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6b6e3",
+        "literal_rva": "0xf40d8",
+        "assignment_rva": "0x6b70e",
+        "image_basename": "doubao.exe",
+        "category": 25
+      },
+      {
+        "load_rva": "0x6b71f",
+        "literal_rva": "0xf40f0",
+        "assignment_rva": "0x6b74a",
+        "image_basename": "qq.exe",
+        "category": 26
+      },
+      {
+        "load_rva": "0x6b75b",
+        "literal_rva": "0xf4098",
+        "assignment_rva": "0x6b786",
+        "image_basename": "qqplayer.exe",
+        "category": 26
+      },
+      {
+        "load_rva": "0x6b797",
+        "literal_rva": "0xf40b8",
+        "assignment_rva": "0x6b7c2",
+        "image_basename": "dingtalk.exe",
+        "category": 27
+      },
+      {
+        "load_rva": "0x6b7d3",
+        "literal_rva": "0xf3260",
+        "assignment_rva": "0x6b7fe",
+        "image_basename": "kwallpaperui.exe",
+        "category": 28
+      },
+      {
+        "load_rva": "0x6b80f",
+        "literal_rva": "0xf32a0",
+        "assignment_rva": "0x6b83a",
+        "image_basename": "keyemain.exe",
+        "category": 28
+      },
+      {
+        "load_rva": "0x6b84b",
+        "literal_rva": "0xf32e0",
+        "assignment_rva": "0x6b876",
+        "image_basename": "kdesk64.exe",
+        "category": 28
+      },
+      {
+        "load_rva": "0x6b887",
+        "literal_rva": "0xf32c0",
+        "assignment_rva": "0x6b8b4",
+        "image_basename": "kwallpaper.exe",
+        "category": 28
+      },
+      {
+        "load_rva": "0x6b8c5",
+        "literal_rva": "0xf4138",
+        "assignment_rva": "0x6b8f0",
+        "image_basename": "kwallpaperex.exe",
+        "category": 28
+      },
+      {
+        "load_rva": "0x6b901",
+        "literal_rva": "0xf4160",
+        "assignment_rva": "0x6b92c",
+        "image_basename": "leigod.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6b93d",
+        "literal_rva": "0xf4100",
+        "assignment_rva": "0x6b968",
+        "image_basename": "memu.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6b979",
+        "literal_rva": "0xf4118",
+        "assignment_rva": "0x6b9a3",
+        "image_basename": "mumunxmain.exe",
+        "category": 30
+      },
+      {
+        "load_rva": "0x6b9b4",
+        "literal_rva": "0xf41b8",
+        "assignment_rva": "0x6b9de",
+        "image_basename": "mumunxdevice.exe",
+        "category": 30
+      },
+      {
+        "load_rva": "0x6b9ef",
+        "literal_rva": "0xf3f00",
+        "assignment_rva": "0x6ba19",
+        "image_basename": "fastpdf.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6ba2a",
+        "literal_rva": "0xf41e0",
+        "assignment_rva": "0x6ba54",
+        "image_basename": "bandizip.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6ba65",
+        "literal_rva": "0xf4178",
+        "assignment_rva": "0x6ba8f",
+        "image_basename": "dgservice.exe",
+        "category": 31
+      },
+      {
+        "load_rva": "0x6baa0",
+        "literal_rva": "0xf4198",
+        "assignment_rva": "0x6baca",
+        "image_basename": "dgprotect.exe",
+        "category": 31
+      },
+      {
+        "load_rva": "0x6badb",
+        "literal_rva": "0xf4260",
+        "assignment_rva": "0x6bb05",
+        "image_basename": "gameassist.exe",
+        "category": 32
+      },
+      {
+        "load_rva": "0x6bb16",
+        "literal_rva": "0xf4280",
+        "assignment_rva": "0x6bb40",
+        "image_basename": "gameassistant.exe",
+        "category": 32
+      },
+      {
+        "load_rva": "0x6bb51",
+        "literal_rva": "0xf4200",
+        "assignment_rva": "0x6bb7b",
+        "image_basename": "gameassistservice.exe",
+        "category": 32
+      },
+      {
+        "load_rva": "0x6bb8c",
+        "literal_rva": "0xf4230",
+        "assignment_rva": "0x6bbb6",
+        "image_basename": "gameassistdldsvr.exe",
+        "category": 32
+      },
+      {
+        "load_rva": "0x6bbc7",
+        "literal_rva": "0xf42f0",
+        "assignment_rva": "0x6bbf1",
+        "image_basename": "gameassistemulator.exe",
+        "category": 32
+      },
+      {
+        "load_rva": "0x6bc02",
+        "literal_rva": "0xf4320",
+        "assignment_rva": "0x6bc2c",
+        "image_basename": "dnplayer.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6bc3d",
+        "literal_rva": "0xf3fe0",
+        "assignment_rva": "0x6bc67",
+        "image_basename": "mailmaster.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6bc78",
+        "literal_rva": "0xf42a8",
+        "assignment_rva": "0x6bca2",
+        "image_basename": "everything.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6bcb3",
+        "literal_rva": "0xf42c8",
+        "assignment_rva": "0x6bcdd",
+        "image_basename": "docker desktop.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6bcee",
+        "literal_rva": "0xf4380",
+        "assignment_rva": "0x6bd18",
+        "image_basename": "com.docker.backend.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6bd29",
+        "literal_rva": "0xf43b0",
+        "assignment_rva": "0x6bd56",
+        "image_basename": "gneslclient.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6bd67",
+        "literal_rva": "0xf4340",
+        "assignment_rva": "0x6bd94",
+        "image_basename": "swxdagent.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6bda5",
+        "literal_rva": "0xf4360",
+        "assignment_rva": "0x6bdd2",
+        "image_basename": "texstudio.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6bde3",
+        "literal_rva": "0xf4408",
+        "assignment_rva": "0x6be10",
+        "image_basename": "pdflauncher.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6be21",
+        "literal_rva": "0xf4428",
+        "assignment_rva": "0x6be4e",
+        "image_basename": "szmain.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6be5f",
+        "literal_rva": "0xf43d0",
+        "assignment_rva": "0x6be8c",
+        "image_basename": "learning.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6be9d",
+        "literal_rva": "0xf43f0",
+        "assignment_rva": "0x6beca",
+        "image_basename": "xlacc.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6bedb",
+        "literal_rva": "0xf4488",
+        "assignment_rva": "0x6bf08",
+        "image_basename": "shiyeline.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6bf19",
+        "literal_rva": "0xf44a8",
+        "assignment_rva": "0x6bf46",
+        "image_basename": "roombox.exe",
+        "category": 33
+      },
+      {
+        "load_rva": "0x6bf57",
+        "literal_rva": "0xf4440",
+        "assignment_rva": "0x6bf84",
+        "image_basename": "roomboxplugin.exe",
+        "category": 33
+      },
+      {
+        "load_rva": "0x6bf95",
+        "literal_rva": "0xf4468",
+        "assignment_rva": "0x6bfc2",
+        "image_basename": "flash2video.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6bfd3",
+        "literal_rva": "0xf4500",
+        "assignment_rva": "0x6c000",
+        "image_basename": "ffbrowser.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6c011",
+        "literal_rva": "0xf4520",
+        "assignment_rva": "0x6c03e",
+        "image_basename": "dcbowser.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6c04f",
+        "literal_rva": "0xf44c0",
+        "assignment_rva": "0x6c07c",
+        "image_basename": "xbrowser.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6c08d",
+        "literal_rva": "0xf44e0",
+        "assignment_rva": "0x6c0ba",
+        "image_basename": "123jiasu.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6c0cb",
+        "literal_rva": "0xf4580",
+        "assignment_rva": "0x6c0f8",
+        "image_basename": "drmain.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6c109",
+        "literal_rva": "0xf4598",
+        "assignment_rva": "0x6c136",
+        "image_basename": "drclient.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6c147",
+        "literal_rva": "0xf4540",
+        "assignment_rva": "0x6c174",
+        "image_basename": "yqzs.exe",
+        "category": 34
+      },
+      {
+        "load_rva": "0x6c185",
+        "literal_rva": "0xf4558",
+        "assignment_rva": "0x6c1b2",
+        "image_basename": "workbenchchnew.exe",
+        "category": 34
+      },
+      {
+        "load_rva": "0x6c1c3",
+        "literal_rva": "0xf45f8",
+        "assignment_rva": "0x6c1f0",
+        "image_basename": "cloudhub.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6c201",
+        "literal_rva": "0xf4618",
+        "assignment_rva": "0x6c22e",
+        "image_basename": "apipost.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6c23f",
+        "literal_rva": "0xf45b8",
+        "assignment_rva": "0x6c26c",
+        "image_basename": "happ.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6c27d",
+        "literal_rva": "0xf45d0",
+        "assignment_rva": "0x6c2aa",
+        "image_basename": "hxperformance.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6c2bb",
+        "literal_rva": "0xf4670",
+        "assignment_rva": "0x6c2e8",
+        "image_basename": "neteaseuivlient.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6c2f9",
+        "literal_rva": "0xf4698",
+        "assignment_rva": "0x6c326",
+        "image_basename": "steamgame.exe",
+        "category": 35
+      },
+      {
+        "load_rva": "0x6c337",
+        "literal_rva": "0xf4630",
+        "assignment_rva": "0x6c364",
+        "image_basename": "steam.exe",
+        "category": 35
+      },
+      {
+        "load_rva": "0x6c375",
+        "literal_rva": "0xf4648",
+        "assignment_rva": "0x6c3a2",
+        "image_basename": "steamwebhelper.exe",
+        "category": 35
+      },
+      {
+        "load_rva": "0x6c3b3",
+        "literal_rva": "0xf46f8",
+        "assignment_rva": "0x6c3e0",
+        "image_basename": "steamservice.exe",
+        "category": 35
+      },
+      {
+        "load_rva": "0x6c3f1",
+        "literal_rva": "0xf4720",
+        "assignment_rva": "0x6c41e",
+        "image_basename": "pcjiami.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6c42f",
+        "literal_rva": "0xf46b8",
+        "assignment_rva": "0x6c45c",
+        "image_basename": "onedrive.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6c46d",
+        "literal_rva": "0xf46d8",
+        "assignment_rva": "0x6c49a",
+        "image_basename": "wxworklocal.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6c4ab",
+        "literal_rva": "0xf4768",
+        "assignment_rva": "0x6c4d8",
+        "image_basename": "theworld.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6c4e9",
+        "literal_rva": "0xf4788",
+        "assignment_rva": "0x6c516",
+        "image_basename": "hskddns.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6c527",
+        "literal_rva": "0xf4738",
+        "assignment_rva": "0x6c554",
+        "image_basename": "yonzone.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6c565",
+        "literal_rva": "0xf4750",
+        "assignment_rva": "0x6c592",
+        "image_basename": "motrix.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6c5a3",
+        "literal_rva": "0xf47e8",
+        "assignment_rva": "0x6c5d0",
+        "image_basename": "ifindex.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6c5e1",
+        "literal_rva": "0xf4800",
+        "assignment_rva": "0x6c60e",
+        "image_basename": "aimeetingmanager.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6c61f",
+        "literal_rva": "0xf47a0",
+        "assignment_rva": "0x6c64c",
+        "image_basename": "ts3client_win64.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6c65d",
+        "literal_rva": "0xf47c8",
+        "assignment_rva": "0x6c68a",
+        "image_basename": "ms-teams.exe",
+        "category": 36
+      },
+      {
+        "load_rva": "0x6c69b",
+        "literal_rva": "0xf4878",
+        "assignment_rva": "0x6c6c8",
+        "image_basename": "tencentdocs.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6c6d9",
+        "literal_rva": "0xf4898",
+        "assignment_rva": "0x6c706",
+        "image_basename": "cxstudy.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6c717",
+        "literal_rva": "0xf4830",
+        "assignment_rva": "0x6c744",
+        "image_basename": "jkd.examclient.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6c755",
+        "literal_rva": "0xf4858",
+        "assignment_rva": "0x6c782",
+        "image_basename": "haokeLive.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6c793",
+        "literal_rva": "0xf48f0",
+        "assignment_rva": "0x6c7c0",
+        "image_basename": "kook.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6c7d1",
+        "literal_rva": "0xf4908",
+        "assignment_rva": "0x6c7fe",
+        "image_basename": "rpclient.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6c80f",
+        "literal_rva": "0xf48b0",
+        "assignment_rva": "0x6c83c",
+        "image_basename": "huyaclient.exe",
+        "category": 46
+      },
+      {
+        "load_rva": "0x6c84d",
+        "literal_rva": "0xf48d0",
+        "assignment_rva": "0x6c87a",
+        "image_basename": "huyalive.exe",
+        "category": 46
+      },
+      {
+        "load_rva": "0x6c88b",
+        "literal_rva": "0xf4960",
+        "assignment_rva": "0x6c8b8",
+        "image_basename": "huyaplyermoudule.exe",
+        "category": 46
+      },
+      {
+        "load_rva": "0x6c8c9",
+        "literal_rva": "0xf4990",
+        "assignment_rva": "0x6c8f6",
+        "image_basename": "huyasvc.exe",
+        "category": 46
+      },
+      {
+        "load_rva": "0x6c907",
+        "literal_rva": "0xf4928",
+        "assignment_rva": "0x6c934",
+        "image_basename": "stormplayer.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6c945",
+        "literal_rva": "0xf4948",
+        "assignment_rva": "0x6c972",
+        "image_basename": "storm.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6c983",
+        "literal_rva": "0xf49d0",
+        "assignment_rva": "0x6c9b0",
+        "image_basename": "baofengplatform.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6c9c1",
+        "literal_rva": "0xf49f8",
+        "assignment_rva": "0x6c9ee",
+        "image_basename": "wesing.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6c9ff",
+        "literal_rva": "0xf49a8",
+        "assignment_rva": "0x6ca2c",
+        "image_basename": "xfplay.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6ca3d",
+        "literal_rva": "0xf49c0",
+        "assignment_rva": "0x6ca6a",
+        "image_basename": "xmp.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6ca7b",
+        "literal_rva": "0xf4a50",
+        "assignment_rva": "0x6caa8",
+        "image_basename": "shplayer.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6cab9",
+        "literal_rva": "0xf4a70",
+        "assignment_rva": "0x6cae6",
+        "image_basename": "shcefengine.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6caf7",
+        "literal_rva": "0xf4a10",
+        "assignment_rva": "0x6cb24",
+        "image_basename": "stellarplayer.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6cb35",
+        "literal_rva": "0xf4a38",
+        "assignment_rva": "0x6cb62",
+        "image_basename": "liveime.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6cb73",
+        "literal_rva": "0xf4ad0",
+        "assignment_rva": "0x6cba0",
+        "image_basename": "bilibililive_browser.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6cbb1",
+        "literal_rva": "0xf4b08",
+        "assignment_rva": "0x6cbde",
+        "image_basename": "vlc.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6cbef",
+        "literal_rva": "0xf4a90",
+        "assignment_rva": "0x6cc1c",
+        "image_basename": "kmplayer.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6cc2d",
+        "literal_rva": "0xf4ab0",
+        "assignment_rva": "0x6cc5a",
+        "image_basename": "kmplayer64x.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6cc6b",
+        "literal_rva": "0xf4b48",
+        "assignment_rva": "0x6cc98",
+        "image_basename": "mckmplayer.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6cca9",
+        "literal_rva": "0xf4b68",
+        "assignment_rva": "0x6ccd6",
+        "image_basename": "yyanchor.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6cce7",
+        "literal_rva": "0xf4b18",
+        "assignment_rva": "0x6cd14",
+        "image_basename": "yy.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6cd25",
+        "literal_rva": "0xf4b28",
+        "assignment_rva": "0x6cd52",
+        "image_basename": "yyexternal.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6cd63",
+        "literal_rva": "0xf4bc8",
+        "assignment_rva": "0x6cd90",
+        "image_basename": "blender.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6cda1",
+        "literal_rva": "0xf4be0",
+        "assignment_rva": "0x6cdce",
+        "image_basename": "jianyingpro.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6cddf",
+        "literal_rva": "0xf4b88",
+        "assignment_rva": "0x6ce0c",
+        "image_basename": "jianying.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6ce1d",
+        "literal_rva": "0xf4ba8",
+        "assignment_rva": "0x6ce4a",
+        "image_basename": "cadreader.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6ce5b",
+        "literal_rva": "0xf4c38",
+        "assignment_rva": "0x6ce88",
+        "image_basename": "canva.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6ce99",
+        "literal_rva": "0xf4c50",
+        "assignment_rva": "0x6cec6",
+        "image_basename": "xiuxiu64.exe_lx10000.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6ced7",
+        "literal_rva": "0xf4c00",
+        "assignment_rva": "0x6cf04",
+        "image_basename": "xiuxiu64.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6cf15",
+        "literal_rva": "0xf4c20",
+        "assignment_rva": "0x6cf42",
+        "image_basename": "xiuxiu.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6cf53",
+        "literal_rva": "0xf4cc0",
+        "assignment_rva": "0x6cf80",
+        "image_basename": "dwgview.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6cf91",
+        "literal_rva": "0xf4cd8",
+        "assignment_rva": "0x6cfbe",
+        "image_basename": "dwgdraw.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6cfcf",
+        "literal_rva": "0xf4c88",
+        "assignment_rva": "0x6cffc",
+        "image_basename": "cadviewer.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d00d",
+        "literal_rva": "0xf4ca8",
+        "assignment_rva": "0x6d03a",
+        "image_basename": "knaipic.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d04b",
+        "literal_rva": "0xf4d30",
+        "assignment_rva": "0x6d078",
+        "image_basename": "bcut.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d089",
+        "literal_rva": "0xf4d48",
+        "assignment_rva": "0x6d0b6",
+        "image_basename": "neoimaging4.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d0c7",
+        "literal_rva": "0xf4cf0",
+        "assignment_rva": "0x6d0f4",
+        "image_basename": "edrawmax.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d105",
+        "literal_rva": "0xf4d10",
+        "assignment_rva": "0x6d132",
+        "image_basename": "neoviewer.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d143",
+        "literal_rva": "0xf4da8",
+        "assignment_rva": "0x6d170",
+        "image_basename": "gcad.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d181",
+        "literal_rva": "0xf4dc0",
+        "assignment_rva": "0x6d1ae",
+        "image_basename": "draw.io.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d1bf",
+        "literal_rva": "0xf4d68",
+        "assignment_rva": "0x6d1ec",
+        "image_basename": "dazitong.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d1fd",
+        "literal_rva": "0xf4d88",
+        "assignment_rva": "0x6d22a",
+        "image_basename": "wireshark.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d23b",
+        "literal_rva": "0xf4e18",
+        "assignment_rva": "0x6d268",
+        "image_basename": "aliworkbench.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d279",
+        "literal_rva": "0xf4e40",
+        "assignment_rva": "0x6d2a6",
+        "image_basename": "zstudentlive.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d2b7",
+        "literal_rva": "0xf4dd8",
+        "assignment_rva": "0x6d2e4",
+        "image_basename": "verykuai.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d2f5",
+        "literal_rva": "0xf4df8",
+        "assignment_rva": "0x6d322",
+        "image_basename": "ikeeperpab.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d333",
+        "literal_rva": "0xf46d8",
+        "assignment_rva": "0x6d360",
+        "image_basename": "wxworklocal.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d371",
+        "literal_rva": "0xf4ea0",
+        "assignment_rva": "0x6d39e",
+        "image_basename": "bcmbankclient.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d3af",
+        "literal_rva": "0xf4ec8",
+        "assignment_rva": "0x6d3dc",
+        "image_basename": "rainclassroom.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d3ed",
+        "literal_rva": "0xf4e68",
+        "assignment_rva": "0x6d41a",
+        "image_basename": "eleme-napos.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d42b",
+        "literal_rva": "0xf4e88",
+        "assignment_rva": "0x6d458",
+        "image_basename": "plaso.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d469",
+        "literal_rva": "0xf4f40",
+        "assignment_rva": "0x6d496",
+        "image_basename": "jlc-assistant.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d4a7",
+        "literal_rva": "0xf4f68",
+        "assignment_rva": "0x6d4d4",
+        "image_basename": "qbittorrent.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d4e5",
+        "literal_rva": "0xf4ef0",
+        "assignment_rva": "0x6d512",
+        "image_basename": "ctyunclouddeskuniversal.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d523",
+        "literal_rva": "0xf4f28",
+        "assignment_rva": "0x6d550",
+        "image_basename": "tdxw.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d561",
+        "literal_rva": "0xf4fc8",
+        "assignment_rva": "0x6d58e",
+        "image_basename": "huyanbao.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d59f",
+        "literal_rva": "0xf4fe8",
+        "assignment_rva": "0x6d5cc",
+        "image_basename": "a+.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d5dd",
+        "literal_rva": "0xf4f88",
+        "assignment_rva": "0x6d60a",
+        "image_basename": "n0vadesktop.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d61b",
+        "literal_rva": "0xf4fa8",
+        "assignment_rva": "0x6d648",
+        "image_basename": "memreduct.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d659",
+        "literal_rva": "0xf5048",
+        "assignment_rva": "0x6d686",
+        "image_basename": "qidian.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d697",
+        "literal_rva": "0xf5060",
+        "assignment_rva": "0x6d6c4",
+        "image_basename": "alimail.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d6d5",
+        "literal_rva": "0xf4ff8",
+        "assignment_rva": "0x6d702",
+        "image_basename": "mathpix-snipping-tool.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d713",
+        "literal_rva": "0xf5030",
+        "assignment_rva": "0x6d740",
+        "image_basename": "mcloud.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d751",
+        "literal_rva": "0xf50a8",
+        "assignment_rva": "0x6d77e",
+        "image_basename": "classin.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d78f",
+        "literal_rva": "0xf50c0",
+        "assignment_rva": "0x6d7bc",
+        "image_basename": "whatsapp.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d7cd",
+        "literal_rva": "0xf5078",
+        "assignment_rva": "0x6d7fa",
+        "image_basename": "photos.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d80b",
+        "literal_rva": "0xf5090",
+        "assignment_rva": "0x6d838",
+        "image_basename": "notepad.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d849",
+        "literal_rva": "0xf5110",
+        "assignment_rva": "0x6d876",
+        "image_basename": "notepad++.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d887",
+        "literal_rva": "0xf5130",
+        "assignment_rva": "0x6d8b4",
+        "image_basename": "acrobat.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d8c5",
+        "literal_rva": "0xf50e0",
+        "assignment_rva": "0x6d8f2",
+        "image_basename": "mspaint.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d903",
+        "literal_rva": "0xf50f8",
+        "assignment_rva": "0x6d930",
+        "image_basename": "zoom.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d941",
+        "literal_rva": "0xf5180",
+        "assignment_rva": "0x6d96e",
+        "image_basename": "discord.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d97f",
+        "literal_rva": "0xf5198",
+        "assignment_rva": "0x6d9ac",
+        "image_basename": "ccleaner.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d9bd",
+        "literal_rva": "0xf5148",
+        "assignment_rva": "0x6d9ea",
+        "image_basename": "ccleaner64.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6d9fb",
+        "literal_rva": "0xf5168",
+        "assignment_rva": "0x6da28",
+        "image_basename": "skype.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6da39",
+        "literal_rva": "0xf51f8",
+        "assignment_rva": "0x6da66",
+        "image_basename": "lync.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6da77",
+        "literal_rva": "0xf5210",
+        "assignment_rva": "0x6daa4",
+        "image_basename": "msaccess.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6dab5",
+        "literal_rva": "0xf51b8",
+        "assignment_rva": "0x6dae2",
+        "image_basename": "foxitpdfreader.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6daf3",
+        "literal_rva": "0xf51e0",
+        "assignment_rva": "0x6db20",
+        "image_basename": "feishu.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6db31",
+        "literal_rva": "0xf5260",
+        "assignment_rva": "0x6db5e",
+        "image_basename": "soffice.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6db6f",
+        "literal_rva": "0xf5278",
+        "assignment_rva": "0x6db9c",
+        "image_basename": "googledrive.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6dbad",
+        "literal_rva": "0xf5230",
+        "assignment_rva": "0x6dbda",
+        "image_basename": "opera.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6dbeb",
+        "literal_rva": "0xf5248",
+        "assignment_rva": "0x6dc18",
+        "image_basename": "brave.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6dc29",
+        "literal_rva": "0xf52e0",
+        "assignment_rva": "0x6dc56",
+        "image_basename": "onenotem.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6dc67",
+        "literal_rva": "0xf5300",
+        "assignment_rva": "0x6dc94",
+        "image_basename": "onenote.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6dca5",
+        "literal_rva": "0xf5298",
+        "assignment_rva": "0x6dcd2",
+        "image_basename": "moviemaker.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6dce3",
+        "literal_rva": "0xf52b8",
+        "assignment_rva": "0x6dd10",
+        "image_basename": "videomemories.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6dd21",
+        "literal_rva": "0xf5358",
+        "assignment_rva": "0x6dd4e",
+        "image_basename": "aplayer.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6dd5f",
+        "literal_rva": "0xf4d30",
+        "assignment_rva": "0x6dd8c",
+        "image_basename": "bcut.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6dd9d",
+        "literal_rva": "0xf5370",
+        "assignment_rva": "0x6ddca",
+        "image_basename": "scratch.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6dddb",
+        "literal_rva": "0xf5318",
+        "assignment_rva": "0x6de08",
+        "image_basename": "scratch3.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6de19",
+        "literal_rva": "0xf5338",
+        "assignment_rva": "0x6de46",
+        "image_basename": "heidisql.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6de57",
+        "literal_rva": "0xf53d8",
+        "assignment_rva": "0x6de84",
+        "image_basename": "sourceinsight.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6de95",
+        "literal_rva": "0xf5400",
+        "assignment_rva": "0x6dec2",
+        "image_basename": "sourceinsight3.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6ded3",
+        "literal_rva": "0xf5388",
+        "assignment_rva": "0x6df00",
+        "image_basename": "sourceinsight4.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6df11",
+        "literal_rva": "0xf53b0",
+        "assignment_rva": "0x6df3e",
+        "image_basename": "livelywallpaper.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6df4f",
+        "literal_rva": "0xf5468",
+        "assignment_rva": "0x6df7c",
+        "image_basename": "lively.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6df8d",
+        "literal_rva": "0xf5480",
+        "assignment_rva": "0x6dfba",
+        "image_basename": "yourphone.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6dfcb",
+        "literal_rva": "0xf5428",
+        "assignment_rva": "0x6dff8",
+        "image_basename": "phoneexperiencehost.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e009",
+        "literal_rva": "0xf5458",
+        "assignment_rva": "0x6e036",
+        "image_basename": "fl.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e047",
+        "literal_rva": "0xf54f0",
+        "assignment_rva": "0x6e074",
+        "image_basename": "fl64.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e085",
+        "literal_rva": "0xf5508",
+        "assignment_rva": "0x6e0b2",
+        "image_basename": "ssms.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e0c3",
+        "literal_rva": "0xf54a0",
+        "assignment_rva": "0x6e0f0",
+        "image_basename": "icloudhome.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e101",
+        "literal_rva": "0xf54c0",
+        "assignment_rva": "0x6e12e",
+        "image_basename": "applephotostreams.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e13f",
+        "literal_rva": "0xf5560",
+        "assignment_rva": "0x6e16c",
+        "image_basename": "linkedin.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e17d",
+        "literal_rva": "0xf5580",
+        "assignment_rva": "0x6e1aa",
+        "image_basename": "evernote.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e1bb",
+        "literal_rva": "0xf5520",
+        "assignment_rva": "0x6e1e8",
+        "image_basename": "evernotetray.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e1f9",
+        "literal_rva": "0xf5548",
+        "assignment_rva": "0x6e226",
+        "image_basename": "shareit.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e237",
+        "literal_rva": "0xf55f8",
+        "assignment_rva": "0x6e264",
+        "image_basename": "weiyun.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e275",
+        "literal_rva": "0xf5610",
+        "assignment_rva": "0x6e2a2",
+        "image_basename": "365riliclient.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e2b3",
+        "literal_rva": "0xf55a0",
+        "assignment_rva": "0x6e2e0",
+        "image_basename": "lively.ui.winui.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e2f1",
+        "literal_rva": "0xf5468",
+        "assignment_rva": "0x6e31e",
+        "image_basename": "lively.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e32f",
+        "literal_rva": "0xf55c8",
+        "assignment_rva": "0x6e35c",
+        "image_basename": "zhiyuntranslator.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e36d",
+        "literal_rva": "0xf5688",
+        "assignment_rva": "0x6e39a",
+        "image_basename": "rrclient.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e3ab",
+        "literal_rva": "0xf56a8",
+        "assignment_rva": "0x6e3d8",
+        "image_basename": "rtx.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e3e9",
+        "literal_rva": "0xf5638",
+        "assignment_rva": "0x6e416",
+        "image_basename": "icbcebankassist.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e427",
+        "literal_rva": "0xf5660",
+        "assignment_rva": "0x6e454",
+        "image_basename": "cpustresstool.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e465",
+        "literal_rva": "0xf56f8",
+        "assignment_rva": "0x6e492",
+        "image_basename": "microsoft.notes.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e4a3",
+        "literal_rva": "0xf5720",
+        "assignment_rva": "0x6e4d0",
+        "image_basename": "microsoft.media.player.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e4e1",
+        "literal_rva": "0xf56b8",
+        "assignment_rva": "0x6e50e",
+        "image_basename": "telegram.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e51f",
+        "literal_rva": "0xf56d8",
+        "assignment_rva": "0x6e54c",
+        "image_basename": "pbidesktop.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e55d",
+        "literal_rva": "0xf5780",
+        "assignment_rva": "0x6e58a",
+        "image_basename": "thunderbird.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e59b",
+        "literal_rva": "0xf57a0",
+        "assignment_rva": "0x6e5c8",
+        "image_basename": "utorrent.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e5d9",
+        "literal_rva": "0xf5758",
+        "assignment_rva": "0x6e606",
+        "image_basename": "putty.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e617",
+        "literal_rva": "0xf5770",
+        "assignment_rva": "0x6e644",
+        "image_basename": "uv4.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e655",
+        "literal_rva": "0xf5800",
+        "assignment_rva": "0x6e682",
+        "image_basename": "viber.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e693",
+        "literal_rva": "0xf5818",
+        "assignment_rva": "0x6e6c0",
+        "image_basename": "gom.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e6d1",
+        "literal_rva": "0xf5370",
+        "assignment_rva": "0x6e6fe",
+        "image_basename": "scratch.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e70f",
+        "literal_rva": "0xf57c0",
+        "assignment_rva": "0x6e73c",
+        "image_basename": "word_search.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e74d",
+        "literal_rva": "0xf57e0",
+        "assignment_rva": "0x6e77a",
+        "image_basename": "kakaotalk.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e78b",
+        "literal_rva": "0xf5860",
+        "assignment_rva": "0x6e7b8",
+        "image_basename": "eclipsecrossword.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e7c9",
+        "literal_rva": "0xf5890",
+        "assignment_rva": "0x6e7f6",
+        "image_basename": "eclipse.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e807",
+        "literal_rva": "0xf5828",
+        "assignment_rva": "0x6e834",
+        "image_basename": "sublime_text.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e845",
+        "literal_rva": "0xf5850",
+        "assignment_rva": "0x6e872",
+        "image_basename": "mpv.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e883",
+        "literal_rva": "0xf58e8",
+        "assignment_rva": "0x6e8b0",
+        "image_basename": "coreldraw.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e8c1",
+        "literal_rva": "0xf5908",
+        "assignment_rva": "0x6e8ee",
+        "image_basename": "flux.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e8ff",
+        "literal_rva": "0xf58a8",
+        "assignment_rva": "0x6e92c",
+        "image_basename": "studio one.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e93d",
+        "literal_rva": "0xf58c8",
+        "assignment_rva": "0x6e96a",
+        "image_basename": "photoscape.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e97b",
+        "literal_rva": "0xf5970",
+        "assignment_rva": "0x6e9a8",
+        "image_basename": "parking management.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e9b9",
+        "literal_rva": "0xf59a0",
+        "assignment_rva": "0x6e9e6",
+        "image_basename": "picasa3.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6e9f7",
+        "literal_rva": "0xf5920",
+        "assignment_rva": "0x6ea24",
+        "image_basename": "cool file viewer.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6ea35",
+        "literal_rva": "0xf5950",
+        "assignment_rva": "0x6ea62",
+        "image_basename": "eartrumpet.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6ea73",
+        "literal_rva": "0xf59e8",
+        "assignment_rva": "0x6eaa0",
+        "image_basename": "wavebrowser.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6eab1",
+        "literal_rva": "0xf5a08",
+        "assignment_rva": "0x6eade",
+        "image_basename": "atubecatcher.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6eaef",
+        "literal_rva": "0xf59b8",
+        "assignment_rva": "0x6eb1c",
+        "image_basename": "zalo.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6eb2d",
+        "literal_rva": "0xf59d0",
+        "assignment_rva": "0x6eb5a",
+        "image_basename": "slack.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6eb6b",
+        "literal_rva": "0xf5a78",
+        "assignment_rva": "0x6eb98",
+        "image_basename": "cricut design space.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6eba9",
+        "literal_rva": "0xf5aa8",
+        "assignment_rva": "0x6ebd6",
+        "image_basename": "devenv.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6ebe7",
+        "literal_rva": "0xf5a30",
+        "assignment_rva": "0x6ec14",
+        "image_basename": "googledrivesync.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6ec25",
+        "literal_rva": "0xf5a58",
+        "assignment_rva": "0x6ec52",
+        "image_basename": "googleearth.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6ec63",
+        "literal_rva": "0xf5af8",
+        "assignment_rva": "0x6ec90",
+        "image_basename": "googleearthpro.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6eca1",
+        "literal_rva": "0xf5b20",
+        "assignment_rva": "0x6ecce",
+        "image_basename": "tsbrowser.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6ecdf",
+        "literal_rva": "0xf5ac0",
+        "assignment_rva": "0x6ed0c",
+        "image_basename": "bittorrent.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6ed1d",
+        "literal_rva": "0xf5ae0",
+        "assignment_rva": "0x6ed4a",
+        "image_basename": "devcpp.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6ed5b",
+        "literal_rva": "0xf5b80",
+        "assignment_rva": "0x6ed88",
+        "image_basename": "illustrator.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6ed99",
+        "literal_rva": "0xf5ba0",
+        "assignment_rva": "0x6edc6",
+        "image_basename": "rstudio.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6edd7",
+        "literal_rva": "0xf5b40",
+        "assignment_rva": "0x6ee04",
+        "image_basename": "brsipmgr.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6ee15",
+        "literal_rva": "0xf5b60",
+        "assignment_rva": "0x6ee42",
+        "image_basename": "megasync.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6ee53",
+        "literal_rva": "0xf5bf0",
+        "assignment_rva": "0x6ee80",
+        "image_basename": "foxitphantompdf.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6ee91",
+        "literal_rva": "0xf5c18",
+        "assignment_rva": "0x6eebe",
+        "image_basename": "foxitreader.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6eecf",
+        "literal_rva": "0xf5bb8",
+        "assignment_rva": "0x6eefc",
+        "image_basename": "audition.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6ef0d",
+        "literal_rva": "0xf5bd8",
+        "assignment_rva": "0x6ef3a",
+        "image_basename": "visio.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6ef4b",
+        "literal_rva": "0xf5c78",
+        "assignment_rva": "0x6ef78",
+        "image_basename": "acrord32.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6ef89",
+        "literal_rva": "0xf5c98",
+        "assignment_rva": "0x6efb6",
+        "image_basename": "picasa.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6efc7",
+        "literal_rva": "0xf5c38",
+        "assignment_rva": "0x6eff4",
+        "image_basename": "acrobatmanager.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6f005",
+        "literal_rva": "0xf5c60",
+        "assignment_rva": "0x6f032",
+        "image_basename": "acad.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6f043",
+        "literal_rva": "0xf5cf0",
+        "assignment_rva": "0x6f070",
+        "image_basename": "wallpaper.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6f081",
+        "literal_rva": "0xf5d10",
+        "assignment_rva": "0x6f0ae",
+        "image_basename": "creative cloud.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6f0bf",
+        "literal_rva": "0xf5cb0",
+        "assignment_rva": "0x6f0ec",
+        "image_basename": "flashcenter.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6f0fd",
+        "literal_rva": "0xf5cd0",
+        "assignment_rva": "0x6f12a",
+        "image_basename": "iexplore.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6f13b",
+        "literal_rva": "0xf5d70",
+        "assignment_rva": "0x6f168",
+        "image_basename": "msedgeupdate.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6f179",
+        "literal_rva": "0xf5d98",
+        "assignment_rva": "0x6f1a6",
+        "image_basename": "wlmail.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6f1b7",
+        "literal_rva": "0xf5d38",
+        "assignment_rva": "0x6f1e4",
+        "image_basename": "jwlibrary.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6f1f5",
+        "literal_rva": "0xf5d58",
+        "assignment_rva": "0x6f222",
+        "image_basename": "guide.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6f233",
+        "literal_rva": "0xf5de0",
+        "assignment_rva": "0x6f260",
+        "image_basename": "hisuite.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6f271",
+        "literal_rva": "0xf5df8",
+        "assignment_rva": "0x6f29e",
+        "image_basename": "powerdvd.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6f2af",
+        "literal_rva": "0xf5db0",
+        "assignment_rva": "0x6f2dc",
+        "image_basename": "sanapp.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6f2ed",
+        "literal_rva": "0xf5dc8",
+        "assignment_rva": "0x6f31a",
+        "image_basename": "code.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6f32b",
+        "literal_rva": "0xf5e40",
+        "assignment_rva": "0x6f358",
+        "image_basename": "vivaldi.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6f369",
+        "literal_rva": "0xf5e58",
+        "assignment_rva": "0x6f396",
+        "image_basename": "旺店通erp旗舰版.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6f3a7",
+        "literal_rva": "0xf5e18",
+        "assignment_rva": "0x6f3d4",
+        "image_basename": "咩播.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6f3e5",
+        "literal_rva": "0xf5e28",
+        "assignment_rva": "0x6f412",
+        "image_basename": "雅思哥机考软件.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6f423",
+        "literal_rva": "0xf5ea0",
+        "assignment_rva": "0x6f450",
+        "image_basename": "极空间.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6f461",
+        "literal_rva": "0xf5eb0",
+        "assignment_rva": "0x6f48e",
+        "image_basename": "方正字库.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6f49f",
+        "literal_rva": "0xf5e78",
+        "assignment_rva": "0x6f4cc",
+        "image_basename": "石墨文档.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6f4dd",
+        "literal_rva": "0xf5e90",
+        "assignment_rva": "0x6f50a",
+        "image_basename": "猿编程.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6f51b",
+        "literal_rva": "0xf5ef8",
+        "assignment_rva": "0x6f548",
+        "image_basename": "字加.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6f559",
+        "literal_rva": "0xf5f08",
+        "assignment_rva": "0x6f586",
+        "image_basename": "洋葱学园.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6f597",
+        "literal_rva": "0xf5ec8",
+        "assignment_rva": "0x6f5c4",
+        "image_basename": "口袋写作.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6f5d5",
+        "literal_rva": "0xf5ee0",
+        "assignment_rva": "0x6f602",
+        "image_basename": "哔哩哔哩.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6f613",
+        "literal_rva": "0xf5f38",
+        "assignment_rva": "0x6f640",
+        "image_basename": "bilibili.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6f651",
+        "literal_rva": "0xf5f58",
+        "assignment_rva": "0x6f67e",
+        "image_basename": "小红书.exe",
+        "category": 47
+      },
+      {
+        "load_rva": "0x6f68f",
+        "literal_rva": "0xf5f20",
+        "assignment_rva": "0x6f6bc",
+        "image_basename": "智慧中小学.exe",
+        "category": 47
+      }
+    ],
+    "effective": {
+      "qyclient.exe": 0,
+      "qyplayer.exe": 0,
+      "qiyiservice.exe": 0,
+      "qqlive.exe": 1,
+      "qqliveservice.exe": 1,
+      "qqlivelcservice.exe": 1,
+      "mgtv.exe": 38,
+      "芒果tv.exe": 38,
+      "youku.exe": 39,
+      "douyin.exe": 2,
+      "douyin_guard.exe": 2,
+      "potplayermini64.exe": 41,
+      "douyulive.exe": 43,
+      "cbox.exe": 44,
+      "videoplayer.exe": 47,
+      "douyin_tray.exe": 2,
+      "wps.exe": 4,
+      "wpscloudsvr.exe": 4,
+      "msedge.exe": 5,
+      "iexplorer.exe": 5,
+      "chrome.exe": 6,
+      "360se.exe": 10,
+      "360chromex.exe": 10,
+      "360chrome.exe": 10,
+      "360aibrowser.exe": 10,
+      "slbservice.exe": 7,
+      "slbsafe.exe": 7,
+      "slbsmartsearch.exe": 7,
+      "slbrowser.exe": 7,
+      "qqbrowser.exe": 8,
+      "libao.exe": 9,
+      "firefox.exe": 12,
+      "sogouexplorer.exe": 11,
+      "xmind.exe": 13,
+      "outlook.exe": 14,
+      "olk.exe": 14,
+      "weixin.exe": 15,
+      "lenovoappstore.exe": 16,
+      "winstore.app.exe": 17,
+      "thunder.exe": 18,
+      "fastpdf.exe": 47,
+      "360huabao.exe": 20,
+      "lefile.exe": 21,
+      "drvmain.exe": 22,
+      "drvsysissue.exe": 22,
+      "driverbooster.exe": 47,
+      "quarkclouddrive.exe": 23,
+      "mailmaster.exe": 47,
+      "Foxmail.exe": 47,
+      "messagebox.exe": 47,
+      "alirender.exe": 24,
+      "alworkbench.exe": 24,
+      "139mail.exe": 47,
+      "360mobilemgr.exe": 47,
+      "atrusttray.exe": 47,
+      "doubao.exe": 25,
+      "qq.exe": 26,
+      "qqplayer.exe": 26,
+      "dingtalk.exe": 27,
+      "kwallpaperui.exe": 28,
+      "keyemain.exe": 28,
+      "kdesk64.exe": 28,
+      "kwallpaper.exe": 28,
+      "kwallpaperex.exe": 28,
+      "leigod.exe": 47,
+      "memu.exe": 47,
+      "mumunxmain.exe": 30,
+      "mumunxdevice.exe": 30,
+      "bandizip.exe": 47,
+      "dgservice.exe": 31,
+      "dgprotect.exe": 31,
+      "gameassist.exe": 32,
+      "gameassistant.exe": 32,
+      "gameassistservice.exe": 32,
+      "gameassistdldsvr.exe": 32,
+      "gameassistemulator.exe": 32,
+      "dnplayer.exe": 47,
+      "everything.exe": 47,
+      "docker desktop.exe": 47,
+      "com.docker.backend.exe": 47,
+      "gneslclient.exe": 47,
+      "swxdagent.exe": 47,
+      "texstudio.exe": 47,
+      "pdflauncher.exe": 47,
+      "szmain.exe": 47,
+      "learning.exe": 47,
+      "xlacc.exe": 47,
+      "shiyeline.exe": 47,
+      "roombox.exe": 33,
+      "roomboxplugin.exe": 33,
+      "flash2video.exe": 47,
+      "ffbrowser.exe": 47,
+      "dcbowser.exe": 47,
+      "xbrowser.exe": 47,
+      "123jiasu.exe": 47,
+      "drmain.exe": 47,
+      "drclient.exe": 47,
+      "yqzs.exe": 34,
+      "workbenchchnew.exe": 34,
+      "cloudhub.exe": 47,
+      "apipost.exe": 47,
+      "happ.exe": 47,
+      "hxperformance.exe": 47,
+      "neteaseuivlient.exe": 47,
+      "steamgame.exe": 35,
+      "steam.exe": 35,
+      "steamwebhelper.exe": 35,
+      "steamservice.exe": 35,
+      "pcjiami.exe": 47,
+      "onedrive.exe": 47,
+      "wxworklocal.exe": 47,
+      "theworld.exe": 47,
+      "hskddns.exe": 47,
+      "yonzone.exe": 47,
+      "motrix.exe": 47,
+      "ifindex.exe": 47,
+      "aimeetingmanager.exe": 47,
+      "ts3client_win64.exe": 47,
+      "ms-teams.exe": 36,
+      "tencentdocs.exe": 47,
+      "cxstudy.exe": 47,
+      "jkd.examclient.exe": 47,
+      "haokeLive.exe": 47,
+      "kook.exe": 47,
+      "rpclient.exe": 47,
+      "huyaclient.exe": 46,
+      "huyalive.exe": 46,
+      "huyaplyermoudule.exe": 46,
+      "huyasvc.exe": 46,
+      "stormplayer.exe": 47,
+      "storm.exe": 47,
+      "baofengplatform.exe": 47,
+      "wesing.exe": 47,
+      "xfplay.exe": 47,
+      "xmp.exe": 47,
+      "shplayer.exe": 47,
+      "shcefengine.exe": 47,
+      "stellarplayer.exe": 47,
+      "liveime.exe": 47,
+      "bilibililive_browser.exe": 47,
+      "vlc.exe": 47,
+      "kmplayer.exe": 47,
+      "kmplayer64x.exe": 47,
+      "mckmplayer.exe": 47,
+      "yyanchor.exe": 47,
+      "yy.exe": 47,
+      "yyexternal.exe": 47,
+      "blender.exe": 47,
+      "jianyingpro.exe": 47,
+      "jianying.exe": 47,
+      "cadreader.exe": 47,
+      "canva.exe": 47,
+      "xiuxiu64.exe_lx10000.exe": 47,
+      "xiuxiu64.exe": 47,
+      "xiuxiu.exe": 47,
+      "dwgview.exe": 47,
+      "dwgdraw.exe": 47,
+      "cadviewer.exe": 47,
+      "knaipic.exe": 47,
+      "bcut.exe": 47,
+      "neoimaging4.exe": 47,
+      "edrawmax.exe": 47,
+      "neoviewer.exe": 47,
+      "gcad.exe": 47,
+      "draw.io.exe": 47,
+      "dazitong.exe": 47,
+      "wireshark.exe": 47,
+      "aliworkbench.exe": 47,
+      "zstudentlive.exe": 47,
+      "verykuai.exe": 47,
+      "ikeeperpab.exe": 47,
+      "bcmbankclient.exe": 47,
+      "rainclassroom.exe": 47,
+      "eleme-napos.exe": 47,
+      "plaso.exe": 47,
+      "jlc-assistant.exe": 47,
+      "qbittorrent.exe": 47,
+      "ctyunclouddeskuniversal.exe": 47,
+      "tdxw.exe": 47,
+      "huyanbao.exe": 47,
+      "a+.exe": 47,
+      "n0vadesktop.exe": 47,
+      "memreduct.exe": 47,
+      "qidian.exe": 47,
+      "alimail.exe": 47,
+      "mathpix-snipping-tool.exe": 47,
+      "mcloud.exe": 47,
+      "classin.exe": 47,
+      "whatsapp.exe": 47,
+      "photos.exe": 47,
+      "notepad.exe": 47,
+      "notepad++.exe": 47,
+      "acrobat.exe": 47,
+      "mspaint.exe": 47,
+      "zoom.exe": 47,
+      "discord.exe": 47,
+      "ccleaner.exe": 47,
+      "ccleaner64.exe": 47,
+      "skype.exe": 47,
+      "lync.exe": 47,
+      "msaccess.exe": 47,
+      "foxitpdfreader.exe": 47,
+      "feishu.exe": 47,
+      "soffice.exe": 47,
+      "googledrive.exe": 47,
+      "opera.exe": 47,
+      "brave.exe": 47,
+      "onenotem.exe": 47,
+      "onenote.exe": 47,
+      "moviemaker.exe": 47,
+      "videomemories.exe": 47,
+      "aplayer.exe": 47,
+      "scratch.exe": 47,
+      "scratch3.exe": 47,
+      "heidisql.exe": 47,
+      "sourceinsight.exe": 47,
+      "sourceinsight3.exe": 47,
+      "sourceinsight4.exe": 47,
+      "livelywallpaper.exe": 47,
+      "lively.exe": 47,
+      "yourphone.exe": 47,
+      "phoneexperiencehost.exe": 47,
+      "fl.exe": 47,
+      "fl64.exe": 47,
+      "ssms.exe": 47,
+      "icloudhome.exe": 47,
+      "applephotostreams.exe": 47,
+      "linkedin.exe": 47,
+      "evernote.exe": 47,
+      "evernotetray.exe": 47,
+      "shareit.exe": 47,
+      "weiyun.exe": 47,
+      "365riliclient.exe": 47,
+      "lively.ui.winui.exe": 47,
+      "zhiyuntranslator.exe": 47,
+      "rrclient.exe": 47,
+      "rtx.exe": 47,
+      "icbcebankassist.exe": 47,
+      "cpustresstool.exe": 47,
+      "microsoft.notes.exe": 47,
+      "microsoft.media.player.exe": 47,
+      "telegram.exe": 47,
+      "pbidesktop.exe": 47,
+      "thunderbird.exe": 47,
+      "utorrent.exe": 47,
+      "putty.exe": 47,
+      "uv4.exe": 47,
+      "viber.exe": 47,
+      "gom.exe": 47,
+      "word_search.exe": 47,
+      "kakaotalk.exe": 47,
+      "eclipsecrossword.exe": 47,
+      "eclipse.exe": 47,
+      "sublime_text.exe": 47,
+      "mpv.exe": 47,
+      "coreldraw.exe": 47,
+      "flux.exe": 47,
+      "studio one.exe": 47,
+      "photoscape.exe": 47,
+      "parking management.exe": 47,
+      "picasa3.exe": 47,
+      "cool file viewer.exe": 47,
+      "eartrumpet.exe": 47,
+      "wavebrowser.exe": 47,
+      "atubecatcher.exe": 47,
+      "zalo.exe": 47,
+      "slack.exe": 47,
+      "cricut design space.exe": 47,
+      "devenv.exe": 47,
+      "googledrivesync.exe": 47,
+      "googleearth.exe": 47,
+      "googleearthpro.exe": 47,
+      "tsbrowser.exe": 47,
+      "bittorrent.exe": 47,
+      "devcpp.exe": 47,
+      "illustrator.exe": 47,
+      "rstudio.exe": 47,
+      "brsipmgr.exe": 47,
+      "megasync.exe": 47,
+      "foxitphantompdf.exe": 47,
+      "foxitreader.exe": 47,
+      "audition.exe": 47,
+      "visio.exe": 47,
+      "acrord32.exe": 47,
+      "picasa.exe": 47,
+      "acrobatmanager.exe": 47,
+      "acad.exe": 47,
+      "wallpaper.exe": 47,
+      "creative cloud.exe": 47,
+      "flashcenter.exe": 47,
+      "iexplore.exe": 47,
+      "msedgeupdate.exe": 47,
+      "wlmail.exe": 47,
+      "jwlibrary.exe": 47,
+      "guide.exe": 47,
+      "hisuite.exe": 47,
+      "powerdvd.exe": 47,
+      "sanapp.exe": 47,
+      "code.exe": 47,
+      "vivaldi.exe": 47,
+      "旺店通erp旗舰版.exe": 47,
+      "咩播.exe": 47,
+      "雅思哥机考软件.exe": 47,
+      "极空间.exe": 47,
+      "方正字库.exe": 47,
+      "石墨文档.exe": 47,
+      "猿编程.exe": 47,
+      "字加.exe": 47,
+      "洋葱学园.exe": 47,
+      "口袋写作.exe": 47,
+      "哔哩哔哩.exe": 47,
+      "bilibili.exe": 47,
+      "小红书.exe": 47,
+      "智慧中小学.exe": 47
+    }
+  },
+  "restriction_exceptions": {
+    "constructor_rva": "0x5d480-0x5f965",
+    "ordered_literals": [
+      {
+        "load_rva": "0x5d4c0",
+        "literal_rva": "0xf2198",
+        "value": "system.exe"
+      },
+      {
+        "load_rva": "0x5d540",
+        "literal_rva": "0xf1888",
+        "value": "shellexperiencehost.exe"
+      },
+      {
+        "load_rva": "0x5d5ba",
+        "literal_rva": "0xf21c8",
+        "value": "widgets.exe"
+      },
+      {
+        "load_rva": "0x5d634",
+        "literal_rva": "0xf21b0",
+        "value": "chsime.exe"
+      },
+      {
+        "load_rva": "0x5d6ae",
+        "literal_rva": "0xf2218",
+        "value": "smartassist.exe"
+      },
+      {
+        "load_rva": "0x5d728",
+        "literal_rva": "0xf21e0",
+        "value": "wmiregistrationservice.exe"
+      },
+      {
+        "load_rva": "0x5d7a2",
+        "literal_rva": "0xf2250",
+        "value": "runstystar.exe"
+      },
+      {
+        "load_rva": "0x5d81c",
+        "literal_rva": "0xf2238",
+        "value": "wudfrd.exe"
+      },
+      {
+        "load_rva": "0x5d896",
+        "literal_rva": "0xefe08",
+        "value": "msedge.exe"
+      },
+      {
+        "load_rva": "0x5d910",
+        "literal_rva": "0xf22a0",
+        "value": "evcapture.exe"
+      },
+      {
+        "load_rva": "0x5d98a",
+        "literal_rva": "0xf2270",
+        "value": "lenovosmartservice.exe"
+      },
+      {
+        "load_rva": "0x5da04",
+        "literal_rva": "0xf22f0",
+        "value": "smartenginehost.exe"
+      },
+      {
+        "load_rva": "0x5da7e",
+        "literal_rva": "0xf22c0",
+        "value": "smartenginehost64.exe"
+      },
+      {
+        "load_rva": "0x5daf8",
+        "literal_rva": "0xf2338",
+        "value": "smartenginetray.exe"
+      },
+      {
+        "load_rva": "0x5db72",
+        "literal_rva": "0xf2318",
+        "value": "batterylife.exe"
+      },
+      {
+        "load_rva": "0x5dbec",
+        "literal_rva": "0xf2380",
+        "value": "workman.exe"
+      },
+      {
+        "load_rva": "0x5dc66",
+        "literal_rva": "0xf2360",
+        "value": "aiperfsvc.exe"
+      },
+      {
+        "load_rva": "0x5dce0",
+        "literal_rva": "0xf23d0",
+        "value": "performance.exe"
+      },
+      {
+        "load_rva": "0x5dd5a",
+        "literal_rva": "0xf2398",
+        "value": "lnvdispatcherservice.exe"
+      },
+      {
+        "load_rva": "0x5ddd4",
+        "literal_rva": "0xf2410",
+        "value": "lnv_des.exe"
+      },
+      {
+        "load_rva": "0x5de4e",
+        "literal_rva": "0xf23f0",
+        "value": "powerpnt.exe"
+      },
+      {
+        "load_rva": "0x5dec8",
+        "literal_rva": "0xf2440",
+        "value": "excel.exe"
+      },
+      {
+        "load_rva": "0x5df42",
+        "literal_rva": "0xf2428",
+        "value": "winword.exe"
+      },
+      {
+        "load_rva": "0x5dfbc",
+        "literal_rva": "0xf2480",
+        "value": "batteryinfo.exe"
+      },
+      {
+        "load_rva": "0x5e036",
+        "literal_rva": "0xf2458",
+        "value": "battcluesstart.exe"
+      },
+      {
+        "load_rva": "0x5e0b0",
+        "literal_rva": "0xf24c8",
+        "value": "chromedriver.exe"
+      },
+      {
+        "load_rva": "0x5e12a",
+        "literal_rva": "0xf24a0",
+        "value": "yb9.wonderbar.exe"
+      },
+      {
+        "load_rva": "0x5e1a4",
+        "literal_rva": "0xf2518",
+        "value": "yb9.windowsmanager.exe"
+      },
+      {
+        "load_rva": "0x5e21e",
+        "literal_rva": "0xf24f0",
+        "value": "yb9.wallpaper.exe"
+      },
+      {
+        "load_rva": "0x5e298",
+        "literal_rva": "0xf2570",
+        "value": "yb9.userguide.exe"
+      },
+      {
+        "load_rva": "0x5e312",
+        "literal_rva": "0xf2548",
+        "value": "yb9.usercenter.exe"
+      },
+      {
+        "load_rva": "0x5e38c",
+        "literal_rva": "0xf25c0",
+        "value": "yb9.touchpad.exe"
+      },
+      {
+        "load_rva": "0x5e406",
+        "literal_rva": "0xf2598",
+        "value": "yb9.smartnote.exe"
+      },
+      {
+        "load_rva": "0x5e480",
+        "literal_rva": "0xf2608",
+        "value": "yb9.smartlauncher.exe"
+      },
+      {
+        "load_rva": "0x5e4fa",
+        "literal_rva": "0xf25e8",
+        "value": "yb9.service.exe"
+      },
+      {
+        "load_rva": "0x5e574",
+        "literal_rva": "0xf2660",
+        "value": "yb9.rotationmanager.exe"
+      },
+      {
+        "load_rva": "0x5e5ee",
+        "literal_rva": "0xf2638",
+        "value": "yb9.phantomkb.exe"
+      },
+      {
+        "load_rva": "0x5e668",
+        "literal_rva": "0xf26a8",
+        "value": "msedgewebview2.exe"
+      },
+      {
+        "load_rva": "0x5e6e2",
+        "literal_rva": "0xf2690",
+        "value": "360zip.exe"
+      },
+      {
+        "load_rva": "0x5e75c",
+        "literal_rva": "0xf26e8",
+        "value": "7zg.exe"
+      },
+      {
+        "load_rva": "0x5e7d6",
+        "literal_rva": "0xf26d0",
+        "value": "winrar.exe"
+      },
+      {
+        "load_rva": "0x5e850",
+        "literal_rva": "0xf2710",
+        "value": "winzip.exe"
+      },
+      {
+        "load_rva": "0x5e8ca",
+        "literal_rva": "0xf26f8",
+        "value": "sogoupy.exe"
+      },
+      {
+        "load_rva": "0x5e944",
+        "literal_rva": "0xf2748",
+        "value": "sgtool.exe"
+      },
+      {
+        "load_rva": "0x5e9be",
+        "literal_rva": "0xf2728",
+        "value": "sogoucloud.exe"
+      },
+      {
+        "load_rva": "0x5ea38",
+        "literal_rva": "0xf2778",
+        "value": "sogouimebroker.exe"
+      },
+      {
+        "load_rva": "0x5eab2",
+        "literal_rva": "0xf2760",
+        "value": "qqinput.exe"
+      },
+      {
+        "load_rva": "0x5eb2c",
+        "literal_rva": "0xf27b8",
+        "value": "baiduime.exe"
+      },
+      {
+        "load_rva": "0x5eba6",
+        "literal_rva": "0xf27a0",
+        "value": "imejp.exe"
+      },
+      {
+        "load_rva": "0x5ec20",
+        "literal_rva": "0xf27f0",
+        "value": "googlepinyin.exe"
+      },
+      {
+        "load_rva": "0x5ec9a",
+        "literal_rva": "0xf27d8",
+        "value": "rime.exe"
+      },
+      {
+        "load_rva": "0x5ed14",
+        "literal_rva": "0xf2848",
+        "value": "nim.exe"
+      },
+      {
+        "load_rva": "0x5ed8e",
+        "literal_rva": "0xf2818",
+        "value": "lockscreen.service.exe"
+      },
+      {
+        "load_rva": "0x5ee08",
+        "literal_rva": "0xf2878",
+        "value": "youkunplayer.exe"
+      },
+      {
+        "load_rva": "0x5ee82",
+        "literal_rva": "0xf2858",
+        "value": "baidupinyin.exe"
+      },
+      {
+        "load_rva": "0x5eefc",
+        "literal_rva": "0xf28c0",
+        "value": "wetype_update.exe"
+      },
+      {
+        "load_rva": "0x5ef76",
+        "literal_rva": "0xf28a0",
+        "value": "iflyinput.exe"
+      },
+      {
+        "load_rva": "0x5eff0",
+        "literal_rva": "0xf2910",
+        "value": "powerword.exe"
+      },
+      {
+        "load_rva": "0x5f06a",
+        "literal_rva": "0xf28e8",
+        "value": "powerwordhelper.exe"
+      },
+      {
+        "load_rva": "0x5f0e4",
+        "literal_rva": "0xf2960",
+        "value": "youdaodict.exe"
+      },
+      {
+        "load_rva": "0x5f15e",
+        "literal_rva": "0xf2930",
+        "value": "youdaodicthelper.exe"
+      },
+      {
+        "load_rva": "0x5f1d8",
+        "literal_rva": "0xf29a0",
+        "value": "youdaoedit.exe"
+      },
+      {
+        "load_rva": "0x5f252",
+        "literal_rva": "0xf2980",
+        "value": "youdaowsh.exe"
+      },
+      {
+        "load_rva": "0x5f2cc",
+        "literal_rva": "0xf29f0",
+        "value": "tabtip.exe"
+      },
+      {
+        "load_rva": "0x5f346",
+        "literal_rva": "0xf29c0",
+        "value": "officeclicktorun.exe"
+      },
+      {
+        "load_rva": "0x5f3c0",
+        "literal_rva": "0xf2a28",
+        "value": "teamviewer.exe"
+      },
+      {
+        "load_rva": "0x5f43a",
+        "literal_rva": "0xf2a08",
+        "value": "ccsvchst.exe"
+      },
+      {
+        "load_rva": "0x5f4b4",
+        "literal_rva": "0xf2a68",
+        "value": "mbamservice.exe"
+      },
+      {
+        "load_rva": "0x5f52e",
+        "literal_rva": "0xf2a48",
+        "value": "kxescore.exe"
+      },
+      {
+        "load_rva": "0x5f5a8",
+        "literal_rva": "0xf2aa8",
+        "value": "360.exe"
+      },
+      {
+        "load_rva": "0x5f622",
+        "literal_rva": "0xf2a88",
+        "value": "mcshield.exe"
+      },
+      {
+        "load_rva": "0x5f69c",
+        "literal_rva": "0xf2ac8",
+        "value": "ravmond.exe"
+      },
+      {
+        "load_rva": "0x5f716",
+        "literal_rva": "0xf2ab8",
+        "value": "avp.exe"
+      },
+      {
+        "load_rva": "0x5f790",
+        "literal_rva": "0xf2af8",
+        "value": "rtvscn95.exe"
+      },
+      {
+        "load_rva": "0x5f80a",
+        "literal_rva": "0xf2ae0",
+        "value": "msmpeng.exe"
+      },
+      {
+        "load_rva": "0x5f884",
+        "literal_rva": "0xf2b28",
+        "value": "nissrv.exe"
+      }
+    ],
+    "substring_exceptions": [
+      "mobilemark"
+    ]
+  },
+  "graph_window_exceptions": [
+    "windowsterminal.exe",
+    "explorer.exe",
+    "applicationframehost.exe",
+    "textinputhost.exe",
+    "taskmgr.exe",
+    "searchhost.exe",
+    "runtimebroker.exe",
+    "shellexperiencehost.exe",
+    "startmenuexperiencehost.exe"
+  ],
+  "garbage_groups": [
+    {
+      "group": 0,
+      "monitor": [
+        "qyclient.exe"
+      ],
+      "kill": [
+        "qyplayer.exe",
+        "qyfragment.exe",
+        "qykernel.exe",
+        "qyupdate.exe",
+        "qiyiservice.exe",
+        "qyminiclient.exe"
+      ]
+    },
+    {
+      "group": 1,
+      "monitor": [
+        "qqlive.exe"
+      ],
+      "kill": [
+        "qqlivebrower.exe",
+        "tmpthumbhd.exe",
+        "qqlivebrowser.exe",
+        "qqliveservice.exe",
+        "qqliveplayer.exe"
+      ]
+    },
+    {
+      "group": 2,
+      "monitor": [
+        "wps.exe",
+        "et.exe",
+        "wpp.exe",
+        "wpspdf.exe"
+      ],
+      "kill": [
+        "promecefpluginhost.exe",
+        "wpscloudsvr.exe"
+      ]
+    },
+    {
+      "group": 3,
+      "monitor": [
+        "douyin.exe"
+      ],
+      "kill": [
+        "douyin_tray.exe",
+        "douyin_guard.exe",
+        "douyin_widget.exe"
+      ]
+    },
+    {
+      "group": 4,
+      "monitor": [
+        "mgtv.exe",
+        "芒果tv.exe"
+      ],
+      "kill": [
+        "updateservice.exe"
+      ]
+    },
+    {
+      "group": 5,
+      "monitor": [
+        "baidunetdiskunite.exe",
+        "baidunetdisk.exe",
+        "baidunetdiskhost.exe"
+      ],
+      "kill": [
+        "kernelupdate.exe",
+        "yundetectservice.exe"
+      ]
+    },
+    {
+      "group": 6,
+      "edge_window_guard": [
+        "msedge.exe"
+      ],
+      "delay_ms": 60000
+    }
+  ],
+  "resident_groups": [
+    [
+      "birdwp.exe",
+      "birdtray.exe",
+      "birdhelper.exe",
+      "cefview.exe",
+      "360wpsrv.exe",
+      "nvplugin.exe",
+      "birdsvchost.exe",
+      "birdwallpaper.exe"
+    ],
+    [
+      "2345explorer.exe",
+      "browserservice.exe"
+    ],
+    [
+      "wps.exe",
+      "wpscloudsvr.exe"
+    ],
+    [
+      "kuaiwanweb.exe",
+      "kuaiwan.exe"
+    ],
+    [
+      "kwallpaperui.exe",
+      "kwallpaper.exe",
+      "keyemain.exe",
+      "kdeskcore.exe",
+      "kdesk64.exe",
+      "kdeskassist.exe"
+    ]
+  ],
+  "window_special_bases": [
+    "outlook.exe",
+    "mailmaster.exe",
+    "foxmail.exe",
+    "alimail.exe",
+    "139mail.exe",
+    "ms-teams.exe",
+    "olk.exe"
+  ],
+  "certificate_policy": {
+    "provider_rva": "0xa5c0 -> 0x3b70",
+    "acceptance_predicate_rva": "0xb960",
+    "thumbprint_algorithm": "CALG_SHA1 over certificate DER; exact UTF-16 string equality in pin vectors",
+    "legacy_leaf_without_subject_chain_shortcut": [
+      {
+        "load_rva": "0x1bf0",
+        "literal_rva": "0x42c60",
+        "value": "ef80fc5598746377be8126b3f0074f2609b7095b"
+      },
+      {
+        "load_rva": "0x1c1a",
+        "literal_rva": "0x42cc0",
+        "value": "EF80FC5598746377BE8126B3F0074F2609B7095B"
+      }
+    ],
+    "leaf_pin_allowlist": [
+      {
+        "load_rva": "0x10cf",
+        "literal_rva": "0x41760",
+        "value": "007790F6561DAD89B0BCD85585762495E358F8A5"
+      },
+      {
+        "load_rva": "0x10f9",
+        "literal_rva": "0x417c0",
+        "value": "01E88C4B67D0A17C8199DAAAFBB6E4D1C9AE078F"
+      },
+      {
+        "load_rva": "0x1121",
+        "literal_rva": "0x41820",
+        "value": "037F4C3417A255E0D2DC49A2B6AB8F73AAC70566"
+      },
+      {
+        "load_rva": "0x1148",
+        "literal_rva": "0x41880",
+        "value": "087C2825882A917093E485EC0D400C52C4FF7C7A"
+      },
+      {
+        "load_rva": "0x116e",
+        "literal_rva": "0x418e0",
+        "value": "0D3503BA760D79208664EB242790D908CAD94D70"
+      },
+      {
+        "load_rva": "0x1194",
+        "literal_rva": "0x41940",
+        "value": "0D78C8E935F04E9AAF4B3B483E1DFA60CE5C4602"
+      },
+      {
+        "load_rva": "0x11ba",
+        "literal_rva": "0x419a0",
+        "value": "12D4872BC3EF019E7E0B6F132480AE29DB5B1CA3"
+      },
+      {
+        "load_rva": "0x11e0",
+        "literal_rva": "0x41a00",
+        "value": "14E9EEE313C7C696FDA60C03AC1E8615FBCDC1B3"
+      },
+      {
+        "load_rva": "0x1206",
+        "literal_rva": "0x41a60",
+        "value": "194BCC554216F9E514A8C76DF4406CA01C95E6AB"
+      },
+      {
+        "load_rva": "0x122c",
+        "literal_rva": "0x41ac0",
+        "value": "197A4AEBDB25F0170079BB8C73CB2D655E0018A4"
+      },
+      {
+        "load_rva": "0x1258",
+        "literal_rva": "0x41b20",
+        "value": "29F99406A394B3F570863BA709DBD629681019BE"
+      },
+      {
+        "load_rva": "0x1287",
+        "literal_rva": "0x41b80",
+        "value": "2B39235D7E7C18ACE9595FDC2CC3B37F3ED0B74E"
+      },
+      {
+        "load_rva": "0x12b9",
+        "literal_rva": "0x41be0",
+        "value": "2CDAC5A156AAEAF328A09A944E130E4C1870E6B4"
+      },
+      {
+        "load_rva": "0x12eb",
+        "literal_rva": "0x41c40",
+        "value": "48E024A64DD2DD7C3A121BC03B0192D0724C148F"
+      },
+      {
+        "load_rva": "0x131d",
+        "literal_rva": "0x41ca0",
+        "value": "3103B8559B1F54F992E93E7E5E7F8669DD872193"
+      },
+      {
+        "load_rva": "0x134f",
+        "literal_rva": "0x41d00",
+        "value": "32F30882622B87CF8856C63DB873DF0853B4DD27"
+      },
+      {
+        "load_rva": "0x1381",
+        "literal_rva": "0x41c40",
+        "value": "48E024A64DD2DD7C3A121BC03B0192D0724C148F"
+      },
+      {
+        "load_rva": "0x13b3",
+        "literal_rva": "0x41d60",
+        "value": "495847A93187CFB8C71F840CB7B41497AD95C64F"
+      },
+      {
+        "load_rva": "0x13e5",
+        "literal_rva": "0x41dc0",
+        "value": "4EA167AFF233D55252BA00E88FF9686001F76C9C"
+      },
+      {
+        "load_rva": "0x1417",
+        "literal_rva": "0x41e20",
+        "value": "4EB6D578499B1CCF5F581EAD56BE3D9B6744A5E5"
+      },
+      {
+        "load_rva": "0x1449",
+        "literal_rva": "0x41e80",
+        "value": "4ED906C8DD5648052FB2194F405506B84E9255D7"
+      },
+      {
+        "load_rva": "0x147b",
+        "literal_rva": "0x41ee0",
+        "value": "4FAC44FB51C81ADEA5EA87413657984F5D127598"
+      },
+      {
+        "load_rva": "0x14ad",
+        "literal_rva": "0x41f40",
+        "value": "52495394309DD6ED3E41B562ABBCC33888A69C9E"
+      },
+      {
+        "load_rva": "0x14df",
+        "literal_rva": "0x41fa0",
+        "value": "57618828FC5D838BEFC832DD5144337A35AE7421"
+      },
+      {
+        "load_rva": "0x1511",
+        "literal_rva": "0x42000",
+        "value": "5C52CFDA009E757A2A096F8C9DCB8F214AFF794A"
+      },
+      {
+        "load_rva": "0x1543",
+        "literal_rva": "0x42060",
+        "value": "58455389CF1D0CD6A08E3CE216F65ADFF7A86408"
+      },
+      {
+        "load_rva": "0x1575",
+        "literal_rva": "0x420c0",
+        "value": "5EA07BCA7948AA8F74875F67F8A67D76CD91A3E9"
+      },
+      {
+        "load_rva": "0x15a7",
+        "literal_rva": "0x42120",
+        "value": "62801D44ABAA627157C0D42B31871E14B4A71514"
+      },
+      {
+        "load_rva": "0x15d9",
+        "literal_rva": "0x42180",
+        "value": "630105053D531F3F61E8F36DD7E22CA872D469E0"
+      },
+      {
+        "load_rva": "0x160b",
+        "literal_rva": "0x421e0",
+        "value": "742C3192E607E424EB4549542BE1BBC53E6174E2"
+      },
+      {
+        "load_rva": "0x163d",
+        "literal_rva": "0x42240",
+        "value": "7FB04AAAF7A289857356AE1CD5F8FE20AA9881A8"
+      },
+      {
+        "load_rva": "0x166f",
+        "literal_rva": "0x422a0",
+        "value": "885926FD4E17BFD8FD3A9105AAC30D532D0CFDCB"
+      },
+      {
+        "load_rva": "0x16a1",
+        "literal_rva": "0x42300",
+        "value": "8FBE4D070EF8AB1BCCAF2A9D5CCAE7282A2C66B3"
+      },
+      {
+        "load_rva": "0x16d3",
+        "literal_rva": "0x42360",
+        "value": "9549B6A6CC9AD86789710820F5C82CFA6CA70D32"
+      },
+      {
+        "load_rva": "0x1705",
+        "literal_rva": "0x423c0",
+        "value": "9DC2D09D1C34A7DBB52FD459F06B6DAC949F5385"
+      },
+      {
+        "load_rva": "0x1737",
+        "literal_rva": "0x42420",
+        "value": "9E8E57304A7E9A3819DC28E7773FFFB9D359BFC2"
+      },
+      {
+        "load_rva": "0x1769",
+        "literal_rva": "0x42480",
+        "value": "A1DB6393916F17E4185509400415C70240B0AE6B"
+      },
+      {
+        "load_rva": "0x179b",
+        "literal_rva": "0x424e0",
+        "value": "A28B821A1D3FAECD8F351B6466E050ED10A5AE1A"
+      },
+      {
+        "load_rva": "0x17cd",
+        "literal_rva": "0x42540",
+        "value": "A908B9800FDA4BF736E73895666A48850506CB09"
+      },
+      {
+        "load_rva": "0x17ff",
+        "literal_rva": "0x425a0",
+        "value": "B105D14DC20BD133C6F6B1A2C98545FFC80DB63F"
+      },
+      {
+        "load_rva": "0x1831",
+        "literal_rva": "0x42600",
+        "value": "BEC66ACC61A3E0FD22F70BE1DA74302EF42B3E84"
+      },
+      {
+        "load_rva": "0x1863",
+        "literal_rva": "0x42660",
+        "value": "BFA5731783161121244034554512ADAE0AEEDCC0"
+      },
+      {
+        "load_rva": "0x1895",
+        "literal_rva": "0x426c0",
+        "value": "C818BCDC5FA50807DDC42480ADF5C1C1189C75E2"
+      },
+      {
+        "load_rva": "0x18c7",
+        "literal_rva": "0x42720",
+        "value": "D566EA75A379B6006AA1D102E9A81A42C9384FAC"
+      },
+      {
+        "load_rva": "0x18f9",
+        "literal_rva": "0x42780",
+        "value": "D8FD5454A7201930810FF3E1458884037DB2DF89"
+      },
+      {
+        "load_rva": "0x192b",
+        "literal_rva": "0x427e0",
+        "value": "DA4005C4302D1D3B92E7E7AC6D38AF1B935DE4F4"
+      },
+      {
+        "load_rva": "0x195d",
+        "literal_rva": "0x42840",
+        "value": "E8DB74E5FC68E47EF02EB8F575ECC9EEF255515E"
+      },
+      {
+        "load_rva": "0x198f",
+        "literal_rva": "0x428a0",
+        "value": "FB18D839A78C599C965681FAB70C2B044EF7A3F5"
+      },
+      {
+        "load_rva": "0x19c1",
+        "literal_rva": "0x42900",
+        "value": "CB33BC2420B3EDA2C7FB2D8CE083D5F17D07D640"
+      },
+      {
+        "load_rva": "0x19f3",
+        "literal_rva": "0x42960",
+        "value": "E9D8CA5DE2194FDD0EE673EF597A5A6D14805350"
+      },
+      {
+        "load_rva": "0x1a25",
+        "literal_rva": "0x429c0",
+        "value": "61571245BF2E98F8BFC8D3A6563E8AF9B69C62BE"
+      },
+      {
+        "load_rva": "0x1a57",
+        "literal_rva": "0x42a20",
+        "value": "09D56E88B2A50FB61D02659C7BFD7CFB3F39B473"
+      },
+      {
+        "load_rva": "0x1a89",
+        "literal_rva": "0x42a80",
+        "value": "C184781CF29438B4DAA1DE8EEEE5AC3FEFE9512A"
+      },
+      {
+        "load_rva": "0x1abb",
+        "literal_rva": "0x42ae0",
+        "value": "582FC1E60D958C53E7B51F7A830FF72C362EFAF3"
+      },
+      {
+        "load_rva": "0x1aed",
+        "literal_rva": "0x42b40",
+        "value": "D2C701B99D9934D78388C7E3C4BF7F90136C7283"
+      },
+      {
+        "load_rva": "0x1b1f",
+        "literal_rva": "0x42ba0",
+        "value": "506D1C154CE510D0E15A448D52995E126F1D98F4"
+      },
+      {
+        "load_rva": "0x1b51",
+        "literal_rva": "0x42c00",
+        "value": "EF87529D16837362803CCA37AD301C9921D82C97"
+      }
+    ],
+    "immediate_issuer_pin_allowlist": [
+      {
+        "load_rva": "0x1ca3",
+        "literal_rva": "0x41760",
+        "value": "007790F6561DAD89B0BCD85585762495E358F8A5"
+      },
+      {
+        "load_rva": "0x1ccd",
+        "literal_rva": "0x41d60",
+        "value": "495847A93187CFB8C71F840CB7B41497AD95C64F"
+      },
+      {
+        "load_rva": "0x1cfd",
+        "literal_rva": "0x42d20",
+        "value": "1392E4C7FF25B9517E931077BBE2664DC87EF70D"
+      },
+      {
+        "load_rva": "0x1d30",
+        "literal_rva": "0x42d80",
+        "value": "ABCFC30C619BDA3651A0820659A14D78F8DFE10D"
+      }
+    ],
+    "root_pin_allowlist": [
+      {
+        "load_rva": "0x2a0c",
+        "literal_rva": "0x49fd0",
+        "value": "0563B8630D62D75ABBC8AB1E4BDFB5A899B24D43"
+      },
+      {
+        "load_rva": "0x2a36",
+        "literal_rva": "0x4a030",
+        "value": "5FB7EE0633E259DBAD0C4C9AE6D38F1A61C7DC25"
+      },
+      {
+        "load_rva": "0x2a5e",
+        "literal_rva": "0x4a090",
+        "value": "A14B48D943EE0A0E40904F3CE0A4C09193515D3F"
+      },
+      {
+        "load_rva": "0x2a85",
+        "literal_rva": "0x4a0f0",
+        "value": "7E04DE896A3E666D00E687D33FFAD93BE83D349E"
+      },
+      {
+        "load_rva": "0x2aab",
+        "literal_rva": "0x4a150",
+        "value": "DDFB16CD4931C973A2037D3FC83A4D7D775D05E4"
+      },
+      {
+        "load_rva": "0x2ad1",
+        "literal_rva": "0x4a1b0",
+        "value": "843573112A3B319344E5E4ECABC9F26C7CD54D07"
+      },
+      {
+        "load_rva": "0x2af7",
+        "literal_rva": "0x4a210",
+        "value": "5EEED86FA37C675230642F55C84DDBF67CD33C80"
+      }
+    ],
+    "subject_templates": [
+      {
+        "CN": "Lenovo",
+        "O": "Lenovo",
+        "L": "Morrisville",
+        "S": "North Carolina",
+        "C": "US"
+      },
+      {
+        "CN": "Motorola Mobility LLC",
+        "O": "Motorola Mobility LLC",
+        "L": "Chicago",
+        "S": "Illinois",
+        "C": "US"
+      },
+      {
+        "CN": "Lenovo",
+        "O": "Lenovo",
+        "S": "Beijing",
+        "C": "CN"
+      }
+    ],
+    "subject_matching": "split CertNameToStrW(CERT_X500_NAME_STR) by comma and first two equals-delimited fields, trim helper; key comparison case-insensitive; per-field values case-folded and substring matched",
+    "not_before_strictly_after_utc": "2016-02-28T00:00:00Z",
+    "custom_chain_store_certificates": [
+      {
+        "literal_rva": "0x42de0",
+        "subject": "CN=VeriSign Class 3 Code Signing 2010 CA,OU=Terms of use at https://www.verisign.com/rpa (c)10,OU=VeriSign Trust Network,O=VeriSign\\, Inc.,C=US",
+        "issuer": "CN=VeriSign Class 3 Public Primary Certification Authority - G5,OU=(c) 2006 VeriSign\\, Inc. - For authorized use only,OU=VeriSign Trust Network,O=VeriSign\\, Inc.,C=US",
+        "sha1_thumbprint": "495847A93187CFB8C71F840CB7B41497AD95C64F"
+      },
+      {
+        "literal_rva": "0x43e80",
+        "subject": "CN=Symantec Class 3 SHA256 Code Signing CA - G2,OU=Symantec Trust Network,O=Symantec Corporation,C=US",
+        "issuer": "CN=VeriSign Universal Root Certification Authority,OU=(c) 2008 VeriSign\\, Inc. - For authorized use only,OU=VeriSign Trust Network,O=VeriSign\\, Inc.,C=US",
+        "sha1_thumbprint": "1392E4C7FF25B9517E931077BBE2664DC87EF70D"
+      },
+      {
+        "literal_rva": "0x44d10",
+        "subject": "CN=Symantec Class 3 SHA256 Code Signing CA,OU=Symantec Trust Network,O=Symantec Corporation,C=US",
+        "issuer": "CN=VeriSign Class 3 Public Primary Certification Authority - G5,OU=(c) 2006 VeriSign\\, Inc. - For authorized use only,OU=VeriSign Trust Network,O=VeriSign\\, Inc.,C=US",
+        "sha1_thumbprint": "007790F6561DAD89B0BCD85585762495E358F8A5"
+      },
+      {
+        "literal_rva": "0x45bd0",
+        "subject": "CN=DigiCert SHA2 Assured ID Code Signing CA - G2,OU=www.digicert.com,O=DigiCert Inc,C=US",
+        "issuer": "CN=DigiCert Assured ID Root G2,OU=www.digicert.com,O=DigiCert Inc,C=US",
+        "sha1_thumbprint": "ABCFC30C619BDA3651A0820659A14D78F8DFE10D"
+      },
+      {
+        "literal_rva": "0x469d0",
+        "subject": "CN=DigiCert SHA2 Assured ID Code Signing CA,OU=www.digicert.com,O=DigiCert Inc,C=US",
+        "issuer": "CN=DigiCert Assured ID Root CA,OU=www.digicert.com,O=DigiCert Inc,C=US",
+        "sha1_thumbprint": "92C1588E85AF2201CE7915E8538B492F605B80C6"
+      },
+      {
+        "literal_rva": "0x47820",
+        "subject": "CN=DigiCert SHA2 Assured ID Code Signing,OU=www.digicert.com,O=DigiCert Inc,C=US",
+        "issuer": "CN=DigiCert Assured ID Root G2,OU=www.digicert.com,O=DigiCert Inc,C=US",
+        "sha1_thumbprint": "94D8797C449A29A8C7D45D356B2E42DE0CD8638C"
+      },
+      {
+        "literal_rva": "0x485a0",
+        "subject": "CN=DigiCert Trusted G4 Code Signing RSA4096 SHA384 2021 CA1,O=DigiCert\\, Inc.,C=US",
+        "issuer": "CN=DigiCert Trusted Root G4,OU=www.digicert.com,O=DigiCert Inc,C=US",
+        "sha1_thumbprint": "7B0F360B775F76C94A12CA48445AA2D2A875701C"
+      }
+    ]
+  }
+}

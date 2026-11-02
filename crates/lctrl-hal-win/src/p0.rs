@@ -101,16 +101,30 @@ where
     }
 
     fn write_primitive(&self, primitive: ChargePrimitive) -> Result<()> {
+        let driver = EnergyDriver::new(&self.ioctl);
         let command = match primitive {
-            // Target 21VG safety rule: never send legacy gen1 0x03 because
-            // later evidence identifies it as transport mode. Only verified
-            // target-safe gen2 conservation commands are used here.
-            ChargePrimitive::Conservation(false) => GbmdCommand::CONSERVATION_OFF_GEN2,
-            ChargePrimitive::Conservation(true) => GbmdCommand::CONSERVATION_ON_GEN2,
+            // Vendor subtype 2 appends a supplementary command; bit23
+            // (Storage80 metadata) does not select the storage write path.
+            ChargePrimitive::Conservation(on) => {
+                let status = driver.gbmd_status()?;
+                driver.write_gbmd(if on {
+                    GbmdCommand::CONSERVATION_ON
+                } else {
+                    GbmdCommand::CONSERVATION_OFF
+                })?;
+                if status & (1 << 14) == 0 {
+                    return Ok(());
+                }
+                if on {
+                    GbmdCommand::CONSERVATION_ON_GEN2
+                } else {
+                    GbmdCommand::CONSERVATION_OFF_GEN2
+                }
+            }
             ChargePrimitive::Rapid(false) => GbmdCommand::RAPID_OFF,
             ChargePrimitive::Rapid(true) => GbmdCommand::RAPID_ON,
         };
-        EnergyDriver::new(&self.ioctl).write_gbmd(command)
+        driver.write_gbmd(command)
     }
 
     fn commit_charge_mode(&self, mode: ChargeMode) -> Result<ChargeMode> {

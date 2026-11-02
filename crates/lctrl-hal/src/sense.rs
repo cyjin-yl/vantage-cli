@@ -1,20 +1,20 @@
 use lctrl_core::{ApplyMode, ChangeReport, Result, SenseDistance, SenseState, SenseWait};
 
-/// One SmartSense settings-pipe command, mapped 1:1 to the recovered
-/// command table (docs/interfaces.md §13).
+/// One SmartSense setting. HPD settings use the recovered RPC interface;
+/// privacy alert and attention tracking retain their separate legacy pipe.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SenseFeature {
-    /// `ENABLE_PRESENTLEAVE` (0x00090101), legacy 0/1 boolean.
+    /// HPD RPC `SetPresenceLeaveEnabled`, op 11, 0/1.
     LockOnLeave(bool),
-    /// `SET_LEAVE_DISTANCE` (0x00110101), Near/Middle/Far.
+    /// HPD RPC `SetPresenceLeaveDistance`, op 14, Near/Middle/Far.
     LeaveDistance(SenseDistance),
-    /// `SET_LEAVE_WAIT` (0x000A0101), Short/Middle/Long.
+    /// HPD RPC `SetPresenceLeaveWaitTime`, op 12, Short/Middle/Long.
     LeaveWait(SenseWait),
-    /// `ENABLE_APPROACH` (0x00070101), legacy 0/1 boolean.
+    /// HPD RPC `SetApproachEnabled`, op 8, 0/1.
     WakeOnApproach(bool),
-    /// `SET_APPROACH_DISTANCE` (0x00080101), Near/Middle/Far.
+    /// HPD RPC `SetApproachDistance`, op 9, Near/Middle/Far.
     ApproachDistance(SenseDistance),
-    /// `ENABLE_VIDEOSTOP` (0x000D0101), 1=enable/2=disable convention.
+    /// HPD RPC `SetVideoAutoPauseResume`, op 16, 0/1 (not pipe 1/2).
     PauseVideo(bool),
     /// `ENABLE_CAMERADETECT` (0x000D0201), shoulder-surf privacy alert.
     PrivacyAlert(bool),
@@ -23,18 +23,28 @@ pub enum SenseFeature {
 }
 
 impl SenseFeature {
-    /// `(command code, argument)` pair for the settings pipe.
+    /// `(wire opnum, argument)` for the HPD RPC settings surface.
     #[must_use]
-    pub const fn command(self) -> (u32, u32) {
+    pub const fn rpc_command(self) -> Option<(u32, u32)> {
         match self {
-            Self::LockOnLeave(enabled) => (0x0009_0101, enabled as u32),
-            Self::LeaveDistance(distance) => (0x0011_0101, distance.raw()),
-            Self::LeaveWait(wait) => (0x000A_0101, wait.raw()),
-            Self::WakeOnApproach(enabled) => (0x0007_0101, enabled as u32),
-            Self::ApproachDistance(distance) => (0x0008_0101, distance.raw()),
-            Self::PauseVideo(enabled) => (0x000D_0101, if enabled { 1 } else { 2 }),
-            Self::PrivacyAlert(enabled) => (0x000D_0201, if enabled { 1 } else { 2 }),
-            Self::AttentionTracking(enabled) => (0x0016_0101, enabled as u32),
+            Self::LockOnLeave(enabled) => Some((11, enabled as u32)),
+            Self::LeaveDistance(distance) => Some((14, distance.raw())),
+            Self::LeaveWait(wait) => Some((12, wait.raw())),
+            Self::WakeOnApproach(enabled) => Some((8, enabled as u32)),
+            Self::ApproachDistance(distance) => Some((9, distance.raw())),
+            Self::PauseVideo(enabled) => Some((16, enabled as u32)),
+            Self::PrivacyAlert(_) | Self::AttentionTracking(_) => None,
+        }
+    }
+
+    /// Legacy pipe commands that have no corresponding recovered HPD RPC
+    /// operation. HPD operations never silently fall back to this channel.
+    #[must_use]
+    pub const fn pipe_command(self) -> Option<(u32, u32)> {
+        match self {
+            Self::PrivacyAlert(enabled) => Some((0x000D_0201, if enabled { 1 } else { 2 })),
+            Self::AttentionTracking(enabled) => Some((0x0016_0101, enabled as u32)),
+            _ => None,
         }
     }
 }
@@ -52,16 +62,16 @@ pub fn encode_request(code: u32, arg: u32) -> [u8; 8] {
 
 /// SmartSense human-presence settings control.
 ///
-/// Transport: the `\\.\pipe\com.lenovo.smartsense.settings` named pipe owned
-/// by the SmartSense service; persistence/readback is the
+/// HPD transport: `ncalrpc:[HumanPresenceDetectionEndpoint]`, with a context
+/// handle owned by the client. Independent persistence/readback is the
 /// `HKLM\SYSTEM\CurrentControlSet\Services\SmartSense\Parameters\HPD`
 /// DWORD store. The sensing pipeline itself (VL53L5 ToF + IR camera) stays
 /// inside the vendor service — this surface only toggles settings.
 pub trait SenseControl: Send + Sync {
     fn sense_state(&self) -> Result<SenseState>;
 
-    /// Apply one settings change; commit mode writes the pipe and polls the
-    /// registry store until the modeled state matches (bounded).
+    /// Apply one settings change; commit mode writes the recovered channel
+    /// and polls the independent registry value for that feature (bounded).
     fn set_sense_feature(
         &self,
         feature: SenseFeature,
@@ -72,71 +82,40 @@ pub trait SenseControl: Send + Sync {
 #[cfg(test)]
 mod tests {
     use super::{SenseFeature, encode_request};
-    use lctrl_core::SenseDistance;
+    use lctrl_core::{SenseDistance, SenseWait};
 
-    // Byte-exact frames verified against the ThinkSmartSenseAddin IL:
-    // `u32 code` + `u32 arg`, little-endian, no trailing bytes.
     #[test]
-    fn lock_on_leave_frames_match_the_vendor_encoding() {
-        let (code, arg) = SenseFeature::LockOnLeave(true).command();
-        assert_eq!(code, 0x0009_0101);
+    fn hpd_settings_use_wire_opnums_not_export_order() {
+        assert_eq!(SenseFeature::LockOnLeave(true).rpc_command(), Some((11, 1)));
         assert_eq!(
-            encode_request(code, arg),
-            [0x01, 0x01, 0x09, 0x00, 0x01, 0x00, 0x00, 0x00]
+            SenseFeature::WakeOnApproach(false).rpc_command(),
+            Some((8, 0))
         );
-        let (code, arg) = SenseFeature::LockOnLeave(false).command();
+        assert_eq!(SenseFeature::PauseVideo(true).rpc_command(), Some((16, 1)));
+        assert_eq!(SenseFeature::PauseVideo(false).rpc_command(), Some((16, 0)));
         assert_eq!(
-            encode_request(code, arg),
-            [0x01, 0x01, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00]
+            SenseFeature::LeaveDistance(SenseDistance::Far).rpc_command(),
+            Some((14, 2))
         );
+        assert_eq!(
+            SenseFeature::LeaveWait(SenseWait::Long).rpc_command(),
+            Some((12, 2))
+        );
+        assert_eq!(
+            SenseFeature::ApproachDistance(SenseDistance::Middle).rpc_command(),
+            Some((9, 1))
+        );
+        assert_eq!(SenseFeature::PauseVideo(true).pipe_command(), None);
     }
 
     #[test]
-    fn wake_on_approach_frames_match_the_vendor_encoding() {
-        let (code, arg) = SenseFeature::WakeOnApproach(true).command();
-        assert_eq!(code, 0x0007_0101);
+    fn separate_legacy_features_keep_their_pipe_encoding() {
+        let (code, arg) = SenseFeature::PrivacyAlert(false).pipe_command().unwrap();
+        assert_eq!(encode_request(code, arg), [1, 2, 13, 0, 2, 0, 0, 0]);
         assert_eq!(
-            encode_request(code, arg),
-            [0x01, 0x01, 0x07, 0x00, 0x01, 0x00, 0x00, 0x00]
+            SenseFeature::AttentionTracking(true).pipe_command(),
+            Some((0x0016_0101, 1))
         );
-        let (code, arg) = SenseFeature::WakeOnApproach(false).command();
-        assert_eq!(
-            encode_request(code, arg),
-            [0x01, 0x01, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00]
-        );
-    }
-
-    #[test]
-    fn pause_video_uses_the_one_two_convention_not_zero_one() {
-        let (code, arg) = SenseFeature::PauseVideo(true).command();
-        assert_eq!(code, 0x000D_0101);
-        assert_eq!(
-            encode_request(code, arg),
-            [0x01, 0x01, 0x0D, 0x00, 0x01, 0x00, 0x00, 0x00]
-        );
-        let (code, arg) = SenseFeature::PauseVideo(false).command();
-        assert_eq!(
-            encode_request(code, arg),
-            [0x01, 0x01, 0x0D, 0x00, 0x02, 0x00, 0x00, 0x00]
-        );
-    }
-
-    #[test]
-    fn distance_and_wait_commands_encode_their_raw_selector() {
-        let (code, arg) = SenseFeature::LeaveDistance(SenseDistance::Far).command();
-        assert_eq!(code, 0x0011_0101);
-        assert_eq!(
-            encode_request(code, arg),
-            [
-                0x01,
-                0x01,
-                0x11,
-                0x00,
-                SenseDistance::Far.raw() as u8,
-                0x00,
-                0x00,
-                0x00
-            ]
-        );
+        assert_eq!(SenseFeature::PrivacyAlert(true).rpc_command(), None);
     }
 }

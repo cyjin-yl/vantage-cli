@@ -62,6 +62,8 @@ mod runtime_devices;
 #[cfg(windows)]
 #[cfg(windows)]
 mod sense;
+#[cfg(windows)]
+mod sense_rpc;
 mod system_inventory;
 mod thermal;
 #[cfg(windows)]
@@ -77,10 +79,10 @@ pub use bios::WindowsBiosController;
 #[cfg(windows)]
 pub use brightness::WindowsPanelBrightness;
 pub use codec::{
-    AdapterDetail, BatteryDetail83, GbmdCommand, GenericGet, IOCTL_BATTERY_CONFIG,
-    IOCTL_BATTERY_DETAIL, IOCTL_EM_SPEC_VERSION, IOCTL_GAPD, IOCTL_GBMD, IOCTL_GENERIC_GET,
-    IOCTL_NIGHT_CHARGE, IOCTL_TEMP_CHARGE, IOCTL_USB_CHARGER, NightChargeSelector,
-    TempChargeSelector, UsbChargerSelector,
+    AdapterDetail, BatteryDetail83, EM_SPEC_VERSION_REQUEST, EM_SPEC_VERSION_STORAGE_80_MIN,
+    GbmdCommand, GenericGet, IOCTL_BATTERY_CONFIG, IOCTL_BATTERY_DETAIL, IOCTL_EM_SPEC_VERSION,
+    IOCTL_GAPD, IOCTL_GBMD, IOCTL_GENERIC_GET, IOCTL_NIGHT_CHARGE, IOCTL_TEMP_CHARGE,
+    IOCTL_USB_CHARGER, NightChargeSelector, TempChargeSelector, UsbChargerSelector,
 };
 pub use conflict::WindowsControlConflictDetector;
 pub use diagnostics::WindowsSystemInventory;
@@ -190,6 +192,8 @@ pub use runtime_devices::{NativeRuntimeDeviceApi, NativeWindowsRuntimeDevices};
 pub use sense::{
     HpdSettingsStore, NativeHpdStore, NativeSensePipe, SensePipe, WindowsSenseControl,
 };
+#[cfg(windows)]
+pub use sense_rpc::{HpdRpc, NativeHpdRpc};
 pub use system_inventory::WindowsInventory;
 pub use thermal::WindowsThermal;
 pub use usb::WindowsUsbPower;

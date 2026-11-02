@@ -293,9 +293,19 @@ Lenovo 只控制硬件使能;凭据注册走 Windows Biometric Framework,不在�
 
 硬件:`ACPI\IDEA2002`(IR 摄像头+传感器),Windows HPD 框架 + Lenovo SmartSense 服务。
 
-### 5.1 `LENOVO_SETTING_*` 命令字(代码级证据,ThinkSmartSenseAddin `IntelligentSensingPipe.cs`)
+### 5.1 当前 HPD RPC 与历史 `LENOVO_SETTING_*` 命令字
 
-经 `ChangeSetting(uint command, string parameter)` 下发(ACPI/EC 通道):
+当前 `sense status` 与离开锁定/靠近唤醒/视频暂停及距离、等待设置走自有
+`rpcrt4 → ncalrpc:[HumanPresenceDetectionEndpoint]` 客户端,不依赖 Lenovo 客户端 DLL。
+wire opnums 分别为 11/8/16(布尔 0/1)、14/9(距离 0/1/2)、12(等待 0/1/2)。
+状态用 RPC capability + aggregate getter 投影;写后用 HPD 注册表独立读回,既有 dry-run/
+auto-restore 贯通同一接口。服务端权限不是「任意用户均可写」,验收使用提权 owner seat。
+源码切换尚未在本次运行验收;[精确契约与原生 smoke 步骤](evidence/hpd-rpc-re-20261102.md)
+区分静态实现、设置生效与真实离开/唤醒/媒体效果。
+
+下表是旧 `ChangeSetting(uint command, string parameter)` 设置**命名管道**的恢复表,
+不是 ACPI/EC 直调。只有独立的 privacy-alert / attention-tracking 仍使用其已恢复入口;
+HPD 六项不在 RPC 失败后回退到此前返回 0 的管道:
 
 | 命令 | 值 | 语义 |
 |---|---|---|
@@ -306,9 +316,9 @@ Lenovo 只控制硬件使能;凭据注册走 Windows Biometric Framework,不在�
 | LENOVO_SETTING_SET_BROWSING_TIME | 327937 | 浏览时间(秒) |
 | LENOVO_SETTING_ENABLE_SCREEN_LOCK | 393473 | HPD 屏幕锁定 |
 | LENOVO_SETTING_ENABLE_APPROACH | 459009 | 接近检测 |
-| LENOVO_SETTING_SET_APPROACH_DISTANCE | 524545 | 接近距离(cm) |
+| LENOVO_SETTING_SET_APPROACH_DISTANCE | 524545 | 接近距离档位(0/1/2) |
 | LENOVO_SETTING_ENABLE_PRESENTLEAVE | 590081 | 存在/离开检测 |
-| LENOVO_SETTING_SET_LEAVE_WAIT | 655617 | 离开等待(秒) |
+| LENOVO_SETTING_SET_LEAVE_WAIT | 655617 | 离开等待档位(0/1/2) |
 | LENOVO_SETTING_ENABLE_VIDEOSTOP | 852225 | 人走暂停视频 |
 | LENOVO_SETTING_ENABLE_CAMERADETECT | 852481 | 摄像头检测 |
 | LENOVO_SETTING_ENABLE_AUTOADJUST | 917761 | 自动调节 |
@@ -337,10 +347,12 @@ Lenovo 只控制硬件使能;凭据注册走 Windows Biometric Framework,不在�
 [Present] --离开 + 超距离阈值--> [Away] --执行离开动作(锁屏/暂停视频/提示)
 ```
 
-- 距离档位(PrivacyGuardDistanceType):0=15cm,1=30cm,2=50cm,3=80cm。
+- 距离档位:0=Near、1=Middle、2=Far;没有恢复出可声称的固定厘米值。
+- 等待档位:0=Short、1=Middle、2=Long;不是任意秒数。
 - 离开动作(PrivacyGuardActionType):0=锁屏+暂停视频,1=仅锁屏,2=提示。
 - 持久化注册表:`HKLM\SYSTEM\CurrentControlSet\Services\SmartSense\Parameters\{ScreenLock, AutomaticKeyboardLight, HPD}`;`LPlatSvc\Parameters\AutomaticKeyboardLight`。
-- 事件:Windows HPD COM 回调;`LENOVO_AI_SCENARIO_TYPE_EVENT`(场景 Type,见 03/07 文档)。
+- RPC 设置通知通过现有 binding 上的 callback op0 传递;当前自有设置客户端不注册回调,
+  不声称提供 live presence stream。`LENOVO_AI_SCENARIO_TYPE_EVENT` 为另一场景事件面(见 03/07 文档)。
 
 ---
 

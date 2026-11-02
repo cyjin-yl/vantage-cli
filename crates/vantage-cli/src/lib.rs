@@ -5836,12 +5836,12 @@ fn unsupported_reason(command: &Command) -> &'static str {
         Command::Battery {
             command: Some(BatteryCommand::Thresholds { .. }),
         } => {
-            "custom charge thresholds are unsupported on this target: the PWRMGRV/PWMIF32V chain is absent and the ACPI MHQI method is missing (RE-interfaces.md §11.6)"
+            "custom charge thresholds have no verified native write and readback contract; fixed conservation mode is not a custom threshold interface (docs/02-power-battery.md §4.2)"
         }
         Command::Battery {
             command: Some(BatteryCommand::ExtremeLife { .. }),
         } => {
-            "extreme-life must match the original AiTurbo EcoQoS daemon contract; a generic substitute is not implemented (RE-interfaces.md §11.6)"
+            "full extreme-life equivalence requires an owned signed kernel Job lifecycle implementation and the target UI toggle mapping; a partial power-plan or EcoQoS substitute is not implemented (docs/evidence/extreme-life-re-20261102.md)"
         }
         Command::Battery {
             command: Some(BatteryCommand::Watch),

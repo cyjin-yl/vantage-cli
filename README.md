@@ -93,8 +93,9 @@ vantage --yes perf mode performance       # 执行、回读、确认
 充电模式(GBMD 位掩码读回)、USB 关机供电运行时控制(0x831020e8)、夜间充电
 (0x83102150)、临时充电模式只读(0x83102148)、DBDC 电池限流表只读
 (`perf dbdc get`)、杜比音效开关/预设切换(`audio dolby`)、降噪模式
-(`audio noise-cancel`)、SmartSense 人体感知设置(`sense *`)。护眼/超分的
-Intel IGCL 绑定存在 ABI 不匹配,现有探针不足以判定该机型的硬件能力。
+(`audio noise-cancel`)。SmartSense 的旧管道写入未通过验收,不能列为实测可用。
+护眼/超分的 Intel IGCL 结构与显示输出句柄已修正;当前只读探针未找到可写的
+像素变换块,超分能力查询返回 INVALID_ARGUMENT,仍不能声称写入可用。
 契约见 docs/interfaces.md §11–§15。
 
 Dolby 和降噪客户端不再加载 Vantage 附加组件中的 DLL;它们仍分别要求
@@ -107,12 +108,20 @@ Dolby 和降噪客户端不再加载 Vantage 附加组件中的 DLL;它们仍分
 EnergyDrv/GBMD 标志字、USB 标志字和厂商客户端只读探针。写入不再有额外门禁:
 `--dry-run` 给出计划,`--yes` 确认后即写,每次写后回读核对。
 
-**写入被固件拒绝(如实报告,不是"已实现"):**SmartSense 的人体感知开关在本机被管道
-拒绝(命令 0x00090101/0x00070101/0x000d0101),HPD 三个值均不变;风扇模式报
+养护模式另经生产 CLI `conservation --dry-run` → `--yes --auto-restore` 验证:
+养护状态读回成功、自动恢复 Rapid,另启进程读回原始 GBMD。此项只是驱动状态与恢复
+验收,不是物理 80% 停充或官方 Vantage UI 验收;见
+[生产 CLI 回执](docs/evidence/conservation-cli-native-20261102.md)。
+
+**尚未通过写入验收(如实报告,不是"已实现"):**SmartSense 的旧人体感知管道在本机
+拒绝请求(命令 0x00090101/0x00070101/0x000d0101),HPD 三个值均不变;
+这不能证明固件不支持 HPD RPC 通道。三个 HPD 开关现已改接纯 Rust rpcrt4 客户端,
+不回退旧管道;[契约与独立验收步骤](docs/evidence/hpd-rpc-re-20261102.md)
+已记录,但新通道的真机写入/独立读回/恢复尚未执行。风扇模式报
 `unsupported: LENOVO_GAMEZONE_DATA.GetSmartFanMode`(本机型该提供者不暴露此方法);
 PL1/PL2 报 `unsupported: tune.pl1|tune.pl2`(按依赖裁定不接联想专有 MSR 驱动)。
-面板色域/护眼/超分的驱动契约尚未恢复(见 RE-interfaces §15.1),这些命令现在直接报
-Unsupported,不做任何驱动调用。
+面板色域尚无符合依赖裁定的写入通道;护眼/超分仍无可用写路径(见 interfaces §15.1)。
+只读能力查询不等于写入验收。
 
 **⚠️ 有限验收**(部分路径验证,未全覆盖):遥测/温度流(C19)、本地驱动安装
 (`update local-driver`)。
@@ -122,6 +131,7 @@ Unsupported,不做任何驱动调用。
 | 功能 | 原因 |
 |---|---|
 | 充电阈值(自定义起止百分比) | 目标机无可验证的自定义阈值写入通道(负向验收 U1b);仅能力探测与如实拒绝 |
+| 极限续航(`battery extreme-life`) | 完整原版策略已恢复,但等价同步父子进程 Job 生命周期需自有适当签名内核实现,且单一 UI 开关映射尚未绑定目标版本;不以普通节能或仅 EcoQoS 冒充。见 [契约与缺失前提](docs/evidence/extreme-life-re-20261102.md) |
 | 风扇模式(GAMEZONE) | 客户端已按逆向契约实现(Get/SetSmartFanMode),`perf.fan.mode` 能力行动态探测;21VG 固件拒绝所有 GAMEZONE 调用,如实报不可用 |
 | CPU 功耗墙(PL1/PL2/tau) | Linux 走 RAPL sysfs(标准内核接口,含 dry-run/回滚);Windows 的 WinMsrDev 通道已实现但需 SYSTEM 身份,且 MSR 0x65C 位语义未经物理确认前保持写入门禁 |
 | 厂商专属性能模式(极客模式等) | 该模式存在(联想 Vantage 提供),仅经联想专有驱动下发;HWP 请求 MSR 已在 WinMsrDev 选择子表内(0x772/0x774),但本机读回编码与 SDM 通用语义不一致,写入保持门禁直到物理确认 |

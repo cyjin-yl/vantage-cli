@@ -61,7 +61,7 @@ fn validate_request(code: u32, input: &[u8]) -> Result<bool> {
     match code {
         IOCTL_GBMD => match input {
             [0xff] => Ok(false),
-            [0x0d | 0x0f | 0x07 | 0x08] => Ok(true),
+            [0x0d | 0x0f | 0x07 | 0x08 | 0x03 | 0x05] => Ok(true),
             [other] => Err(LctrlError::Unsupported {
                 feature: format!("EnergyDrv GBMD subcommand 0x{other:02x}"),
             }),

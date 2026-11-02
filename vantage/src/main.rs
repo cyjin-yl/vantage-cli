@@ -485,6 +485,7 @@ fn main() {
         None => services,
     };
     let sense = lctrl_hal_win::WindowsSenseControl::new(
+        lctrl_hal_win::NativeHpdRpc::new(),
         lctrl_hal_win::NativeSensePipe,
         lctrl_hal_win::NativeHpdStore,
     );

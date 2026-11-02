@@ -39,7 +39,7 @@ BIOS 密码元数据、MagicBay 检测和 scan 清单共 **12 次实际运行,�
 | #3 OSD | 当前未附接真实 overlay/热键动作消费者 |
 | #4 能力/切换检查 | 原生矩阵可运行;平台依赖投影、实际服务绑定与替代就绪报告仍需修正 |
 | #5 电池/适配器 | C14:来源分组及实时电压/功率只读对照通过;健康/寿命、适配器额定功率等仍待逐字段验收 |
-| #6 充电/阈值 | 任意阈值仍 Unsupported。充电模式 dry-run→真实写→EnergyDrv 独立回读及 C29 自动恢复已验收(C28/C29)。live GBMD bit23 证明 Storage80 能力,EM Spec=2;Storage80 写选择子仍在恢复,不能把通用 Rapid/Normal 写当作 Storage80 验收 |
+| #6 充电/阈值 | 任意阈值仍 Unsupported。Rapid/Normal 的驱动状态写入与恢复已有记录(C28/C29)。本轮按厂商 bit14 分型修正基础养护 `0x03/0x05` 与追加 `0x0d/0x0f` 的关系；生产 CLI `conservation --dry-run`→`--yes --auto-restore` 已读回养护并自动恢复 Rapid，另启进程读回 `0x00860004`。见 [生产 CLI 回执](evidence/conservation-cli-native-20261102.md)；同驱动分次查询不等于独立物理 80% 停充或官方 UI 验收。bit23 单独不足以证明 Storage80 支持，旧 EM Spec=2 结论撤销 |
 | #7 夜间/临时充电 | 夜充真实写、独立回读及自动恢复已验收(C28/C29);临时模式写选择子尚未恢复,保持只读 |
 | #8 USB 供电 | AC/电池模式两态真实写、EnergyDrv 独立回读及自动恢复已验收(C28/C29) |
 | #9 电源计划 | 实际枚举成功;高级字段/名称一致性仍须按工单逐项验证 |
@@ -52,13 +52,13 @@ BIOS 密码元数据、MagicBay 检测和 scan 清单共 **12 次实际运行,�
 | #16 EPP/睿频 | C5/C6 已有真实写入/独立注册表回读/恢复;矩阵的 turbo 声明仍与执行器不一致 |
 | #17 PL1/PL2/tau | 尚无可供精确写入与独立回读的目标机契约;不绕过 HVCI |
 | #18 进程管理 | 原生事务执行器已有源码;CLI、恢复日志和真实拓扑策略未闭环 |
-| #19 profile/省电事务 | 现有部分手动执行/restore;完整目标、配方及复合动作仍须完成 |
+| #19 profile/省电事务 | 现有部分手动执行/restore;完整目标、配方及复合动作仍须完成。极限续航已恢复真实策略,但同步内核 Job 生命周期与目标版本单一 UI 开关映射尚缺准入前提,命令仍 Unsupported;不以电源计划/EcoQoS 部分动作冒充验收。见 [完整边界](evidence/extreme-life-re-20261102.md) |
 | #20 键盘灯 | 当前目标机方法不可用;不得以静态灯光元数据提升写能力 |
 | #21 Win 锁/触控板 | C7 仅确认触控板恢复及非中断 smoke;新版禁用循环与 Win 锁尚未完成验收 |
 | #22 内屏刷新率 | C1 已验收;要求交互式会话,不以 SSH 无显示路径误判硬件不支持 |
 | #23 色彩/显示增强 | 修正 pixtx 使用显示输出句柄与 1.1 ABI、超分 get/set 为 92B。独立只读探针在当前输出返回 0 块;超分 caps 仍 0x4000000b,写保持拒绝(证据 igcl-readonly-probe-20261102.md)。旧错误句柄/布局探针不再用于能力判断。色域 Unsupported(依赖被禁的 MONITORCONTROL.dll),overdrive 目标设备未观察到 |
 | #24 运行时隐私 | 状态实际读取成功;逐层写入、独立读回及恢复证据须按版本保存 |
-| #25 SmartSense/HPD | 已逆向接入:sense 设置管道(interfaces §13),`sense status/lock-on-leave/wake-on-approach/pause-video/attention-tracking` 实现+dry-run+注册表读回;attention-tracking 写后无持久化键(如实 write-only);键盘灯自动仍门禁(contract RPC 未恢复);写入验收待补 |
+| #25 SmartSense/HPD | HPD 已改接纯 Rust rpcrt4 客户端,自生成 NDR 描述符,不加载 Lenovo 客户端 DLL;离开锁屏/接近唤醒/视频暂停使用真实 RPC op11/8/16,不回退旧拒绝管道。见 [RPC 契约与验收步骤](evidence/hpd-rpc-re-20261102.md)。独立注册表读回及原值恢复的真机验收仍待执行;当前 SSH 传输故障,不能把编译/测试当作验收。attention-tracking 保留独立旧通道与 write-only 边界;键盘灯自动仍未完成 |
 | #26 Dolby | 纯 Rust rpcrt4/NDR 客户端不加载 DolbyRpcClient.dll,描述符由本仓库生成(interfaces §0/§12),仍需 DolbyDAXAPI 服务。禁用/启用及 profile 的真实写、厂商 DLL 独立读回与 C29 自动恢复已验收(C28/C29) |
 | #27 音频降噪 | 纯 Rust rpcrt4/NDR 客户端(不加载 ElevocControlSDK,也不内嵌其接口表;描述符由本仓库生成,interfaces §0/§14);仍需要 ElevocService。模式真实写、厂商 SDK 独立读回与 C29 自动恢复已验收(C28/C29) |
 | #28 BIOS 批量/元数据 | 原生事务源码与只读密码元数据已有;CLI 批量、风险和实际生效态验收待完成 |
@@ -603,8 +603,11 @@ overlay 标注场景 id、动作与 applied/unavailable 状态。
 
 ## C21 · 最小官方依赖与安全切换验收
 
-**状态:最小官方依赖与安全切换已验收——CLI 不依赖官方 Vantage 服务;官方联想组件仅在
-功能真正需要处保留,且缺接口契约/硬件不适用处如实门控,不伪报完成。**
+**状态:历史依赖投影,不是卸载/停服务后的安全切换验收。**
+本节 2026-10-30 的矩阵含后来被推翻的缺失判断,不能作为当前能力或卸载依据。
+2026-11-02 已实际打开 EnergyDrv 并完成充电/USB 写入验收(C28/C29);
+服务清单没有 EnergyDrv 条目不等于设备不存在。客户端不加载厂商 DLL 也不能证明
+卸载 Vantage 后服务端仍在。未执行完整必要功能的卸载前后对照,撤销原“安全切换已验收”结论。
 
 2026-10-30 对目标机 `vantage capability --json` 全量矩阵做依赖投影,并只读清点官方
 联想服务/驱动:
@@ -614,7 +617,7 @@ overlay 标注场景 id、动作与 applied/unavailable 状态。
 | `lenovo_vantage_service` | **0 必需 / 0 可选** | 无 | CLI 全部经公开 Win32/WMI 直连,不经官方 Vantage RPC → 安全切换的核心证据 |
 | `lenovo_firmware_wmi` | 30 必需 | 全部 BIOS 命令 | BIOS 管理只能走固件 WMI 命名空间,直连而非经 Vantage 服务 |
 | `smart_sense` | 6 必需 | 全部 sense.* | SmartSense 功能由该组件承载 |
-| `energy_driver` | 4 必需 | charge-mode、usb.always-on、usb.charge-on-battery、power.saver-once | 电池/充电控制需 EnergyDrv;本机 21VG 无该驱动,如实报 unavailable |
+| `energy_driver` | 4 必需(当时投影) | charge-mode、usb.always-on、usb.charge-on-battery、power.saver-once | 原“本机无驱动”判断错误;设备后来实际打开,充电/USB 写入见 C28/C29 |
 | `lenovo_process_management` | 1 必需 | perf.mode | 性能模式经 Dispatcher 注册表,非 Vantage 服务 |
 | `dolby_audio_sdk` / `noise_cancellation_sdk` | 各 1 必需 | audio.dolby / audio.noise-cancel | 音频控制受 SDK 许可/接口边界 |
 | `lenovo_fn_and_function_keys` / `lenovo_utility_service` / `intel_dptf` | 可选 | 键盘回退/调优回退 | 仅作回退,主路径用公开 API |
@@ -627,16 +630,12 @@ overlay 标注场景 id、动作与 applied/unavailable 状态。
 目标机官方组件实际状态(只读,未停用/卸载):LenovoFnAndFunctionKeys、
 LenovoPcManagerService、LenovoProcessManagement、LenovoVantageService、SmartConnect、
 SmartSense 均 Running/Automatic;驱动 lenovoDriverBus Running、SmartSAMD Stopped;
-**无 EnergyDrv**。因此充电/USB 写入、性能/风扇/PL 写入如实 `unavailable`(契约缺/硬件
-不适用),读取路径正常工作。
+当时据清单得出的“无 EnergyDrv”结论已撤销,不能据此推断充电/USB 硬件不适用。
+性能/风扇/PL 的各自能力边界须分别核对,不能由驱动清单整体推断。
 
-安全切换结论:官方 Vantage 服务不是 CLI 依赖,停用/卸载 Vantage 不破坏 CLI 功能;
-CLI 对官方联想组件的保留仅限功能真正需要处(BIOS 固件 WMI、SmartSense、EnergyDrv、
-Dolby/降噪 SDK、进程管理),其余功能经公开 OS API 完成。必要用户功能要么被公开 API
-替代(电源/显示/键盘/隐私/面板/触控板/温度/诊断/清单/Wi-Fi/更新/驱动/修复/事件/场景/
-热键/OSD),要么因缺已验证接口契约或硬件不适用而如实门控(充电/USB 写入、性能/风扇/
-PL 写入、BIOS 更新写入)。在全部必要功能与最小依赖切换验证完成之前,不停用或卸载任何
-官方驱动/服务。本记录不宣称 38 项已全部完成。
+安全切换结论尚未建立。上述依赖投影只说明当时客户端声明的调用路径,不证明所有功能
+已完成、所有服务端均独立于 Vantage 交付,或卸载不会破坏功能。在全部必要功能与
+最小依赖切换验证完成之前,不停用或卸载任何官方驱动/服务。本记录不宣称 38 项已全部完成。
 
 ## C22 · 可获取的 Windows 程序交付
 

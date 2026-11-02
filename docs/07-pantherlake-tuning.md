@@ -185,7 +185,7 @@ Windows 真机分别捕获 `tune telemetry --interval 1` 与 `perf temp watch --
 | EPP | balance-power(≈179-220) | pstate / Power GUID |
 | 风扇 | Smart Fan 静音档 | `SetSmartFanMode` |
 | turbo | off | `no_turbo` / 处理器最大状态 99% |
-| 充电 | 不执行未验证的养护切换 | 目标 21VG 的 GBMD `0x03` 有运输模式风险，禁止发送 |
+| 充电 | 配方不隐式切换充电模式 | `03/05` 是安装 DLL 的 Storage 基础请求，bit14 subtype 2 成功后追加 `0d/0f`；旧运输模式禁令的纠正及受限状态/恢复证据见 02 §3.2、C2，不代表物理停充门限或通用安全验收 |
 | 面板 | 60 Hz 固定 | §04 面板 |
 | 后台 | 非前台进程工作集收缩 + 低优先级 | §3.3 |
 
