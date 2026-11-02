@@ -339,48 +339,6 @@ fn perf_dbdc_get_without_service_is_structured_unsupported() {
 }
 
 #[test]
-fn unverified_write_refuses_without_an_explicit_acknowledgement() {
-    let cli = Cli::try_parse_from(["vantage", "usb", "always-on", "off"]).expect("parse");
-    let hal = FakeHal::new("unused");
-    let usb = ToggleUsb::on();
-
-    let error = execute_with_services(cli, CommandServices::new(&hal).with_usb(&usb))
-        .expect_err("an unverified write must not commit silently");
-
-    assert!(
-        matches!(error, LctrlError::InvalidArgument { ref detail } if detail.contains("--accept-unverified-write")),
-        "unexpected error: {error:?}"
-    );
-    // The dry-run probe reaches the service (its counter counts attempts);
-    // the observable state must be untouched.
-    assert!(
-        usb.usb_charging().unwrap().ac_enabled,
-        "the USB charging state must be unchanged"
-    );
-}
-
-#[test]
-fn unverified_write_commits_with_the_acknowledgement() {
-    let cli = Cli::try_parse_from([
-        "vantage",
-        "--accept-unverified-write",
-        "usb",
-        "always-on",
-        "off",
-    ])
-    .expect("parse");
-    let hal = FakeHal::new("unused");
-    let usb = ToggleUsb::on();
-
-    let output = execute_with_services(cli, CommandServices::new(&hal).with_usb(&usb))
-        .expect("usb always-on succeeds");
-
-    assert_eq!(usb.writes.load(Ordering::SeqCst), 1);
-    assert!(!usb.usb_charging().unwrap().ac_enabled);
-    assert!(output.human.contains("USB AC charging"));
-}
-
-#[test]
 fn usb_charge_on_battery_dry_run_does_not_write() {
     let cli = Cli::try_parse_from(["vantage", "--dry-run", "usb", "charge-on-battery", "on"])
         .expect("parse");
@@ -524,7 +482,6 @@ fn stream_intervals_are_positive_and_specified_in_seconds() {
             json: false,
             dry_run: false,
             yes: false,
-            accept_unverified_write: false,
             command,
         };
         assert!(matches!(
