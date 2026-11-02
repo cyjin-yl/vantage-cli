@@ -15,7 +15,7 @@ use std::time::Duration;
 use lctrl_core::{
     ApplyMode, ChangeReport, LctrlError, Result, SenseDistance, SenseState, SenseWait,
 };
-use lctrl_hal::{SenseControl, SenseFeature, poll_readback};
+use lctrl_hal::{SenseControl, SenseFeature, encode_request, poll_readback};
 
 const PIPE_PATH: &str = r"\\.\pipe\com.lenovo.smartsense.settings";
 const HPD_KEY: &str = r"SYSTEM\CurrentControlSet\Services\SmartSense\Parameters\HPD";
@@ -48,16 +48,15 @@ impl<P: SensePipe, S: HpdSettingsStore> WindowsSenseControl<P, S> {
     fn write_feature(&self, feature: SenseFeature) -> Result<()> {
         let (code, arg) = feature.command();
         match self.pipe.call(code, arg)? {
-            1 => Ok(()),
             0 => Err(LctrlError::FirmwareRejected {
                 detail: format!("SmartSense pipe rejected command 0x{code:08x} arg {arg}"),
             }),
             -1 => Err(LctrlError::ChannelUnavailable {
                 channel: format!("SmartSense pipe raised an exception for command 0x{code:08x}"),
             }),
-            other => Err(LctrlError::ChannelUnavailable {
-                channel: format!("SmartSense pipe returned unexpected result {other}"),
-            }),
+            // The vendor client treats every nonzero i32 as success; the
+            // service uses other positive values for queued/accepted.
+            _ => Ok(()),
         }
     }
 }
@@ -123,12 +122,35 @@ impl SensePipe for NativeSensePipe {
         use std::os::windows::ffi::OsStrExt;
         use windows_sys::Win32::{
             Foundation::{CloseHandle, GENERIC_READ, GENERIC_WRITE, INVALID_HANDLE_VALUE},
-            Storage::FileSystem::{CreateFileW, OPEN_EXISTING},
+            Storage::FileSystem::{
+                CreateFileW, OPEN_EXISTING, SECURITY_ANONYMOUS, SECURITY_SQOS_PRESENT,
+            },
+            System::Pipes::WaitNamedPipeW,
         };
         let wide: Vec<u16> = std::ffi::OsStr::new(PIPE_PATH)
             .encode_wide()
             .chain(Some(0))
             .collect();
+        // Vendor parity: the addin's NamedPipeClientStream calls
+        // Connect(3000) before writing, which is WaitNamedPipeW + open.
+        let waited = unsafe {
+            WaitNamedPipeW(
+                wide.as_ptr(),
+                u32::try_from(CONNECT_TIMEOUT.as_millis()).unwrap_or(0),
+            )
+        };
+        if waited == 0 {
+            return Err(LctrlError::ChannelUnavailable {
+                channel: format!(
+                    "SmartSense settings pipe did not become available within {}ms (is the SmartSense service running?): {}",
+                    u32::try_from(CONNECT_TIMEOUT.as_millis()).unwrap_or(0),
+                    std::io::Error::last_os_error()
+                ),
+            });
+        }
+        // Vendor parity: TokenImpersonationLevel.Anonymous maps to
+        // SECURITY_SQOS_PRESENT | SECURITY_ANONYMOUS (0x0010_0000) in
+        // dwFlagsAndAttributes; the service expects an explicit SQOS level.
         let handle = unsafe {
             CreateFileW(
                 wide.as_ptr(),
@@ -136,7 +158,7 @@ impl SensePipe for NativeSensePipe {
                 0,
                 std::ptr::null(),
                 OPEN_EXISTING,
-                0,
+                SECURITY_SQOS_PRESENT | SECURITY_ANONYMOUS,
                 std::ptr::null_mut(),
             )
         };
@@ -158,7 +180,7 @@ impl SensePipe for NativeSensePipe {
 
 fn pipe_call(handle: *mut c_void, code: u32, arg: u32) -> Result<i32> {
     use windows_sys::Win32::Storage::FileSystem::{ReadFile, WriteFile};
-    let request = [code.to_le_bytes(), arg.to_le_bytes()].concat();
+    let request = encode_request(code, arg);
     let mut written = 0;
     let write_ok = unsafe {
         WriteFile(
@@ -291,11 +313,4 @@ fn read_bool(key: &str, value: &str, encoding: BoolEncoding) -> Result<Option<bo
         BoolEncoding::Legacy01 => raw != 0,
         BoolEncoding::OneTwo => raw == 1,
     }))
-}
-
-// Keep the connect timeout visible next to the pipe path for reviewers
-// checking the framing contract against docs/interfaces.md §13.
-#[allow(dead_code)]
-const fn connect_timeout() -> Duration {
-    CONNECT_TIMEOUT
 }

@@ -10,8 +10,9 @@ use windows_sys::Win32::{
 };
 
 use crate::{
-    IOCTL_BATTERY_CONFIG, IOCTL_BATTERY_DETAIL, IOCTL_GAPD, IOCTL_GBMD, IOCTL_GENERIC_GET,
-    IOCTL_NIGHT_CHARGE, IOCTL_TEMP_CHARGE, IOCTL_USB_CHARGER, IoctlTransport, map_win_error,
+    IOCTL_BATTERY_CONFIG, IOCTL_BATTERY_DETAIL, IOCTL_EM_SPEC_VERSION, IOCTL_GAPD, IOCTL_GBMD,
+    IOCTL_GENERIC_GET, IOCTL_NIGHT_CHARGE, IOCTL_TEMP_CHARGE, IOCTL_USB_CHARGER, IoctlTransport,
+    map_win_error,
 };
 
 const ENERGY_DRIVER_PATH: &str = r"\\.\EnergyDrv";
@@ -81,7 +82,11 @@ fn validate_request(code: u32, input: &[u8]) -> Result<bool> {
                 feature: format!("EnergyDrv temporary-charge selector {input:?}"),
             }),
         },
-        IOCTL_GENERIC_GET | IOCTL_BATTERY_CONFIG | IOCTL_BATTERY_DETAIL | IOCTL_GAPD => Ok(false),
+        IOCTL_GENERIC_GET
+        | IOCTL_BATTERY_CONFIG
+        | IOCTL_BATTERY_DETAIL
+        | IOCTL_GAPD
+        | IOCTL_EM_SPEC_VERSION => Ok(false),
         IOCTL_USB_CHARGER => match input {
             // RE-proven contract (docs/interfaces.md §11): only 0x02 is a
             // query; every other dispatched byte reaches the EC setter.

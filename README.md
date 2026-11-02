@@ -129,7 +129,7 @@ Unsupported,不做任何驱动调用。
 | 智能感知键盘灯自动 | 需 Vantage contract RPC 通道,未恢复 |
 | 面板色域切换 | 原版依赖联想交付的 MONITORCONTROL.dll(SmartColor addin),按依赖裁定不引用;契约已存档(interfaces §15) |
 | 面板 overdrive | 未观察到所测 SPBTESTTOOL 设备,BIOSOD 0x1A0000 读 null;其他通道未证实(interfaces §15) |
-| 面板护眼/超分(21VG) | 现有 IGCL 结构布局与公开头文件不一致;旧探针不能证明硬件不适用(interfaces §15.1) |
+| 面板护眼/超分(21VG) | IGCL 结构、显示输出句柄与 1.1 ABI 已按公开头文件修正;只读探针当前输出 0 个 pixtx 块,超分 caps 返回 INVALID_ARGUMENT,写路径仍关闭(interfaces §15.1) |
 | BIOS 刷写、BIOS 口令 | 安全考虑,明确不支持;本地 `.inf` 驱动经 `update local-driver` 支持 |
 
 ## 安全模型

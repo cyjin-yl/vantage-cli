@@ -18,6 +18,10 @@ pub const IOCTL_NIGHT_CHARGE: u32 = 0x8310_2150;
 /// Temporary charge-mode probe (`PowerBattery.dll`, support `0x13`,
 /// status `0x11`; docs/interfaces.md §11).
 pub const IOCTL_TEMP_CHARGE: u32 = 0x8310_2148;
+/// EM Spec version (`PowerBattery.dll` `GetEmSpecVersion`, ACPI `BSIF`;
+/// docs/02 §9). Read-only; gates the `ChargeMode-Storage-80` mode string in
+/// the vendor decode.
+pub const IOCTL_EM_SPEC_VERSION: u32 = 0x8310_214c;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct GbmdCommand(u8);
@@ -36,6 +40,14 @@ impl GbmdCommand {
 
     pub fn decode_status(output: &[u8]) -> Result<u32> {
         decode_u32_exact(output, "GBMD")
+    }
+
+    /// Storage80 support bit in the GBMD status word
+    /// (`PowerBattery.dll!DoesSupportStorage80`, docs/interfaces.md §11.1).
+    /// Live on 21VG: `0x00860004` has bit23 set.
+    #[must_use]
+    pub const fn storage80_supported(status: u32) -> bool {
+        status & (1 << 23) != 0
     }
 }
 
@@ -190,7 +202,7 @@ impl BatteryDetail83 {
     }
 }
 
-fn decode_u32_exact(output: &[u8], operation: &str) -> Result<u32> {
+pub(crate) fn decode_u32_exact(output: &[u8], operation: &str) -> Result<u32> {
     require_len(output, 4, operation)?;
     Ok(u32::from_le_bytes([
         output[0], output[1], output[2], output[3],
@@ -207,4 +219,22 @@ fn require_len(output: &[u8], expected: usize, operation: &str) -> Result<()> {
             output.len()
         ),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{GbmdCommand, IOCTL_EM_SPEC_VERSION};
+
+    #[test]
+    fn storage80_bit23_matches_live_gbmd_status() {
+        // Live 21VG GBMD status word (docs/interfaces.md §11.1).
+        assert!(GbmdCommand::storage80_supported(0x0086_0004));
+        assert!(!GbmdCommand::storage80_supported(0x0006_0004));
+        assert!(!GbmdCommand::storage80_supported(0));
+    }
+
+    #[test]
+    fn em_spec_version_ioctl_is_the_bsif_code() {
+        assert_eq!(IOCTL_EM_SPEC_VERSION, 0x8310_214c);
+    }
 }

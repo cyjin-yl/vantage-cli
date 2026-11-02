@@ -1440,7 +1440,9 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
             apply,
             cli.auto_restore,
         ),
-        Command::Sense { command } => execute_sense(services.sense, command, apply),
+        Command::Sense { command } => {
+            execute_sense(services.sense, command, apply, cli.auto_restore)
+        }
         Command::Bios {
             command: Some(command),
         } => execute_bios(services.bios, command, apply, confirmed, interactive),
@@ -2513,6 +2515,7 @@ fn execute_sense(
     sense: Option<&dyn SenseControl>,
     command: Option<SenseCommand>,
     apply: ApplyMode,
+    auto_restore: bool,
 ) -> CommandResult {
     match command {
         Some(SenseCommand::Status) => {
@@ -2535,7 +2538,7 @@ fn execute_sense(
             if let Some(raw) = wait {
                 features.push(SenseFeature::LeaveWait(sense_wait(raw)?));
             }
-            apply_sense_features(sense, &features, apply)
+            apply_sense_features(sense, &features, apply, auto_restore)
         }
         Some(SenseCommand::WakeOnApproach { state, distance }) => {
             let sense = required_sense(sense, "sense.wake-on-approach")?;
@@ -2543,11 +2546,16 @@ fn execute_sense(
             if let Some(raw) = distance {
                 features.push(SenseFeature::ApproachDistance(sense_distance(raw)?));
             }
-            apply_sense_features(sense, &features, apply)
+            apply_sense_features(sense, &features, apply, auto_restore)
         }
         Some(SenseCommand::PauseVideo { state }) => {
             let sense = required_sense(sense, "sense.pause-video")?;
-            apply_sense_features(sense, &[SenseFeature::PauseVideo(state == Toggle::On)], apply)
+            apply_sense_features(
+                sense,
+                &[SenseFeature::PauseVideo(state == Toggle::On)],
+                apply,
+                auto_restore,
+            )
         }
         Some(SenseCommand::AttentionTracking {
             state,
@@ -2564,6 +2572,7 @@ fn execute_sense(
                 sense,
                 &[SenseFeature::AttentionTracking(state == Toggle::On)],
                 apply,
+                auto_restore,
             )
         }
         Some(SenseCommand::KbdLightAuto { .. }) => Err(LctrlError::Unsupported {
@@ -2601,10 +2610,64 @@ fn apply_sense_features(
     sense: &dyn SenseControl,
     features: &[SenseFeature],
     apply: ApplyMode,
+    auto_restore: bool,
 ) -> CommandResult {
     let mut last = None;
+    // Capture the multi-feature baseline before the first write: every
+    // restore step is planned against this state, never against the
+    // previous field of the last per-feature report.
+    let initial = sense.sense_state()?;
+    // Preflight the full restore plan before mutating anything. A feature
+    // whose persisted previous value is unknown can never be put back, so
+    // auto-restore refuses the command up front instead of silently
+    // skipping it after the write.
+    let plan = if auto_restore && apply == ApplyMode::Commit {
+        Some(plan_sense_restore(features, &initial)?)
+    } else {
+        None
+    };
+    let mut written = 0usize;
+    let mut primary = None;
     for feature in features {
-        last = Some(sense.set_sense_feature(*feature, apply)?);
+        match sense.set_sense_feature(*feature, apply) {
+            Ok(report) => {
+                last = Some(report);
+                written += 1;
+            }
+            Err(error) => {
+                primary = Some(error);
+                break;
+            }
+        }
+    }
+    // The restore runs even when the sequence failed mid-way (a failed
+    // write or readback), covering the committed prefix plus the failed
+    // feature itself, whose write may have taken effect before the
+    // readback rejected it. Restoring an untouched feature only re-writes
+    // its previous value, so the extra step is harmless.
+    let mut restore = None;
+    if let Some(plan) = &plan {
+        let restore_upto = if primary.is_some() {
+            (written + 1).min(plan.len())
+        } else {
+            written
+        };
+        match restore_sense_features(sense, &plan[..restore_upto]) {
+            Ok(text) => restore = Some(text),
+            Err(cleanup) => {
+                return Err(match primary {
+                    Some(original) => LctrlError::FirmwareRejected {
+                        detail: format!(
+                            "sense write failed ({original}); auto-restore also failed ({cleanup})"
+                        ),
+                    },
+                    None => cleanup,
+                });
+            }
+        }
+    }
+    if let Some(original) = primary {
+        return Err(original);
     }
     let report = last.expect("at least one sense feature");
     let mode = if report.mode() == ApplyMode::DryRun {
@@ -2615,14 +2678,80 @@ fn apply_sense_features(
     let actual = report
         .actual()
         .map_or("pending readback".to_string(), |state| state.to_string());
-    structured_output(
-        &report,
-        format!(
-            "smartsense ({mode}): {} feature(s), latest state: {actual} (previous: {})\n",
-            features.len(),
-            report.previous(),
-        ),
-    )
+    let human = format!(
+        "smartsense ({mode}): {} feature(s), latest state: {actual} (previous: {})\n",
+        features.len(),
+        report.previous(),
+    );
+    output_with_restore(&report, human, restore.as_deref())
+}
+
+/// Inverse of the per-feature write: reconstruct the feature that restores
+/// the persisted value recorded before the change. Refuses the whole
+/// command before any write when a previous value was never persisted —
+/// an auto-restore that cannot put the original value back must not leave
+/// the device silently changed. Attention tracking has no observed
+/// persistence key on this model, so its baseline is always unknown.
+fn plan_sense_restore(
+    written: &[SenseFeature],
+    previous: &lctrl_core::SenseState,
+) -> lctrl_core::Result<Vec<SenseFeature>> {
+    let mut plan = Vec::with_capacity(written.len());
+    for feature in written {
+        let unknown = || LctrlError::InvalidArgument {
+            detail: format!(
+                "--auto-restore refused before write: the previous persisted value of {feature:?} is unknown, so the original state cannot be restored"
+            ),
+        };
+        let inverse = match feature {
+            SenseFeature::LockOnLeave(_) => {
+                SenseFeature::LockOnLeave(previous.lock_on_leave.ok_or_else(unknown)?)
+            }
+            SenseFeature::LeaveDistance(_) => {
+                SenseFeature::LeaveDistance(previous.leave_distance.ok_or_else(unknown)?)
+            }
+            SenseFeature::LeaveWait(_) => {
+                SenseFeature::LeaveWait(previous.leave_wait.ok_or_else(unknown)?)
+            }
+            SenseFeature::WakeOnApproach(_) => {
+                SenseFeature::WakeOnApproach(previous.wake_on_approach.ok_or_else(unknown)?)
+            }
+            SenseFeature::ApproachDistance(_) => {
+                SenseFeature::ApproachDistance(previous.approach_distance.ok_or_else(unknown)?)
+            }
+            SenseFeature::PauseVideo(_) => {
+                SenseFeature::PauseVideo(previous.pause_video.ok_or_else(unknown)?)
+            }
+            SenseFeature::PrivacyAlert(_) => {
+                SenseFeature::PrivacyAlert(previous.privacy_alert.ok_or_else(unknown)?)
+            }
+            SenseFeature::AttentionTracking(_) => {
+                SenseFeature::AttentionTracking(previous.attention_tracking.ok_or_else(unknown)?)
+            }
+        };
+        plan.push(inverse);
+    }
+    Ok(plan)
+}
+
+/// Re-apply a preflighted restore plan after the committed write. Called
+/// both on success (full plan) and after a mid-sequence failure (plan
+/// truncated to the written prefix plus the failed feature).
+fn restore_sense_features(
+    sense: &dyn SenseControl,
+    plan: &[SenseFeature],
+) -> lctrl_core::Result<String> {
+    let mut restored = Vec::new();
+    for inverse in plan {
+        sense.set_sense_feature(*inverse, ApplyMode::Commit)?;
+        restored.push(format!("{inverse:?}"));
+    }
+    let state = sense.sense_state()?;
+    Ok(format!(
+        "auto-restore: re-applied {} feature(s) ({}); state now {state}",
+        restored.len(),
+        restored.join(", ")
+    ))
 }
 
 fn execute_usb(
