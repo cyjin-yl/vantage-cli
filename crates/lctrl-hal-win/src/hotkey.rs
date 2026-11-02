@@ -10,6 +10,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{LazyLock, Mutex};
 use std::thread;
 
+use crate::wide::wide;
 use lctrl_core::Result;
 use lctrl_hal::{HotkeyControl, HotkeyOutcome};
 use windows_sys::Win32::{
@@ -33,6 +34,9 @@ struct StaticClass(WNDCLASSEXW);
 unsafe impl Send for StaticClass {}
 unsafe impl Sync for StaticClass {}
 
+const HOTKEY_CLASS_NAME: &[u16] = &wide!("vantage_hotkey_class");
+const HOTKEY_WINDOW_TITLE: &[u16] = &wide!("vantage-hotkey");
+
 static CLS: LazyLock<StaticClass> = LazyLock::new(|| {
     let cls = WNDCLASSEXW {
         cbSize: std::mem::size_of::<WNDCLASSEXW>() as u32,
@@ -45,7 +49,7 @@ static CLS: LazyLock<StaticClass> = LazyLock::new(|| {
         hCursor: std::ptr::null_mut(),
         hbrBackground: std::ptr::null_mut(),
         lpszMenuName: std::ptr::null(),
-        lpszClassName: b"vantage_hotkey_class\0".as_ptr() as *const _,
+        lpszClassName: HOTKEY_CLASS_NAME.as_ptr(),
         hIconSm: std::ptr::null_mut(),
     };
     unsafe {
@@ -57,6 +61,12 @@ static CLS: LazyLock<StaticClass> = LazyLock::new(|| {
 /// A set of globally registered hotkeys with a background message pump.
 pub struct NativeHotkey {
     pump_running: AtomicBool,
+}
+
+impl Default for NativeHotkey {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl NativeHotkey {
@@ -71,7 +81,7 @@ impl NativeHotkey {
             CreateWindowExW(
                 WS_EX_NOACTIVATE,
                 CLS.0.lpszClassName,
-                b"vantage-hotkey\0".as_ptr() as *const _,
+                HOTKEY_WINDOW_TITLE.as_ptr(),
                 0,
                 0,
                 0,

@@ -8,9 +8,12 @@ fn main() {}
 use lctrl_hal_win::{GameZone, NativeWmi};
 
 #[cfg(windows)]
+type Getter = fn(&GameZone<NativeWmi>) -> lctrl_core::Result<u32>;
+
+#[cfg(windows)]
 fn main() {
     let zone = GameZone::new(NativeWmi);
-    let probes: &[(&str, fn(&GameZone<NativeWmi>) -> lctrl_core::Result<u32>)] = &[
+    let probes: &[(&str, Getter)] = &[
         ("thermal_mode", |z| z.thermal_mode()),
         ("power_charge_mode", |z| z.power_charge_mode()),
         ("fan_cooling_status", |z| z.fan_cooling_status()),
