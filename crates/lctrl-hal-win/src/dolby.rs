@@ -279,9 +279,6 @@ mod rpc {
     pub(super) struct DaxMeta {
         /// `RPC_BINDING_HANDLE` from `RpcBindingFromStringBindingW`.
         binding: *mut c_void,
-        /// Session context token produced by opnum 0; sized generously —
-        /// `NDR_CCONTEXT` internals are opaque.
-        context: [usize; 4],
         /// Cell `StubDesc.ImplicitHandleInfo.pPrimitiveHandle` points at.
         /// The vendor keeps a static default cell; we keep it updated so an
         /// implicit handle fetch always sees the live binding.
@@ -296,6 +293,13 @@ mod rpc {
         /// the transfer-syntax table. Mirrors the vendor's
         /// `MIDL_SERVER_INFO`-shaped block.
         server_info: MIDL_SERVER_INFO,
+        /// Session context produced by opnum 0. The NDR engine unmarshals
+        /// the client-side NDR_CCONTEXT bookkeeping structure (rundown
+        /// routine, GUID, counts; several dozen bytes) into this buffer —
+        /// not a scalar token — so it must be sized generously. Placed
+        /// last so a size regression cannot corrupt the interpreter
+        /// metadata above.
+        context: [usize; 16],
     }
 
     impl DaxMeta {
@@ -493,11 +497,22 @@ mod rpc {
     fn rpc_guarded(call: impl FnOnce()) -> Result<()> {
         install_exception_handler();
         unsafe {
-            let mut ctx = MaybeUninit::<CONTEXT>::zeroed();
-            (*ctx.as_mut_ptr()).ContextFlags = CONTEXT_ALL;
-            GUARD_CTX.set(ctx.as_mut_ptr());
+            // RtlCaptureContext's body is RtlCaptureContext64, which uses
+            // `fxsave [rcx+0x100]` — the buffer must be 16-byte aligned.
+            // windows-sys' x64 `CONTEXT` is `#[repr(C)]` without an explicit
+            // alignment (the real ABI type is DECLSPEC_ALIGN(16)), so a
+            // plain `MaybeUninit::<CONTEXT>` stack slot can land at an
+            // 8-aligned address and crash inside ntdll before the guarded
+            // call ever runs (observed as 0xC0000005 at ntdll!fxsave on
+            // the target). Wrap it in a forced-alignment cell.
+            #[repr(C, align(16))]
+            struct AlignedContext(CONTEXT);
+
+            let mut ctx = MaybeUninit::<AlignedContext>::zeroed();
+            (*ctx.as_mut_ptr()).0.ContextFlags = CONTEXT_ALL;
+            GUARD_CTX.set(ctx.as_mut_ptr().cast());
             GUARD_STATE.set(1);
-            RtlCaptureContext(ctx.as_mut_ptr());
+            RtlCaptureContext(ctx.as_mut_ptr().cast());
             if GUARD_STATE.get() == 1 {
                 call();
                 GUARD_STATE.set(0);
