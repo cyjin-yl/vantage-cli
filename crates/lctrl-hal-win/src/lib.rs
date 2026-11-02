@@ -193,7 +193,7 @@ pub use sense::{
     HpdSettingsStore, NativeHpdStore, NativeSensePipe, SensePipe, WindowsSenseControl,
 };
 #[cfg(windows)]
-pub use sense_rpc::{HpdRpc, NativeHpdRpc};
+pub use sense_rpc::{HpdRpc, NativeHpdRpc, UnavailableHpdRpc};
 pub use system_inventory::WindowsInventory;
 pub use thermal::WindowsThermal;
 pub use usb::WindowsUsbPower;

@@ -113,11 +113,27 @@ EnergyDrv/GBMD 标志字、USB 标志字和厂商客户端只读探针。写入�
 验收,不是物理 80% 停充或官方 Vantage UI 验收;见
 [生产 CLI 回执](docs/evidence/conservation-cli-native-20261102.md)。
 
+进程通道(`perf top/boost/throttle`)于 2026-11-03 按同一流程验收:dry-run 不改
+进程状态,`--yes` 写入后由独立进程观察优先级(AboveNormal / BelowNormal),
+`--auto-restore` 复原到该命令自己的快照值。仅覆盖优先级;线程优先级、亲和性
+选择、工作集收缩与游戏白名单未实现。见
+[真机记录](docs/evidence/native-acceptance-20261103.md)。
+
 **尚未通过写入验收(如实报告,不是"已实现"):**SmartSense 的旧人体感知管道在本机
 拒绝请求(命令 0x00090101/0x00070101/0x000d0101),HPD 三个值均不变;
 这不能证明固件不支持 HPD RPC 通道。三个 HPD 开关现已改接纯 Rust rpcrt4 客户端,
 不回退旧管道;[契约与独立验收步骤](docs/evidence/hpd-rpc-re-20261102.md)
-已记录,但新通道的真机写入/独立读回/恢复尚未执行。风扇模式报
+已记录,但新通道的真机写入/独立读回/恢复尚未执行。
+
+**2026-11-03 真机复核(见 [真机记录](docs/evidence/native-acceptance-20261103.md)):**
+新写的进程通道(`perf top/boost/throttle`)已按"dry-run 无副作用 → `--yes` 写入 →
+独立进程观察优先级 → `--auto-restore` 复原"验收通过;充电模式仍按
+dry-run → 写入 → 独立回读 → 复原循环验收,机器已恢复为 Rapid。同一轮复核发现
+自建 NDR 描述符的 DAX 与 HPD 通道在封送器内触发访问冲突(0xC0000005),并使整个
+CLI 启动即崩溃;两条通道已从服务图摘除(`audio dolby` 与 HPD 写入如实报
+Unsupported,HPD 状态改为标注来源的持久化注册表投影),降噪通道(Elevoc)不受影响,
+仍可用。官方 Vantage UI 的 CDP 检查已尝试但未完成:该打包应用在自动化启动下
+启动即退出,无法建立调试端口,因此**没有任何官方 UI 层面的验收结论**。风扇模式报
 `unsupported: LENOVO_GAMEZONE_DATA.GetSmartFanMode`(本机型该提供者不暴露此方法);
 PL1/PL2 报 `unsupported: tune.pl1|tune.pl2`(按依赖裁定不接联想专有 MSR 驱动)。
 面板色域尚无符合依赖裁定的写入通道;护眼/超分仍无可用写路径(见 interfaces §15.1)。
@@ -137,6 +153,8 @@ PL1/PL2 报 `unsupported: tune.pl1|tune.pl2`(按依赖裁定不接联想专有 M
 | 厂商专属性能模式(极客模式等) | 该模式存在(联想 Vantage 提供),仅经联想专有驱动下发;HWP 请求 MSR 已在 WinMsrDev 选择子表内(0x772/0x774),但本机读回编码与 SDM 通用语义不一致,写入保持门禁直到物理确认 |
 | 修改 BIOS 设置 | 固件暂存机制未验证,写入锁定;读取正常 |
 | 智能感知键盘灯自动 | 需 Vantage contract RPC 通道,未恢复 |
+| 杜比音效(`audio dolby`) | 纯 Rust rpcrt4 通道 2026-11-01 曾通过真机写入验收(C28/C29),但 2026-11-03 同一调用在 NDR 封送器内触发访问冲突并使 CLI 启动即崩;通道已摘除,命令如实报 Unsupported,描述符差异待定位。见 [真机记录](docs/evidence/native-acceptance-20261103.md) |
+| HPD RPC 通道(离开锁屏/接近唤醒/视频暂停) | 同上:自生成 NDR 描述符在真机封送器内触发访问冲突,通道已摘除;`sense status` 改为返回标注 `source=hpd-registry-store` 的持久化注册表投影,旧管道路径保留 |
 | 面板色域切换 | 原版依赖联想交付的 MONITORCONTROL.dll(SmartColor addin),按依赖裁定不引用;契约已存档(interfaces §15) |
 | 面板 overdrive | 未观察到所测 SPBTESTTOOL 设备,BIOSOD 0x1A0000 读 null;其他通道未证实(interfaces §15) |
 | 面板护眼/超分(21VG) | IGCL 结构、显示输出句柄与 1.1 ABI 已按公开头文件修正;只读探针当前输出 0 个 pixtx 块,超分 caps 返回 INVALID_ARGUMENT,写路径仍关闭(interfaces §15.1) |

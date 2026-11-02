@@ -22,7 +22,8 @@ use lctrl_core::{
     DriverVersion, FanMode, HardwareInfo, LctrlError, LocalDriverRollbackRequest,
     LocalDriverUpdateRequest, NoiseCancelState, NoiseCancellationMode, PerformanceMode, Platform,
     PowerGuid, PowerMutation, PowerRangeObservation, PowerSchemeId, PowerSettingKey,
-    PowerSettingValue, PowerSource, SceneAction, UpdateCapability,
+    PowerSettingValue, PowerSource, ProcessPolicy, ProcessSnapshot, ProcessTarget, SceneAction,
+    UpdateCapability,
 };
 use lctrl_hal::ScenePolicyControl;
 use lctrl_hal::{
@@ -30,8 +31,9 @@ use lctrl_hal::{
     DiagnosticsControl, FanControl, Hal, HotkeyControl, KeyboardControl, LocalUpdateControl,
     MachineFixControl, MagicBayControl, NoiseCancelControl, OsdControl, PanelBrightnessControl,
     PanelControl, PanelFeaturesControl, PerformanceControl, PowerControl, PowerLimitKind,
-    PrivacyControl, ProcessorPowerControl, SenseControl, SenseFeature, TemperatureControl,
-    TouchpadControl, TuningControl, UpdateControl, UsbControl, WifiSecurityControl,
+    PrivacyControl, ProcessControl, ProcessorPowerControl, SenseControl, SenseFeature,
+    TemperatureControl, TouchpadControl, TuningControl, UpdateControl, UsbControl,
+    WifiSecurityControl,
 };
 use serde::{Deserialize, Serialize};
 
@@ -80,6 +82,7 @@ pub struct CommandServices<'a> {
     panel: Option<&'a dyn PanelControl>,
     panel_brightness: Option<&'a dyn PanelBrightnessControl>,
     panel_features: Option<&'a dyn PanelFeaturesControl>,
+    process: Option<&'a dyn ProcessControl>,
     temperature: Option<&'a dyn TemperatureControl>,
     tuning: Option<&'a dyn TuningControl>,
     usb: Option<&'a dyn UsbControl>,
@@ -115,6 +118,7 @@ impl<'a> CommandServices<'a> {
             panel: None,
             panel_brightness: None,
             panel_features: None,
+            process: None,
             temperature: None,
             tuning: None,
             usb: None,
@@ -258,6 +262,12 @@ impl<'a> CommandServices<'a> {
     #[must_use]
     pub fn with_sense(mut self, sense: &'a dyn SenseControl) -> Self {
         self.sense = Some(sense);
+        self
+    }
+
+    #[must_use]
+    pub fn with_process(mut self, process: &'a dyn ProcessControl) -> Self {
+        self.process = Some(process);
         self
     }
     #[must_use]
@@ -1433,6 +1443,27 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
         Command::Perf {
             command: Some(PerfCommand::Dbdc { command }),
         } => execute_dbdc(services.dbdc, command.unwrap_or(DbdcCommand::Get)),
+        Command::Perf {
+            command: Some(PerfCommand::Top),
+        } => execute_process_top(services.process),
+        Command::Perf {
+            command: Some(PerfCommand::Boost { pids }),
+        } => execute_process_policy(
+            services.process,
+            &pids,
+            ProcessOperation::Boost,
+            apply,
+            cli.auto_restore,
+        ),
+        Command::Perf {
+            command: Some(PerfCommand::Throttle { pids }),
+        } => execute_process_policy(
+            services.process,
+            &pids,
+            ProcessOperation::Throttle,
+            apply,
+            cli.auto_restore,
+        ),
         Command::Audio { command } => execute_audio(
             services.audio,
             services.noise_cancel,
@@ -1570,6 +1601,8 @@ fn command_is_mutating(command: &Command) -> bool {
             command: Some(
                 PerfCommand::Mode { .. } | PerfCommand::Pl1 { .. } | PerfCommand::Pl2 { .. }
             )
+        } | Command::Perf {
+            command: Some(PerfCommand::Boost { .. } | PerfCommand::Throttle { .. })
         } | Command::Perf {
             command: Some(PerfCommand::Fan {
                 command: Some(
@@ -2044,6 +2077,120 @@ fn rollback_limit_sequence(
                 ),
             });
         }
+    }
+    Ok(())
+}
+
+/// Number of processes reported by `vantage perf top`, matching the original
+/// scheduler's top-ten process view.
+const PROCESS_TOP_DEFAULT_LIMIT: usize = 10;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ProcessOperation {
+    Boost,
+    Throttle,
+}
+
+impl ProcessOperation {
+    const fn feature(self) -> &'static str {
+        match self {
+            Self::Boost => "perf.boost",
+            Self::Throttle => "perf.throttle",
+        }
+    }
+
+    const fn policy(self) -> ProcessPolicy {
+        match self {
+            Self::Boost => ProcessPolicy::boost(),
+            Self::Throttle => ProcessPolicy::throttle(),
+        }
+    }
+
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Boost => "boosted",
+            Self::Throttle => "throttled",
+        }
+    }
+}
+
+fn execute_process_top(process: Option<&dyn ProcessControl>) -> CommandResult {
+    let process = process.ok_or_else(|| LctrlError::Unsupported {
+        feature: "perf.top".into(),
+    })?;
+    let inventory = process.top_processes(PROCESS_TOP_DEFAULT_LIMIT)?;
+    let human = format!(
+        "Top {} processes by interval CPU time ({} skipped):\n{}",
+        inventory.processes.len(),
+        inventory.skipped_processes,
+        serde_json::to_string_pretty(&inventory).map_err(json_error)?
+    );
+    structured_output(&inventory, human)
+}
+
+/// Apply one process policy to every requested PID. Each target is resolved to
+/// its creation-time identity before any write, and a failure after a partial
+/// sequence restores the targets that were already changed.
+fn execute_process_policy(
+    process: Option<&dyn ProcessControl>,
+    pids: &[u32],
+    operation: ProcessOperation,
+    apply: ApplyMode,
+    auto_restore: bool,
+) -> CommandResult {
+    let process = process.ok_or_else(|| LctrlError::Unsupported {
+        feature: operation.feature().into(),
+    })?;
+    if pids.is_empty() {
+        return Err(LctrlError::InvalidArgument {
+            detail: "process policy control requires at least one PID".into(),
+        });
+    }
+    let mut changes = Vec::new();
+    let mut applied: Vec<(ProcessTarget, ProcessSnapshot)> = Vec::new();
+    for pid in pids {
+        let target = process.resolve_target(*pid)?;
+        let snapshot = process.process_snapshot(&target)?;
+        let report = match operation {
+            ProcessOperation::Boost => process.boost_process(&target, operation.policy(), apply)?,
+            ProcessOperation::Throttle => {
+                process.throttle_process(&target, operation.policy(), apply)?
+            }
+        };
+        changes.push(serde_json::json!({
+            "pid": target.identity().pid,
+            "image_name": target.image_name(),
+            "previous": report.previous(),
+            "requested": report.requested(),
+            "actual": report.actual(),
+            "applied": matches!(apply, ApplyMode::Commit),
+        }));
+        if matches!(apply, ApplyMode::Commit) {
+            applied.push((target, snapshot));
+        }
+    }
+    if matches!(apply, ApplyMode::Commit) && auto_restore {
+        restore_processes(process, applied)?;
+    }
+    let human = format!(
+        "{} {} process(es):\n{}",
+        operation.label(),
+        changes.len(),
+        serde_json::to_string_pretty(&changes).map_err(json_error)?
+    );
+    structured_output(&changes, human)
+}
+
+fn json_error(error: serde_json::Error) -> LctrlError {
+    LctrlError::Io(std::io::Error::other(error))
+}
+
+fn restore_processes(
+    process: &dyn ProcessControl,
+    applied: Vec<(ProcessTarget, ProcessSnapshot)>,
+) -> lctrl_core::Result<()> {
+    for (target, snapshot) in applied.into_iter().rev() {
+        process.restore_process(&target, &snapshot, ApplyMode::Commit)?;
     }
     Ok(())
 }
@@ -5857,12 +6004,6 @@ fn unsupported_reason(command: &Command) -> &'static str {
         Command::Perf {
             command: Some(PerfCommand::Temp { command: None }),
         } => "a temperature subcommand is required",
-        Command::Perf {
-            command: Some(PerfCommand::Top),
-        } => "process telemetry is not a hardware control channel",
-        Command::Perf {
-            command: Some(PerfCommand::Boost { .. } | PerfCommand::Throttle { .. }),
-        } => "process policy control is not attached",
         Command::Tune { command: None } => "a tuning subcommand is required",
         Command::Tune {
             command: Some(TuneCommand::Profile { command: None }),

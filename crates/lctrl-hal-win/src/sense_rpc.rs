@@ -51,6 +51,32 @@ pub trait HpdRpc: Send + Sync {
     fn set_feature(&self, feature: SenseFeature) -> Result<()>;
 }
 
+/// The HPD RPC transport is not attached on the observed target build: its
+/// hand-built NDR descriptor faults with an access violation inside the
+/// marshaller, which would take the whole CLI down. This transport reports
+/// the channel as unavailable so the sense service can fall back to the
+/// persisted registry projection and keep the legacy SmartSense pipe path
+/// working. See docs/evidence/rpc-transport-faults-20261103.md.
+pub struct UnavailableHpdRpc;
+
+impl HpdRpc for UnavailableHpdRpc {
+    fn read_state(&self) -> Result<SenseState> {
+        Err(LctrlError::Unsupported {
+            feature:
+                "sense.hpd-rpc: the HPD RPC transport faults on this target and is not attached"
+                    .into(),
+        })
+    }
+
+    fn set_feature(&self, feature: SenseFeature) -> Result<()> {
+        Err(LctrlError::Unsupported {
+            feature: format!(
+                "sense.hpd-rpc: the HPD RPC transport faults on this target and is not attached ({feature:?})"
+            ),
+        })
+    }
+}
+
 /// Lazy HPD binding. Constructing the CLI's service graph performs no RPC;
 /// only a sensing command opens the context. No automatic call replay occurs.
 pub struct NativeHpdRpc {
@@ -106,6 +132,7 @@ impl HpdRpc for NativeHpdRpc {
             // This is the managed client's nullable projection. Capacity
             // (output 1) is a separate support value, not the op-5 bitset.
             Ok(SenseState {
+                source: Some("hpd-rpc"),
                 lock_on_leave: has(0x0010).then_some(values[5] != 0),
                 leave_distance: has(0x0080)
                     .then(|| SenseDistance::from_raw(values[8]))

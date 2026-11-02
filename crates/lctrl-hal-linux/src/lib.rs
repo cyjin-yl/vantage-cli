@@ -650,6 +650,17 @@ impl Hal for LinuxHal {
         self.record_node(&mut capabilities, "touchpad", TOUCHPAD)?;
         self.record_node(&mut capabilities, "privacy.camera", CAMERA_POWER)?;
 
+        // Process telemetry and per-process policy control are implemented on
+        // Windows only. The Linux backend is not attached, so the capability
+        // is reported unavailable instead of being implied by the registry.
+        for feature in ["perf.top", "perf.boost", "perf.throttle"] {
+            capabilities.record(
+                feature,
+                Availability::Unavailable,
+                Some("no Linux process telemetry backend is attached".into()),
+            )?;
+        }
+
         let rapl_energy = self.rapl_energy_readable()?;
         self.record_node(&mut capabilities, "perf.mode", THERMAL_MODE)?;
         match self.fan_mode_path() {

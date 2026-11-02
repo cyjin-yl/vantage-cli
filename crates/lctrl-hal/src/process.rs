@@ -9,6 +9,11 @@ pub trait ProcessControl: Send + Sync {
     /// Return at most `limit` processes, ordered by sampled interval CPU time.
     fn top_processes(&self, limit: usize) -> Result<ProcessInventory>;
 
+    /// Resolve a PID to an authorized target that carries the process's
+    /// creation-time identity, so a later mutation cannot land on a PID that
+    /// the system has already reused.
+    fn resolve_target(&self, pid: u32) -> Result<ProcessTarget>;
+
     fn process_snapshot(&self, target: &ProcessTarget) -> Result<ProcessSnapshot>;
 
     fn boost_process(

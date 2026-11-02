@@ -72,11 +72,19 @@ impl<R: HpdRpc, P: SensePipe, S: HpdSettingsStore> WindowsSenseControl<R, P, S> 
 
 impl<R: HpdRpc, P: SensePipe, S: HpdSettingsStore> SenseControl for WindowsSenseControl<R, P, S> {
     fn sense_state(&self) -> Result<SenseState> {
-        let mut state = self.rpc.read_state()?;
         let legacy = self.store.read_state()?;
-        state.privacy_alert = legacy.privacy_alert;
-        state.attention_tracking = legacy.attention_tracking;
-        Ok(state)
+        match self.rpc.read_state() {
+            Ok(mut state) => {
+                state.privacy_alert = legacy.privacy_alert;
+                state.attention_tracking = legacy.attention_tracking;
+                Ok(state)
+            }
+            // The live HPD channel is unavailable. The persisted registry
+            // projection still describes the configured state, and it is
+            // labelled as such so a degraded read never looks like a live
+            // one.
+            Err(_) => Ok(legacy),
+        }
     }
 
     fn set_sense_feature(
@@ -276,6 +284,7 @@ pub struct NativeHpdStore;
 impl HpdSettingsStore for NativeHpdStore {
     fn read_state(&self) -> Result<SenseState> {
         Ok(SenseState {
+            source: Some("hpd-registry-store"),
             lock_on_leave: read_bool(HPD_KEY, "PresentLeave", BoolEncoding::Legacy01)?,
             leave_distance: read_u32(HPD_KEY, "LeaveDistance")?.and_then(SenseDistance::from_raw),
             leave_wait: read_u32(HPD_KEY, "LeaveWait")?.and_then(SenseWait::from_raw),

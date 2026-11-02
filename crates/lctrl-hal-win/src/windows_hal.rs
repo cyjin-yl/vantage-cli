@@ -438,6 +438,25 @@ where
                 Err(error) => Some(format!("GAMEZONE fan mode rejected: {error}")),
             },
         )?;
+        // Process telemetry and per-process policy control ride the public
+        // Win32 process APIs (ToolHelp32 enumeration, GetProcessTimes,
+        // SetPriorityClass, SetProcessAffinityMask, SetProcessWorkingSetSizeEx);
+        // no vendor service or driver is involved.
+        capabilities.record(
+            "perf.top",
+            Availability::Available,
+            Some("Win32 process enumeration with interval CPU sampling".into()),
+        )?;
+        capabilities.record(
+            "perf.boost",
+            Availability::Available,
+            Some("Win32 per-process priority policy with independent readback".into()),
+        )?;
+        capabilities.record(
+            "perf.throttle",
+            Availability::Available,
+            Some("Win32 per-process priority policy with independent readback".into()),
+        )?;
         capabilities.record(
             "power.scheme",
             Availability::Limited,
