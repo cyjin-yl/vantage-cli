@@ -163,10 +163,9 @@ where
             )?;
         }
 
-        let wmi_available = match active_instance(&self.wmi, "LENOVO_UTILITY_DATA") {
+        match active_instance(&self.wmi, "LENOVO_UTILITY_DATA") {
             Ok(_) => {
                 capabilities.record("channel.wmi.root", Availability::Available, None)?;
-                true
             }
             Err(error) => {
                 capabilities.record(
@@ -174,9 +173,8 @@ where
                     Availability::Unavailable,
                     Some(error.to_string()),
                 )?;
-                false
             }
-        };
+        }
         // Performance mode is driven through the OS power overlay scheme, not
         // through any vendor service. Only the three schemes Windows defines
         // are portable, so the feature is reported as limited rather than
