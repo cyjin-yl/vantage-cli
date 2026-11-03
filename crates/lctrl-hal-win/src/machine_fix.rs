@@ -16,7 +16,13 @@ use lctrl_hal::MachineFixControl;
 
 /// Service states (SERVICE_* constants).
 const SERVICE_STOPPED: u32 = 1;
+const SERVICE_START_PENDING: u32 = 2;
+const SERVICE_STOP_PENDING: u32 = 3;
 const SERVICE_RUNNING: u32 = 4;
+
+/// How long `await_terminal_state` waits for a pending service transition
+/// before reporting the last observed state as a verification mismatch.
+const STATE_SETTLE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 
 /// A transparent MachineFix backend over the Windows service control APIs.
 pub struct WindowsMachineFix {
@@ -128,9 +134,24 @@ impl MachineFixControl for WindowsMachineFix {
             });
         }
         apply_repair(&rule.repair)?;
-        let actual_state = service_status(&name)?;
+        let actual_state = await_terminal_state(&rule.repair)?;
         let actual = format!("service {name} state = {actual_state}");
-        require_readback(&rule.repair, actual_state)?;
+        if let Err(error) = require_readback(&rule.repair, actual_state) {
+            // The control request was issued but the service did not settle
+            // into the requested state. Apply the rule's declared rollback so
+            // the machine is not left with a change the command reported as
+            // failed; only surface the repair error when the rollback
+            // succeeded, and escalate when it could not be applied either.
+            return match apply_repair(&rule.rollback) {
+                Ok(()) => Err(error),
+                Err(rollback_error) => Err(LctrlError::ChannelUnavailable {
+                    channel: format!(
+                        "fix {issue_id} applied but could not be verified ({actual}) \
+                         and the declared rollback failed: {rollback_error}"
+                    ),
+                }),
+            };
+        }
         let entry = FixLedgerEntry {
             issue_id: rule.issue.id.clone(),
             applied_at_unix_ms: now_unix_ms(),
@@ -167,6 +188,29 @@ fn apply_repair(repair: &FixRepairKind) -> Result<()> {
     match repair {
         FixRepairKind::StartService { name } => start_service(name),
         FixRepairKind::StopService { name } => stop_service(name),
+    }
+}
+
+/// Poll the target service until it reaches the repair's expected terminal
+/// state or the settle timeout elapses. SERVICE_START_PENDING and
+/// SERVICE_STOP_PENDING are normal transitional states after a control
+/// request; a single read immediately after StartServiceW/ControlService
+/// routinely observes them and must not be treated as a verification
+/// failure.
+fn await_terminal_state(repair: &FixRepairKind) -> Result<u32> {
+    let expected = match repair {
+        FixRepairKind::StartService { .. } => SERVICE_RUNNING,
+        FixRepairKind::StopService { .. } => SERVICE_STOPPED,
+    };
+    let name = service_name(repair);
+    let deadline = std::time::Instant::now() + STATE_SETTLE_TIMEOUT;
+    loop {
+        let state = service_status(&name)?;
+        let pending = state == SERVICE_START_PENDING || state == SERVICE_STOP_PENDING;
+        if state == expected || !pending || std::time::Instant::now() >= deadline {
+            return Ok(state);
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
     }
 }
 
