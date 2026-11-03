@@ -832,6 +832,9 @@ fn evaluate_command(
             ObservedStatus::Unavailable
         }
         (DispatchSupport::Implemented, ServicePresence::Unexposed, _) => ObservedStatus::Unverified,
+        // A composite command whose service legs are partially present can
+        // still do verified work; it is limited, not unverified.
+        (DispatchSupport::Implemented, ServicePresence::Partial, _) => ObservedStatus::Limited,
         (DispatchSupport::Implemented, _service, FeaturePresence::Limited) => {
             ObservedStatus::Limited
         }
@@ -861,6 +864,7 @@ fn evaluate_command(
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ServicePresence {
     Present,
+    Partial,
     Unexposed,
 }
 
@@ -876,44 +880,102 @@ enum FeaturePresence {
 fn service_presence(binding: ServiceBinding, capabilities: &CapabilitySet) -> ServicePresence {
     match binding {
         ServiceBinding::Local => ServicePresence::Present,
-        ServiceBinding::One(role) => role_presence(&[role], capabilities),
-        ServiceBinding::AnyOf(roles) => role_presence(roles, capabilities),
-        ServiceBinding::Composite(roles) => role_presence(roles, capabilities),
+        ServiceBinding::One(role) => role_presence(&[role], RoleJoin::All, capabilities),
+        ServiceBinding::AnyOf(roles) => role_presence(roles, RoleJoin::Any, capabilities),
+        ServiceBinding::Composite(roles) => role_presence(roles, RoleJoin::All, capabilities),
         ServiceBinding::External | ServiceBinding::Unsupported => ServicePresence::Present,
     }
 }
 
-fn role_presence(roles: &[ServiceRole], capabilities: &CapabilitySet) -> ServicePresence {
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RoleJoin {
+    Any,
+    All,
+}
+
+/// The capability record that proves a service role's transport works at
+/// probe time. Each entry is recorded by `windows_hal` from a live
+/// read-only probe; a role with no probe stays honestly unexposed rather
+/// than being assumed present.
+fn role_channel(role: ServiceRole) -> Option<&'static str> {
+    match role {
+        ServiceRole::Battery => Some("channel.battery"),
+        ServiceRole::Bios => Some("channel.bios"),
+        ServiceRole::Diagnostics => Some("channel.diagnostics"),
+        ServiceRole::Fan => Some("channel.fan"),
+        ServiceRole::Hotkey => Some("channel.hotkey"),
+        ServiceRole::MagicBay => Some("channel.magicbay"),
+        ServiceRole::MachineFix => Some("channel.machinefix"),
+        ServiceRole::Osd => Some("channel.osd"),
+        ServiceRole::Panel => Some("channel.panel"),
+        ServiceRole::PanelBrightness => Some("channel.panel-brightness"),
+        ServiceRole::Performance => Some("channel.performance"),
+        ServiceRole::Power => Some("channel.power"),
+        ServiceRole::Privacy => Some("channel.privacy-runtime"),
+        ServiceRole::Process => Some("channel.process"),
+        ServiceRole::ProcessorPower => Some("channel.processor-power"),
+        ServiceRole::Audio => Some("channel.audio"),
+        ServiceRole::ScenePolicy => Some("channel.scene"),
+        ServiceRole::Sense => Some("channel.hpd-rpc"),
+        ServiceRole::Temperature => Some("channel.temperature"),
+        ServiceRole::Touchpad => Some("channel.touchpad"),
+        ServiceRole::Tuning => Some("channel.tuning"),
+        ServiceRole::Update => Some("channel.update-local"),
+        ServiceRole::Usb => Some("channel.usb"),
+        ServiceRole::Wifi => Some("channel.wifi"),
+        _ => None,
+    }
+}
+
+fn role_present(role: ServiceRole, capabilities: &CapabilitySet) -> ServicePresence {
+    if role == ServiceRole::Hal {
+        return ServicePresence::Present;
+    }
+    match role_channel(role).and_then(|name| capabilities.get(name)) {
+        Some(capability) => match capability.availability {
+            lctrl_core::Availability::Available | lctrl_core::Availability::Limited => {
+                ServicePresence::Present
+            }
+            lctrl_core::Availability::Unavailable => ServicePresence::Unexposed,
+        },
+        None => ServicePresence::Unexposed,
+    }
+}
+
+fn role_presence(
+    roles: &[ServiceRole],
+    join: RoleJoin,
+    capabilities: &CapabilitySet,
+) -> ServicePresence {
     // The current evaluator receives only the root HAL, not the composition
     // root's optional service attachments. Never infer that a hardware
     // service is attached merely because a capability name exists.
-    // A role whose transport was independently proven at probe time is
-    // present: the HPD RPC channel (SmartSense) read live at capability
-    // time, so ServiceRole::Sense is attached when channel.hpd-rpc is.
-    if roles.contains(&ServiceRole::Sense) {
-        if let Some(channel) = capabilities.get("channel.hpd-rpc") {
-            return match channel.availability {
-                lctrl_core::Availability::Available | lctrl_core::Availability::Limited => {
-                    ServicePresence::Present
-                }
-                lctrl_core::Availability::Unavailable => ServicePresence::Unexposed,
-            };
+    // A role is present when the channel recorded for it was proven live at
+    // probe time; `AnyOf` needs one present role, `Composite` needs all.
+    match join {
+        RoleJoin::Any => {
+            if roles
+                .iter()
+                .any(|role| role_present(*role, capabilities) == ServicePresence::Present)
+            {
+                ServicePresence::Present
+            } else {
+                ServicePresence::Unexposed
+            }
         }
-    }
-    if roles.contains(&ServiceRole::Privacy) {
-        if let Some(channel) = capabilities.get("channel.privacy-runtime") {
-            return match channel.availability {
-                lctrl_core::Availability::Available | lctrl_core::Availability::Limited => {
-                    ServicePresence::Present
-                }
-                lctrl_core::Availability::Unavailable => ServicePresence::Unexposed,
-            };
+        RoleJoin::All => {
+            let present = roles
+                .iter()
+                .filter(|role| role_present(**role, capabilities) == ServicePresence::Present)
+                .count();
+            if !roles.is_empty() && present == roles.len() {
+                ServicePresence::Present
+            } else if present > 0 {
+                ServicePresence::Partial
+            } else {
+                ServicePresence::Unexposed
+            }
         }
-    }
-    if !roles.is_empty() && roles.iter().all(|role| *role == ServiceRole::Hal) {
-        ServicePresence::Present
-    } else {
-        ServicePresence::Unexposed
     }
 }
 
@@ -952,10 +1014,13 @@ fn feature_presence(
         }
         FeatureBinding::Dynamic(features) => {
             let mut available = 0;
+            let mut unavailable = 0;
             for feature in features {
                 match capability_presence(feature, capabilities) {
                     FeaturePresence::Available | FeaturePresence::Limited => available += 1,
-                    FeaturePresence::Unavailable | FeaturePresence::Unsupported => continue,
+                    FeaturePresence::Unavailable | FeaturePresence::Unsupported => {
+                        unavailable += 1;
+                    }
                     FeaturePresence::Unverified => continue,
                 }
             }
@@ -963,6 +1028,10 @@ fn feature_presence(
                 FeaturePresence::Available
             } else if available > 0 {
                 FeaturePresence::Limited
+            } else if unavailable == features.len() && !features.is_empty() {
+                // Every leg of a dynamic binding is proven dead; that is
+                // unavailable, not merely unverified.
+                FeaturePresence::Unavailable
             } else {
                 FeaturePresence::Unverified
             }
