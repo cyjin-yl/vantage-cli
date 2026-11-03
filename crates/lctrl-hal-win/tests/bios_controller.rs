@@ -34,7 +34,7 @@ impl FakeWmi {
 }
 
 impl WmiTransport for FakeWmi {
-    fn bios_staging_isolation_verified(&self) -> bool {
+    fn bios_staging_contract_verified(&self) -> bool {
         true
     }
 

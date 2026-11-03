@@ -106,7 +106,7 @@ impl FakeBios {
 }
 
 impl BiosControl for FakeBios {
-    fn require_owned_staging(&self) -> lctrl_core::Result<()> {
+    fn require_staging_contract(&self) -> lctrl_core::Result<()> {
         Ok(())
     }
 

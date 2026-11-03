@@ -80,16 +80,16 @@ where
     fn capabilities(&self) -> Result<CapabilitySet> {
         let mut capabilities = CapabilitySet::new(Platform::Windows);
 
-        let staging_isolated = self.wmi.bios_staging_isolation_verified();
+        let staging_verified = self.wmi.bios_staging_contract_verified();
         capabilities.record(
-            "bios.staging.owned",
-            if staging_isolated {
+            "bios.staging.contract",
+            if staging_verified {
                 Availability::Available
             } else {
                 Availability::Unavailable
             },
-            (!staging_isolated)
-                .then(|| "BIOS staging-buffer ownership and isolation are unverified".into()),
+            (!staging_verified)
+                .then(|| "BIOS staging-buffer ownership contract is unverified".into()),
         )?;
 
         let wmi_available = match active_instance(&self.wmi, "LENOVO_UTILITY_DATA") {
