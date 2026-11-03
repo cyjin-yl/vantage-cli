@@ -2046,9 +2046,7 @@ fn restore_performance_mode(
     // and on this model fails when optional registry values are absent.
     let restored = performance.set_performance_mode(previous, ApplyMode::Commit)?;
     match restored.actual() {
-        Some(actual) if *actual == previous => {
-            Ok(format!("restored performance mode: {previous}"))
-        }
+        Some(actual) if *actual == previous => Ok(format!("restored performance mode: {previous}")),
         actual => Err(LctrlError::FirmwareRejected {
             detail: format!(
                 "performance-mode restore mismatch: expected {previous}, actual {actual:?}"
