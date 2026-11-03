@@ -1,7 +1,6 @@
 # 09 · Linux 后端映射规范 (Linux Backend Mapping)
 
-> 读者:**实现者**(用 Rust 实现 Linux 后端的工程师 / 模型)。
-> 作者:接口规格组。
+> 读者:Linux 后端实现者。
 > 状态:v1 · 2026-08-27。
 > 目标硬件:Lenovo ThinkBook 21VG (Panther Lake), `ACPI\VPC2004`。
 > 参考上游:Linux 内核 `drivers/platform/x86/ideapad-laptop.c`、
@@ -31,7 +30,7 @@ Linux 后端走三条路径,优先级由高到低:
 | 2 | `acpi_call` / `acpi_osi` 或 `devmem` / `_DSM` 调用 | 内核驱动尚未暴露的 WMI 方法 | 未映射的 WMI 方法 / `Lenovo_BiosSetting` |
 | 3 | 通用 Linux 栈(UPower、DRM、ALSA、libinput、ModemManager、thermald) | 面板/电源方案/音频/网络/摄像头/LTE | `LenovoProcessManagement` / WMI `Win32_*` |
 
-**核心判断**:`EnergyDrv` 和 `LenovoProcessManagement` 是 **Lenovo 私有闭源栈**,
+**核心判断**:`EnergyDrv` 和 `LenovoProcessManagement` 是 **Lenovo 自有闭源栈**,
 Linux 上**不存在对等物**。它们的**功能**可以等价实现(读/写 EC 寄存器、
 控制热/功耗策略),但**通道**必须替换。
 
@@ -39,27 +38,27 @@ Linux 上**不存在对等物**。它们的**功能**可以等价实现(读/写 
 
 | 02 文档(电源电池) | Linux 覆盖 | 主要通道 |
 |---|---|---|
-| 充电阈值 / 养护模式 (Storage / Conservation) | ✅ 原生 | `sysfs-platform-ideapad-laptop:conservation_mode` |
-| 快充 (Express) | ⚠️ 部分 | `ideapad` 6.12+ 增加 `fast_charge`(见 §3 内核补丁点) |
-| 夜间充电 / 定时 | ⚠️ 需要实现者自研 daemon + systemd timer | — |
-| 电池信息 (容量/循环/健康) | ✅ 原生 | `/sys/class/power_supply/BAT0/*` |
-| 电源计划切换 (节能/平衡/高性能) | ✅ 原生 | `intel_pstate/energy_performance_preference` + `upower --daemon-mode` |
+| 充电阈值 / 养护模式 (Storage / Conservation) | 原生 | `sysfs-platform-ideapad-laptop:conservation_mode` |
+| 快充 (Express) | 部分 | `ideapad` 6.12+ 增加 `fast_charge`(见 §3 内核补丁点) |
+| 夜间充电 / 定时 | 部分 需自研 daemon + systemd timer | — |
+| 电池信息 (容量/循环/健康) | 原生 | `/sys/class/power_supply/BAT0/*` |
+| 电源计划切换 (节能/平衡/高性能) | 原生 | `intel_pstate/energy_performance_preference` + `upower --daemon-mode` |
 | 03 文档(热性能) | | |
-| 智能冷却 / 野兽 / 节能 (ITS / Dispatcher) | ⚠️ 语义替代 | `intel_pstate` + `thermald` 联合(§5) |
-| 风扇曲线 | ⚠️ 部分 | `hwmon fan_*` / `fan_pwm` (`ideapad` 6.13+ 暴露) |
-| GPU TDP / CPU PL1 PL2 | ✅ 原生 | `intel_rapl`、`energy_perf_bias`、`RAPL` sysfs |
-| Smart Fan Mode | ❌ 缺失 | 需 `acpi_call` 直调 VPC2004 `_DSM` |
+| 智能冷却 / 野兽 / 节能 (ITS / Dispatcher) | 部分 语义替代 | `intel_pstate` + `thermald` 联合(§5) |
+| 风扇曲线 | 部分 | `hwmon fan_*` / `fan_pwm` (`ideapad` 6.13+ 暴露) |
+| GPU TDP / CPU PL1 PL2 | 原生 | `intel_rapl`、`energy_perf_bias`、`RAPL` sysfs |
+| Smart Fan Mode | 缺失 | 需 `acpi_call` 直调 VPC2004 `_DSM` |
 | 04 文档(外设) | | |
-| 键盘背光 | ✅ 原生 | `ideapad:kbd_backlight` / `sysfs-class-led` |
-| Fn/Ctrl 互换 / F1-F12 主功能 | ⚠️ 部分 | 无 sysfs,需 `acpi_call` + EC register 写(§4.5) |
-| Win 键锁定 / 触控板开关 | ✅ 原生 | `ideapad:touchpad` / `input` 层 + `xinput` |
-| 摄像头 / 麦克风隐私开关 | ✅ 原生 | `ideapad:camera_power` / `udev` |
-| 面板刷新率 (60/120) | ✅ 原生 | DRM `mode` (见 §6) |
-| SmartColor / 护眼 / PIP / HDR | ⚠️ 部分 | DRM `ctm/gamma` + 用户态;PIP/MPRT 无原生 |
-| 智能感知 (SmartSense / IDEA2002) | ❌ 缺失 | 无内核驱动,需 `acpi_call` + IR 摄像头 uvcvideo |
-| 05 文档(BIOS 设置) | ❌ 缺失 | 需要 `acpi_call` + 逐方法映射,或内核补丁(§4) |
-| 06 文档(MagicBay) | ✅ 原生 | ModemManager + v4l2 + DRM(§7) |
-| 07 文档(Panther Lake) | ⚠️ 部分 | `intel_lpmd` / `thermald` / `intel_pstate` 替代 DPTF |
+| 键盘背光 | 原生 | `ideapad:kbd_backlight` / `sysfs-class-led` |
+| Fn/Ctrl 互换 / F1-F12 主功能 | 部分 | 无 sysfs,需 `acpi_call` + EC register 写(§4.5) |
+| Win 键锁定 / 触控板开关 | 原生 | `ideapad:touchpad` / `input` 层 + `xinput` |
+| 摄像头 / 麦克风隐私开关 | 原生 | `ideapad:camera_power` / `udev` |
+| 面板刷新率 (60/120) | 原生 | DRM `mode` (见 §6) |
+| SmartColor / 护眼 / PIP / HDR | 部分 | DRM `ctm/gamma` + 用户态;PIP/MPRT 无原生 |
+| 智能感知 (SmartSense / IDEA2002) | 缺失 | 无内核驱动,需 `acpi_call` + IR 摄像头 uvcvideo |
+| 05 文档(BIOS 设置) | 缺失 | 需要 `acpi_call` + 逐方法映射,或内核补丁(§4) |
+| 06 文档(MagicBay) | 原生 | ModemManager + v4l2 + DRM(§7) |
+| 07 文档(Panther Lake) | 部分 | `intel_lpmd` / `thermald` / `intel_pstate` 替代 DPTF |
 
 **关键事实**:除 Smart Fan、BIOS WMI 设置类、SmartEngine AI 场景引擎外,
 **Windows 端的绝大部分硬件控制功能在 Linux 上都有原生或近似对等的 sysfs/内核 API**,
@@ -93,37 +92,37 @@ Linux 后端的**大多数节点默认 `root:root 0644` 或 `root:root 0444`**,
 | 快充 (Express / Rapid) | `IOCTL_ENERGYDRV_EXPRESS_OPEN/CLOSE` | `sysfs-platform-ideapad-laptop/fast_charge`(6.12+) | 6.12 (合入主线待确认) | §3.2 |
 | 电池基本信息 | WMI `BATTERY_INFORMATION` | `/sys/class/power_supply/BAT0/*` | 2.6 | §3.3 |
 | 电池设计/剩余/循环 | WMI `Lenovo_BatteryInformation` | `power_supply` sysfs + SMBus(无循环数) | 2.6 | §3.3 |
-| 电池养护 80% | WMI + EC 命令 | ⚠️ 需 acpi_call | — | §3.4 |
+| 电池养护 80% | WMI + EC 命令 | 部分 需 acpi_call | — | §3.4 |
 | 性能模式 Intelligent/Cool/Performance/Geek | `ControlService(SERVICE_CONTROL_SET_*)` → `LenovoProcessManagement` | `intel_pstate/energy_performance_preference` + `thermald` 策略 | 5.8 (EPP) | §5 |
 | 风扇模式 (Quiet/Balanced/Max) | `LENOVO_GAMEZONE_DATA.SetFanCooling` | `hwmon/fan_mode` (6.13+) 或 `acpi_call` | 6.13 (fan_mode) | §5.2 |
 | 风扇转速曲线 (8 段) | `LENOVO_GAMEZONE_DATA.SetSmartFanMode` | `hwmon/fan_pwm` / `fan_min_enable` / `acpi_call` | 6.13 (pwm) | §5.2 |
-| Smart Fan 状态 | `LENOVO_GAMEZONE_DATA.SetSmartFanStatus/StartFan/StopFan` | ❌ `acpi_call` 直调 VPC2004 `_DSM`(见 §4.2) | — | §4.2 |
+| Smart Fan 状态 | `LENOVO_GAMEZONE_DATA.SetSmartFanStatus/StartFan/StopFan` | 需 `acpi_call` 直调 VPC2004 `_DSM`(见 §4.2) | — | §4.2 |
 | CPU 温度 | `LENOVO_GAMEZONE_DATA.GetCPUTemp` | `hwmon/temp1_input` (ideapad 自带) + `coretemp` | 5.13 | §5.2 |
 | GPU 温度 | `LENOVO_GAMEZONE_DATA.GetGPUTemp` | `hwmon/temp2_input` 或 `nvme_temp` | 5.13 | §5.2 |
 | CPU 频率 | `LENOVO_GAMEZONE_DATA.GetCpuFrequency` | `/sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq` | 2.6 | §5.3 |
 | CPU 功耗限制 PL1/PL2 | WMI `Intel_ME` + `LenovoIPF` | `intel_rapl` + `energy_perf_bias` | 5.9 (RAPL 3.0) | §5.4 |
-| GPU TDP | DPTF `SetGpuTDPWithSMFAN_DT` | ❌ 无直接写入(见 §5.5) | — | §5.5 |
+| GPU TDP | DPTF `SetGpuTDPWithSMFAN_DT` | 缺失 无直接写入(见 §5.5) | — | §5.5 |
 | 键盘背光 (三级/动态) | `LENOVO_LIGHTING_METHOD.Set_Lighting_Current_Status` | `leds/laptop:kbd_backlight/brightness` 或 `ideapad/kbd_backlight` | 4.10 | §6.1 |
-| Fn/Ctrl 互换 | `Lenovo_SetBiosSetting("FoolProofFnCtrl,Enable")` | ❌ 需 acpi_call 写 EC 寄存器,或内核补丁(§4.5) | — | §4.5 |
-| F1-F12 主功能 | `Lenovo_SetBiosSetting("F1-F12AsPrimaryFunction,Enable")` | ❌ 同 Fn/Ctrl | — | §4.5 |
-| Win 键锁定 | `LENOVO_GAMEZONE_DATA.SetWinKeyStatus` | ❌ 需 acpi_call(§4.3) | — | §4.3 |
+| Fn/Ctrl 互换 | `Lenovo_SetBiosSetting("FoolProofFnCtrl,Enable")` | 缺失 需 acpi_call 写 EC 寄存器,或内核补丁(§4.5) | — | §4.5 |
+| F1-F12 主功能 | `Lenovo_SetBiosSetting("F1-F12AsPrimaryFunction,Enable")` | 缺失 同 Fn/Ctrl | — | §4.5 |
+| Win 键锁定 | `LENOVO_GAMEZONE_DATA.SetWinKeyStatus` | 缺失 需 acpi_call(§4.3) | — | §4.3 |
 | 触控板开关 | `LENOVO_GAMEZONE_DATA.SetTPStatus` | `ideapad/touchpad`(0/1) | 5.13 | §6.2 |
 | 摄像头开关 | `Lenovo_SetBiosSetting("IntegratedCamera,Enable")` | `ideapad/camera_power`(0/1) | 5.13 | §6.3 |
-| 麦克风开关 | `Lenovo_SetBiosSetting("Microphone,Enable")` | ❌ acpi_call(§4.4) 或物理 `input` 键 | — | §4.4 |
-| 指纹 | `Lenovo_SetBiosSetting("FingerprintReader,Enable")` | ✅ `fprintd` 用户态 + `/dev/uaccess` | 5.9 | §6.4 |
+| 麦克风开关 | `Lenovo_SetBiosSetting("Microphone,Enable")` | 缺失 acpi_call(§4.4) 或物理 `input` 键 | — | §4.4 |
+| 指纹 | `Lenovo_SetBiosSetting("FingerprintReader,Enable")` | 原生 `fprintd` 用户态 + `/dev/uaccess` | 5.9 | §6.4 |
 | 面板刷新率 | `LENОВО_PANEL_METHOD.Panel_Set_RefreshRate` | DRM `drm_mode_setcrtc` / `modetest` | 3.6 | §6.5 |
 | SmartColor / 色温 | `LENОВО_PANEL_METHOD.Panel_Set_Display_Mode` | DRM `ctm/gamma` + `icc` 用户态 | 5.10 | §6.6 |
 | HDR | `LENОВО_PANEL_METHOD.Panel_Set_HDR` | DRM `hdr_output_metadata` / `hdr_sink_metadata` | 5.10 | §6.6 |
-| 智能感应 (SmartSense / HPD) | 自有 rpcrt4 HPD client + `ACPI\IDEA2002` 驱动服务端 | ❌ 无已验证的等价事件/设置通道(§4.6) | — | §4.6 |
-| BIOS 设置读写 | `Lenovo_SetBiosSetting` / `Lenovo_BiosSetting` | ❌ 全部需 `acpi_call` 直调 `_WMI` / `_DSM`(§4) | — | §4 |
+| 智能感应 (SmartSense / HPD) | 自有 rpcrt4 HPD client + `ACPI\IDEA2002` 驱动服务端 | 缺失 无已验证的等价事件/设置通道(§4.6) | — | §4.6 |
+| BIOS 设置读写 | `Lenovo_SetBiosSetting` / `Lenovo_BiosSetting` | 缺失 全部需 `acpi_call` 直调 `_WMI` / `_DSM`(§4) | — | §4 |
 | 电源计划切换 (节能/平衡/高性能) | `PowerSetActiveScheme` | UPower `daemon-mode` + `intel_pstate` | 5.8 | §5 |
 | MBIM (LTE) | Windows MBN + `cxwmbclass` | ModemManager + libmbim | 5.10 | §7.1 |
 | UVC 摄像头 | Windows WDF + `usbvideo` | `v4l2` + `libcamera` | 3.6 | §7.2 |
 | 扩展屏 (MagicBay) | `ufxchipidea.inf` + eDP | DRM `drm_bridge` + `intel_dp_aux` | 5.10 | §7.3 |
 | 通知推送 (WMI event) | `LENОВО_*_EVENT` 订阅 | inotify sysfs + `udev` netlink + D-Bus | — | §9 |
 
-**图例**:`✅ 原生` = 内核主线已有稳定 sysfs 节点;`⚠️ 部分` =
-有节点但覆盖不完全,可能需要 daemon/用户态补偿;`❌` =
+**图例**:`原生` = 内核主线已有稳定 sysfs 节点;`部分` =
+有节点但覆盖不完全,可能需要 daemon/用户态补偿;`缺失` =
 内核主线缺失,需 `acpi_call` 或内核补丁。
 
 ---
@@ -137,10 +136,10 @@ Linux 后端的**大多数节点默认 `root:root 0644` 或 `root:root 0444`**,
 
 **匹配设备**:`ACPI_ID("LEN0068")` —— 注意这里**不是** `VPC2004`。
 `VPC2004` 是 Windows 侧的"虚拟电源控制器",Linux 内核通过 `LEN0068`
-这个 Lenovo 专有的 ACPI 设备 ID 匹配,内部通过
+这个 Lenovo 自有的 ACPI 设备 ID 匹配,内部通过
 `_SB.PCI0.LPC0.EC0` 或 `_SB.AMC0` 的 `_DSM` 方法访问 EC。
 
-**证据**:`Lenovo 驱动组件内部接口说明` 记录了 Windows 侧 `VPC2004` 设备的
+**证据**:`官方组件接口说明` 记录了 Windows 侧 `VPC2004` 设备的
 DeviceObject 与 `\Device\EnergyDrv`,以及驱动内部通过
 `IoBuildDeviceIoControlRequest(0x0032C004, ...)` 向 ACPI HAL 下发
 `VPCR`/`VPCW` 命令。Linux 侧 `ideapad-laptop` 走的是**同一个 EC 硬件寄存器面**
@@ -197,27 +196,27 @@ DeviceObject 与 `\Device\EnergyDrv`,以及驱动内部通过
 
 Windows 侧每个 WMI `LENOVO_*` 类对应 `VPC2004` 上的一个 WMI GUID;
 Linux 侧 `ideapad-laptop` 通过 `acpi_evaluate_dsm(device, uuid, rev, method_id, ...)`
-调用**同一批 EC 方法**。下表列出分析得到的方法号(数值可能随 BIOS 版本变化,
+调用**同一批 EC 方法**。下表列出方法号(数值可能随 BIOS 版本变化,
 目标机 21VG 以 6.12 内核为主):
 
 | WMI 语义 (Windows) | `_DSM` method_id | 输入参数 | 返回值 | Linux 是否原生 |
 |---|---|---|---|---|
-| Conservation Mode (Storage) | 0x01 | 0/1 (bool) | 0=ok | ✅ `conservation_mode` |
-| Express Charge (快充) | 0x02 [推断] | 0/1 (bool) | 0=ok | ⚠️ `fast_charge` 6.12+ |
-| Fan Mode (quiet/balanced/max) | 0x0A [推断] | 0/1/2 (enum) | 0=ok | ✅ `fan_mode` 6.13+ |
-| Fan Level (手动) | 0x0B [推断] | 0..7 (uint) | 0=ok | ✅ `fan_pwm` 6.13+ |
-| Fan Cooling Status | 0x0C [推断] | 0/1 (bool) | 0=ok | ⚠️ `acpi_call` 兜底 |
-| 电池设计容量读 | 0x10 | 无 | _BST 结构 | ✅ 经 `_BST` |
-| 电池实时状态 | 0x11 | 无 | _BST 结构 | ✅ 经 `_BST` |
-| 键盘背光 | 0x20 [推断] | 0..N (uint) | 0=ok | ✅ `kbd_backlight` |
-| 触控板开关 | 0x30 [推断] | 0/1 (bool) | 0=ok | ✅ `touchpad` |
-| 摄像头电源 | 0x40 [推断] | 0/1 (bool) | 0=ok | ✅ `camera_power` |
-| Win 键锁定 | 0x50 [推断] | 0/1 (bool) | 0=ok | ❌ acpi_call |
-| 热模式 (0-4) | 0x60 [推断] | 0..4 (uint) | 0=ok | ✅ `thermal_mode` 6.13+ |
+| Conservation Mode (Storage) | 0x01 | 0/1 (bool) | 0=ok | 原生 `conservation_mode` |
+| Express Charge (快充) | 0x02 [推断] | 0/1 (bool) | 0=ok | 部分 `fast_charge` 6.12+ |
+| Fan Mode (quiet/balanced/max) | 0x0A [推断] | 0/1/2 (enum) | 0=ok | 原生 `fan_mode` 6.13+ |
+| Fan Level (手动) | 0x0B [推断] | 0..7 (uint) | 0=ok | 原生 `fan_pwm` 6.13+ |
+| Fan Cooling Status | 0x0C [推断] | 0/1 (bool) | 0=ok | 部分 `acpi_call` 兜底 |
+| 电池设计容量读 | 0x10 | 无 | _BST 结构 | 经 `_BST` |
+| 电池实时状态 | 0x11 | 无 | _BST 结构 | 经 `_BST` |
+| 键盘背光 | 0x20 [推断] | 0..N (uint) | 0=ok | 原生 `kbd_backlight` |
+| 触控板开关 | 0x30 [推断] | 0/1 (bool) | 0=ok | 原生 `touchpad` |
+| 摄像头电源 | 0x40 [推断] | 0/1 (bool) | 0=ok | 原生 `camera_power` |
+| Win 键锁定 | 0x50 [推断] | 0/1 (bool) | 0=ok | 缺失 acpi_call |
+| 热模式 (0-4) | 0x60 [推断] | 0..4 (uint) | 0=ok | 原生 `thermal_mode` 6.13+ |
 
 **重要**:以上方法号**除 Conservation 模式外**未在主线内核源码中显式出现(
-内核用 magic 数组而非宏名);标注 `[推断]` 者来自 EC opregion 字段偏移分析
-(见 `Lenovo 驱动组件内部接口说明 Phase 状态机`)。
+内核用 magic 数组而非宏名);标注 `[推断]` 者来自 EC opregion 字段偏移
+(见 `官方组件接口说明 Phase 状态机`)。
 实现者如需精确方法号,应通过 `/sys/kernel/debug/acpi/` 下
 `VPC2004` 的 `_DSM` 调用 + `ktrace` 或
 `echo "method(_SB.PCI0.LPC0.EC0 _DSM 0x01)" | acpi_call` 来实测。
@@ -225,7 +224,7 @@ Linux 侧 `ideapad-laptop` 通过 `acpi_evaluate_dsm(device, uuid, rev, method_i
 ### 3.4 充电模式详细映射
 
 **Windows 侧**:`BatteryChargeModeType` 枚举三态
-(`Normal=0` / `Storage=1` / `Quick=2`),见 `Vantage 电源组件内部接口说明`。
+(`Normal=0` / `Storage=1` / `Quick=2`),见 `官方组件接口说明`。
 
 **Linux 侧**:两个独立 sysfs 节点,语义等价但需要用户态做互斥逻辑:
 
@@ -236,7 +235,7 @@ Quick   = conservation_mode=0 AND fast_charge=1
 ```
 
 实现者在 Rust 侧应实现如下状态机,与 Windows 端行为严格一致
-(见 `Vantage 电源组件内部接口说明`):
+(见 `官方组件接口说明`):
 
 ```
 [Normal] ──► Set conservation_mode=1, fast_charge=0        → [Storage]
@@ -249,7 +248,7 @@ Quick   = conservation_mode=0 AND fast_charge=1
 Linux 侧直接 `stat()` 检查 `/sys/devices/platform/ideapad/conservation_mode`
 是否存在即可。`fast_charge` 同理。
 
-**证据**:`Vantage 电源组件内部接口说明` + `Lenovo 驱动组件内部接口说明` (Phase 0/1/2
+**证据**:`官方组件接口说明` + `官方组件接口说明` (Phase 0/1/2
 分别对应读电池电压/充电状态/设计容量)。
 
 ### 3.5 未映射功能 — 需要 acpi_call 直调
@@ -268,14 +267,14 @@ Linux 侧直接 `stat()` 检查 `/sys/devices/platform/ideapad/conservation_mode
 | `LENОВО_PANEL_METHOD.Panel_Set_Display_Mode` | VPC2004 `_DSM` 显示域 [推断] | `\_SB.AMC0` |
 | `LENOVO_UTILITY_DATA.SetFeatureEx(IDs, Value)` | `_WMI` 通用方法 | `\_SB.PCI0.LPC0.EC0` |
 
-**EC register 布局**是 Lenovo 内部细节,经分析得到目标机 21VG 的关键字节
-(见 `Lenovo 驱动组件内部接口说明`,从 Phase 状态机推断):
+**EC register 布局**是 Lenovo 内部细节,目标机 21VG 的关键字节
+(见 `官方组件接口说明`,从 Phase 状态机推断):
 
 - 电池设计容量:偏移 `0x104`,长度 0x18
 - 充电状态:偏移 `0x104`,字段 `FA`/`FB` 各 1 byte
 - 快充/Storage 状态:通过 `_DSM` 方法号读写,不直接读写寄存器
 
-**证据**:`Lenovo 驱动组件内部接口说明 Phase 状态机` — 内核 `ideapad-laptop`
+**证据**:`官方组件接口说明 Phase 状态机` — 内核 `ideapad-laptop`
 用 `acpi_evaluate_dsm` 完成这些调用,只是把"支持的方法列表"作为 magic 数组
 硬编码在驱动里,而不是用显式 UUID。
 
@@ -364,7 +363,7 @@ echo "\_SB.PCI0.LPC0.EC0.H_EC(0x4A, 0x00, 0x3C)" | sudo tee /dev/acpi_call
 
 **F1-F12 主功能**类似,操作 EC 寄存器 0x4A 位 6 (`0x40` 掩码)。
 
-**⚠️ 重要**:`H_EC` 方法是**整字节写**,不是位写;写之前必须读当前值做 OR。
+**注意**:`H_EC` 方法是**整字节写**,不是位写;写之前必须读当前值做 OR。
 Windows 侧 `SetBiosSetting` 内部通过 WMI UUID 分派到 ACPI,也是整字节写。
 
 ### 4.6 智能感应 (SmartSense / `ACPI\IDEA2002`) — 缺失功能
@@ -377,18 +376,18 @@ Linux 侧:
 
 - **IR 摄像头视频流**:`uvcvideo` 已支持 IR camera(`/dev/videoN`),
   `v4l2-ctl --list-formats` 应能看到 `V4L2_PIX_FMT_NV12` 或 `V4L2_PIX_FMT_Y10I`。
-- **接近检测事件**:❌ Linux 没有 WMI 对等,
+- **接近检测事件**:缺失,Linux 没有 WMI 对等,
   需自行轮询 IR 帧像素统计(帧亮度方差)或用 `gphoto2` 类工具。
 - **自动亮屏/锁屏**:通过 `logind` `HandleLidSwitch` + 用户态 daemon 替代。
 
 **证据**:Windows 侧 `ACPI\IDEA2002` 设备实例与
-[恢复的 HPD RPC 契约](evidence/hpd-rpc-re-20261102.md)。Linux 上的 IR 帧分析/锁屏策略
+[恢复的 HPD RPC 契约](evidence/hpd-rpc-re-20261102.md)。Linux 上的 IR 帧/锁屏策略
 只是可能的替代设计,不是已恢复的等价 HPD 设置或传感器事件实现。
 
 ### 4.7 Smart Fan 控制 — 完整风扇曲线的 Linux 实现
 
 Windows 侧:通过 `LENOVO_GAMEZONE_DATA.SetSmartFanStatus` + `StartFan`/`StopFan`
-控制 8 段温度-转速曲线(见 `电脑管家电源组件内部接口说明`)。
+控制 8 段温度-转速曲线(见 `官方组件接口说明`)。
 
 Linux 侧**分两步**:
 
@@ -492,7 +491,7 @@ CLI 工具 `vantage` 应先探测 EPP 可用性,只在老内核(< 5.8)回退到 
 
 **Windows 语义对应**:
 - Windows:通过 DPTF `Msvm_ThermalZone` 或 `LenovoIPF` 修改 DPTF Power Participant
-  的 `PPowerLimit`/`PThermalLimit`(见 `电脑管家电源组件内部接口说明(C)`)。
+  的 `PPowerLimit`/`PThermalLimit`(见 `官方组件接口说明(C)`)。
 - Linux:`constraint_0_max_power_uw` 对应 PL1,`constraint_1_max_power_uw` 对应 PL2。
 
 **写入示例**:
@@ -508,7 +507,7 @@ echo 12000000 | sudo tee /sys/class/powercap/intel-rapl/intel-rapl:0/constraint_
 
 ### 5.4 DPTF 在 Linux 上的替代 — `intel_lpmd` + `thermald`
 
-**现状**:Intel DPTF (Dynamic Power and Thermal Framework) 是 Windows 专有闭源栈
+**现状**:Intel DPTF (Dynamic Power and Thermal Framework) 是 Windows 厂商闭源栈
 (`dptftcs.exe` 服务 + `ipf_acpi` 内核驱动 + `LenovoIPF.dll` 用户态)。
 Linux 上**没有官方 DPTF 移植**。
 
@@ -532,7 +531,7 @@ Linux 上**没有官方 DPTF 移植**。
 **替代方案 C — 用户态调度器(Rust 侧)**:
 
 实现者可以在 `vantage` daemon 中实现一个**轻量级调度器**,替代
-`LenovoProcessManagement` 的进程级策略(见 `Lenovo 系统服务组件内部接口说明`):
+`LenovoProcessManagement` 的进程级策略(见 `官方组件接口说明`):
 
 1. 轮询 `getpidforwindow(GetForegroundWindow)` 的 Linux 对等:
    `xdotool getactivewindow getwindowpid` 或 `wlr-util` / `swaymsg`。
@@ -543,7 +542,7 @@ Linux 上**没有官方 DPTF 移植**。
 ### 5.5 GPU TDP 直写 — 缺失功能
 
 **现状**:Windows 侧通过 DPTF `SetGpuTDPWithSMFAN_DT` 直接写 GPU 功耗上限
-(见 `电脑管家电源组件内部接口说明(B)`)。Linux 侧:
+(见 `官方组件接口说明(B)`)。Linux 侧:
 
 - **iGPU (Panther Lake 集成)**:RAPL `PP0` domain 的 `constraint_0_max_power_uw`
   可以写,但这写的是**GPU 功耗上限**,不是 TDP 曲线。
@@ -650,11 +649,11 @@ modetest -M i915 -s 0@1  # 假设主屏是 connector 0, crtc 1
 - **HDR**:DRM 5.10+ 支持 `hdr_output_metadata`/`hdr_sink_metadata`,
   需要显示器支持 HDR10 + GPU 支持。
 
-**PIP (画中画)**:❌ 无原生支持。Windows 侧通过 `LENОВО_PANEL_METHOD.Panel_Get_PIP_Info/Set`
+**PIP (画中画)**:缺失 无原生支持。Windows 侧通过 `LENОВО_PANEL_METHOD.Panel_Get_PIP_Info/Set`
 控制硬件 PIP。Linux 上只能通过**用户态窗口叠加**(比如 `mpv` + `sway` 布局)
 模拟,不是真正的面板级 PIP。
 
-**MPRT / 响应时间增强**:❌ 无原生支持。DRM 不支持面板级 MPRT 控制。
+**MPRT / 响应时间增强**:缺失 无原生支持。DRM 不支持面板级 MPRT 控制。
 
 ### 6.7 Fn 键处理
 
@@ -680,7 +679,7 @@ modetest -M i915 -s 0@1  # 假设主屏是 connector 0, crtc 1
 **MagicBay** 是 Lenovo 磁吸扩展接口,物理层 USB 3.0,复合设备
 (`VID_17EF&PID_7005` = LTE 模块;`PID_62B5` = 早期 Tiko;
 `PID_1117` = HUD 配件)。
-见 `MagiCenter 组件内部接口说明`。
+见 `官方组件接口说明`。
 
 ### 7.1 MBIM (LTE 模块)
 
@@ -735,7 +734,7 @@ v4l2-ctl -d /dev/video0 --set-param='capture' --capture-par=1:0,30:1000000
 ### 7.3 扩展屏 (MagicBay HUD / Display)
 
 **Windows**:扩展屏通过 `ACPI\QCOM2488` (Qualcomm QDU 显示桥接) +
-NVIDIA/Intel GPU 的 eDP/DP 输出直驱(见 `MagiCenter 组件内部接口说明`)。
+NVIDIA/Intel GPU 的 eDP/DP 输出直驱(见 `官方组件接口说明`)。
 物理层走 MagicBay 磁吸 eDP 连接器,不是 USB DP Alt Mode。
 
 **Linux**:**依赖 eDP/DP 驱动链**,而非 USB:
@@ -893,8 +892,8 @@ Windows 侧通过 `LENОВО_*_EVENT` 类做事件推送;Linux 侧无 WMI,
 | `LENОВО_AC_PD_EVENT` | `upower --monitor` D-Bus 事件 `PropertiesChanged` `PowerOnline` | AC 插拔 |
 | `LENОВО_GAMEZONE_POWER_CHARGE_MODE_EVENT` | `udev` `change` on `conservation_mode` | 充电模式变化 |
 | `LENОВО_REPORT_REFRESH_RATE_EVENT` | `udev` monitor on `drm` 子系统 | 外接屏插拔 |
-| `LENОВО_AI_SCENARIO_TYPE_EVENT` | ❌ 需 daemon 自建场景轮询(见 §10) | AI 场景变化 |
-| `LENОВО_DISPATCHER_EVENT` | ❌ 需 daemon 自建(见 §10) | 调度事件 |
+| `LENОВО_AI_SCENARIO_TYPE_EVENT` | 缺失 需 daemon 自建场景轮询(见 §10) | AI 场景变化 |
+| `LENОВО_DISPATCHER_EVENT` | 缺失 需 daemon 自建(见 §10) | 调度事件 |
 | `LENОВО_GAMEZONE_THERMAL_MODE_EVENT` | `udev` monitor on `thermal_mode` | 散热模式变化 |
 
 **实现建议**:
@@ -949,7 +948,7 @@ Windows 侧通过 `LENОВО_*_EVENT` 类做事件推送;Linux 侧无 WMI,
 
 **缺失功能**:Windows 侧 `BatteryChargeModeType` 只有 Normal / Storage / Quick,
 但 PCManager 支持 `CRegularValuePowerSetting` 自定义充停阈值
-(见 `电脑管家电源组件内部接口说明`)。
+(见 `官方组件接口说明`)。
 
 **补丁点**:`ideapad-laptop.c`
 
@@ -1061,14 +1060,14 @@ enum BackendError {
 
 | 差距 | Windows 有 | Linux 现状 | 用户感知 |
 |---|---|---|---|
-| Smart Fan 8 段曲线 | ✅ | ❌ 需 acpi_call 单点控制 | 中等 |
-| BIOS 设置直接修改 | ✅ (10+ 项) | ❌ 需 acpi_call | 中等 |
-| SmartEngine AI 场景 | ✅ (7 种场景) | ❌ 需 daemon 自建启发式 | 高(核心差异) |
-| Dolby Atmos 音频 | ✅ (DLL) | ❌ 需 PulseAudio/PipeWire 用户态 | 中 |
-| Tcon 色彩校正 SDK | ✅ (SDK) | ⚠️ DRM CTM 近似 | 中 |
-| SmartSense IR 摄像头 | ✅ | ❌ 需 v4l2 + 自建检测 | 中 |
-| 自定义充电阈值(非 60%) | ✅ | ❌ 需内核补丁 | 低(可用电池计划替代) |
-| 进程级 EQoS (节流) | ✅ (Windows 1809+) | ⚠️ `ionice` + `sched_autogroup` 近似 | 低 |
+| Smart Fan 8 段曲线 | 有 | 缺失 需 acpi_call 单点控制 | 中等 |
+| BIOS 设置直接修改 | 有 (10+ 项) | 缺失 需 acpi_call | 中等 |
+| SmartEngine AI 场景 | 有 (7 种场景) | 缺失 需 daemon 自建启发式 | 高(核心差异) |
+| Dolby Atmos 音频 | 有 (DLL) | 缺失 需 PulseAudio/PipeWire 用户态 | 中 |
+| Tcon 色彩校正 SDK | 有 (SDK) | 部分 DRM CTM 近似 | 中 |
+| SmartSense IR 摄像头 | 有 | 缺失 需 v4l2 + 自建检测 | 中 |
+| 自定义充电阈值(非 60%) | 有 | 缺失 需内核补丁 | 低(可用电池计划替代) |
+| 进程级 EQoS (节流) | 有 (Windows 1809+) | 部分 `ionice` + `sched_autogroup` 近似 | 低 |
 
 ---
 
@@ -1076,14 +1075,14 @@ enum BackendError {
 
 | 结论 | 来源 |
 |---|---|
-| Windows 侧四条通道:WMI / EnergyDrv IOCTL / 服务控制 / BIOS WMI | `Lenovo 驱动组件内部接口说明`、`Vantage 电源组件内部接口说明`、`电脑管家电源组件内部接口说明`、`Vantage 设备组件内部接口说明` |
-| `EnergyDrv` IOCTL `0x0032C004` + Phase 状态机 | `Lenovo 驱动组件内部接口说明` |
-| 充电模式 Storage / Normal / Quick 三态 + 注册表键 | `Vantage 电源组件内部接口说明` |
-| ITS/Dispatcher 模式枚举 (Auto/Cool/Performance/Geek) | `Vantage 电源组件内部接口说明` |
-| GameSettingsPlugin 的三条落地通道 | `电脑管家电源组件内部接口说明` |
-| `LenovoProcessManagement` 的 EQoS + EPP + affinity 调度算法 | `Lenovo 系统服务组件内部接口说明` |
-| MagicBay 复合设备 VID/PID | `MagiCenter 组件内部接口说明` |
-| 扩展屏走 ACPI\QCOM2488 + eDP | `MagiCenter 组件内部接口说明` |
+| Windows 侧四条通道:WMI / EnergyDrv IOCTL / 服务控制 / BIOS WMI | `官方组件接口说明`、`官方组件接口说明`、`官方组件接口说明`、`官方组件接口说明` |
+| `EnergyDrv` IOCTL `0x0032C004` + Phase 状态机 | `官方组件接口说明` |
+| 充电模式 Storage / Normal / Quick 三态 + 注册表键 | `官方组件接口说明` |
+| ITS/Dispatcher 模式枚举 (Auto/Cool/Performance/Geek) | `官方组件接口说明` |
+| GameSettingsPlugin 的三条落地通道 | `官方组件接口说明` |
+| `LenovoProcessManagement` 的 EQoS + EPP + affinity 调度算法 | `官方组件接口说明` |
+| MagicBay 复合设备 VID/PID | `官方组件接口说明` |
+| 扩展屏走 ACPI\QCOM2488 + eDP | `官方组件接口说明` |
 | `LENОВО_*` WMI 类全量签名 | `目标机 WMI 仓库实机采集` |
 | Linux `ideapad-laptop` 节点定义 | `Documentation/ABI/stable/sysfs-platform-ideapad-laptop`、`drivers/platform/x86/ideapad-laptop.c` (Linux kernel v6.13, 2025-01) |
 | `intel_pstate` EPP | `Documentation/cpu-freq/intel-pstate.rst` (6.12) |

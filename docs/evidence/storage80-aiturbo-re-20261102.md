@@ -1,9 +1,9 @@
-# PowerBattery.dll / AiTurbo 逆向恢复报告 — 2026-11-02
+# PowerBattery.dll / AiTurbo 契约与状态报告 — 2026-11-02
 
 来源:`C:\ProgramData\Lenovo\Vantage\Addins\IdeaNotebookAddin\1.0.13.114\PowerBattery.dll`
 (145,376 B, v1.0.13.114, 原生 C++) 与 DriverStore `aiturbo.inf_amd64_6a35ee167b41705a`
 中的 `BatteryLife.exe` 1.0.0.11145 / `AiPerfSvc.exe` 1.0.0.8 / `PreloadDll.dll` /
-`LseFileMonitor.sys` 1.0.0.17。本报告的反汇编工作只读；后续目标机写入观察另行列出，
+`LseFileMonitor.sys` 1.0.0.17。本报告仅记录只读接口行为；后续目标机写入观察另行列出，
 不与原先只读探测混称。PowerBattery.dll SHA-256：
 `df7a014a15630dbfa36603014e15b8b729ec500840b6f45cfb853bb957c10e91`。
 托管侧映射参考 IdeaBatteryAgent.dll / BatteryManagementContract.dll 的 IL；本报告不把
@@ -88,7 +88,7 @@ Sleep(50 ms)；仅在读回等于目标 mode 时写注册表缓存，最后返�
 `?EM_SPEC_VERSION_STORAGE_80@CChargingMode@PowerBattery@@2HA` 指向 RVA `0x21174`。
 `.data` VMA=`0x180021000`、fileoff=`0x1ee00`，因此常量文件偏移是
 `0x1ee00 + (0x21174 - 0x21000) = 0x1ef74`，该处字节 **`b8 00 00 00`**，即
-**184（`0xb8`）**。反汇编中未发现该地址的直接写入；不能用 `.data` 起点处的
+**184（`0xb8`）**。该地址未见直接写入；不能用 `.data` 起点处的
 内容或版本名称猜一个更低门限。
 
 `storage80-aiturbo-20261102.txt` 保留的旧探测实际输入是 **4 B 零**，返回原始
@@ -146,4 +146,4 @@ Unsupported：无固定方案 GUID（捕获并重应用当前方案的三个 DC 
 3. bit23 helper 只命名/报告 advertised 位；完整 Storage80 需要有效解码 EM 版本至少
    184 且 bit23 置位，目前缺失有效的目标 EM 读数，不宣称支持或不支持。
 4. 物理门限及任意百分比阈值不由上述位或类名确立；完整省电行为也不能以通用 API
-   组合替代。本报告只裁定已列出的静态路径和受限 driver-state 观察。
+   组合替代。

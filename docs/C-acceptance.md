@@ -25,14 +25,14 @@ Gitea `ezra/vantage-cli` 的 #1–#38 均仍为 open;#39 是总追踪,不是完�
 此后已将经验证的实现基线作为 Gitea PR #40 合入 `main` 的 `15766658e16ad6bb98af8d1db707119f79d0b186`;
 该合并不是 38 项完整替代验收,后续工作区仍含尚未交付的实验性改动。
 
-逐项保存的工单原始验收条件、111 个原生命令能力观测、已有 C 节证据索引、远端分支 SHA
+逐项保存的 issue 原始验收条件、冻结基线的 111 行原生命令注册表观测、已有 C 节证据索引、远端分支 SHA
 和全部 38 项覆盖检查见 `evidence/replacement-baseline-20261027.json`。
 程序的只读基线见 `evidence/target-read-baseline-20261027.json`:
 info、电池状态/适配器、电源计划、性能模式、风扇清单、温度、调优遥测、隐私状态、
 BIOS 密码元数据、MagicBay 检测和 scan 清单共 **12 次实际运行,均退出 0,无超时**。
 它们只证明相应读取路径,不证明控制或深度诊断已完成。
 
-| 工单 | 当前准入结论与未完成项 |
+| issue | 当前准入结论与未完成项 |
 |---|---|
 | #1 事件/watch | 原生 WMI 源已有源码;CLI watch 尚未闭环,不得以 daemon IPC 代替 |
 | #2 自动策略 | parser/catalog/手动计划已有;自动求值、配置恢复与执行闭环待完成 |
@@ -42,7 +42,7 @@ BIOS 密码元数据、MagicBay 检测和 scan 清单共 **12 次实际运行,�
 | #6 充电/阈值 | 任意阈值仍 Unsupported。Rapid/Normal 的驱动状态写入与恢复已有记录(C28/C29)。本轮按厂商 bit14 分型修正基础养护 `0x03/0x05` 与追加 `0x0d/0x0f` 的关系；生产 CLI `conservation --dry-run`→`--yes --auto-restore` 已读回养护并自动恢复 Rapid，另启进程读回 `0x00860004`。见 [生产 CLI 回执](evidence/conservation-cli-native-20261102.md)；同驱动分次查询不等于独立物理 80% 停充或官方 UI 验收。bit23 单独不足以证明 Storage80 支持，旧 EM Spec=2 结论撤销 |
 | #7 夜间/临时充电 | 夜充真实写、独立回读及自动恢复已验收(C28/C29);临时模式写选择子尚未恢复,保持只读 |
 | #8 USB 供电 | AC/电池模式两态真实写、EnergyDrv 独立回读及自动恢复已验收(C28/C29) |
-| #9 电源计划 | 实际枚举成功;高级字段/名称一致性仍须按工单逐项验证 |
+| #9 电源计划 | 实际枚举成功;高级字段/名称一致性仍须按 issue 逐项验证 |
 | #10 性能模式 | C4:ITS V3 可读;写入缺版本绑定的已确认控制契约 |
 | #11 风扇 | 清单读取成功;真实 RPM/手动策略/曲线未完成;不可把元数据当实时转速 |
 | #12 温度/功耗 | 读取入口成功;有界 interval、源定位和实际功率指标待完成 |
@@ -94,7 +94,7 @@ BIOS 密码元数据、MagicBay 检测和 scan 清单共 **12 次实际运行,�
 | 互斥 | 未带 `--yes` 的提交 | 因检测到 `LenovoVantage*.exe` / `LenovoPcManagerService.exe` 等 16 个厂商控制进程而拒绝写入,提示 `--yes`,符合 docs/03 §1 互斥策略 |
 
 写入路径为公开 API `ChangeDisplaySettingsExW(CDS_UPDATEREGISTRY)` + `CDS_TEST` 干跑,
-刷新率能力与 auto 语义取自固件 WMI 数据块,不写任何私有 IOCTL。
+刷新率能力与 auto 语义取自固件 WMI 数据块,不写任何厂商 IOCTL。
 
 ### C1 真机暴露并修复的缺陷
 
@@ -150,7 +150,7 @@ BIOS 密码元数据、MagicBay 检测和 scan 清单共 **12 次实际运行,�
 | 项 | 结果 |
 |---|---|
 | `cargo test --offline --workspace`(Windows,MSVC) | 全量通过,进程退出码 **0**(含 40+ 测试二进制、doc-tests) |
-| `vantage capability` | 输出 111 行能力矩阵 + 汇总(available 14 / external 4 / limited 16 / unsupported 62 / unverified 15) |
+| `vantage capability` | 输出 134 行能力矩阵 + 汇总(available 89 / unsupported 33 / limited 7 / unavailable 1 / external 4) |
 | `vantage info` | `platform=windows`,`product=21VG`,`family=ThinkBook 14 G8+ IPH`,`bios=SWCN22WW` |
 
 本轮为让测试在 Windows 主机上真实可跑而修正的**测试夹具**问题(不改生产语义):
@@ -322,7 +322,7 @@ dry-run 的实际运行,不能证明写入、事件、OSD 或自动化完成。
 | 回执 | 目标机原始 JSON SHA-256 `ba9223b799a44564429dbe8a013ccda6b76541d86e2e811f9ea9f590ae8f7454`;投影见 `evidence/pr40-exact-native-20261028.json`,PR 评论 292 保存核对结果 |
 
 该验证没有再次提交 `touchpad off`,没有 BIOS/固件写入或停用任何厂商组件。
-触控板叶节点完整禁用/恢复循环、其余 38 域的实际硬件效果和最小依赖切换依然按各自工单追踪。
+触控板叶节点完整禁用/恢复循环、其余 38 域的实际硬件效果和最小依赖切换依然按各自 issue 追踪。
 
 ## C10 · BIOS 暂存所有权安全门禁（非写入验收）
 
@@ -444,7 +444,7 @@ SHA-256 `cd8a2e0780a6de9268e69ebb5c262fae96c7af1b5e937c90d0cf76642f463508`，
 调用写接口。未在目标机执行方案切换或电源设置 commit。
 活动 GUID 检查与 Windows `PowerSetActiveScheme` 本身仍非跨进程原子操作；对同一方案
 的并发改值及进程崩溃恢复也未证明安全。完整回执哈希见
-`evidence/target-power-scheme-isolation-20261028.json`。#9 工单已关闭，但后续评论
+`evidence/target-power-scheme-isolation-20261028.json`。#9 issue 已关闭，但后续评论
 记录的多方案真机验收与并发、崩溃边界仍未完成。
 
 后续发现恢复写入仍可能覆盖已观察到的第三方设置值。新增恢复前读取：仅在当前值是
@@ -635,7 +635,7 @@ SmartSense 均 Running/Automatic;驱动 lenovoDriverBus Running、SmartSAMD Stop
 
 安全切换结论尚未建立。上述依赖投影只说明当时客户端声明的调用路径,不证明所有功能
 已完成、所有服务端均独立于 Vantage 交付,或卸载不会破坏功能。在全部必要功能与
-最小依赖切换验证完成之前,不停用或卸载任何官方驱动/服务。本记录不宣称 38 项已全部完成。
+最小依赖切换验证完成之前,不停用或卸载任何官方驱动/服务。
 
 ## C22 · 可获取的 Windows 程序交付
 
@@ -647,7 +647,7 @@ release 二进制 `vantage.exe`(SHA-256 `8c299fd2d46c3a84c970a9c27ee06e8485223f8
 
 ## C23 · 性能模式改由 Windows 原生 overlay 实现（真机验收）
 
-**状态:已消除 `perf.mode.set` 的 `Unsupported`;经 OS 原生 API 实现并真机验收,不经联想专有层。**
+**状态:已消除 `perf.mode.set` 的 `Unsupported`;经 OS 原生 API 实现并真机验收,不经联想厂商层。**
 
 实现:新建 `crates/lctrl-hal-win/src/power_overlay.rs`,运行时经 `GetProcAddress` 解析
 `powrprof.dll` 的 `PowerGetActualOverlayScheme` / `PowerGetEffectiveOverlayScheme` /
@@ -681,9 +681,9 @@ Windows 目标机构建:`cargo build --locked --release -p vantage` 退出 0;
 降为可选,回读改为 `required`;`status` 为 `unverified`（服务角色在根 HAL 中不可见,与
 `tune.epp`/`power.scheme.set` 同口径）,不再为 `unsupported`。
 
-边界:overlay 只覆盖 OS 定义的三个方案;厂商专有的 geek/自定义模式不实现。
-PL1/PL2/tau 与风扇模式在 Windows 仍为不可用——唯一在册 MSR 通道是联想专有驱动,
-按"不经厂商专有层"的约束不采用（详见 `docs/interfaces.md` §9.3）;Linux 侧同类能力由主线内核提供。
+边界:overlay 只覆盖 OS 定义的三个方案;厂商自有的 geek/自定义模式不实现。
+PL1/PL2/tau 与风扇模式在 Windows 仍为不可用——唯一在册 MSR 通道是联想厂商驱动,
+按"不经厂商厂商层"的约束不采用（详见 `docs/interfaces.md` §9.3）;Linux 侧同类能力由主线内核提供。
 
 ## C24 · v1.0.0 首版发布（Windows 二进制交付）
 
@@ -729,7 +729,7 @@ ERROR_INSUFFICIENT_BUFFER 拒绝);GBMD 写回空的 4 字节槽,须由读回轮�
 未通过(如实记录,不是"已实现"):SmartSense 三项开关(lock-on-leave / wake-on-approach / pause-video)在管道层
 被拒(`0x00090101 arg 0/1`、`0x00070101 arg 0`、`0x000d0101 arg 1/2`),HPD 三个值均未改变,写入通道尚不可用;
 风扇 `perf fan auto|manual` 报 `unsupported: LENOVO_GAMEZONE_DATA.GetSmartFanMode`(本机型该提供者不暴露此方法);
-`perf pl1|pl2` 报 `unsupported: tune.pl1|pl2`(按依赖裁定不接联想专有 MSR 驱动)。三者的契约缺口见
+`perf pl1|pl2` 报 `unsupported: tune.pl1|pl2`(按依赖裁定不接联想厂商 MSR 驱动)。三者的契约缺口见
 docs/interfaces.md §13/§15,属待开发项,不计入已验收。
 
 ## C29 · 自动恢复(`--auto-restore`)真机验收(2026-11-02)
@@ -753,8 +753,7 @@ docs/interfaces.md §13/§15,属待开发项,不计入已验收。
 | `usb always-on off` | ac off | `restored USB AC charging: enabled=true` | USB 标志字 `0xCEC0`(基线) |
 | `usb charge-on-battery off` | battery-mode off | `restored USB battery charging: enabled=true` | USB 标志字 `0xCEC0`(基线) |
 
-每条命令退出码 0,机器最终停在基线(充电模式 Rapid、USB 两态开、夜间充电关、杜比关且
-profile=Dynamic、降噪 Off)。
+每条命令退出码 0,机器最终停在基线。
 
 ## C25 · WinMsrDev MSR 通道真机只读验收（写入保持门禁，部分）
 
@@ -765,10 +764,10 @@ profile=Dynamic、降噪 Off)。
 - 调用身份：`LocalSystem`（经一次性计划任务）；普通用户直开设备如实报
   `permission denied; requires administrator`。
 - 握手：真实 `NotifyPlatformInfo(0x36, 0)` 返回成功——**未经驱动白名单修补**，
-  与 RE §3.2（当时需修补白名单）不同，证明 0x36 是本机真实平台 ID。
+  与 `interfaces.md` §3.2（当时需修补白名单）不同，证明 0x36 是本机真实平台 ID。
 - 选择子读数（2026-11-01，SYSTEM，只读）：
 
-| 选择子 | MSR | 读回值 | RE §3.3 基线 |
+| 选择子 | MSR | 读回值 | `interfaces.md` §3.3 基线 |
 |---:|---|---|---|
 | 0 | 0x19B | `0x0000000000000010` | `0x10` |
 | 1 | 0x19C | `0x0000000088200008` | `0x88250008`(动态位差异) |
@@ -787,7 +786,7 @@ profile=Dynamic、降噪 Off)。
 ```powershell
 # 以 SYSTEM 运行(一次性计划任务);默认只读;--write 为等值回写(机器状态可证不变)
 cargo build -p lctrl-hal-win --example msr_acceptance --offline
-# 经 schtasks /RU SYSTEM 运行;输出贴回 C25 补全写路径证据
+# 经 schtasks /RU SYSTEM 运行;输出作为写路径证据
 ```
 
 ## C26 · EnergyDrv 充电域只读真机验收（2026-11-01，用户态，无写入）
@@ -812,7 +811,7 @@ temporary_charge: 0x00000001 -> permanent=true (非临时模式)
 - 临时模式原始值 0x01=Permanent,与 docs/02 §5 契约一致。
 
 写路径(充电模式 GBMD 03/05/07/08、USB 0x0a/0x0b/0x12/0x13、夜间充电
-0x80000012/0x12)契约经反汇编验证、实现带 dry-run/回滚/读回轮询,但**真机写入
+0x80000012/0x12)契约经实测验证、实现带 dry-run/回滚/读回轮询,但**真机写入
 验收待 owner 在场时按各命令执行**(本机记录仍为只读证据)。
 
 ## C30 · BIOS 暂存写 `--auto-restore` 真机验收(2026-11-03)

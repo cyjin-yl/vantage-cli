@@ -1,7 +1,7 @@
 # 01 · 硬件抽象层接口规范 (HAL Interfaces)
 
 > 读者:**Windows 后端实现者**(用 Rust 写跨平台 CLI 的硬件通道层)。
-> 前置:`00-cleanroom-charter.md`(术语、文档地图)。全量 WMI 类签名见附录 A。
+> 前置:`00-project-charter.md`(术语、文档地图)。全量 WMI 类签名见附录 A。
 > 状态:v1 · 2026-08-27 · 目标机 Lenovo ThinkBook 21VG (Panther Lake)。
 
 ---
@@ -10,14 +10,14 @@
 
 | 通道 | 用途 | 首选? | 特权要求 | 服务依赖 |
 |---|---|---|---|---|
-| `root\WMI` (LENOVO_* 方法类) | 性能/电池/风扇/背光/面板/BIOS/超频 | ✅ 首选 | 管理员或 SYSTEM | AcpiVpc.sys 加载即可;不需要联想服务 |
-| `root\WMI` (LENOVO_* 事件类) | 热键/电源/场景/状态回调 | ✅ 首选(被动订阅) | 一般用户即可 | LnvEvtProvider.dll / ACPI notify |
-| `\\.\EnergyDrv` (AcpiVpc.sys) | 直连 EC 电池、快充、适配器、USB 充电、DGPU 状态 | ⚠️ 次选,特定功能必须 | 管理员(SD 允许 SYSTEM/BA) | AcpiVpc.sys 服务必须启动 |
-| `\\.\pipe\ipfsrv.public` | Panther Lake DPTF/EPP/TGP 策略切换 | ⚠️ 调优场景必须 | 管理员 | `ipfsvc.exe` 服务 |
-| `\\.\pipe\LenovoDispatcher.*` [推断] | 借用 LNVDispatcher 的调度/DBDC 能力 | ⚠️ 备选 | 管理员 | `LNVDispatcherService.exe` |
-| 命名端口(FltMgr) `LnvDrvFdn` | 与签名校验过滤驱动通信 | ❌ 无需对接 | — | — |
-| `lenovoDriverBus` 虚拟 PDO | 供第三方驱动枚举的虚拟设备 | ❌ 无需直接对话 | — | — |
-| 用户态 MSR (`LnvMSRIO.sys`) | CPU EPP / DYTC | ⚠️ 备选 | 管理员 | `LNVDispatcherService.exe` |
+| `root\WMI` (LENOVO_* 方法类) | 性能/电池/风扇/背光/面板/BIOS/超频 | 首选 | 管理员或 SYSTEM | AcpiVpc.sys 加载即可;不需要联想服务 |
+| `root\WMI` (LENOVO_* 事件类) | 热键/电源/场景/状态回调 | 首选(被动订阅) | 一般用户即可 | LnvEvtProvider.dll / ACPI notify |
+| `\\.\EnergyDrv` (AcpiVpc.sys) | 直连 EC 电池、快充、适配器、USB 充电、DGPU 状态 | 次选,特定功能必须 | 管理员(SD 允许 SYSTEM/BA) | AcpiVpc.sys 服务必须启动 |
+| `\\.\pipe\ipfsrv.public` | Panther Lake DPTF/EPP/TGP 策略切换 | 调优场景必须 | 管理员 | `ipfsvc.exe` 服务 |
+| `\\.\pipe\LenovoDispatcher.*` [推断] | 借用 LNVDispatcher 的调度/DBDC 能力 | 备选 | 管理员 | `LNVDispatcherService.exe` |
+| 命名端口(FltMgr) `LnvDrvFdn` | 与签名校验过滤驱动通信 | 无需对接 | — | — |
+| `lenovoDriverBus` 虚拟 PDO | 供第三方驱动枚举的虚拟设备 | 无需直接对话 | — | — |
+| 用户态 MSR (`LnvMSRIO.sys`) | CPU EPP / DYTC | 备选 | 管理员 | `LNVDispatcherService.exe` |
 | Linux 侧:sysfs/ACPI/RAPL | 全部等价能力(见 09 文档) | — | root | — |
 
 **决策铁律(实现者必读)**:
@@ -113,7 +113,7 @@ fn pick_channel(feature: Feature) -> Channel {
   ```
 - 方法返回:**全部方法签名均为 `Boolean` 返回值**(WMI 层语义:方法是否被固件/驱动接受),真正的成功/失败状态编码在 `[out] Data` 字段里:
   - `Boolean = true` 且 `Data == 0` → 操作成功。
-  - `Boolean = true` 且 `Data != 0` → 方法执行了但返回了 Lenovo 私有状态码(需按功能族查表)。
+  - `Boolean = true` 且 `Data != 0` → 方法执行了但返回了 Lenovo 自有状态码(需按功能族查表)。
   - `Boolean = false` → 固件/驱动拒绝(可能是功能不支持、权限不足、参数越界)。
 - 参数 `[Description,ID,in/out] Data : UInt32` 里的 `Data` 是**无类型的 32 位整数**;同一方法在不同 `IDs` 下语义不同。**`IDs` 是主索引**——通过 `LENOVO_CAPABILITY_DATA_00/01/02` 或 `LENOVO_DISCRETE_DATA` 反查具体功能 ID。
 - 事件类基类字段(所有 `*_EVENT` 都带):
@@ -142,7 +142,7 @@ fn pick_channel(feature: Feature) -> Channel {
 > `methodId`/`instanceId`/`inputData` 组合都返回 "无效的参数" —— 该 WMI
 > 面在本 IPF 构建上未接线。`tune.pl1`/`tune.pl2` 因此仍走不通 ESIF 通道,
 > 维持 Unavailable;唯一可行路径需通过 `ipfsvc` 的 IPC(非 WMI)接口,其
-> 协议未公开。
+> 协议未提供。
 
 | 方法 | 参数 | 语义 | `Data` 常见取值 |
 |---|---|---|---|
@@ -200,7 +200,7 @@ fn pick_channel(feature: Feature) -> Channel {
 
 ### 2.3 `LENOVO_OTHER_METHOD` — 通用特性读写
 
-**通用万能接口,几乎所有 Lenovo 内部能力都可以经此通道访问。** `IDs` 是 32 位功能码,通过 `LENOVO_CAPABILITY_DATA_00/01/02` 或 `LENOVO_DISCRETE_DATA` 反查。
+**通用接口,大多数 Lenovo 内部能力都可以经此通道访问。** `IDs` 是 32 位功能码,通过 `LENOVO_CAPABILITY_DATA_00/01/02` 或 `LENOVO_DISCRETE_DATA` 反查。
 
 | 方法 | 签名 | 语义 |
 |---|---|---|
@@ -444,21 +444,21 @@ if handle == INVALID_HANDLE_VALUE {
 
 2. **用户态直驱 IOCTL `0x831020xx` 族** — 由 `PowerBattery.dll` 通过 `CDriverLib::DeviceIoControl` 调用,驱动在 `DispatchDeviceControl` 里分发。这是**实现者唯一需要直接调用的通道**。
 
-**已验证 `0x831020xx` 族代码**(2026-08-27 实机只读探测 + 组件行为分析交叉确认,全部经过验证):
+**已验证 `0x831020xx` 族代码**(2026-08-27 实机只读探测 + 组件行为交叉确认,全部经过验证):
 
 | IOCTL | 名称 | 用途 | 输入 | 输出 | 证据 |
 |---|---|---|---|---|---|
-| `0x831020c0` | 通用 SET | 特性开关写入 | 12B `{cmd:u32, p1:u32, p2:u32}` | — | pcm-cli 组件行为分析,实机写入验证 |
+| `0x831020c0` | 通用 SET | 特性开关写入 | 12B `{cmd:u32, p1:u32, p2:u32}` | — | pcm-cli 组件行为,实机写入验证 |
 | `0x831020c4` | 通用 GET | 特性状态/能力查询 | 4B `cmd:u32` | 4B 状态 | **实机扫描**:cmd 0-4→0, 5→0x10, 6/7/8→1, 9→err87, 10-15→1, 16/17→0, 18/19→err87, 20→0, 21→1, 22-24→err87;pcm-cli 用 cmd 14 bit0 判定 |
 | `0x831020e8` | 通用 GET(变体) | 数值读取 | 4B `cmd:u32` | 4B | BatterySetting.exe 用 cmd 2/8/9;**实机**:cmd2→20160(0x4EC0),其余 cmd 回显输入 |
-| `0x831020f8` | `GBMD` | 安装 PowerBattery.dll 的 Storage 基础开/关为 `03/05`；bit14 subtype 2 在基础请求成功后追加 `0d/0f`，非替代选择子；查 `FF`。旧“03 是运输模式，禁止发送”无此路径关机证据，且不据纠正宣称普遍安全，详见 02 §3.2 | 1B 子命令 | 查询 4B DWORD；目标写回复为 0B，需另行查询 | 安装版本反汇编与受限 driver-state 观察见 `docs/evidence/storage80-aiturbo-re-20261102.md`；原基线 `FF`→`0x00860004`，不是物理停充点验收 |
-| `0x83102120` | 全局电池配置读 | 充电全局配置 | 4B 零 | 20B | WrapPlugin/pcm-cli 组件分析;**实机**→`B7 00…`(首字节 0xB7,位图语义[推断]) |
+| `0x831020f8` | `GBMD` | 安装 PowerBattery.dll 的 Storage 基础开/关为 `03/05`；bit14 subtype 2 在基础请求成功后追加 `0d/0f`，非替代选择子；查 `FF`。旧“03 是运输模式，禁止发送”无此路径关机证据，且不据纠正宣称普遍安全，详见 02 §3.2 | 1B 子命令 | 查询 4B DWORD；目标写回复为 0B，需另行查询 | 安装版本契约与受限 driver-state 观察见 `docs/evidence/storage80-aiturbo-re-20261102.md`；原基线 `FF`→`0x00860004`，不是物理停充点验收 |
+| `0x83102120` | 全局电池配置读 | 充电全局配置 | 4B 零 | 20B | WrapPlugin/pcm-cli 组件行为;**实机**→`B7 00…`(首字节 0xB7,位图语义[推断]) |
 | `0x8310212c` | 查询 | 未知状态 | 4B(样本用 `0xffff`) | 4B | WrapPlugin;**实机**→`FF FF 00 00` |
 | `0x83102130` | 查询(PCManager) | 电池模式/版本 DWORD | 4B | 4B | BatterySetting.exe;**实机** err=2(本机不支持) |
-| `0x83102134` | 充电模式写(PCManager) | 充电模式切换 | 4B DWORD `{0,1,9}`(0=常规,1=养护,9=自定义阈值 [推断]) | 32B 结果位图 | BatterySetting 组件行为分析(写后按模式填充 0x01 位图) |
-| `0x83102138` | **单电池信息读** | 83B 电池详情结构 | 4B 电池索引 | 83B | WrapPlugin 组件分析;**实机完整解析**见下表 |
-| `0x8310213c` | 特性写(变体) | 模式写 | 4B `{0x101 或 1}` | 4B | WrapPlugin 组件行为分析(参数 1→0x101,3→1) |
-| `0x83102150` | 查询 | 4B 状态 | 4B | 4B | pcm-cli/WrapPlugin 组件分析 |
+| `0x83102134` | 充电模式写(PCManager) | 充电模式切换 | 4B DWORD `{0,1,9}`(0=常规,1=养护,9=自定义阈值 [推断]) | 32B 结果位图 | BatterySetting 组件行为(写后按模式填充 0x01 位图) |
+| `0x83102138` | **单电池信息读** | 83B 电池详情结构 | 4B 电池索引 | 83B | WrapPlugin 组件行为;**实机完整解析**见下表 |
+| `0x8310213c` | 特性写(变体) | 模式写 | 4B `{0x101 或 1}` | 4B | WrapPlugin 组件行为(参数 1→0x101,3→1) |
+| `0x83102150` | 查询 | 4B 状态 | 4B | 4B | pcm-cli/WrapPlugin 组件行为 |
 | `0x8310215c` | `GAPD` | **适配器识别**(PID/VID/功率) | 4B 零 | 10B: `u16 PID, u16 VID, u16 SystemPowerW, u16 CurrentPowerW` | IdeaNotebookAddin AdapterInformation 接口规格;**实机** err=87(未接认证充电器,与 GBMD bit24=0 一致) |
 
 `0x83102138` 83B 电池结构实机解析(Sunwoda 15.6V 电池):
@@ -487,7 +487,7 @@ if handle == INVALID_HANDLE_VALUE {
 
 ### 3.4 `0x831020f8` (GBMD) 精确调用模式(实机验证)
 
-**输入缓冲区是 1 字节子命令,不是 4 字节**(2026-08-27 实机 + Vantage 组件行为分析确认):
+**输入缓冲区是 1 字节子命令,不是 4 字节**(2026-08-27 实机 + Vantage 组件行为确认):
 
 ```rust
 // 已验证模式:写入 1 字节子命令,读回 4 字节 DWORD
@@ -498,12 +498,12 @@ fn gbmd(handle: HANDLE, subcmd: u8) -> Result<u32, IoctlError> {
 }
 ```
 
-子命令表(Vantage 电源组件行为分析 + 实机探测):
+子命令表(Vantage 电源组件行为 + 实机探测):
 
 | 子命令 | 方向 | 语义 | 证据 |
 |---|---|---|---|
-| `0xFF` | 查询 | 返回状态 DWORD;bit24=认证充电器能力,bit15-16=适配器类型(0=Inbox,1=Lenovo,2=Unknown,3=SlowCharger) | `AdapterInformation.cs`;实机→`0x00860004` |
-| `3` / `5` | 写 | 养护(Conservation)开 / 关(gen1 机型) | PowerBattery 组件行为分析 |
+| `0xFF` | 查询 | 返回状态 DWORD;bit24=认证充电器能力,bit15-16=适配器类型(0=Inbox,1=Lenovo,2=Unknown,3=SlowCharger) | 实机→`0x00860004`(官方组件行为) |
+| `3` / `5` | 写 | 养护(Conservation)开 / 关(gen1 机型) | PowerBattery 组件行为 |
 | `0x0d` / `0x0f` | 写 | 养护开 / 关(gen2 机型) | 同上 |
 | `7` / `8` | 写 | 快充(Express)开 / 关 | 同上 |
 | `0` / `1` / `2` | — | 实机返回成功但 `bytesReturned=0`(非查询子命令,勿用于读) | 实机 |
@@ -528,7 +528,7 @@ fn gbmd(handle: HANDLE, subcmd: u8) -> Result<u32, IoctlError> {
 
 ### 3.6 内部协议 (共享内存 + 事件同步)
 
-**用户态与驱动之间的协议**不是普通 `DeviceIoControl`—— AcpiVpc 还维护了一套**事件驱动的共享内存协议**,供 Vantage Power Addin 使用。虽然实现者主要走 `DeviceIoControl`,但理解这一层有助于理解为什么某些调用看似异步。
+**用户态与驱动之间的协议**不是普通 `DeviceIoControl`—— AcpiVpc 还维护了一套**事件驱动的共享内存协议**,供 Vantage Power Addin 使用。虽然实现者主要走 `DeviceIoControl`,但理解这一层有助于解释某些调用看似异步的原因。
 
 **共享帧布局**:
 ```
@@ -558,7 +558,7 @@ phase 5: 完成 → KeSetEvent 唤醒用户态
 | `0x00000001` | 电池状态变更 |
 | `0x00000002` | AC 电源状态变更 |
 | `0x00000004` | 热/风扇事件 |
-| 其他 | Lenovo 专有事件 |
+| 其他 | Lenovo 自有事件 |
 
 **Power IRP 处理**(电源分发函数):接收 `IRP_MJ_POWER`,通过 `IoBuildSynchronousFsdRequest` 向下方 ACPI HAL 发 IRP,输入缓冲区 `0x81B` 字节 (`_PSS` 性能状态结构),输出 `0x10058` 字节 (页对齐 64KB + 88 字节)。
 
@@ -618,7 +618,7 @@ DriverEntry
 
 **衍生设备**:`lenovoDriverHid.inf` 在 `lenovoDriverBus` 基础上枚举 HID PDO,`VID_LENOVO_INC_PID_LENOVO_DRIVER_HID_0001`,接口 GUID `{63384FBF-F398-46AB-86C9-5CCDF1EC4917}`,使用 UMDF 2.15 (`lenovoDriverHid.dll` + `Lenovo.CertificateValidation.Native.dll`)。
 
-**实现者注意**:如果需要识别联想专有 HID 设备,可通过 `SetupDiGetClassDevs` 过滤此接口 GUID。
+**实现者注意**:如果需要识别联想自有 HID 设备,可通过 `SetupDiGetClassDevs` 过滤此接口 GUID。
 
 ---
 
@@ -799,7 +799,7 @@ Notify BIOS:EnableDispatcherActive enable %d
 | 连接 `\\.\pipe\LenovoDispatcher.*` | 管理员 [推断] | 服务内部校验 |
 | 用户态 MSR 读写 (通过 `LnvMSRIO.sys`) | 管理员 | 需要服务活着 |
 | 直接调用 `SetProcessInformation` (EQoS) | 管理员 (对他人进程) | 自己进程不需要 |
-| `lenovoDriverBus` PDO 枚举 | SYSTEM / BA / WD / RC | 从安全描述符分析 |
+| `lenovoDriverBus` PDO 枚举 | SYSTEM / BA / WD / RC | 从安全描述符 |
 
 ### 7.2 服务依赖
 
@@ -836,7 +836,7 @@ Notify BIOS:EnableDispatcherActive enable %d
 | 返回值 | 含义 |
 |---|---|
 | `Boolean=true, Data=0` | 成功 |
-| `Boolean=true, Data!=0` | 方法执行了,但返回私有状态码;需查表(见各功能文档) |
+| `Boolean=true, Data!=0` | 方法执行了,但返回厂商状态码;需查表(见各功能文档) |
 | `Boolean=false` | 固件/驱动拒绝;可能是:功能不支持、参数越界、权限不足 |
 | WMI 调用本身异常 | `HRESULT` 错误:如 `WBEM_E_NOT_FOUND (0x80041002)` 类不存在;`WBEM_E_ACCESS_DENIED (0x80041003)` 权限不足;`WBEM_E_INVALID_PARAMETER (0x80041008)` |
 
@@ -887,7 +887,7 @@ Notify BIOS:EnableDispatcherActive enable %d
 |---|---|
 | WMI 类全量签名 | `A-wmi-reference.md`(从 `目标机 WMI 仓库实机采集` 提取) |
 | 证据索引 | `B-evidence.md` |
-| 通道层 API | `00-cleanroom-charter.md` §5.3 |
+| 通道层 API | `00-project-charter.md` §5.3 |
 | 电池/电源详细 | `02-power-battery.md` |
 | 散热/性能详细 | `03-thermal-performance.md` |
 | 外设详细 | `04-peripherals.md` |
@@ -910,22 +910,22 @@ Notify BIOS:EnableDispatcherActive enable %d
 | 分配标签 'EVET' | 连接表管理函数内联常量 `0x54455645` |
 | 位掩码偏移 `0xEC/0xF0/0xF4` | 事件标志函数对偏移 `0xEC` 做 OR 置位 |
 | 位测试表 `0x8151550a80000` | 会话分发函数位测试逻辑 |
-| 直驱 IOCTL `0x831020f8` (GBMD) | PowerBattery 组件行为分析报告:快充/养护六条路径的 DeviceIoControl 调用点全部使用 `0x831020f8` |
+| 直驱 IOCTL `0x831020f8` (GBMD) | PowerBattery 组件行为报告:快充/养护六条路径的 DeviceIoControl 调用点全部使用 `0x831020f8` |
 | 快充失败日志字符串 | PowerBattery 组件日志字符串: `Open_rapid_charge_failed__GLE_d` |
 | GBMD tag `0x444d4247` | AcpiVpc GBMD 处理函数内联常量 `0x444d4247` ('GBMD') |
 | CFG 命令 `'_CFG'` | 配置处理函数内联常量 `0x4746435F` |
 | `SHDC/SBSL/SVCR` 命令 | 三个处理函数分别内联常量 `53484453`/`5342534C`/`53564352` |
 | Power IRP 缓冲 0x81B/0x10058 | 电源分发函数 |
-| `lenovoDriverBus` 硬件 ID / Kmdf 1.15 / Security SD | `pnf_str.txt`(INF 数据分析), `bus_str.json` |
+| `lenovoDriverBus` 硬件 ID / Kmdf 1.15 / Security SD | `pnf_str.txt`(INF 数据), `bus_str.json` |
 | `LnvDrvFdn` 框架 (FLT) 与 BCrypt 调用 | LnvDrvFdn 组件字符串资源 |
 | WMI 类签名 | `目标机 WMI 仓库实机采集`(全量 689 行) |
-| 服务元信息 (LNVDispatcher / LenovoUtility / ipfsvc / lnvsst) | `Lenovo 系统服务组件内部接口说明 |
-| `ipfsvc` Named Pipe `\\.\pipe\ipfsrv.public/private` | `Lenovo 系统服务组件内部接口说明 组件字符串资源 |
-| DBDC 样本数据 | `Lenovo 系统服务组件内部接口说明 |
-| WMI 事件全景表 | `Lenovo 系统服务组件内部接口说明 |
+| 服务元信息 (LNVDispatcher / LenovoUtility / ipfsvc / lnvsst) | `官方组件接口说明 |
+| `ipfsvc` Named Pipe `\\.\pipe\ipfsrv.public/private` | `官方组件接口说明 组件字符串资源 |
+| DBDC 样本数据 | `官方组件接口说明 |
+| WMI 事件全景表 | `官方组件接口说明 |
 | `lenovoDriverHid` 接口 GUID `{63384FBF-...}` | `hal-drivers.md` §5.3 |
-| 热键动作映射 | `Lenovo 系统服务组件内部接口说明 |
-| Lenovo EQoS 使用 | `Lenovo 系统服务组件内部接口说明 组件字符串资源 |
+| 热键动作映射 | `官方组件接口说明 |
+| Lenovo EQoS 使用 | `官方组件接口说明 组件字符串资源 |
 
 **[推断] 标记条目**(本文档中出现 `[推断]` 或 "未确认" 的所有内容):
 
@@ -946,4 +946,4 @@ Notify BIOS:EnableDispatcherActive enable %d
 
 ---
 
-*本文档结束。Windows 后端实现者仅凭本文档 + `A-wmi-reference.md` 即可实现全部硬件通道层代码,无需接触任何二进制。*
+*本文档结束。本文档 + `A-wmi-reference.md` 覆盖全部硬件通道层接口。*

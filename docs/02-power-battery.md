@@ -25,7 +25,7 @@
 | 一键省电 | ✗ | ✔ | `power saver-once` |
 | 电源/适配器/电池事件监听 | ✔ | ✔ | `battery watch` |
 
-净室排除:Vantage 的电池 widget UI、电池类广告与遥测上报。
+覆盖范围排除:Vantage 的电池 widget UI、电池类广告与遥测上报。
 
 ---
 
@@ -50,7 +50,7 @@
 
 ### 3.1 语义
 
-历史组件资料以 `BatteryChargeModeType` 描述三态互斥;其名称、命令与目标 21VG
+历史组件行为以 `BatteryChargeModeType` 描述三态互斥;其名称、命令与目标 21VG
 实际固件状态的映射尚未独立验证:
 
 | 模式 | 枚举值 | 历史语义及目标边界 |
@@ -82,7 +82,7 @@ Storage80 能力保持未知，不能从 bit23、名称或无效版本回复推�
   实际状态由另一次 `0xff` 查询确定。
 - DeviceType `0x8310`(厂商自定),METHOD_BUFFERED,FILE_ANY_ACCESS。
 
-| 子命令字节 | 语义 | 验证来源(PowerBattery 组件行为分析) |
+| 子命令字节 | 语义 | 验证来源(PowerBattery 组件行为) |
 |---|---|---|
 | `0x03` | Storage/养护开的基础请求 | `CStorageMode::OpenFeature` RVA `0xc3d0`，先发 `03` |
 | `0x05` | Storage/养护关的基础请求 | `CStorageMode::CloseFeature` RVA `0xc580`，先发 `05` |
@@ -110,7 +110,7 @@ dry-run 不进入写入与恢复阶段。
 成功模式切换/自动恢复的具体观察不代表真实固件失败、故障注入或崩溃恢复已验收。
 错误字节序实验及其不能证明真实恢复的边界见 C15。
 
-**适配器状态读取(实机闭环,原 U2 已解决)**:`IdeaNotebookAddin ToastUtils\AdapterInformation.cs`
+**适配器状态读取(实机闭环,原 U2 已解决)**:官方组件行为(IdeaNotebookAddin ToastUtils)
 接口规格——适配器状态 = GBMD **子命令 `0xFF`** 的返回 DWORD:`bit24`=认证充电器能力,
 `bit15-16`=适配器类型(0=Inbox,1=Lenovo,2=Unknown,3=SlowCharger);实机返回 `0x00860004`
 (无认证充电器,Inbox 类型)。bit24=1 时跟进 **GAPD `0x8310215c`**(in=4B 零,out=10B:
@@ -192,7 +192,7 @@ PCManager `BatterySetting.exe` 提供四种充电策略(Vantage 仅有前三态�
   仅 BatMaker/HwId/MfgDate 三串)。阈值与电池详情回读走 `\\.\EnergyDrv`:
   - `0x83102138`(in=4B 电池索引,out=83B):完整电池结构,实机解析见 01 文档 §3.3。
   - `0x83102120`(in=4B 零,out=20B):全局充电配置,实机返回 `B7 00 …`(位图语义 [推断])。
-- **下发链(组件分析确认)**:`ThinkPowerPlugin.dll!SetChargeThreshold()`(无参,
+- **下发链(组件行为确认)**:`ThinkPowerPlugin.dll!SetChargeThreshold()`(无参,
   先 `GetPrivateProfileIntW` 读 `C:\config.ini`,节内键名 `ChargeStartPercentage`/`ChargeStopPercentage`/
   `ChargeStartControl`/`ChargeStopControl`)→ 插件宿主回调(vtable 0x102f17bc)→
   `LenovoPcManagerService` → EnergyDrv。`WrapPlugin.dll!SetChargeThreshold`[197] 同链。
@@ -273,7 +273,7 @@ PCManager `BatterySetting.exe` 提供四种充电策略(Vantage 仅有前三态�
 
 ## 6. AlwaysOnUSB / USB 对外供电
 
-历史组件资料描述两组运行时覆盖开关及重启后回归 BIOS 设置;该分层和实际效果尚未在
+历史组件行为描述两组运行时覆盖开关及重启后回归 BIOS 设置;该分层和实际效果尚未在
 目标 21VG 上验收:
 
 | 开关 | 合约枚举 | 取值 |
@@ -383,7 +383,7 @@ Windows WMI 原始 `ChargeRate`/`DischargeRate` 不标作 mA;`capacity_ratio_per
 `CurrentChargerPower < SystemChargerPower` ⇒ 不足功率判定;任一值缺失时结果为未知。
 `battery adapter --json` 分别返回 `vendor_adapter` 和聚合 `system_power` 及各自错误，
 不把后者补入厂商适配器字段。
-**实机校准(2026-08-27)**:`0x8310215c` GAPD 的精确格式经 `AdapterInformation.cs` 确认——
+**实机校准(2026-08-27)**:`0x8310215c` GAPD 的精确格式经 官方组件行为 确认——
 in=4B 零,out=10B `{u16 PID, u16 VID, u16 SystemPowerW, u16 CurrentChargerPowerW}`;
 仅在 GBMD `0xFF` 返回 DWORD 的 bit24=1(认证充电器能力存在)时调用,否则 err=87。
 认证判定:GBMD `0xFF` DWORD 的 bit15-16(`AdapterType`)==1 ⇒ Lenovo 认证适配器;
@@ -400,7 +400,7 @@ bit0 为 0 时 native 返回 `-1`；仅 raw bit0 为 1 时版本为 **`raw >> 4`
 
 ---
 
-## 9. 本域已验证 IOCTL 汇总(证据:PowerBattery 组件行为分析)
+## 9. 本域已验证 IOCTL 汇总(证据:PowerBattery 组件行为)
 
 设备:`\\.\EnergyDrv`,DeviceType `0x8310`,全部 METHOD_BUFFERED / FILE_ANY_ACCESS。
 
@@ -425,7 +425,7 @@ DeviceIoControl 返回 FALSE 时记 `"… failed, GLE = %d"`(GetLastError)。
 
 ## 10. 电源计划(`power scheme`)
 
-`CPowerScheme` / PCManager `BatterySetting.exe` 均只使用 Windows Power API,无私有通道:
+`CPowerScheme` / PCManager `BatterySetting.exe` 均只使用 Windows Power API,无自有通道:
 
 - 枚举:`PowerEnumerate` / 活动方案 `PowerGetActiveScheme` / 切换 `PowerSetActiveScheme`。
 - `power scheme get` / `apply` 优先匹配精确方案 ID;没有精确 ID 时按不区分大小写的
@@ -476,7 +476,7 @@ S 为正整数,默认 1 秒,Ctrl-C 退出。本机未接事件订阅通道,§11.
 | `LENOVO_REPORT_STATUS_TO_DISPATCHER_EVENT` | `Type`,`Value` | 通用状态回拨 |
 | `LENOVO_GAMEZONE_POWER_CHARGE_MODE_EVENT` | — | 充电模式变化(CHRG 参与者联动) |
 
-### 11.2 EnergyDrv 私有事件(`LnvVpcEventMonitor`)
+### 11.2 EnergyDrv 厂商事件(`LnvVpcEventMonitor`)
 
 14 种事件类型(索引 0..13),经驱动事件机制到达;与电源相关的位掩码:
 
@@ -499,7 +499,7 @@ Linux 替代:upower D-Bus + udev + `/sys/class/power_supply` uevent(见 09 文�
 2. **读写分离**:官方 `set` 不保证生效,实现者应在 `set` 后回读并在 CLI 输出「请求值/实际值」。
 3. **39 Wh 电池**:快充必须按 §3.5 禁用,忽略用户请求并说明原因(安全策略)。
 4. **三态与恢复**：核对目标三态并保持错误可见；安装 DLL 的实际开/关顺序见 §3.3，
-   不能把旧“必先关对侧”的描述当作其反汇编证据。恢复必须还原捕获的原语义模式。
+   不能把旧“必先关对侧”的描述当作其契约证据。恢复必须还原捕获的原语义模式。
 5. **运行时覆盖 vs BIOS 默认**:USB 供电开关重启后回 BIOS 值;CLI 应同时提供
    `--persistent`(写 BIOS 设置,见 05 文档)选项。
 6. **并发**:Vantage 与 PCManager 写同一 EC 寄存器会互相覆盖;实现无需兼容二者并存,
@@ -532,16 +532,16 @@ power saver-once               # §4.3
 
 | 结论 | 证据源 |
 |---|---|
-| GBMD 子命令 3/5/0x0d/0x0f/7/8/0xff 与调用模式 | PowerBattery 组件行为分析报告(六条写入路径调用点逐一确认)+ 函数表档案 |
+| GBMD 子命令 3/5/0x0d/0x0f/7/8/0xff 与调用模式 | PowerBattery 组件行为报告(六条写入路径调用点逐一确认)+ 函数表档案 |
 | §9 全部 IOCTL→功能映射 | 同上,常量直接出现于 `mov edx, 0x83102xxx` 指令 |
-| 三态状态机/读写分离/注册表键/恢复语义 | 内部验证档案 §2-§3(IdeaNotebookAddin BatteryAgent 组件行为分析) |
-| 39 Wh 快充禁用 / Storage80 能力位 | `Vantage 电源组件内部接口说明、`Is39whBatteryInstalled()` |
-| `_BATTERY_INFORMATION_EX` 偏移表 | `Vantage 电源组件内部接口说明(`BatteryAgent.GetBatteryInformation` 字段偏移) |
-| 适配器认证 bit15/16 / GAPD 字段 | `Vantage 电源组件内部接口说明 |
-| 充电阈值四模式 / QueryChargeThreshold / cfg.data | `电脑管家电源组件内部接口说明、§7.5-7.6 |
-| 电源计划 GUID 覆盖清单 | `电脑管家电源组件内部接口说明(A)、§9 |
-| 一键省电动机 | `电脑管家电源组件内部接口说明 |
+| 三态状态机/读写分离/注册表键/恢复语义 | 内部验证档案 §2-§3(IdeaNotebookAddin BatteryAgent 组件行为) |
+| 39 Wh 快充禁用 / Storage80 能力位 | `官方组件接口说明、`Is39whBatteryInstalled()` |
+| `_BATTERY_INFORMATION_EX` 偏移表 | `官方组件接口说明(`BatteryAgent.GetBatteryInformation` 字段偏移) |
+| 适配器认证 bit15/16 / GAPD 字段 | `官方组件接口说明 |
+| 充电阈值四模式 / QueryChargeThreshold / cfg.data | `官方组件接口说明、§7.5-7.6 |
+| 电源计划 GUID 覆盖清单 | `官方组件接口说明(A)、§9 |
+| 一键省电动机 | `官方组件接口说明 |
 | WMI 事件类字段 | `目标机 WMI 仓库实机采集`;实例 `目标机 WMI 实例实机采集`(`Lenovo_BatteryInformation` WBAT_0..5) |
-| VPC 事件掩码 | `Vantage 电源组件内部接口说明 |
-| 阈值下发链(ThinkPowerPlugin→宿主回调→服务)与读通道 0x83102120/0x83102138 | 组件行为分析 + **实机探测**:`目标机实机接口探测记录`;终端写命令字仍未定死(见 §4.2 两条实现路径) |
+| VPC 事件掩码 | `官方组件接口说明 |
+| 阈值下发链(ThinkPowerPlugin→宿主回调→服务)与读通道 0x83102120/0x83102138 | 组件行为 + **实机探测**:`目标机实机接口探测记录`;终端写命令字仍未定死(见 §4.2 两条实现路径) |
 | GetAdapterStatus = GBMD `0xFF` + GAPD `0x8310215c` 格式 | **实机闭环**:AdapterInformation 接口规格 + 实机 GBMD 0xFF→`0x00860004`;`目标机实机接口探测记录` |

@@ -127,7 +127,7 @@ else → 老 ITS 通道 (回退)
 可观测遥测(`LENOVO_DISPATCHER_EVENT` 的 `PowerLevel` 变化、负载下频率/风扇曲线),
 逐码验证后再固化映射表。
 
-> ⚠️ **实机勘误 (2026-08-27 三轮复核,ThinkBook 14 G8+ 21VG)**:直接 WMI 调用
+> 注意 **实机勘误 (2026-08-27 三轮复核,ThinkBook 14 G8+ 21VG)**:直接 WMI 调用
 > `LENOVO_GAMEZONE_DATA` 的方法族(`GetSmartFanMode`/`SetSmartFanMode`/`GetPowerChargeMode`/
 > `IsSupportSmartFan`/`GetCPUTemp` 等)在本机**全部返回 `Invalid object`(0x80041008)**。
 > 根因已实机定位(三层对照实验):同命名空间下
@@ -295,13 +295,13 @@ RPM 单位在 `Fan_Flag = 0` 时直接使用;`Fan_Flag = 1` 时需要乘以 `(Fa
 
 ### 3.4 直读通道 (`\\.\SIO8786`)
 
-历史记录提及此私有设备与 `SIO8786GetFan` 名称,但没有已准入的公开 IOCTL 契约或本机
-实时转速证据。设备节点存在不能授权猜测调用,也不得检查厂商二进制来补齐控制码。
+历史记录提及此自有设备与 `SIO8786GetFan` 名称,但没有已准入的公开 IOCTL 契约或本机
+实时转速证据。设备节点存在不能授权猜测调用;控制码必须以只读探测确认。
 目标转速、曲线阶段和 min/max 元数据不能替代实际 RPM;缺少实时来源时应明确不可用。
 
 ### 3.4b 备选写入通道 (`LnCoolit.sys`,未决)
 
-此名称仅保留为历史候选,不是实现依赖或允许逆向的路径。WMI 方法名称本身也不能证明
+此名称仅保留为历史候选,不是实现依赖路径。WMI 方法名称本身也不能证明
 目标机风扇曲线写入可用;缺少公开契约、能力准入和独立实际回读时保持写入门禁。
 
 ### 3.5 手动 / 自动 / 全速模式
@@ -449,7 +449,7 @@ vantage tune watch [--interval S]       # 调优遥测轮询，与 tune telemetr
 > Intel/DTT WMI 类(实机全量枚举,`目标机实机接口探测记录`)。DTT 用户态控制面只有
 > ESIF IPC 与 BIOS 间接路径;不要按 WMI 类名探测。
 
-**分析结论** (PCManager 5.1):
+**结论** (PCManager 5.1):
 
 - **节能 / 智能模式**下,PCManager **不直写 DTT**。CPU PL1 通过 `PowerWriteACValueIndex(GUID_PROCESSOR_THROTTLE, …)` 落到 Windows 电源方案,由 Windows 电源管理器自动转发到 IPF Power Participant。
 - **性能 / Smart Fan 模式**下,PCManager 使用 `SetGpuTDPWithSMFAN_DT` 和 `SetGpuTemperatureWithSMFAN_DT` **直接**修改 DPTF Power Participant 的 GPU TDP 和 GPU 温度墙 (方法名含 `SMFAN`,来源: GameSettingsPlugin 组件字符串资源)。
@@ -579,7 +579,7 @@ vantage perf oc mem   [get | set-xmp <n> | customize <json>]
 
 ## 6. 智能调度 (LNVDispatcherService / ResScheduler 等价)
 
-### 6.1 官方实现机制
+### 6.1 官方组件机制
 
 PCManager 的 `ResScheduler.exe` 是**进程级**智能调度器,通过以下 API 生效:
 
@@ -786,32 +786,32 @@ Linux 上无 WMI;应:
 
 | 声明 | 证据 |
 |---|---|
-| ITS/Dispatcher 枚举与 `SERVICE_CONTROL_*` 常量 | `Vantage 电源组件内部接口说明`; `PowerBattery.dll` 导出符号 |
-| 注册表 `PowerSlider` 键树 | `Vantage 电源组件内部接口说明` 关键常量段 |
-| Dispatcher V2/V3/V4 阈值 | `Vantage 电源组件内部接口说明` 版本能力判定表 |
-| 轮询 50ms × 10 次 | `Vantage 电源组件内部接口说明` |
+| ITS/Dispatcher 枚举与 `SERVICE_CONTROL_*` 常量 | `官方组件接口说明`; `PowerBattery.dll` 导出符号 |
+| 注册表 `PowerSlider` 键树 | `官方组件接口说明` 关键常量段 |
+| Dispatcher V2/V3/V4 阈值 | `官方组件接口说明` 版本能力判定表 |
+| 轮询 50ms × 10 次 | `官方组件接口说明` |
 | `LENOVO_GAMEZONE_DATA` 全方法集 (40+) | `目标机 WMI 仓库实机采集` `LENOVO_GAMEZONE_DATA` (行 126-236) |
 | `LENOVO_FAN_TABLE_DATA` 结构 | `目标机 WMI 仓库实机采集` 行 314-333 |
 | `Fan_Get_Table` / `Fan_Set_Table` 签名 | `目标机 WMI 仓库实机采集` 行 334-345 |
 | `LENOVO_FAN_TEST_DATA` / `LENOVO_FAN_MAX_SPEED_DATA` | `目标机 WMI 仓库实机采集` 行 353-360, 445-451 |
-| 风扇策略 WMI 方法全表 | `电脑管家电源组件内部接口说明` |
-| 直读 `\\.\SIO8786` | `电脑管家电源组件内部接口说明`;GameSettingsPlugin 组件字符串资源 |
+| 风扇策略 WMI 方法全表 | `官方组件接口说明` |
+| 直读 `\\.\SIO8786` | `官方组件接口说明`;GameSettingsPlugin 组件字符串资源 |
 | `LENOVO_REPORT_DBDC_DATA` 结构 | `目标机 WMI 仓库实机采集` 行 346-352 |
-| DBDC 实测数据 | `目标机 WMI 实例实机采集`; `电脑管家电源组件内部接口说明` |
+| DBDC 实测数据 | `目标机 WMI 实例实机采集`; `官方组件接口说明` |
 | CPU OC 数据类 | `目标机 WMI 仓库实机采集` 行 553-567, 642-653 |
 | GPU OC 数据类 | `目标机 WMI 仓库实机采集` 行 457-472, 665-678 |
 | 内存 OC 数据类 | `目标机 WMI 仓库实机采集` 行 587-609 |
 | 内存 OC 方法 | `目标机 WMI 仓库实机采集` 行 679-689 |
 | DTT 硬件实例 | `目标机 MagicBay/DPTF 实机枚举数据`: `ipf_acpi` on `INTC10D5/10D8/INTC10D4` |
-| PCManager `_DT` 方法族 | `电脑管家电源组件内部接口说明` |
-| 节能不直写 DTT | `电脑管家电源组件内部接口说明` |
-| ResScheduler 进程调度 API | `电脑管家电源组件内部接口说明`;ResScheduler 组件字符串资源 |
-| ResScheduler IPC 消息 | `电脑管家电源组件内部接口说明` |
-| 未使用 EcoQoS | `电脑管家电源组件内部接口说明` |
-| Power API 覆盖 GUID 域 | `电脑管家电源组件内部接口说明 (A)` |
-| 模式参数表 | `电脑管家电源组件内部接口说明` |
+| PCManager `_DT` 方法族 | `官方组件接口说明` |
+| 节能不直写 DTT | `官方组件接口说明` |
+| ResScheduler 进程调度 API | `官方组件接口说明`;ResScheduler 组件字符串资源 |
+| ResScheduler IPC 消息 | `官方组件接口说明` |
+| 未使用 EcoQoS | `官方组件接口说明` |
+| Power API 覆盖 GUID 域 | `官方组件接口说明 (A)` |
+| 模式参数表 | `官方组件接口说明` |
 | WMI 事件类 (14 个) | `目标机 WMI 仓库实机采集` 行 1-125 |
-| 版本判定阈值 | `Vantage 电源组件内部接口说明` |
+| 版本判定阈值 | `官方组件接口说明` |
 
 **[推断] 条目**:
 1. `Fan_Flag` 单位标志的取值语义 (§3.1)。

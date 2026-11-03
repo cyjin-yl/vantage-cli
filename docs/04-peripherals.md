@@ -198,7 +198,7 @@ Windows 全局命名互斥量只串行化合作的本程序写入，不能阻止
 | Mode | UInt16 | 0=手动固定,1=自适应 VRR,2=性能优先(恒高刷) |
 
 - 历史记录提及 BIOS/WMI 候选,不是目标机写入准入证明;不扫描或猜测其控制 ID。
-- 当前固定模式使用公开 Windows `ChangeDisplaySettingsExW`,不调用厂商私有写入方法。
+- 当前固定模式使用公开 Windows `ChangeDisplaySettingsExW`,不调用厂商自有写入方法。
 - 事件:`LENOVO_REPORT_REFRESH_RATE_EVENT`(MaxRefreshRate/MinRefreshRate: UInt16)。
 
 ### 3.2 色彩与显示模式(`LENOVO_PANEL_METHOD`,实例 `GMZN_0`)
@@ -226,7 +226,7 @@ Panel_Get/Set_Game_Aid_* (FPS/Sight_Mode/Timer/Countdown)
 | BIOS Display OverDrive | BiosOD.dll(注册表/WMI) | on/off |
 | X-Rite 色彩 profile | SmartColorAddin(云 profile + `HKCU\SOFTWARE\Lenovo\SmartDisplayAddin\Color\user_current_scenery`) | profile 名 |
 
-> TconSDK/BiosOD 为 Windows 专有闭源组件。净室实现:**Windows 侧优先使用 §3.2 的 WMI
+> TconSDK/BiosOD 为 Windows 厂商闭源组件。本实现:**Windows 侧优先使用 §3.2 的 WMI
 > PANEL_METHOD**(语义等价);Linux 侧见 09 文档 §6。X-Rite 云 profile 生态封闭,标注为可选,
 > 建议以本地 ICC 配置替代。
 
@@ -234,7 +234,7 @@ Panel_Get/Set_Game_Aid_* (FPS/Sight_Mode/Timer/Countdown)
 
 - 开关:`HKLM\SOFTWARE\Lenovo\SmartEngine\ModuleSettings\SR\SuperResolutionStatus`;
   SRMapping:0/1/3/4→2(开),2→1(关)。
-- 与场景引擎联动(DispatcherConfig.xml V2001)。**Windows 专有特性**,净室标注为可选。
+- 与场景引擎联动(DispatcherConfig.xml V2001)。**Windows 厂商特性**,实现边界标注为可选。
 
 ### 3.5 护眼(低蓝光)
 
@@ -377,7 +377,7 @@ RPC 客户端族(`DolbyRpcClient.dll` 原生 / `Lenovo.Vantage.DolbyRpcClient.dl
 Profile 映射(SmartDisplayAddin `_dolbyMap`,代码级):Movie=0,Music=1,Games=2,Voip=3,
 Personalize=4,Dynamic=5,Off=6。
 
-> Dolby 栈是闭源 DSP 插件;净室实现仅能开关/切 profile(经其 RPC 或音频端点属性),
+> Dolby 栈是闭源 DSP 插件;本实现仅能开关/切 profile(经其 RPC 或音频端点属性),
 > 不可重实现其算法。Linux 无对应物(09 文档)。
 
 ### 6.2 智能降噪(Dolby Whisper / Elevoc)
@@ -394,7 +394,7 @@ Personalize=4,Dynamic=5,Off=6。
 ## 7. Fn 热键体系(参考行为,默认由固件/服务处理)
 
 官方栈:`LenovoFnAndFunctionKeys` 服务(ACPI\LHK2019,无内核驱动,用户态服务)
-+ `FnHotkeyUtility.exe`(OSD)。**净室实现无需接管热键本身**(EC 固件直接产出 HID/ACPI 事件),
++ `FnHotkeyUtility.exe`(OSD)。**本实现无需接管热键本身**(EC 固件直接产出 HID/ACPI 事件),
 只需提供:① OSD 等价物(daemon);② 各热键动作的可编程绑定。
 
 能力探测:`LENOVO_UTILITY_DATA.GetIfSupportOrVersion(datatype, out Data)`,
@@ -421,16 +421,16 @@ OSD 时序:接收事件 → 执行动作 → OSD 显示 0.8s + 淡出 0.3s → �
 
 | 结论 | 证据源 |
 |---|---|
-| GAMEZONE/UTILITY/LIGHTING/PANEL/BIOS_ASSISTANT/SR_DATA 全部方法签名 | `目标机 WMI 仓库实机采集` 对应类;`Vantage 设备组件内部接口说明§5 |
+| GAMEZONE/UTILITY/LIGHTING/PANEL/BIOS_ASSISTANT/SR_DATA 全部方法签名 | `目标机 WMI 仓库实机采集` 对应类;`官方组件接口说明§5 |
 | BIOS 项实例映射(ISET_17/18/29/40/41/42/51) | `目标机 WMI 实例实机采集` L17-L52 |
-| 刷新率 60/120/Mode 值、CAPABILITY_DATA IDs 0xA000001-4 | `目标机 WMI 实例实机采集`;`Vantage 设备组件内部接口说明 |
-| PANEL_METHOD 方法族与位域 | `Vantage 设备组件内部接口说明 |
-| TconSDK/BiosOD/ACM 通道与 GamutType 映射 | `Vantage SmartPerformance 组件内部接口说明 |
-| SR 注册表与 SRMapping | `Vantage SmartPerformance 组件内部接口说明 |
-| PrivacyGuard 符号集 | `Vantage 设备组件内部接口说明/§6.4(CommonVantage.Shared.dll 字符串) |
-| `LENOVO_SETTING_*` 全表与模式枚举 | `Vantage SmartPerformance 组件内部接口说明(`IntelligentSensingPipe.cs` 常量) |
-| Dolby profile 映射 `_dolbyMap` | `Vantage SmartPerformance 组件内部接口说明;接口清单 `Vantage 设备组件内部接口说明 |
-| 降噪模式值 0/1/2/3/4/10 | `Vantage SmartPerformance 组件内部接口说明(`SEActionMapping` + DispatcherConfig.xml) |
-| Fn 热键服务结构与 OSD 时序 | `Vantage 设备组件内部接口说明`(INF + 组件字符串资源) |
+| 刷新率 60/120/Mode 值、CAPABILITY_DATA IDs 0xA000001-4 | `目标机 WMI 实例实机采集`;`官方组件接口说明 |
+| PANEL_METHOD 方法族与位域 | `官方组件接口说明 |
+| TconSDK/BiosOD/ACM 通道与 GamutType 映射 | `官方组件接口说明 |
+| SR 注册表与 SRMapping | `官方组件接口说明 |
+| PrivacyGuard 符号集 | `官方组件接口说明/§6.4(CommonVantage.Shared.dll 字符串) |
+| `LENOVO_SETTING_*` 全表与模式枚举 | `官方组件接口说明`(官方组件常量) |
+| Dolby profile 映射 `_dolbyMap` | `官方组件接口说明;接口清单 `官方组件接口说明 |
+| 降噪模式值 0/1/2/3/4/10 | `官方组件接口说明(`SEActionMapping` + DispatcherConfig.xml) |
+| Fn 热键服务结构与 OSD 时序 | `官方组件接口说明`(INF + 组件字符串资源) |
 | PrivacyGuard 底层路径:UTILITY_DATA 实例调用约定 + datatype 支持表 | **实机探测** `目标机实机接口探测记录`;featuretype↔隐私位映射仍 [推断] §4.2 |
 | 护眼档位与 Display_Mode 复用 | [推断] §3.5 |

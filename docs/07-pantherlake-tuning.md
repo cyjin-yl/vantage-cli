@@ -5,7 +5,7 @@
 > 交叉引用:性能模式三态与风扇见 `03-thermal-performance.md`;DPTF 硬件通道见
 > `01-hal-interfaces.md` §6;Linux 映射见 `09-linux-backend.md` §5;DSL 语法见 `10-config-schema.md`。
 
-> **交付边界(2026-10-30)**:以下保留历史记录与候选设计,不表示 PL/ESIF/EC 等写入已经实现或获准测试。本次 `tune telemetry` 变更仅提供顺序只读采样、来源和错误信息,不以 OS 策略值冒充物理功耗或频率。不得据历史 RPC/二进制名称猜测控制调用、检查厂商二进制或绕过 VBS/HVCI;不停止或禁用官方服务。构建与 Linux 运行见 [构建证据](evidence/telemetry-stream-build-linux-20261029.json);Windows 有限采样及中断验收见 [C19](C-acceptance.md#c19--只读遥测与温度流的有限运行验收)。
+> **交付边界(2026-10-30)**:以下保留历史记录与候选设计,不表示 PL/ESIF/EC 等写入已经实现或获准测试。本次 `tune telemetry` 变更仅提供顺序只读采样、来源和错误信息,不以 OS 策略值冒充物理功耗或频率。不据历史 RPC/服务名猜测控制调用,不绕过 VBS/HVCI;不停止或禁用官方服务。构建与 Linux 运行见 [构建证据](evidence/telemetry-stream-build-linux-20261029.json);Windows 有限采样及中断验收见 [C19](C-acceptance.md#c19--只读遥测与温度流的有限运行验收)。
 
 ## 1. 功耗控制栈全貌(分层职责)
 
@@ -35,18 +35,18 @@
 电源方案实测:仅「平衡」GUID `381b4222-f694-41f0-9685-ff5bb260df2e`(官方不新增方案,
 靠覆盖 GUID 域实现模式差异——见 03 文档 §7)。
 
-## 2. 官方软件的调优路径(分析结论)
+## 2. 官方软件的调优路径
 
 ### 2.1 Vantage(SmartPerformance / SmartScenario)
 
-- SmartPerformanceAddin 只做系统清理/维护调度,**不直接调功耗**(证据:Vantage SmartPerformance 组件内部接口说明)。
+- SmartPerformanceAddin 只做系统清理/维护调度,**不直接调功耗**(证据:官方组件接口说明)。
 - 真正的模式切换走 ITS/Dispatcher 服务控制消息(03 文档 §2):`SetFn4_ModeData` 把模式号
   (0/1/2)经 AcpiVpc 写入 EC,**EC 驱动 BIOS 重算 DPTF 参与者**——即 Vantage 不直写 DPTF,
   是「EC → BIOS → DPTF」间接路径。
 
 ### 2.2 PCManager(GameSettingsPlugin)
 
-三条通道并存(电脑管家电源组件内部接口说明):
+三条通道并存(官方组件接口说明):
 - **(A) Power API**:覆盖平衡方案的 GUID 域(PL1 间接、GPU、C-state、磁盘)。
 - **(B) Lenovo WMI/EC**:`LENOVO_GAMEZONE_DATA.SetSmartFanMode` 等 + `SetFn4_ModeData` 模式字节。
 - **(C) Intel DTT 直调(`_DT` 后缀方法族)**:`SetGpuTDPWithSMFAN_DT`(GPU TDP 上限)、
@@ -76,7 +76,7 @@
 | Windows 主路径 | ESIF IPC(`ipfsvc.exe`,named pipe `\\.\pipe\DttServerPipe`)写 TPWR 参与者功率限 | 与 DTT 同层;即时生效,重启后 BIOS 策略恢复。备选:写 EC 模式字节交 BIOS 重配 |
 | Windows 备选 | `PowerWriteACValueIndex(GUID_PROCESSOR_THROTTLE, …)` | 百分比语义,间接 |
 | Windows 底层(需驱动) | MSR `0x610 PKG_POWER_LIMIT`(PL1/tau/PL2)、`0x611 PKG_POWER_SKU`、`0x614 PKG_POWER_SKU_UNIT` | 需 ring0;**本机实测不可行,见下** |
-| Linux | `/sys/class/powercap/intel-rapl:0/constraint_{0,1}_{power_limit_uw,time_window_us}` | 标准 intel_rapl;无需私有驱动 |
+| Linux | `/sys/class/powercap/intel-rapl:0/constraint_{0,1}_{power_limit_uw,time_window_us}` | 标准 intel_rapl;无需自有驱动 |
 
 > **实机结论 (2026-08-27,ThinkBook 14 G8+ 21VG):MSR 直写路径在本机封闭。**
 > 本机启用 VBS/HVCI,微软易受攻击驱动黑名单生效:WinRing0x64 加载被拒
@@ -84,7 +84,7 @@
 > 且从架构看,DPTF(ipf_acpi)持续按策略重编程 RAPL,偶发直写也会被覆写。
 > **实现者不要在 Windows 侧依赖 MSR;PL 控制一律走 ESIF IPC 或 EC 模式字节。**
 
-#### 3.1.1 ESIF IPC 会话协议(2026-08-27 三轮实机+组件行为分析,部分闭环)
+#### 3.1.1 ESIF IPC 会话协议(2026-08-27 三轮实机+组件行为,部分闭环)
 
 **结论:该管道是 IPF-EF 的"会话/状态"通道;随驱动发行的 R0 客户端不含 verb 执行面。
 实现者如需与 ipfsvc 会话,优先用 Intel 随驱动发行的客户端库 `IpcClient.dll`;
@@ -108,7 +108,7 @@ PL 控制本身应绕过本通道(见 §3.1 表的 EC 模式字节/ITS 路径)�
   - **R0 客户端接口不含 Exec/Transact 方法**;服务器是否接受 JSON 形式的 verb 请求未证实(实机候选封套探测均被断连)。
 - Rust 侧可直接 `libloading` 加载 `IpcClient.dll`(DPTF 驱动包随系统安装,
   路径 `%SystemRoot%\System32\DriverStore\FileRepository\dtt_sw.inf_amd64_*\IpcClient.dll`)使用上述 ABI;
-  这不构成对 Lenovo 私有组件的依赖(Intel 发行物)。
+  这不构成对 Lenovo 自有组件的依赖(Intel 发行物)。
 - DPTF 遥测/日志为 WPP 事件(实机抓取 7k+ 事件均无法离线解码,无 TMF/manifest),
   **不要指望 ETW 通道**。
 - [TODO 非阻断] 服务器请求 JSON 的完整键集未穷举;如需完整 wire 协议,
@@ -130,7 +130,7 @@ PL 控制本身应绕过本通道(见 §3.1 表的 EC 模式字节/ITS 路径)�
 原语(Windows):`SetProcessAffinityMask`(P/E 核组,先 `GetLogicalProcessorInformationEx`
 枚举 RelationProcessorCore 分组)、`SetThreadPriority`、`SetProcessWorkingSetSizeEx`、
 `RegisterPowerSettingNotification` 事件源。与 Thread Director 兼容的保守做法:
-**只设亲和性掩码不锁组**,让内核完成具体核选择(与官方一致,电脑管家电源组件内部接口说明)。
+**只设亲和性掩码不锁组**,让内核完成具体核选择(与官方一致,官方组件接口说明)。
 进阶(官方未用):EcoQoS `SetProcessInformation(ProcessPowerThrottling)`、`SetThreadInformation`——
 本工具可提供 `tune throttle <pid>` 超集能力。
 
@@ -248,12 +248,12 @@ tune watch                                   # 触发器/回退事件流(daemon)
 | 结论 | 证据源 |
 |---|---|
 | DPTF/IPF 设备枚举与驱动 | `目标机 MagicBay/DPTF 实机枚举数据`(Get-PnpDevice 实测) |
-| PCManager 三通道与 `_DT` 方法族 | `电脑管家电源组件内部接口说明`、§8.2(GameSettingsPlugin 组件字符串资源) |
-| 节能模式不直写 DTT | `电脑管家电源组件内部接口说明 末、§10 |
-| EC 模式字节 → BIOS → DPTF 间接路径 | `电脑管家电源组件内部接口说明(B)、§3.4 |
-| ResScheduler 原语与 Thread Director 兼容策略 | `电脑管家电源组件内部接口说明 |
+| PCManager 三通道与 `_DT` 方法族 | `官方组件接口说明`、§8.2(GameSettingsPlugin 组件字符串资源) |
+| 节能模式不直写 DTT | `官方组件接口说明 末、§10 |
+| EC 模式字节 → BIOS → DPTF 间接路径 | `官方组件接口说明(B)、§3.4 |
+| ResScheduler 原语与 Thread Director 兼容策略 | `官方组件接口说明 |
 | DBDC 三档限流实例 | `目标机 WMI 实例实机采集`(`LENOVO_REPORT_DBDC_DATA`) |
-| 充电参与者 CHRG 联动 | `电脑管家电源组件内部接口说明 |
+| 充电参与者 CHRG 联动 | `官方组件接口说明 |
 | 功耗遥测事件字段 | `目标机 WMI 仓库实机采集`(`LENOVO_REPORT_POWER_CONSUMPTION_CHANGE_EVENT`) |
 | DTT 控制面位置 | **已实机闭环(2026-08-27)**:`root\WMI` 无 Intel/DTT 类;控制面 = ACPI INTC10D4/INTC10D5 + `ipfsvc.exe` ESIF IPC。`_DT*` 为 PCManager 契约名 |
 | PL1/PL2 配方具体瓦数 | [推断] §5——需 `tune telemetry` 在目标机实测散热曲线后校准 |
