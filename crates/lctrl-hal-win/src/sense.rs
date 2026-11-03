@@ -324,7 +324,12 @@ impl HpdSettingsStore for NativeHpdStore {
             wake_on_approach: read_bool(HPD_KEY, "Approach", BoolEncoding::Legacy01)?,
             approach_distance: read_u32(HPD_KEY, "ApproachDistance")?
                 .and_then(SenseDistance::from_raw),
-            pause_video: read_bool(HPD_KEY, "Video", BoolEncoding::OneTwo)?,
+            // Live-service mapping measured 2026-11-03 on TB14P-EZRA:
+            // SetVideoAutoPauseResume(arg) persists Video = arg + 1, i.e.
+            // 1 = disabled, 2 = enabled — the opposite of the legacy-pipe
+            // documentation. Decode the service's actual storage, not the
+            // vendor client's send encoding.
+            pause_video: read_bool(HPD_KEY, "Video", BoolEncoding::RpcService)?,
             privacy_alert: read_bool(HPD_KEY, "CameraDetect", BoolEncoding::OneTwo)?,
             // No registry value backs this feature on this model.
             attention_tracking: None,
@@ -345,6 +350,10 @@ enum BoolEncoding {
     Legacy01,
     /// Camera/video commands persist 1=enable/2=disable.
     OneTwo,
+    /// The LnvSST RPC service persists bools it writes as `arg + 1`:
+    /// 1 = disabled, 2 = enabled. Verified live on TB14P-EZRA by
+    /// correlated RPC writes, RPC status re-reads and registry reads.
+    RpcService,
 }
 
 fn read_u32(key: &str, value: &str) -> Result<Option<u32>> {
@@ -403,5 +412,6 @@ fn read_bool(key: &str, value: &str, encoding: BoolEncoding) -> Result<Option<bo
     Ok(read_u32(key, value)?.map(|raw| match encoding {
         BoolEncoding::Legacy01 => raw != 0,
         BoolEncoding::OneTwo => raw == 1,
+        BoolEncoding::RpcService => raw == 2,
     }))
 }

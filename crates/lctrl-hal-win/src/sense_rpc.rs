@@ -89,6 +89,13 @@ impl NativeHpdRpc {
     pub fn capability(&self) -> Result<u64> {
         self.with_session(Session::capability)
     }
+
+    /// Wire op 6 raw scalar dump for index-projection validation. Read-only;
+    /// the accompanying wchar array is validated by NDR and freed unexamined,
+    /// matching the typed getter.
+    pub fn raw_settings(&self) -> Result<[u32; SETTINGS_SCALARS]> {
+        self.with_session(Session::settings)
+    }
 }
 
 impl Default for NativeHpdRpc {
