@@ -1,5 +1,5 @@
 use lctrl_core::{Availability, CapabilitySet, HardwareInfo, Platform, Result};
-use lctrl_hal::{BatteryElectricalSource, Hal};
+use lctrl_hal::{BatteryElectricalSource, Hal, TouchpadControl};
 
 use crate::HpdRpc;
 use crate::{
@@ -93,6 +93,61 @@ where
                 .then(|| "BIOS staging-buffer ownership contract is unverified".into()),
         )?;
 
+        // BIOS settings service role: the persistent settings channel is the
+        // LENOVO WMI BIOS surface (enumeration through Lenovo_BiosSetting,
+        // writes through the staging buffer when the contract is verified).
+        let bios_settings_ok = matches!(
+            self.wmi
+                .query(ROOT_WMI, "SELECT CurrentSetting FROM Lenovo_BiosSetting"),
+            Ok(objects) if !objects.is_empty()
+        );
+        capabilities.record(
+            "channel.bios",
+            if bios_settings_ok && staging_verified {
+                Availability::Available
+            } else if bios_settings_ok {
+                Availability::Limited
+            } else {
+                Availability::Unavailable
+            },
+            if bios_settings_ok && staging_verified {
+                Some("Lenovo_BiosSetting readable; staging-buffer writes contract-verified".into())
+            } else if bios_settings_ok {
+                Some("Lenovo_BiosSetting readable; staging-buffer writes unverified".into())
+            } else {
+                Some("Lenovo_BiosSetting exposed no settings".into())
+            },
+        )?;
+        let bios_feature = if bios_settings_ok {
+            Availability::Available
+        } else {
+            Availability::Unavailable
+        };
+        for feature in ["bios", "bios.discard", "kbd.fnlock", "kbd.fn-ctrl-swap"] {
+            capabilities.record(
+                feature,
+                bios_feature,
+                (!bios_settings_ok)
+                    .then(|| "Lenovo_BiosSetting enumeration returned no settings".into()),
+            )?;
+        }
+        let bios_password_ok = matches!(
+            self.wmi.query(
+                ROOT_WMI,
+                "SELECT PasswordState FROM Lenovo_BiosPasswordSettings",
+            ),
+            Ok(objects) if !objects.is_empty()
+        );
+        capabilities.record(
+            "bios.password.status",
+            if bios_password_ok {
+                Availability::Available
+            } else {
+                Availability::Unavailable
+            },
+            (!bios_password_ok).then(|| "Lenovo_BiosPasswordSettings returned no instance".into()),
+        )?;
+
         let wmi_available = match active_instance(&self.wmi, "LENOVO_UTILITY_DATA") {
             Ok(_) => {
                 capabilities.record("channel.wmi.root", Availability::Available, None)?;
@@ -111,7 +166,8 @@ where
         // through any vendor service. Only the three schemes Windows defines
         // are portable, so the feature is reported as limited rather than
         // fully available.
-        match NativePowerOverlay.effective() {
+        let perf_mode_probe = NativePowerOverlay.effective();
+        match &perf_mode_probe {
             Ok(_) => capabilities.record(
                 "perf.mode",
                 Availability::Limited,
@@ -279,6 +335,27 @@ where
                 "EnergyDrv temporary-charge probe (0x83102148/0x11) is unavailable".into()
             }),
         )?;
+        // Battery service role: present when either telemetry path reads.
+        capabilities.record(
+            "channel.battery",
+            if battery_telemetry_available || os_battery_available {
+                Availability::Available
+            } else {
+                Availability::Unavailable
+            },
+            (!battery_telemetry_available && !os_battery_available).then(|| {
+                "neither EnergyDrv nor the Windows battery class produced telemetry".into()
+            }),
+        )?;
+        capabilities.record(
+            "channel.usb",
+            if usb_charging_available {
+                Availability::Available
+            } else {
+                Availability::Unavailable
+            },
+            (!usb_charging_available).then(|| "EnergyDrv USB charger query is unavailable".into()),
+        )?;
         capabilities.record(
             "diagnostics.inventory",
             if inventory_error.is_none() {
@@ -286,10 +363,24 @@ where
             } else {
                 Availability::Unavailable
             },
-            inventory_error,
+            inventory_error.clone(),
+        )?;
+        capabilities.record(
+            "channel.diagnostics",
+            if inventory_error.is_none() {
+                Availability::Available
+            } else {
+                Availability::Unavailable
+            },
+            inventory_error.clone(),
         )?;
         capabilities.record(
             "magicbay.inventory",
+            Availability::Limited,
+            Some("SetupAPI inventory is provided by the separate MagicBay service".into()),
+        )?;
+        capabilities.record(
+            "channel.magicbay",
             Availability::Limited,
             Some("SetupAPI inventory is provided by the separate MagicBay service".into()),
         )?;
@@ -349,6 +440,26 @@ where
                     detail,
                 )?;
             }
+            // Touchpad PnP group: a successful state read proves the
+            // enable/disable write path for the input leaves.
+            let touchpad = runtime.touchpad_state();
+            let touchpad_detail = touchpad.as_ref().err().map(|error| error.to_string());
+            for feature in [
+                "channel.touchpad",
+                "touchpad",
+                "touchpad.status",
+                "touchpad.recover",
+            ] {
+                capabilities.record(
+                    feature,
+                    if touchpad.is_ok() {
+                        Availability::Available
+                    } else {
+                        Availability::Unavailable
+                    },
+                    touchpad_detail.clone(),
+                )?;
+            }
         }
         // HPD settings channel: a live read of op-5 capability + op-6
         // settings proves the RPC endpoint, the NDR contract and the
@@ -398,6 +509,23 @@ where
                 Some("legacy SmartSense settings pipe rejects all probed codes on 1.0.8.5".into()),
             )?;
         }
+        let panel_refresh_ok = matches!(
+            self.wmi.query(
+                ROOT_WMI,
+                "SELECT Mode FROM LENOVO_INTERNAL_PANEL_REFRESH_RATE_DATA WHERE Active = TRUE",
+            ),
+            Ok(objects) if !objects.is_empty()
+        );
+        capabilities.record(
+            "channel.panel",
+            if panel_refresh_ok {
+                Availability::Available
+            } else {
+                Availability::Unavailable
+            },
+            (!panel_refresh_ok)
+                .then(|| "firmware exposed no active internal-panel refresh record".into()),
+        )?;
         match self.wmi.query(
             ROOT_WMI,
             "SELECT Mode FROM LENOVO_INTERNAL_PANEL_REFRESH_RATE_DATA WHERE Active = TRUE",
@@ -428,6 +556,72 @@ where
                 )?;
             }
         }
+        let brightness_read_ok = matches!(
+            self.wmi
+                .query(ROOT_WMI, "SELECT CurrentBrightness FROM WmiMonitorBrightness"),
+            Ok(objects) if !objects.is_empty()
+        );
+        capabilities.record(
+            "channel.panel-brightness",
+            if brightness_read_ok {
+                Availability::Available
+            } else {
+                Availability::Unavailable
+            },
+            (!brightness_read_ok)
+                .then(|| "WmiMonitorBrightness exposed no readable instance".into()),
+        )?;
+        capabilities.record(
+            "panel.brightness.status",
+            if brightness_read_ok {
+                Availability::Available
+            } else {
+                Availability::Unavailable
+            },
+            (!brightness_read_ok)
+                .then(|| "WmiMonitorBrightness exposed no readable instance".into()),
+        )?;
+        let brightness_methods_ok = matches!(
+            self.wmi
+                .query(ROOT_WMI, "SELECT * FROM WmiMonitorBrightnessMethods"),
+            Ok(objects) if !objects.is_empty()
+        );
+        capabilities.record(
+            "panel.brightness.set",
+            if brightness_methods_ok {
+                Availability::Available
+            } else {
+                Availability::Unavailable
+            },
+            (!brightness_methods_ok)
+                .then(|| "WmiMonitorBrightnessMethods exposed no instance".into()),
+        )?;
+        let dbdc_ok = matches!(
+            self.wmi.query(
+                ROOT_WMI,
+                "SELECT Counts FROM LENOVO_REPORT_DBDC_DATA",
+            ),
+            Ok(objects) if !objects.is_empty()
+        );
+        capabilities.record(
+            "perf.dbdc",
+            if dbdc_ok {
+                Availability::Available
+            } else {
+                Availability::Unavailable
+            },
+            (!dbdc_ok).then(|| "LENOVO_REPORT_DBDC_DATA returned no instance".into()),
+        )?;
+        capabilities.record(
+            "channel.performance",
+            if perf_mode_probe.is_ok() || dbdc_ok {
+                Availability::Available
+            } else {
+                Availability::Unavailable
+            },
+            (perf_mode_probe.is_err() && !dbdc_ok)
+                .then(|| "neither the power overlay nor the DBDC report read successfully".into()),
+        )?;
         let mut thermal_source_failed = false;
         let thermal_zone_error = match self.wmi.query(
             ROOT_WMI,
@@ -497,6 +691,16 @@ where
                 }
             },
         )?;
+        capabilities.record(
+            "channel.temperature",
+            if !thermal_source_failed && !battery_source_failed {
+                Availability::Available
+            } else {
+                Availability::Unavailable
+            },
+            (thermal_source_failed || battery_source_failed)
+                .then(|| "a thermal source query failed at the transport level".into()),
+        )?;
         let fan_inventory_available = matches!(
             self.wmi.query(
                 ROOT_WMI,
@@ -529,6 +733,16 @@ where
                 Err(error) => Some(format!("GAMEZONE fan mode rejected: {error}")),
             },
         )?;
+        capabilities.record(
+            "channel.fan",
+            if fan_inventory_available || gamezone_fan_mode.is_ok() {
+                Availability::Available
+            } else {
+                Availability::Unavailable
+            },
+            (!fan_inventory_available && gamezone_fan_mode.is_err())
+                .then(|| "firmware exposed neither a fan inventory nor a fan mode".into()),
+        )?;
         // Process telemetry and per-process policy control ride the public
         // Win32 process APIs (ToolHelp32 enumeration, GetProcessTimes,
         // SetPriorityClass, SetProcessAffinityMask, SetProcessWorkingSetSizeEx);
@@ -549,9 +763,19 @@ where
             Some("Win32 per-process priority policy with independent readback".into()),
         )?;
         capabilities.record(
+            "channel.process",
+            Availability::Available,
+            Some("Win32 process enumeration and policy APIs".into()),
+        )?;
+        capabilities.record(
             "power.scheme",
             Availability::Limited,
             Some("Power API readiness is probed by the power service at command time".into()),
+        )?;
+        capabilities.record(
+            "power.scheme.setting",
+            Availability::Limited,
+            Some("per-setting write requires the setting's AC/DC index at command time".into()),
         )?;
         capabilities.record(
             "power.scheme.setting.read",
@@ -599,8 +823,19 @@ where
         ] {
             capabilities.record(feature, availability, Some(detail.into()))?;
         }
+        capabilities.record(
+            "channel.tuning",
+            Availability::Limited,
+            Some("PERFEPP policy channel is available; raw MSR/RAPL limits are not".into()),
+        )?;
+        capabilities.record(
+            "channel.processor-power",
+            Availability::Limited,
+            Some("PERFBOOSTMODE policy channel is probed at command time".into()),
+        )?;
         #[cfg(windows)]
         {
+            use crate::{DolbyRpc, ElevocRpc, LocalDriverUpdateApi, PowerApi, WlanNetshRunner};
             let msr = WinMsrDev::new(&WIN_MSR_TRANSPORT);
             match msr.probe() {
                 Ok(()) => {
@@ -618,6 +853,217 @@ where
                     )?;
                 }
             }
+            let power_probe = crate::WindowsPowerP0::new(crate::NativePowerApi)
+                .api()
+                .active_scheme();
+            capabilities.record(
+                "channel.power",
+                if power_probe.is_ok() {
+                    Availability::Available
+                } else {
+                    Availability::Unavailable
+                },
+                power_probe.as_ref().err().map(|error| error.to_string()),
+            )?;
+            let wifi_probe = crate::NetshCommandRunner::default().show_interfaces();
+            capabilities.record(
+                "channel.wifi",
+                if wifi_probe.is_ok() {
+                    Availability::Available
+                } else {
+                    Availability::Unavailable
+                },
+                wifi_probe.as_ref().err().map(|error| error.to_string()),
+            )?;
+            capabilities.record(
+                "wifi.security",
+                if wifi_probe.is_ok() {
+                    Availability::Available
+                } else {
+                    Availability::Unavailable
+                },
+                wifi_probe.err().map(|error| error.to_string()),
+            )?;
+            let dolby_probe =
+                crate::NativeDolbyRpc::load().and_then(|rpc| rpc.dolby_enabled().map(|_| ()));
+            let dolby_ok = dolby_probe.is_ok();
+            let dolby_detail = dolby_probe.err().map(|error| error.to_string());
+            capabilities.record(
+                "channel.dolby",
+                if dolby_ok {
+                    Availability::Available
+                } else {
+                    Availability::Unavailable
+                },
+                dolby_detail.clone(),
+            )?;
+            capabilities.record(
+                "audio.dolby",
+                if dolby_ok {
+                    Availability::Available
+                } else {
+                    Availability::Unavailable
+                },
+                dolby_detail.clone(),
+            )?;
+            let elevoc_probe =
+                crate::NativeElevocRpc::load().and_then(|rpc| rpc.current_mode().map(|_| ()));
+            let elevoc_ok = elevoc_probe.is_ok();
+            let elevoc_detail = elevoc_probe.err().map(|error| error.to_string());
+            capabilities.record(
+                "channel.elevoc",
+                if elevoc_ok {
+                    Availability::Available
+                } else {
+                    Availability::Unavailable
+                },
+                elevoc_detail.clone(),
+            )?;
+            capabilities.record(
+                "audio.noise-cancel",
+                if elevoc_ok {
+                    Availability::Available
+                } else {
+                    Availability::Unavailable
+                },
+                elevoc_detail,
+            )?;
+            // The audio service role is present when at least one endpoint
+            // answers; each feature stays gated by its own probe record.
+            capabilities.record(
+                "channel.audio",
+                if dolby_ok && elevoc_ok {
+                    Availability::Available
+                } else if dolby_ok || elevoc_ok {
+                    Availability::Limited
+                } else {
+                    Availability::Unavailable
+                },
+                (!dolby_ok || !elevoc_ok).then(|| {
+                    format!(
+                        "audio endpoints: dolby={}, elevoc={}",
+                        if dolby_ok { "ok" } else { "unavailable" },
+                        if elevoc_ok { "ok" } else { "unavailable" },
+                    )
+                }),
+            )?;
+            for (feature, availability, detail) in [
+                (
+                    "channel.osd",
+                    Availability::Available,
+                    "topmost overlay window; creation is session-gated at show time",
+                ),
+                (
+                    "osd.enable",
+                    Availability::Available,
+                    "local preference store plus session-gated overlay",
+                ),
+                (
+                    "osd.disable",
+                    Availability::Available,
+                    "local preference store plus session-gated overlay",
+                ),
+                (
+                    "osd.test",
+                    Availability::Available,
+                    "overlay creation is session-gated at show time",
+                ),
+                (
+                    "osd.show",
+                    Availability::Available,
+                    "overlay creation is session-gated at show time",
+                ),
+                (
+                    "channel.hotkey",
+                    Availability::Available,
+                    "RegisterHotKey path; registration is session-gated at command time",
+                ),
+                (
+                    "hotkey.list",
+                    Availability::Available,
+                    "in-process hotkey registry",
+                ),
+                (
+                    "hotkey.register",
+                    Availability::Available,
+                    "RegisterHotKey is session-gated at command time",
+                ),
+                (
+                    "hotkey.trigger",
+                    Availability::Available,
+                    "in-process dispatch; requires an interactive session for real presses",
+                ),
+                (
+                    "hotkey.unregister",
+                    Availability::Available,
+                    "in-process hotkey registry",
+                ),
+                (
+                    "channel.machinefix",
+                    Availability::Available,
+                    "local rule store and service-control APIs",
+                ),
+                (
+                    "machinefix.scan",
+                    Availability::Available,
+                    "local rule store and service-control APIs",
+                ),
+                (
+                    "machinefix.run",
+                    Availability::Available,
+                    "local rule store and service-control APIs",
+                ),
+                (
+                    "machinefix.track",
+                    Availability::Available,
+                    "local applied-fix ledger",
+                ),
+                (
+                    "channel.scene",
+                    Availability::Available,
+                    "local scene ruleset evaluator",
+                ),
+                (
+                    "scene.test",
+                    Availability::Available,
+                    "local scene ruleset evaluator",
+                ),
+                (
+                    "scene.track",
+                    Availability::Available,
+                    "local applied-action ledger",
+                ),
+            ] {
+                capabilities.record(feature, availability, Some(detail.into()))?;
+            }
+            let update_probe = crate::NativeLocalDriverUpdateApi.present_devices();
+            let update_ok = update_probe.is_ok();
+            let update_detail = update_probe.err().map(|error| error.to_string());
+            capabilities.record(
+                "channel.update-local",
+                if update_ok {
+                    Availability::Available
+                } else {
+                    Availability::Unavailable
+                },
+                update_detail.clone(),
+            )?;
+            for feature in ["update.local_driver", "update.local_driver.rollback"] {
+                capabilities.record(
+                    feature,
+                    if update_ok {
+                        Availability::Available
+                    } else {
+                        Availability::Unavailable
+                    },
+                    update_detail.clone(),
+                )?;
+            }
+            capabilities.record(
+                "update.local_driver.policy",
+                Availability::Available,
+                Some("local persisted update-policy store".into()),
+            )?;
         }
         Ok(capabilities)
     }
