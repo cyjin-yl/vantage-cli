@@ -575,8 +575,22 @@ FacialFeatureRegistered。RPC status 读只覆盖其确知字段,legacy privacy-
 "1开2关";此前按 `raw==1→true` 解码导致 RPC 写成功却被读回判为 mismatch。
 CameraDetect 的 1/2 语义未实测更正,legacy 表原样保留。
 AttentionTracking 命令存在(0x0016–0x0019),但本机无对应持久化键,维持明确的 write-only 边界;
-不能把 RPC CameraAssist(op13)冒充肩窥 PrivacyAlert。键盘灯自动所需 contract RPC 未恢复,
-保持门禁。感知管线(ToF + IR 摄像头)仍由驱动/服务实现,本通道只改设置。
+不能把 RPC CameraAssist(op13)冒充肩窥 PrivacyAlert。感知管线(ToF + IR 摄像头)仍由驱动/服务
+实现,本通道只改设置。
+
+### 13.3 自动键盘背光(`sense kbd-light-auto`,维持 Unsupported)
+
+2026-11-03 对 ThinkSmartSenseAddin.dll 1.0.0.77 的二进制取证修正了此前的"contract RPC 未恢复"
+措辞:addin 以 `LPATSVC_AUTO_KBD_BACKLIGHT_REGISTRY_PATH` /
+`LISS_AUTO_KBD_BACKLIGHT_REGISTRY_PATH` 两个常量分别指向
+`HKLM\SYSTEM\CurrentControlSet\Services\LPlatSvc\Parameters\AutomaticKeyboardLight` 与
+LITSSvc 对应路径——自动键盘背光的持久化目标是 **LPlatSvc / LITSSvc 两个服务的参数键**。
+21VG 实机 `Get-CimInstance Win32_Service` 确认这两个服务**均不存在**(也无
+`LITSSVC` 服务键)。写入无人消费的注册表键不构成原版行为(不平替),故 `sense
+kbd-light-auto` 在该机型上没有可实现的写入语义,维持 Unsupported;理由已更新为
+"无消费服务",不再是"contract RPC 未恢复"。若未来机型存在 LPlatSvc/LITSSvc,
+addin 侧的 VantageService contract 调度契约(`CommandNameGet/SetAutoKBDBacklight`
+等命令名)可再恢复。
 
 ## 14. 降噪接口(Elevoc RPC)
 
