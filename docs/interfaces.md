@@ -575,7 +575,15 @@ FacialFeatureRegistered。RPC status 读只覆盖其确知字段,legacy privacy-
 "1开2关";此前按 `raw==1→true` 解码导致 RPC 写成功却被读回判为 mismatch。
 CameraDetect 的 1/2 语义未实测更正,legacy 表原样保留。
 AttentionTracking 命令存在(0x0016–0x0019),但本机无对应持久化键,维持明确的 write-only 边界;
-不能把 RPC CameraAssist(op13)冒充肩窥 PrivacyAlert。感知管线(ToF + IR 摄像头)仍由驱动/服务
+不能把 RPC CameraAssist(op13)冒充肩窥 PrivacyAlert。
+**legacy 管道实测(2026-11-03)**:对 `\\.\pipe\com.lenovo.smartsense.settings` 逐连接探测
+0x00030101/0x00070101/0x000D0201/0x00100101/0x00160101(arg 1、2)全部返回 0(rejected),
+包括曾在 addin 常数表中的命令;SmartSense.exe 1.0.8.5 分派表仅识别
+0x10201/0x10401/0x10701/0x10801/0x10802/0x70101/0x80101/0x90101/0xa0101/0xb0101/
+0xd0101/0xd0201/0xe0101/0x10803/0x20201/0x30201(且各自对 arg 域进一步校验)。本服务版本对
+0x0d/0x0e 族亦按 arg 拒绝,说明 legacy 设置管道在该版本上整体不可用于写入;
+privacy-alert / attention-tracking 的 legacy-pipe 写入路径维持诚实拒绝边界,HPD 覆盖项继续
+走 RPC。感知管线(ToF + IR 摄像头)仍由驱动/服务
 实现,本通道只改设置。
 
 ### 13.3 自动键盘背光(`sense kbd-light-auto`,维持 Unsupported)
