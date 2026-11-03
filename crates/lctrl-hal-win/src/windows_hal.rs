@@ -406,12 +406,20 @@ where
         ] {
             capabilities.record(
                 feature,
-                if wmi_available {
+                if bios_settings_ok && staging_verified {
+                    Availability::Available
+                } else if bios_settings_ok {
                     Availability::Limited
                 } else {
                     Availability::Unavailable
                 },
-                Some("persistent BIOS privacy service is required for writes".into()),
+                if bios_settings_ok && staging_verified {
+                    Some("persistent BIOS privacy toggle writes through the verified staging buffer".into())
+                } else if bios_settings_ok {
+                    Some("persistent BIOS privacy toggle reads are available; staging-buffer writes unverified".into())
+                } else {
+                    Some("Lenovo_BiosSetting exposes no privacy toggles".into())
+                },
             )?;
         }
         // Runtime privacy channel: probe the internal camera and
