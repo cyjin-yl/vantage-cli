@@ -889,3 +889,19 @@ VerifyMismatch,而写入实际生效且 ledger 无记录、声明的 rollback �
   服务参数;21VG 无这两个服务(`Get-CimInstance` 空),写无消费者注册表不构成
   原版行为,不平替。`CommandNameGet/SetAutoKBDBacklight` 契约命令名已存档
   (interfaces.md §13.3)供未来机型恢复。
+
+## C33 · 进程策略与剩余边界盘点(2026-11-03)
+
+- `perf throttle|boost <pid> --auto-restore`:自产测试进程 normal→below_normal/
+  above_normal→已恢复,`restored 1 process(es) to their pre-policy state`
+  (`99ba6f5` 补上此前静默的恢复输出)。
+- `sense attention-tracking`:legacy 设置管道(`com.lenovo.smartsense.settings`)
+  对 0x00030101/0x00070101/0x000D0201/0x00100101/0x00160101(arg 1/2)全部返回 0;
+  SmartSense.exe 1.0.8.5 分派表与 arg 校验已记录(interfaces.md §13.2),该服务
+  版本无可用 legacy 写通道。
+- `power.saver-once`:维持 Unsupported——厂商契约只声明"CPU 降频+关 DGPU+降亮度+
+  收缩工作集"组合,未指定目标数值;本机又无 DGPU。通用原语(`power scheme set`
+  PROCTHROTTLEMAX 范围元数据齐全、`panel brightness`、`perf throttle`)均可达,
+  组合编排不编造"一键省电"语义。
+- `tune turbo` / `power scheme set`(PERFEPP/PERFBOOST):`PowerReadValueMin`
+  在本机无范围元数据,预校验拒猜边界,维持 unavailable。
