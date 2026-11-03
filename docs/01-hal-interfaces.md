@@ -129,6 +129,14 @@ fn pick_channel(feature: Feature) -> Channel {
 
 > 主数据类;实例名通常为 `ACPI\VEN_VPC&DEV_2004\GMZN_0`。包含 40+ 方法。
 
+> **TB14P-EZRA (21VG) 真机回执(2026-11-03):** 类存在且可枚举
+> (`ACPI\PNP0C14\GMZN_0`),但 **全部 `ExecMethod` 均返回 "Invalid
+> object"/"Invalid method Parameter(s)"** —— 本表所述全部方法(含
+> `GetVersion`、`GetFanCoolingStatus`、`GetSmartFanMode`、`GetWinKeyStatus`
+> 等读方法)在本机型上不可调用,`perf.fan.*`、`kbd.winlock`、
+> `kbd.backlight` 对应通路确认为死通道。凡期望 `LENOVO_GAMEZONE_DATA`
+> 语义的功能,在 21VG 上必须继续报 Unsupported,不要按本表当可用。
+
 | 方法 | 参数 | 语义 | `Data` 常见取值 |
 |---|---|---|---|
 | `IsSupportGpuOC -> Boolean` | `[out] Data` | 是否支持 GPU 超频 | `1` 支持 / `0` 不支持 |
