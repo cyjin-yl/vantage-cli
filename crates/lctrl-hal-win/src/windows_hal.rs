@@ -784,20 +784,30 @@ where
         )?;
         capabilities.record(
             "power.scheme",
-            Availability::Limited,
-            Some("Power API readiness is probed by the power service at command time".into()),
+            if power_scheme_probe_ok() {
+                Availability::Available
+            } else {
+                Availability::Unavailable
+            },
+            (!power_scheme_probe_ok()).then(|| "Power API active-scheme probe failed".into()),
         )?;
         capabilities.record(
             "power.scheme.setting",
-            Availability::Limited,
-            Some("per-setting write requires the setting's AC/DC index at command time".into()),
+            if power_scheme_probe_ok() {
+                Availability::Available
+            } else {
+                Availability::Unavailable
+            },
+            (!power_scheme_probe_ok()).then(|| "Power API active-scheme probe failed".into()),
         )?;
         capabilities.record(
             "power.scheme.setting.read",
-            Availability::Limited,
-            Some(
-                "selected setting and group-policy availability are checked at command time".into(),
-            ),
+            if power_scheme_probe_ok() {
+                Availability::Available
+            } else {
+                Availability::Unavailable
+            },
+            (!power_scheme_probe_ok()).then(|| "Power API active-scheme probe failed".into()),
         )?;
         for (feature, availability, detail) in [
             (
@@ -1099,4 +1109,20 @@ fn first_string(objects: &[WmiObject], key: &str) -> Option<String> {
         Some(WmiValue::String(value)) if !value.is_empty() => Some(value.clone()),
         _ => None,
     })
+}
+
+/// Readiness probe shared by the `power.scheme*` capability rows: the OS
+/// power API is usable when it can answer the active scheme.
+#[cfg(windows)]
+fn power_scheme_probe_ok() -> bool {
+    use crate::PowerApi;
+    crate::WindowsPowerP0::new(crate::NativePowerApi)
+        .api()
+        .active_scheme()
+        .is_ok()
+}
+
+#[cfg(not(windows))]
+fn power_scheme_probe_ok() -> bool {
+    false
 }
