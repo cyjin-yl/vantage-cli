@@ -890,7 +890,7 @@ fn role_presence(roles: &[ServiceRole], capabilities: &CapabilitySet) -> Service
     // A role whose transport was independently proven at probe time is
     // present: the HPD RPC channel (SmartSense) read live at capability
     // time, so ServiceRole::Sense is attached when channel.hpd-rpc is.
-    if roles.iter().any(|role| *role == ServiceRole::Sense) {
+    if roles.contains(&ServiceRole::Sense) {
         if let Some(channel) = capabilities.get("channel.hpd-rpc") {
             return match channel.availability {
                 lctrl_core::Availability::Available | lctrl_core::Availability::Limited => {
@@ -900,7 +900,7 @@ fn role_presence(roles: &[ServiceRole], capabilities: &CapabilitySet) -> Service
             };
         }
     }
-    if roles.iter().any(|role| *role == ServiceRole::Privacy) {
+    if roles.contains(&ServiceRole::Privacy) {
         if let Some(channel) = capabilities.get("channel.privacy-runtime") {
             return match channel.availability {
                 lctrl_core::Availability::Available | lctrl_core::Availability::Limited => {
