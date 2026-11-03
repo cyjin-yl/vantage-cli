@@ -489,6 +489,15 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
             command: Some(SenseCommand::PauseVideo { .. }),
         } => CommandId::SENSE_PAUSE_VIDEO,
         Command::Sense {
+            command: Some(SenseCommand::CameraAssist { .. }),
+        } => CommandId::SENSE_CAMERA_ASSIST,
+        Command::Sense {
+            command: Some(SenseCommand::ApproachAutoAdjust { .. }),
+        } => CommandId::SENSE_APPROACH_AUTO_ADJUST,
+        Command::Sense {
+            command: Some(SenseCommand::LeaveAutoAdjust { .. }),
+        } => CommandId::SENSE_LEAVE_AUTO_ADJUST,
+        Command::Sense {
             command: Some(SenseCommand::AttentionTracking { .. }),
         } => CommandId::SENSE_ATTENTION_TRACKING,
         Command::Sense {

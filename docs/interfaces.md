@@ -566,14 +566,23 @@ capability 满足;普通未签名进程的非提权写入不作承诺。精确�
 
 独立读回:服务持久化到 `HKLM\SYSTEM\CurrentControlSet\Services\SmartSense\Parameters\HPD`
 (REG_DWORD),addin 自身旧 getter 也直读该键。已建模 PresentLeave/LeaveDistance/LeaveWait/
-Approach/ApproachDistance/Video(**实测 2开1关**,见下)/CameraDetect(1开2关)/Capability/SensorType/
+Approach/ApproachDistance/Video(**实测 2开1关**,见下)/AutoAdjust/CameraDetect/LeaveAutoAdjust
+(同 RPC arg+1)/Capability/SensorType/
 FacialFeatureRegistered。RPC status 读只覆盖其确知字段,legacy privacy-alert/attention 字段
 由注册表补充;写后对所改字段作 10 次、间隔 50ms 的有界独立读回,不拿不同来源的无关元数据比较。
 **Video 解码更正(2026-11-03 实测)**:LnvSST 服务将 `SetVideoAutoPauseResume(arg)`
 持久化为 `Video = arg + 1`——arg=0(off)→Video=1、arg=1(on)→Video=2,与 RPC status
 `values[10]` 逐项一致。本机服务的 Video 持久化语义是 **1=off / 2=on**,不是旧文档的
 "1开2关";此前按 `raw==1→true` 解码导致 RPC 写成功却被读回判为 mismatch。
-CameraDetect 的 1/2 语义未实测更正,legacy 表原样保留。
+**同实测**:op10 SetApproachDistanceAutoAdjust / op13 SetPresenceLeaveCameraAssist /
+op15 SetPresenceLeaveDistanceAutoAdjust 均被接受(arg 0/1),分别持久化为
+`AutoAdjust/CameraDetect/LeaveAutoAdjust = arg + 1`(1=off / 2=on),RPC status
+`values[4]/[7]/[9]` 逐项一致——CameraDetect 语义因此实测更正为 RPC arg+1
+(覆盖旧表"1开2关")。对应新 sense 子命令:`approach-auto-adjust`(bit 0x8)、
+`camera-assist`(bit 0x40)、`leave-auto-adjust`(bit 0x100)。
+**op17 SetHPDEnabledYogaModeV2 实测(arg 1)**:服务端拒绝 Win32 4317
+ERROR_INVALID_DATA,无 Yoga 持久化键;维持边界不实现。
+**op7 ResetAllSetting**:NDR 表已发出但属破坏性全量重置,未在真机写验证,不暴露子命令。
 AttentionTracking 命令存在(0x0016–0x0019),但本机无对应持久化键,维持明确的 write-only 边界;
 不能把 RPC CameraAssist(op13)冒充肩窥 PrivacyAlert。
 **legacy 管道实测(2026-11-03)**:对 `\\.\pipe\com.lenovo.smartsense.settings` 逐连接探测

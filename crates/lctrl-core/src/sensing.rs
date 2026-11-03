@@ -142,6 +142,18 @@ pub struct SenseState {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pause_video: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    /// HPD `ApproachDistanceAutoAdjust` (op-5 bit 0x08); service persists
+    /// `AutoAdjust = arg + 1`, so 2 = on.
+    pub approach_auto_adjust: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// HPD `PresenceLeaveCameraAssist` (op-5 bit 0x40); service persists
+    /// `CameraDetect = arg + 1`, so 2 = on.
+    pub camera_assist: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// HPD `PresenceLeaveDistanceAutoAdjust` (op-5 bit 0x100); service
+    /// persists `LeaveAutoAdjust = arg + 1`, so 2 = on.
+    pub leave_auto_adjust: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub privacy_alert: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub attention_tracking: Option<bool>,
@@ -171,7 +183,7 @@ impl std::fmt::Display for SenseState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "lock-on-leave={} wake-on-approach={} pause-video={} attention-tracking={}",
+            "lock-on-leave={} wake-on-approach={} pause-video={} attention-tracking={} camera-assist={} approach-auto-adjust={} leave-auto-adjust={}",
             self.lock_on_leave
                 .map_or("unknown", |v| if v { "on" } else { "off" }),
             self.wake_on_approach
@@ -179,6 +191,12 @@ impl std::fmt::Display for SenseState {
             self.pause_video
                 .map_or("unknown", |v| if v { "on" } else { "off" }),
             self.attention_tracking
+                .map_or("unknown", |v| if v { "on" } else { "off" }),
+            self.camera_assist
+                .map_or("unknown", |v| if v { "on" } else { "off" }),
+            self.approach_auto_adjust
+                .map_or("unknown", |v| if v { "on" } else { "off" }),
+            self.leave_auto_adjust
                 .map_or("unknown", |v| if v { "on" } else { "off" }),
         )?;
         if let Some(source) = self.source {

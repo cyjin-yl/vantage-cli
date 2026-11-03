@@ -16,6 +16,13 @@ pub enum SenseFeature {
     ApproachDistance(SenseDistance),
     /// HPD RPC `SetVideoAutoPauseResume`, op 16, 0/1 (not pipe 1/2).
     PauseVideo(bool),
+    /// HPD RPC `SetApproachDistanceAutoAdjust`, op 10, 0/1.
+    ApproachAutoAdjust(bool),
+    /// HPD RPC `SetPresenceLeaveCameraAssist`, op 13, 0/1. Persists the
+    /// shared `CameraDetect` DWORD as `arg + 1`.
+    CameraAssist(bool),
+    /// HPD RPC `SetPresenceLeaveDistanceAutoAdjust`, op 15, 0/1.
+    LeaveAutoAdjust(bool),
     /// `ENABLE_CAMERADETECT` (0x000D0201), shoulder-surf privacy alert.
     PrivacyAlert(bool),
     /// `ENABLE_ATTENTION_TRACKING` (0x00160101), 0/1.
@@ -33,6 +40,9 @@ impl SenseFeature {
             Self::WakeOnApproach(enabled) => Some((8, enabled as u32)),
             Self::ApproachDistance(distance) => Some((9, distance.raw())),
             Self::PauseVideo(enabled) => Some((16, enabled as u32)),
+            Self::ApproachAutoAdjust(enabled) => Some((10, enabled as u32)),
+            Self::CameraAssist(enabled) => Some((13, enabled as u32)),
+            Self::LeaveAutoAdjust(enabled) => Some((15, enabled as u32)),
             Self::PrivacyAlert(_) | Self::AttentionTracking(_) => None,
         }
     }

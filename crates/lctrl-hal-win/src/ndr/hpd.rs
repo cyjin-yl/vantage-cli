@@ -153,6 +153,12 @@ const OPS: &[Op] = &[
         binding: Binding::Context,
         params: &GET_SETTINGS_PARAMS,
     },
+    // ResetAllSetting: context only, no additional wire argument.
+    Op {
+        num: 7,
+        binding: Binding::Context,
+        params: &[Param::InContext, Param::ReturnStatus],
+    },
     // Wake, approach distance, leave, leave wait, leave distance, video.
     Op {
         num: 8,
@@ -161,6 +167,11 @@ const OPS: &[Op] = &[
     },
     Op {
         num: 9,
+        binding: Binding::Context,
+        params: &[Param::InContext, Param::InLong, Param::ReturnStatus],
+    },
+    Op {
+        num: 10,
         binding: Binding::Context,
         params: &[Param::InContext, Param::InLong, Param::ReturnStatus],
     },
@@ -175,7 +186,17 @@ const OPS: &[Op] = &[
         params: &[Param::InContext, Param::InLong, Param::ReturnStatus],
     },
     Op {
+        num: 13,
+        binding: Binding::Context,
+        params: &[Param::InContext, Param::InLong, Param::ReturnStatus],
+    },
+    Op {
         num: 14,
+        binding: Binding::Context,
+        params: &[Param::InContext, Param::InLong, Param::ReturnStatus],
+    },
+    Op {
+        num: 15,
         binding: Binding::Context,
         params: &[Param::InContext, Param::InLong, Param::ReturnStatus],
     },
@@ -184,9 +205,14 @@ const OPS: &[Op] = &[
         binding: Binding::Context,
         params: &[Param::InContext, Param::InLong, Param::ReturnStatus],
     },
+    Op {
+        num: 17,
+        binding: Binding::Context,
+        params: &[Param::InContext, Param::InLong, Param::ReturnStatus],
+    },
 ];
 
-pub(crate) const PROC_COUNT: usize = 17;
+pub(crate) const PROC_COUNT: usize = 18;
 const TYPE_OUT_CONTEXT: u16 = 0;
 const TYPE_INOUT_CONTEXT: u16 = 4;
 const TYPE_IN_CONTEXT: u16 = 8;

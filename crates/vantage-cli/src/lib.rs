@@ -896,6 +896,18 @@ pub enum SenseCommand {
         #[arg(value_enum)]
         state: Toggle,
     },
+    CameraAssist {
+        #[arg(value_enum)]
+        state: Toggle,
+    },
+    ApproachAutoAdjust {
+        #[arg(value_enum)]
+        state: Toggle,
+    },
+    LeaveAutoAdjust {
+        #[arg(value_enum)]
+        state: Toggle,
+    },
     AttentionTracking {
         #[arg(value_enum)]
         state: Toggle,
@@ -2861,6 +2873,33 @@ fn execute_sense(
                 auto_restore,
             )
         }
+        Some(SenseCommand::CameraAssist { state }) => {
+            let sense = required_sense(sense, "sense.camera-assist")?;
+            apply_sense_features(
+                sense,
+                &[SenseFeature::CameraAssist(state == Toggle::On)],
+                apply,
+                auto_restore,
+            )
+        }
+        Some(SenseCommand::ApproachAutoAdjust { state }) => {
+            let sense = required_sense(sense, "sense.approach-auto-adjust")?;
+            apply_sense_features(
+                sense,
+                &[SenseFeature::ApproachAutoAdjust(state == Toggle::On)],
+                apply,
+                auto_restore,
+            )
+        }
+        Some(SenseCommand::LeaveAutoAdjust { state }) => {
+            let sense = required_sense(sense, "sense.leave-auto-adjust")?;
+            apply_sense_features(
+                sense,
+                &[SenseFeature::LeaveAutoAdjust(state == Toggle::On)],
+                apply,
+                auto_restore,
+            )
+        }
         Some(SenseCommand::AttentionTracking {
             state,
             dim,
@@ -3025,6 +3064,15 @@ fn plan_sense_restore(
             }
             SenseFeature::PauseVideo(_) => {
                 SenseFeature::PauseVideo(previous.pause_video.ok_or_else(unknown)?)
+            }
+            SenseFeature::CameraAssist(_) => {
+                SenseFeature::CameraAssist(previous.camera_assist.ok_or_else(unknown)?)
+            }
+            SenseFeature::ApproachAutoAdjust(_) => {
+                SenseFeature::ApproachAutoAdjust(previous.approach_auto_adjust.ok_or_else(unknown)?)
+            }
+            SenseFeature::LeaveAutoAdjust(_) => {
+                SenseFeature::LeaveAutoAdjust(previous.leave_auto_adjust.ok_or_else(unknown)?)
             }
             SenseFeature::PrivacyAlert(_) => {
                 SenseFeature::PrivacyAlert(previous.privacy_alert.ok_or_else(unknown)?)
@@ -6679,6 +6727,9 @@ impl SenseCommand {
             Self::LockOnLeave { .. } => "lock-on-leave",
             Self::WakeOnApproach { .. } => "wake-on-approach",
             Self::PauseVideo { .. } => "pause-video",
+            Self::CameraAssist { .. } => "camera-assist",
+            Self::ApproachAutoAdjust { .. } => "approach-auto-adjust",
+            Self::LeaveAutoAdjust { .. } => "leave-auto-adjust",
             Self::AttentionTracking { .. } => "attention-tracking",
             Self::KbdLightAuto { .. } => "kbd-light-auto",
         }
