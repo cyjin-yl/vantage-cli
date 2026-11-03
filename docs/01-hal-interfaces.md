@@ -137,6 +137,13 @@ fn pick_channel(feature: Feature) -> Channel {
 > `kbd.backlight` 对应通路确认为死通道。凡期望 `LENOVO_GAMEZONE_DATA`
 > 语义的功能,在 21VG 上必须继续报 Unsupported,不要按本表当可用。
 
+> **补充(同日):** `EsifDeviceInformation`(Intel DPTF/ipf_cpu)在本机存活并
+> 暴露 `EsifExecutePrimitive`,但内核注册的 WMI provider 对任意
+> `methodId`/`instanceId`/`inputData` 组合都返回 "无效的参数" —— 该 WMI
+> 面在本 IPF 构建上未接线。`tune.pl1`/`tune.pl2` 因此仍走不通 ESIF 通道,
+> 维持 Unavailable;唯一可行路径需通过 `ipfsvc` 的 IPC(非 WMI)接口,其
+> 协议未公开。
+
 | 方法 | 参数 | 语义 | `Data` 常见取值 |
 |---|---|---|---|
 | `IsSupportGpuOC -> Boolean` | `[out] Data` | 是否支持 GPU 超频 | `1` 支持 / `0` 不支持 |
