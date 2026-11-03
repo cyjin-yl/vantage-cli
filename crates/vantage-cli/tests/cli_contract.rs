@@ -2357,6 +2357,7 @@ fn apply_sense_feature_to(state: &mut SenseState, feature: SenseFeature) {
         SenseFeature::LeaveAutoAdjust(enabled) => state.leave_auto_adjust = Some(enabled),
         SenseFeature::PrivacyAlert(enabled) => state.privacy_alert = Some(enabled),
         SenseFeature::AttentionTracking(enabled) => state.attention_tracking = Some(enabled),
+        SenseFeature::ResetAll => {}
     }
 }
 

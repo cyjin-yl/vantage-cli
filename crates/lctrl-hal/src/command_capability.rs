@@ -1076,7 +1076,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             lctrl_core::required(Dependency::WindowsAudio),
             lctrl_core::required(Dependency::LinuxSysfs),
         ],
-        DispatchSupport::Unsupported("runtime microphone HAL/CLI wiring is not attached"),
+        DispatchSupport::Implemented,
     ),
     CommandCapability::new(
         CommandId::PRIVACY_MIC,
@@ -1209,6 +1209,21 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             Rollback::Unavailable,
         ),
         FeatureBinding::Unprobed("sense.leave-auto-adjust"),
+        ServiceBinding::One(ServiceRole::Sense),
+        &[
+            lctrl_core::required(Dependency::SmartSense),
+            lctrl_core::optional(Dependency::WindowsHpd),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::SENSE_RESET,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Unverified,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::Unprobed("sense.reset"),
         ServiceBinding::One(ServiceRole::Sense),
         &[
             lctrl_core::required(Dependency::SmartSense),

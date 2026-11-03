@@ -920,6 +920,10 @@ pub enum SenseCommand {
         #[arg(value_enum)]
         state: Toggle,
     },
+    /// Reset all HPD user settings to service defaults via op 7
+    /// (`ResetAllSetting`). Use `--auto-restore` to capture the current
+    /// values and reapply them after the reset.
+    Reset,
 }
 
 /// Audio command tree.
@@ -2922,6 +2926,10 @@ fn execute_sense(
             feature: "sense.kbd-light-auto: automatic keyboard backlight has no consuming service on this model: ThinkSmartSenseAddin 1.0.0.77 targets LPlatSvc/LITSSvc registry parameters, and both services are absent on 21VG (docs/interfaces.md §13.3)"
                 .into(),
         }),
+        Some(SenseCommand::Reset) => {
+            let sense = required_sense(sense, "sense.reset")?;
+            apply_sense_features(sense, &[SenseFeature::ResetAll], apply, auto_restore)
+        }
         None => Err(LctrlError::InvalidArgument {
             detail: "a sense subcommand is required".into(),
         }),
@@ -2990,12 +2998,18 @@ fn apply_sense_features(
     // its previous value, so the extra step is harmless.
     let mut restore = None;
     if let Some(plan) = &plan {
-        let restore_upto = if primary.is_some() {
-            (written + 1).min(plan.len())
+        // The plan is grouped per requested feature: ResetAll expands to a
+        // re-apply of every captured field. On failure we restore the
+        // committed prefix plus the failed feature's own group (its write
+        // may have taken effect before readback rejected it); on success
+        // the whole plan runs.
+        let groups = if primary.is_some() {
+            &plan[..(written + 1).min(plan.len())]
         } else {
-            written
+            &plan[..written]
         };
-        match restore_sense_features(sense, &plan[..restore_upto]) {
+        let flat: Vec<SenseFeature> = groups.iter().flatten().copied().collect();
+        match restore_sense_features(sense, &flat) {
             Ok(text) => restore = Some(text),
             Err(cleanup) => {
                 return Err(match primary {
@@ -3038,7 +3052,7 @@ fn apply_sense_features(
 fn plan_sense_restore(
     written: &[SenseFeature],
     previous: &lctrl_core::SenseState,
-) -> lctrl_core::Result<Vec<SenseFeature>> {
+) -> lctrl_core::Result<Vec<Vec<SenseFeature>>> {
     let mut plan = Vec::with_capacity(written.len());
     for feature in written {
         let unknown = || LctrlError::InvalidArgument {
@@ -3046,6 +3060,42 @@ fn plan_sense_restore(
                 "--auto-restore refused before write: the previous persisted value of {feature:?} is unknown, so the original state cannot be restored"
             ),
         };
+        // ResetAll rewrites every field server-side, so a faithful restore
+        // must re-apply every RPC-backed field that had a captured value —
+        // not one inverse. Fields without a persisted baseline cannot be
+        // restored, so the whole command is refused before the write.
+        if matches!(feature, SenseFeature::ResetAll) {
+            let mut inverses = Vec::with_capacity(9);
+            if let Some(v) = previous.lock_on_leave {
+                inverses.push(SenseFeature::LockOnLeave(v));
+            }
+            if let Some(v) = previous.leave_distance {
+                inverses.push(SenseFeature::LeaveDistance(v));
+            }
+            if let Some(v) = previous.leave_wait {
+                inverses.push(SenseFeature::LeaveWait(v));
+            }
+            if let Some(v) = previous.wake_on_approach {
+                inverses.push(SenseFeature::WakeOnApproach(v));
+            }
+            if let Some(v) = previous.approach_distance {
+                inverses.push(SenseFeature::ApproachDistance(v));
+            }
+            if let Some(v) = previous.approach_auto_adjust {
+                inverses.push(SenseFeature::ApproachAutoAdjust(v));
+            }
+            if let Some(v) = previous.camera_assist {
+                inverses.push(SenseFeature::CameraAssist(v));
+            }
+            if let Some(v) = previous.leave_auto_adjust {
+                inverses.push(SenseFeature::LeaveAutoAdjust(v));
+            }
+            if let Some(v) = previous.pause_video {
+                inverses.push(SenseFeature::PauseVideo(v));
+            }
+            plan.push(inverses);
+            continue;
+        }
         let inverse = match feature {
             SenseFeature::LockOnLeave(_) => {
                 SenseFeature::LockOnLeave(previous.lock_on_leave.ok_or_else(unknown)?)
@@ -3080,8 +3130,9 @@ fn plan_sense_restore(
             SenseFeature::AttentionTracking(_) => {
                 SenseFeature::AttentionTracking(previous.attention_tracking.ok_or_else(unknown)?)
             }
+            SenseFeature::ResetAll => unreachable!("handled above"),
         };
-        plan.push(inverse);
+        plan.push(vec![inverse]);
     }
     Ok(plan)
 }
@@ -6732,6 +6783,7 @@ impl SenseCommand {
             Self::LeaveAutoAdjust { .. } => "leave-auto-adjust",
             Self::AttentionTracking { .. } => "attention-tracking",
             Self::KbdLightAuto { .. } => "kbd-light-auto",
+            Self::Reset => "reset",
         }
     }
 }

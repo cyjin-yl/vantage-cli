@@ -89,6 +89,7 @@ impl CommandId {
     pub const SENSE_CAMERA_ASSIST: Self = Self("sense.camera-assist");
     pub const SENSE_APPROACH_AUTO_ADJUST: Self = Self("sense.approach-auto-adjust");
     pub const SENSE_LEAVE_AUTO_ADJUST: Self = Self("sense.leave-auto-adjust");
+    pub const SENSE_RESET: Self = Self("sense.reset");
     pub const SENSE_ATTENTION_TRACKING: Self = Self("sense.attention-tracking");
     pub const SENSE_KBD_LIGHT_AUTO: Self = Self("sense.kbd-light-auto");
 
@@ -234,6 +235,7 @@ impl CommandId {
         Self::SENSE_CAMERA_ASSIST,
         Self::SENSE_APPROACH_AUTO_ADJUST,
         Self::SENSE_LEAVE_AUTO_ADJUST,
+        Self::SENSE_RESET,
         Self::SENSE_ATTENTION_TRACKING,
         Self::SENSE_KBD_LIGHT_AUTO,
         Self::AUDIO_DOLBY,

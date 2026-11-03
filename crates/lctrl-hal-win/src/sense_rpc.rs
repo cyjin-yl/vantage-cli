@@ -151,6 +151,9 @@ impl HpdRpc for NativeHpdRpc {
     }
 
     fn set_feature(&self, feature: SenseFeature) -> Result<()> {
+        if let Some(op) = feature.context_only_rpc() {
+            return self.with_session(|session| session.no_arg_call(op));
+        }
         let (op, value) = feature
             .rpc_command()
             .ok_or_else(|| LctrlError::Unsupported {

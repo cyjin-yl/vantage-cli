@@ -1,6 +1,7 @@
 use lctrl_core::{Availability, CapabilitySet, HardwareInfo, Platform, Result};
 use lctrl_hal::{BatteryElectricalSource, Hal};
 
+use crate::HpdRpc;
 use crate::{
     EnergyDriver, GameZone, IoctlTransport, WmiObject, WmiTransport, WmiValue, active_instance,
     power_overlay::NativePowerOverlay, power_overlay::PowerOverlayControl, wmi_contract::ROOT_WMI,
@@ -305,6 +306,54 @@ where
                     Availability::Unavailable
                 },
                 Some("persistent BIOS privacy service is required for writes".into()),
+            )?;
+        }
+        // HPD settings channel: a live read of op-5 capability + op-6
+        // settings proves the RPC endpoint, the NDR contract and the
+        // registry readback all work. Recorded names match the registry
+        // FeatureBinding strings so `capability` reports availability
+        // instead of blanket "unverified" for implemented sense commands.
+        let hpd = match crate::sense_rpc::NativeHpdRpc::new().read_state() {
+            Ok(state) => Some(state),
+            Err(error) => {
+                capabilities.record(
+                    "channel.hpd-rpc",
+                    Availability::Unavailable,
+                    Some(error.to_string()),
+                )?;
+                None
+            }
+        };
+        if let Some(state) = &hpd {
+            capabilities.record("channel.hpd-rpc", Availability::Available, None)?;
+            let bit = |b: u64| state.advertised.is_some_and(|cap| cap & b != 0);
+            for (feature, avail) in [
+                ("sense.status", true),
+                ("sense.lock-on-leave", bit(0x0010)),
+                ("sense.wake-on-approach", bit(0x0002)),
+                ("sense.pause-video", bit(0x0200)),
+                ("sense.camera-assist", bit(0x0040)),
+                ("sense.approach-auto-adjust", bit(0x0008)),
+                ("sense.leave-auto-adjust", bit(0x0100)),
+                ("sense.reset", true),
+                ("sense.attention-tracking", true),
+            ] {
+                capabilities.record(
+                    feature,
+                    if avail {
+                        Availability::Available
+                    } else {
+                        Availability::Unavailable
+                    },
+                    (!avail).then(|| "HPD op-5 capability bit not advertised".into()),
+                )?;
+            }
+            // privacy.alert has no RPC setter and the legacy pipe is rejected
+            // by this service version; the field decodes from the registry.
+            capabilities.record(
+                "sense.privacy-alert",
+                Availability::Unavailable,
+                Some("legacy SmartSense settings pipe rejects all probed codes on 1.0.8.5".into()),
             )?;
         }
         match self.wmi.query(
