@@ -5471,7 +5471,7 @@ fn execute_privacy(
             runtime,
             persistent,
         } => match privacy_layer(runtime, persistent)? {
-            PrivacyLayer::Runtime => execute_runtime_camera(privacy, state, apply),
+            PrivacyLayer::Runtime => execute_runtime_camera(privacy, state, apply, auto_restore),
             PrivacyLayer::Persistent => execute_persistent_bios_toggle(
                 bios,
                 "IntegratedCamera",
@@ -5557,6 +5557,7 @@ fn execute_runtime_camera(
     privacy: Option<&dyn PrivacyControl>,
     state: Toggle,
     apply: ApplyMode,
+    auto_restore: bool,
 ) -> CommandResult {
     let privacy = privacy.ok_or_else(|| LctrlError::Unsupported {
         feature: "privacy.cam.runtime".into(),
@@ -5566,7 +5567,22 @@ fn execute_runtime_camera(
         Toggle::Off => DeviceState::Disabled,
     };
     let report = privacy.set_camera(requested, apply)?;
-    structured_output(&report, "runtime camera state requested\n".into())
+    let restore = if auto_restore && apply == ApplyMode::Commit && *report.previous() != requested {
+        // The PnP transaction already verified the requested state; restore
+        // re-runs the same guarded path for the captured previous value.
+        let restored = privacy.set_camera(*report.previous(), ApplyMode::Commit)?;
+        Some(format!(
+            "restored runtime camera: {:?} (verified)\n",
+            restored.actual()
+        ))
+    } else {
+        None
+    };
+    output_with_restore(
+        &report,
+        "runtime camera state requested\n".into(),
+        restore.as_deref(),
+    )
 }
 
 fn execute_persistent_bios_toggle(
