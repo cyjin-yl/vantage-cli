@@ -36,6 +36,16 @@ pub trait PrivacyControl: Send + Sync {
         state: lctrl_core::DeviceState,
         apply: ApplyMode,
     ) -> Result<ChangeReport<lctrl_core::DeviceState>>;
+
+    /// Runtime microphone mute through the same PnP channel as the camera.
+    /// Platforms without a verified internal-microphone power switch must
+    /// report `Unsupported` rather than mutating an unrelated audio device.
+    fn microphone_state(&self) -> Result<lctrl_core::DeviceState>;
+    fn set_microphone(
+        &self,
+        state: lctrl_core::DeviceState,
+        apply: ApplyMode,
+    ) -> Result<ChangeReport<lctrl_core::DeviceState>>;
 }
 
 pub trait PanelControl: Send + Sync {

@@ -1227,6 +1227,10 @@ struct PrivacyStatusPayload {
     runtime_camera: Option<DeviceState>,
     #[serde(skip_serializing_if = "Option::is_none")]
     runtime_camera_error: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    runtime_microphone: Option<DeviceState>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    runtime_microphone_error: Option<Value>,
     bios: Vec<lctrl_core::BiosItem>,
 }
 
@@ -5778,9 +5782,9 @@ fn execute_privacy(
             runtime,
             persistent,
         } => match privacy_layer(runtime, persistent)? {
-            PrivacyLayer::Runtime => Err(LctrlError::Unsupported {
-                feature: "privacy.mic.runtime".into(),
-            }),
+            PrivacyLayer::Runtime => {
+                execute_runtime_microphone(privacy, state, apply, auto_restore)
+            }
             PrivacyLayer::Persistent => execute_persistent_bios_toggle(
                 bios,
                 "Microphone",
@@ -5809,6 +5813,10 @@ fn execute_privacy(
             let (runtime_camera, runtime_camera_error) = privacy.map_or((None, None), |privacy| {
                 capture_optional(privacy.camera_state())
             });
+            let (runtime_microphone, runtime_microphone_error) = privacy
+                .map_or((None, None), |privacy| {
+                    capture_optional(privacy.microphone_state())
+                });
             let mut bios_items = Vec::new();
             if let Some(bios) = bios {
                 for name in ["IntegratedCamera", "Microphone", "FingerprintReader"] {
@@ -5820,6 +5828,8 @@ fn execute_privacy(
             let payload = PrivacyStatusPayload {
                 runtime_camera,
                 runtime_camera_error,
+                runtime_microphone,
+                runtime_microphone_error,
                 bios: bios_items,
             };
             structured_output(&payload, "privacy status collected\n".into())
@@ -5872,6 +5882,38 @@ fn execute_runtime_camera(
     output_with_restore(
         &report,
         "runtime camera state requested\n".into(),
+        restore.as_deref(),
+    )
+}
+
+fn execute_runtime_microphone(
+    privacy: Option<&dyn PrivacyControl>,
+    state: Toggle,
+    apply: ApplyMode,
+    auto_restore: bool,
+) -> CommandResult {
+    let privacy = privacy.ok_or_else(|| LctrlError::Unsupported {
+        feature: "privacy.mic.runtime".into(),
+    })?;
+    let requested = match state {
+        Toggle::On => DeviceState::Enabled,
+        Toggle::Off => DeviceState::Disabled,
+    };
+    let report = privacy.set_microphone(requested, apply)?;
+    let restore = if auto_restore && apply == ApplyMode::Commit && *report.previous() != requested {
+        // Same guarded PnP transaction as the write: the backend locates the
+        // admitted microphone devnode again and verifies the state.
+        let restored = privacy.set_microphone(*report.previous(), ApplyMode::Commit)?;
+        Some(format!(
+            "restored runtime microphone: {:?} (verified)\n",
+            restored.actual()
+        ))
+    } else {
+        None
+    };
+    output_with_restore(
+        &report,
+        "runtime microphone state requested\n".into(),
         restore.as_deref(),
     )
 }

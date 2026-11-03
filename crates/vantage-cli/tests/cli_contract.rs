@@ -1401,6 +1401,21 @@ impl PrivacyControl for FakePrivacy {
             ApplyMode::Commit => ChangeReport::committed(DeviceState::Enabled, state, state),
         })
     }
+
+    fn microphone_state(&self) -> lctrl_core::Result<DeviceState> {
+        Ok(DeviceState::Enabled)
+    }
+
+    fn set_microphone(
+        &self,
+        state: DeviceState,
+        apply: ApplyMode,
+    ) -> lctrl_core::Result<ChangeReport<DeviceState>> {
+        Ok(match apply {
+            ApplyMode::DryRun => ChangeReport::dry_run(DeviceState::Enabled, state),
+            ApplyMode::Commit => ChangeReport::committed(DeviceState::Enabled, state, state),
+        })
+    }
 }
 
 #[test]

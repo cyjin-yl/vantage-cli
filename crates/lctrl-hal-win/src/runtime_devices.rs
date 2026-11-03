@@ -668,6 +668,18 @@ where
     ) -> Result<ChangeReport<DeviceState>> {
         self.set_camera_group(state, apply)
     }
+
+    fn microphone_state(&self) -> Result<DeviceState> {
+        WindowsRuntimeDevices::microphone_state(self)
+    }
+
+    fn set_microphone(
+        &self,
+        state: DeviceState,
+        apply: ApplyMode,
+    ) -> Result<ChangeReport<DeviceState>> {
+        WindowsRuntimeDevices::set_microphone(self, state, apply)
+    }
 }
 
 impl<A> TouchpadControl for WindowsRuntimeDevices<A>
