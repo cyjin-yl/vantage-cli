@@ -814,3 +814,31 @@ temporary_charge: 0x00000001 -> permanent=true (非临时模式)
 写路径(充电模式 GBMD 03/05/07/08、USB 0x0a/0x0b/0x12/0x13、夜间充电
 0x80000012/0x12)契约经反汇编验证、实现带 dry-run/回滚/读回轮询,但**真机写入
 验收待 owner 在场时按各命令执行**(本机记录仍为只读证据)。
+
+## C30 · BIOS 暂存写 `--auto-restore` 真机验收(2026-11-03)
+
+补 C29:此前 BIOS 暂存路径(`kbd fnlock`/`kbd fn-ctrl-swap`/`privacy * --persistent`/
+`usb * --persistent`/`bios set --save`)接受 `--auto-restore` 但丢弃该标志,提交后
+不恢复、不输出恢复行。已修复:`execute_fnlock`、`execute_persistent_bios_toggle`、
+`BiosCommand::Set` 均经 `restore_bios_change` 重新暂存并回写捕获的旧值,恢复
+回读不符即报 `FirmwareRejected`,绝不伪装恢复。
+
+同次发现:NVRAM 暂存缓冲为**机器全局单缓冲**——客户端 B 暂存的值被未暂存的
+客户端 C 的 SaveBiosSettings 提交,Discard 亦清除所有客户端的待写项。门禁
+`require_owned_staging`/`bios.staging.owned` 更名为
+`require_staging_contract`/`bios.staging.contract`,NativeWmi 报契约已验证;
+确认文案披露"保存会提交全局缓冲(含其他工具的待写项)"。
+
+目标机实测(记录 `docs/evidence/target-bios-autorestore-acceptance-20261103.txt`):
+
+| 命令 | 写入 | 自动恢复(回读) |
+|---|---|---|
+| `privacy cam off --persistent` | IntegratedCamera=Disable | `restored IntegratedCamera=Enable (verified)` |
+| `privacy mic off --persistent` | Microphone=Disable | `restored Microphone=Enable (verified)` |
+| `privacy fingerprint off` | FingerprintReader=Disable | `restored FingerprintReader=Enable (verified)` |
+| `kbd fnlock off` | HotkeyMode=Enable + F1-F12AsPrimaryFunction=Disable | 两键各 `restored ... (verified)` |
+| `kbd fn-ctrl-swap off` | FoolProofFnCtrl=Disable | `restored FoolProofFnCtrl=Enable (verified)` |
+| `usb always-on off --persistent` | AlwaysOnUSB=Disable | `restored AlwaysOnUSB=Enable (verified)` |
+
+终态独立回读:HotkeyMode=Disable、F1-F12AsPrimaryFunction=Enable、
+FoolProofFnCtrl=Enable、AlwaysOnUSB=Enable,与写前基线一致。

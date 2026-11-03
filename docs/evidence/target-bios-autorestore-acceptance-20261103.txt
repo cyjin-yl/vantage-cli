@@ -1,0 +1,46 @@
+conflicting vendor control application(s) detected: LenovoMagiCenterDetector.exe, LenovoPcManagerService.exe, LenovoVantage-(BatteryWidgetAddin).exe, LenovoVantage-(ConsumerAddin).exe, LenovoVantage-(DeviceSettingsHeartbeatAddin).exe, LenovoVantage-(DeviceSettingsSystemAddin).exe, LenovoVantage-(GenericMessagingAddin).exe, LenovoVantage-(GenericTelemetryAddin).exe, LenovoVantage-(IdeaNotebookAddin).exe, LenovoVantage-(LenovoAuthenticationAddin).exe, LenovoVantage-(LenovoCompanionAppAddin).exe, LenovoVantage-(LenovoHardwareScanAddin).exe, LenovoVantage-(LenovoMachineFixSystemAddin).exe, LenovoVantage-(LenovoProductivitySystemAddin).exe, LenovoVantage-(LenovoServiceBridgeAddin).exe, LenovoVantage-(ModernPreloadAddin).exe, LenovoVantage-(SEDiagnosisAddin).exe, LenovoVantage-(SEHeartBeatAddin).exe, LenovoVantage-(SESmartBoostAddin).exe, LenovoVantage-(SmartColorAddin).exe, LenovoVantage-(SmartInteractAddin).exe, LenovoVantage-(SmartNoiseCancelledAddin).exe, LenovoVantage-(SmartPanelAddin).exe, LenovoVantage-(SmartPerformanceAddin).exe, LenovoVantage-(SmartPerformanceUserAddin).exe, LenovoVantage-(SmartScenarioAddin).exe, LenovoVantage-(VantageCoreAddin).exe, LenovoVantage.exe, LenovoVantageService.exe
+BIOS write: key=IntegratedCamera value=Disable; effect timing may require reboot; recovery: vantage bios set IntegratedCamera Enable --save --yes
+BIOS IntegratedCamera saved and read back
+restored IntegratedCamera=Enable (verified)
+
+
+conflicting vendor control application(s) detected: LenovoMagiCenterDetector.exe, LenovoPcManagerService.exe, LenovoVantage-(BatteryWidgetAddin).exe, LenovoVantage-(ConsumerAddin).exe, LenovoVantage-(DeviceSettingsHeartbeatAddin).exe, LenovoVantage-(DeviceSettingsSystemAddin).exe, LenovoVantage-(GenericMessagingAddin).exe, LenovoVantage-(GenericTelemetryAddin).exe, LenovoVantage-(IdeaNotebookAddin).exe, LenovoVantage-(LenovoAuthenticationAddin).exe, LenovoVantage-(LenovoCompanionAppAddin).exe, LenovoVantage-(LenovoHardwareScanAddin).exe, LenovoVantage-(LenovoMachineFixSystemAddin).exe, LenovoVantage-(LenovoProductivitySystemAddin).exe, LenovoVantage-(LenovoServiceBridgeAddin).exe, LenovoVantage-(ModernPreloadAddin).exe, LenovoVantage-(SEDiagnosisAddin).exe, LenovoVantage-(SEHeartBeatAddin).exe, LenovoVantage-(SESmartBoostAddin).exe, LenovoVantage-(SmartColorAddin).exe, LenovoVantage-(SmartInteractAddin).exe, LenovoVantage-(SmartNoiseCancelledAddin).exe, LenovoVantage-(SmartPanelAddin).exe, LenovoVantage-(SmartPerformanceAddin).exe, LenovoVantage-(SmartPerformanceUserAddin).exe, LenovoVantage-(SmartScenarioAddin).exe, LenovoVantage-(VantageCoreAddin).exe, LenovoVantage.exe, LenovoVantageService.exe
+BIOS write: key=Microphone value=Disable; effect timing may require reboot; recovery: vantage bios set Microphone Enable --save --yes
+BIOS Microphone saved and read back
+restored Microphone=Enable (verified)
+
+
+conflicting vendor control application(s) detected: LenovoMagiCenterDetector.exe, LenovoPcManagerService.exe, LenovoVantage-(BatteryWidgetAddin).exe, LenovoVantage-(ConsumerAddin).exe, LenovoVantage-(DeviceSettingsHeartbeatAddin).exe, LenovoVantage-(DeviceSettingsSystemAddin).exe, LenovoVantage-(GenericMessagingAddin).exe, LenovoVantage-(GenericTelemetryAddin).exe, LenovoVantage-(IdeaNotebookAddin).exe, LenovoVantage-(LenovoAuthenticationAddin).exe, LenovoVantage-(LenovoCompanionAppAddin).exe, LenovoVantage-(LenovoHardwareScanAddin).exe, LenovoVantage-(LenovoMachineFixSystemAddin).exe, LenovoVantage-(LenovoProductivitySystemAddin).exe, LenovoVantage-(LenovoServiceBridgeAddin).exe, LenovoVantage-(ModernPreloadAddin).exe, LenovoVantage-(SEDiagnosisAddin).exe, LenovoVantage-(SEHeartBeatAddin).exe, LenovoVantage-(SESmartBoostAddin).exe, LenovoVantage-(SmartColorAddin).exe, LenovoVantage-(SmartInteractAddin).exe, LenovoVantage-(SmartNoiseCancelledAddin).exe, LenovoVantage-(SmartPanelAddin).exe, LenovoVantage-(SmartPerformanceAddin).exe, LenovoVantage-(SmartPerformanceUserAddin).exe, LenovoVantage-(SmartScenarioAddin).exe, LenovoVantage-(VantageCoreAddin).exe, LenovoVantage.exe, LenovoVantageService.exe
+BIOS write: key=FingerprintReader value=Disable; effect timing may require reboot; recovery: vantage bios set FingerprintReader Enable --save --yes
+BIOS FingerprintReader saved and read back
+restored FingerprintReader=Enable (verified)
+
+
+conflicting vendor control application(s) detected: LenovoMagiCenterDetector.exe, LenovoPcManagerService.exe, LenovoVantage-(BatteryWidgetAddin).exe, LenovoVantage-(ConsumerAddin).exe, LenovoVantage-(DeviceSettingsHeartbeatAddin).exe, LenovoVantage-(DeviceSettingsSystemAddin).exe, LenovoVantage-(GenericMessagingAddin).exe, LenovoVantage-(GenericTelemetryAddin).exe, LenovoVantage-(IdeaNotebookAddin).exe, LenovoVantage-(LenovoAuthenticationAddin).exe, LenovoVantage-(LenovoCompanionAppAddin).exe, LenovoVantage-(LenovoHardwareScanAddin).exe, LenovoVantage-(LenovoMachineFixSystemAddin).exe, LenovoVantage-(LenovoProductivitySystemAddin).exe, LenovoVantage-(LenovoServiceBridgeAddin).exe, LenovoVantage-(ModernPreloadAddin).exe, LenovoVantage-(SEDiagnosisAddin).exe, LenovoVantage-(SEHeartBeatAddin).exe, LenovoVantage-(SESmartBoostAddin).exe, LenovoVantage-(SmartColorAddin).exe, LenovoVantage-(SmartInteractAddin).exe, LenovoVantage-(SmartNoiseCancelledAddin).exe, LenovoVantage-(SmartPanelAddin).exe, LenovoVantage-(SmartPerformanceAddin).exe, LenovoVantage-(SmartPerformanceUserAddin).exe, LenovoVantage-(SmartScenarioAddin).exe, LenovoVantage-(VantageCoreAddin).exe, LenovoVantage.exe, LenovoVantageService.exe
+BIOS writes: HotkeyMode=Enable and F1-F12AsPrimaryFunction=Disable; effect after reboot; recovery: restore HotkeyMode=Disable and F1-F12AsPrimaryFunction=Enable with vantage bios set --save --yes
+FnLock BIOS settings saved and read back
+restored HotkeyMode=Disable (verified)
+restored F1-F12AsPrimaryFunction=Enable (verified)
+
+
+conflicting vendor control application(s) detected: LenovoMagiCenterDetector.exe, LenovoPcManagerService.exe, LenovoVantage-(BatteryWidgetAddin).exe, LenovoVantage-(ConsumerAddin).exe, LenovoVantage-(DeviceSettingsHeartbeatAddin).exe, LenovoVantage-(DeviceSettingsSystemAddin).exe, LenovoVantage-(GenericMessagingAddin).exe, LenovoVantage-(GenericTelemetryAddin).exe, LenovoVantage-(IdeaNotebookAddin).exe, LenovoVantage-(LenovoAuthenticationAddin).exe, LenovoVantage-(LenovoCompanionAppAddin).exe, LenovoVantage-(LenovoHardwareScanAddin).exe, LenovoVantage-(LenovoMachineFixSystemAddin).exe, LenovoVantage-(LenovoProductivitySystemAddin).exe, LenovoVantage-(LenovoServiceBridgeAddin).exe, LenovoVantage-(ModernPreloadAddin).exe, LenovoVantage-(SEDiagnosisAddin).exe, LenovoVantage-(SEHeartBeatAddin).exe, LenovoVantage-(SESmartBoostAddin).exe, LenovoVantage-(SmartColorAddin).exe, LenovoVantage-(SmartInteractAddin).exe, LenovoVantage-(SmartNoiseCancelledAddin).exe, LenovoVantage-(SmartPanelAddin).exe, LenovoVantage-(SmartPerformanceAddin).exe, LenovoVantage-(SmartPerformanceUserAddin).exe, LenovoVantage-(SmartScenarioAddin).exe, LenovoVantage-(VantageCoreAddin).exe, LenovoVantage.exe, LenovoVantageService.exe
+BIOS write: key=FoolProofFnCtrl value=Disable; effect timing may require reboot; recovery: vantage bios set FoolProofFnCtrl Enable --save --yes
+BIOS FoolProofFnCtrl saved and read back
+restored FoolProofFnCtrl=Enable (verified)
+
+
+BIOS write: key=AlwaysOnUSB value=Disable; the save commits the machine-global staging buffer (any pending changes from other tools are committed too); effect timing may require reboot; recovery: vantage bios set AlwaysOnUSB Enable --save --yes
+BIOS setting saved and read back
+restored AlwaysOnUSB=Enable (verified)
+
+
+privacy status collected
+
+HotkeyMode=Disable
+
+F1-F12AsPrimaryFunction=Enable
+
+FoolProofFnCtrl=Enable
+
+AlwaysOnUSB=Enable
+
