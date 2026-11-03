@@ -344,13 +344,14 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
     CommandCapability::new(
         CommandId::BATTERY_WATCH,
         CommandAxes::read_only(StateLayer::Runtime),
-        FeatureBinding::ServiceOnly,
-        ServiceBinding::One(ServiceRole::Events),
+        FeatureBinding::Capability("battery.status"),
+        ServiceBinding::One(ServiceRole::Battery),
         &[
-            lctrl_core::required(Dependency::WindowsWmiEvents),
+            lctrl_core::required(Dependency::PublicWin32Cim),
+            lctrl_core::optional(Dependency::EnergyDriver),
             lctrl_core::required(Dependency::LinuxUdev),
         ],
-        DispatchSupport::Unsupported("battery event streaming requires an event service"),
+        DispatchSupport::Implemented,
     ),
     CommandCapability::new(
         CommandId::USB_ALWAYS_ON,
@@ -837,13 +838,18 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
     CommandCapability::new(
         CommandId::TUNE_WATCH,
         CommandAxes::read_only(StateLayer::Runtime),
-        FeatureBinding::ServiceOnly,
-        ServiceBinding::One(ServiceRole::Events),
+        FeatureBinding::AnyOf(&["tune.epp", "battery.status", "perf.temp", "perf.mode"]),
+        ServiceBinding::AnyOf(&[
+            ServiceRole::Tuning,
+            ServiceRole::Battery,
+            ServiceRole::Performance,
+            ServiceRole::Temperature,
+        ]),
         &[
-            lctrl_core::required(Dependency::WindowsWmiEvents),
+            lctrl_core::required(Dependency::PublicWin32Cim),
             lctrl_core::required(Dependency::LinuxUdev),
         ],
-        DispatchSupport::Unsupported("tuning event streaming requires an event service"),
+        DispatchSupport::Implemented,
     ),
     CommandCapability::new(
         CommandId::KBD_BACKLIGHT,
@@ -1349,9 +1355,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         FeatureBinding::Unprobed("bios.defaults"),
         ServiceBinding::One(ServiceRole::Bios),
         &[lctrl_core::required(Dependency::LenovoFirmwareWmi)],
-        DispatchSupport::Unsupported(
-            "experimental or underspecified BIOS defaults are unavailable",
-        ),
+        DispatchSupport::Implemented,
     ),
     CommandCapability::new(
         CommandId::BIOS_PASSWORD_STATUS,
@@ -1371,7 +1375,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         FeatureBinding::Unprobed("bios.password.set"),
         ServiceBinding::One(ServiceRole::Bios),
         &[lctrl_core::required(Dependency::LenovoFirmwareWmi)],
-        DispatchSupport::Unsupported("SetBiosPassword parameter encoding is underspecified"),
+        DispatchSupport::Unsupported(
+            "BIOS password writes stay refused by the documented no-password-write boundary (docs/interfaces.md §0)",
+        ),
     ),
     CommandCapability::new(
         CommandId::BIOS_PASSWORD_CLEAR,
@@ -1383,7 +1389,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         FeatureBinding::Unprobed("bios.password.clear"),
         ServiceBinding::One(ServiceRole::Bios),
         &[lctrl_core::required(Dependency::LenovoFirmwareWmi)],
-        DispatchSupport::Unsupported("SetBiosPassword parameter encoding is underspecified"),
+        DispatchSupport::Unsupported(
+            "BIOS password writes stay refused by the documented no-password-write boundary (docs/interfaces.md §0)",
+        ),
     ),
     CommandCapability::new(
         CommandId::BIOS_PASSWORD_VERIFY,
@@ -1391,7 +1399,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         FeatureBinding::Unprobed("bios.password.verify"),
         ServiceBinding::One(ServiceRole::Bios),
         &[lctrl_core::required(Dependency::LenovoFirmwareWmi)],
-        DispatchSupport::Unsupported("SetBiosPassword parameter encoding is underspecified"),
+        DispatchSupport::Implemented,
     ),
     CommandCapability::new(
         CommandId::MAGICBAY_DETECT,

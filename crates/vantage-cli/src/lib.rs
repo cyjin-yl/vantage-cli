@@ -49,6 +49,8 @@ pub type CommandResult = lctrl_core::Result<CommandOutput>;
 pub enum StreamKind {
     Telemetry,
     Temperatures,
+    Battery,
+    TuneWatch,
 }
 
 /// A streaming command and the minimum delay between completed samples.
@@ -403,12 +405,18 @@ impl Cli {
 /// watch always streams, including when its default interval is used.
 pub fn stream_spec(cli: &Cli) -> lctrl_core::Result<Option<StreamSpec>> {
     let (kind, seconds) = match &cli.command {
+        Command::Battery {
+            command: Some(BatteryCommand::Watch { interval }),
+        } => (StreamKind::Battery, *interval),
         Command::Tune {
             command:
                 Some(TuneCommand::Telemetry {
                     interval: Some(seconds),
                 }),
         } => (StreamKind::Telemetry, *seconds),
+        Command::Tune {
+            command: Some(TuneCommand::Watch { interval }),
+        } => (StreamKind::TuneWatch, *interval),
         Command::Perf {
             command:
                 Some(PerfCommand::Temp {
@@ -433,6 +441,8 @@ pub fn sample_stream(kind: StreamKind, services: &CommandServices<'_>) -> Comman
     match kind {
         StreamKind::Telemetry => execute_tune_telemetry(services),
         StreamKind::Temperatures => execute_temperature_list(services.temperature),
+        StreamKind::Battery => battery_observation::execute(services.battery),
+        StreamKind::TuneWatch => execute_tune_telemetry(services),
     }
 }
 
@@ -440,6 +450,8 @@ fn streaming_command_error(kind: StreamKind) -> LctrlError {
     let command = match kind {
         StreamKind::Telemetry => "tune.telemetry",
         StreamKind::Temperatures => "perf.temp.watch",
+        StreamKind::Battery => "battery.watch",
+        StreamKind::TuneWatch => "tune.watch",
     };
     LctrlError::Unsupported {
         feature: format!("{command} requires the streaming API"),
@@ -607,7 +619,11 @@ pub enum BatteryCommand {
         state: Toggle,
     },
     TemporaryMode,
-    Watch,
+    Watch {
+        /// Minimum delay between samples, in seconds.
+        #[arg(long, default_value_t = 1, value_parser = clap::value_parser!(u64).range(1..))]
+        interval: u64,
+    },
 }
 
 /// USB command tree.
@@ -750,7 +766,11 @@ pub enum TuneCommand {
         #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
         interval: Option<u64>,
     },
-    Watch,
+    Watch {
+        /// Minimum delay between samples, in seconds.
+        #[arg(long, default_value_t = 1, value_parser = clap::value_parser!(u64).range(1..))]
+        interval: u64,
+    },
 }
 
 #[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
@@ -948,7 +968,11 @@ pub enum BiosCommand {
     },
     Save,
     Discard,
-    Defaults,
+    Defaults {
+        /// Current supervisor password, required when one is already set.
+        #[arg(long)]
+        password: Option<String>,
+    },
     Password {
         #[command(subcommand)]
         command: Option<PasswordCommand>,
@@ -958,9 +982,21 @@ pub enum BiosCommand {
 #[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
 pub enum PasswordCommand {
     Status,
-    Set { value: Option<String> },
-    Clear,
-    Verify { value: Option<String> },
+    Set {
+        /// New supervisor password.
+        value: String,
+        /// Current supervisor password, required when one is already set.
+        #[arg(long)]
+        current: Option<String>,
+    },
+    Clear {
+        /// Current supervisor password.
+        value: String,
+    },
+    Verify {
+        /// Supervisor password to check against the firmware.
+        value: String,
+    },
 }
 
 /// Magic Bay command tree.
@@ -1719,7 +1755,14 @@ fn command_is_mutating(command: &Command) -> bool {
                     | PrivacyCommand::Fingerprint { .. },
             )
         } | Command::Bios {
-            command: Some(BiosCommand::Set { .. } | BiosCommand::Discard)
+            command: Some(
+                BiosCommand::Set { .. }
+                    | BiosCommand::Discard
+                    | BiosCommand::Defaults { .. }
+                    | BiosCommand::Password {
+                        command: Some(PasswordCommand::Set { .. } | PasswordCommand::Clear { .. },),
+                    },
+            )
         }
     )
 }
@@ -6415,8 +6458,42 @@ fn execute_bios(
             let status = bios.password_status()?;
             structured_output(&status, "BIOS password status read\n".into())
         }
-        BiosCommand::Defaults | BiosCommand::Password { .. } => Err(LctrlError::Unsupported {
-            feature: "bios.experimental-or-underspecified".into(),
+        BiosCommand::Defaults { password } => {
+            if apply == ApplyMode::DryRun {
+                structured_output(
+                    &serde_json::json!({ "operation": "bios_defaults", "mode": "dry_run" }),
+                    "BIOS defaults dry run validated; no settings were reset\n".into(),
+                )
+            } else {
+                confirm_risky_change(
+                    confirmed,
+                    interactive,
+                    "BIOS defaults resets every setup option to factory values: it discards staged changes and overwrites persistent settings such as Fn-lock, USB behaviour, and boot order",
+                )?;
+                bios.load_defaults(password.as_deref())?;
+                structured_output(&(), "BIOS setup reset to factory defaults\n".into())
+            }
+        }
+        BiosCommand::Password {
+            command: Some(PasswordCommand::Set { .. } | PasswordCommand::Clear { .. }),
+        } => Err(LctrlError::Unsupported {
+            feature: "bios.password.write".into(),
+        }),
+        BiosCommand::Password {
+            command: Some(PasswordCommand::Verify { value }),
+        } => {
+            let verified = bios.verify_password(value.as_str())?;
+            structured_output(
+                &serde_json::json!({ "verified": verified }),
+                if verified {
+                    "BIOS supervisor password verified\n".into()
+                } else {
+                    "BIOS supervisor password rejected\n".into()
+                },
+            )
+        }
+        BiosCommand::Password { command: None } => Err(LctrlError::InvalidArgument {
+            detail: "a password subcommand is required".into(),
         }),
     }
 }
@@ -6547,9 +6624,6 @@ fn unsupported_reason(command: &Command) -> &'static str {
         } => {
             "full extreme-life equivalence requires an owned signed kernel Job lifecycle implementation and the target UI toggle mapping; a partial power-plan or EcoQoS substitute is not implemented (docs/evidence/extreme-life-re-20261102.md)"
         }
-        Command::Battery {
-            command: Some(BatteryCommand::Watch),
-        } => "battery event streaming requires the daemon event source",
         Command::Power {
             command: Some(PowerCommand::SaverOnce),
         } => "composite saver workflow has no transactional executor",
@@ -6568,9 +6642,6 @@ fn unsupported_reason(command: &Command) -> &'static str {
         Command::Tune {
             command: Some(TuneCommand::Turbo { .. }),
         } => "no verified turbo mutator is attached",
-        Command::Tune {
-            command: Some(TuneCommand::Watch),
-        } => "tuning event streaming requires the daemon event source",
         Command::Kbd { command: None } => "a keyboard subcommand is required",
         Command::Kbd {
             command: Some(KbdCommand::Winlock { .. }),
@@ -6683,7 +6754,7 @@ impl BatteryCommand {
             Self::ExtremeLife { .. } => "extreme-life",
             Self::NightCharge { .. } => "night-charge",
             Self::TemporaryMode => "temporary-mode",
-            Self::Watch => "watch",
+            Self::Watch { .. } => "watch",
         }
     }
 }
@@ -6731,7 +6802,7 @@ impl TuneCommand {
             Self::Turbo { .. } => "turbo",
             Self::Restore => "restore",
             Self::Telemetry { .. } => "telemetry",
-            Self::Watch => "watch",
+            Self::Watch { .. } => "watch",
         }
     }
 }
@@ -6805,7 +6876,7 @@ impl BiosCommand {
             Self::Set { .. } => "set",
             Self::Save { .. } => "save",
             Self::Discard => "discard",
-            Self::Defaults => "defaults",
+            Self::Defaults { .. } => "defaults",
             Self::Password { .. } => "password",
         }
     }

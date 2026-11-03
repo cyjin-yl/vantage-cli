@@ -147,6 +147,21 @@ where
             },
             (!bios_password_ok).then(|| "Lenovo_BiosPasswordSettings returned no instance".into()),
         )?;
+        for (feature, class) in [
+            ("bios.defaults", "Lenovo_LoadDefaultSettings"),
+            ("bios.password.verify", "Lenovo_SetBiosPassword"),
+        ] {
+            let present = active_instance(&self.wmi, class).is_ok();
+            capabilities.record(
+                feature,
+                if present {
+                    Availability::Available
+                } else {
+                    Availability::Unavailable
+                },
+                (!present).then(|| format!("{class} has no active instance")),
+            )?;
+        }
 
         let wmi_available = match active_instance(&self.wmi, "LENOVO_UTILITY_DATA") {
             Ok(_) => {

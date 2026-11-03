@@ -57,7 +57,7 @@ pub fn command_layer(command: &crate::Command) -> lctrl_core::StateLayer {
             command: Some(BatteryCommand::TemporaryMode),
         } => StateLayer::Runtime,
         Command::Battery {
-            command: Some(BatteryCommand::Watch),
+            command: Some(BatteryCommand::Watch { .. }),
         } => StateLayer::Runtime,
         Command::Battery {
             command: None | Some(BatteryCommand::Status | BatteryCommand::Adapter),
@@ -80,7 +80,7 @@ pub fn command_layer(command: &crate::Command) -> lctrl_core::StateLayer {
             command: Some(crate::TuneCommand::Epp { .. } | crate::TuneCommand::Turbo { .. }),
         } => StateLayer::PlatformDependent,
         Command::Tune {
-            command: Some(crate::TuneCommand::Telemetry { .. } | crate::TuneCommand::Watch),
+            command: Some(crate::TuneCommand::Telemetry { .. } | crate::TuneCommand::Watch { .. }),
         } => StateLayer::Runtime,
         Command::Tune {
             command: Some(crate::TuneCommand::Pl1 { .. } | crate::TuneCommand::Restore),
@@ -114,7 +114,7 @@ pub fn command_layer(command: &crate::Command) -> lctrl_core::StateLayer {
                     BiosCommand::Set { .. }
                     | BiosCommand::Save
                     | BiosCommand::Discard
-                    | BiosCommand::Defaults
+                    | BiosCommand::Defaults { .. }
                     | BiosCommand::Password { command: Some(_) },
                 ),
         } => StateLayer::BiosPersistent,
@@ -227,7 +227,7 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
             command: Some(BatteryCommand::TemporaryMode),
         } => CommandId::BATTERY_TEMPORARY_MODE,
         Command::Battery {
-            command: Some(BatteryCommand::Watch),
+            command: Some(BatteryCommand::Watch { .. }),
         } => CommandId::BATTERY_WATCH,
         Command::Usb {
             command:
@@ -413,7 +413,7 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
             command: Some(TuneCommand::Telemetry { .. }),
         } => CommandId::TUNE_TELEMETRY,
         Command::Tune {
-            command: Some(TuneCommand::Watch),
+            command: Some(TuneCommand::Watch { .. }),
         } => CommandId::TUNE_WATCH,
         Command::Tune {
             command: None | Some(TuneCommand::Profile { command: None }),
@@ -530,7 +530,7 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
             command: Some(BiosCommand::Discard),
         } => CommandId::BIOS_DISCARD,
         Command::Bios {
-            command: Some(BiosCommand::Defaults),
+            command: Some(BiosCommand::Defaults { .. }),
         } => CommandId::BIOS_DEFAULTS,
         Command::Bios {
             command:
@@ -547,7 +547,7 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
         Command::Bios {
             command:
                 Some(BiosCommand::Password {
-                    command: Some(PasswordCommand::Clear),
+                    command: Some(PasswordCommand::Clear { .. }),
                 }),
         } => CommandId::BIOS_PASSWORD_CLEAR,
         Command::Bios {
