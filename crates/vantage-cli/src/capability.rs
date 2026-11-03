@@ -773,8 +773,8 @@ fn evaluate_command(
 ) -> ObservedCommandCapability {
     let platform = hal.platform();
     let service_roles = service_role_names(entry.service);
-    let service = service_presence(entry.service);
     let feature = feature_presence(entry.feature, capabilities, platform);
+    let service = service_presence(entry.service, capabilities);
     let blocked_staging = if entry.axes.write
         && entry.service == ServiceBinding::One(ServiceRole::Bios)
         && matches!(entry.dispatch, DispatchSupport::Implemented)
@@ -873,20 +873,43 @@ enum FeaturePresence {
     Unverified,
 }
 
-fn service_presence(binding: ServiceBinding) -> ServicePresence {
+fn service_presence(binding: ServiceBinding, capabilities: &CapabilitySet) -> ServicePresence {
     match binding {
         ServiceBinding::Local => ServicePresence::Present,
-        ServiceBinding::One(role) => role_presence(&[role]),
-        ServiceBinding::AnyOf(roles) => role_presence(roles),
-        ServiceBinding::Composite(roles) => role_presence(roles),
+        ServiceBinding::One(role) => role_presence(&[role], capabilities),
+        ServiceBinding::AnyOf(roles) => role_presence(roles, capabilities),
+        ServiceBinding::Composite(roles) => role_presence(roles, capabilities),
         ServiceBinding::External | ServiceBinding::Unsupported => ServicePresence::Present,
     }
 }
 
-fn role_presence(roles: &[ServiceRole]) -> ServicePresence {
+fn role_presence(roles: &[ServiceRole], capabilities: &CapabilitySet) -> ServicePresence {
     // The current evaluator receives only the root HAL, not the composition
     // root's optional service attachments. Never infer that a hardware
     // service is attached merely because a capability name exists.
+    // A role whose transport was independently proven at probe time is
+    // present: the HPD RPC channel (SmartSense) read live at capability
+    // time, so ServiceRole::Sense is attached when channel.hpd-rpc is.
+    if roles.iter().any(|role| *role == ServiceRole::Sense) {
+        if let Some(channel) = capabilities.get("channel.hpd-rpc") {
+            return match channel.availability {
+                lctrl_core::Availability::Available | lctrl_core::Availability::Limited => {
+                    ServicePresence::Present
+                }
+                lctrl_core::Availability::Unavailable => ServicePresence::Unexposed,
+            };
+        }
+    }
+    if roles.iter().any(|role| *role == ServiceRole::Privacy) {
+        if let Some(channel) = capabilities.get("channel.privacy-runtime") {
+            return match channel.availability {
+                lctrl_core::Availability::Available | lctrl_core::Availability::Limited => {
+                    ServicePresence::Present
+                }
+                lctrl_core::Availability::Unavailable => ServicePresence::Unexposed,
+            };
+        }
+    }
     if !roles.is_empty() && roles.iter().all(|role| *role == ServiceRole::Hal) {
         ServicePresence::Present
     } else {
