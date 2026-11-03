@@ -102,9 +102,20 @@ where
         apply: ApplyMode,
     ) -> Result<ChangeReport<PowerSourceValues<u32>>> {
         // Validate both requests before either source is written.
-        let range = self.api().range(&key)?;
-        let ac = PowerSettingValue::new(values.ac, &range)?;
-        let dc = PowerSettingValue::new(values.dc, &range)?;
+        // Numeric range metadata may be absent while AC/DC indices still
+        // read and write (PowerReadValue{Min,Max,Increment} can return
+        // ERROR_FILE_NOT_FOUND on PERFEPP/PERFBOOSTMODE/PROCTHROTTLEMAX on
+        // some SKUs); the caller's own domain validation still bounds the
+        // values.
+        let range = self.api().range(&key).ok();
+        let wrap = |raw: u32| -> Result<PowerSettingValue> {
+            match &range {
+                Some(range) => PowerSettingValue::new(raw, range),
+                None => Ok(PowerSettingValue::unchecked(raw)),
+            }
+        };
+        let ac = wrap(values.ac)?;
+        let dc = wrap(values.dc)?;
         let scheme = self.active_scheme_id()?;
         let report = self.apply_source_pair(
             &scheme,
@@ -130,7 +141,7 @@ where
         ac: PowerMutation,
         dc: PowerMutation,
         apply: ApplyMode,
-        range: PowerValueRange,
+        range: Option<PowerValueRange>,
     ) -> Result<ChangeReport<PowerSourceValues<PowerMutation>>> {
         let ac_report = self.apply_source_mutation(scheme, ac, apply, range)?;
         let dc_report = match self.apply_source_mutation(scheme, dc, apply, range) {
@@ -177,11 +188,11 @@ where
         scheme: &PowerSchemeId,
         mutation: PowerMutation,
         apply: ApplyMode,
-        range: PowerValueRange,
+        range: Option<PowerValueRange>,
     ) -> Result<ChangeReport<PowerMutation>> {
         match mutation {
             PowerMutation::SetValue { key, source, value } => {
-                self.set_value_for_scheme(scheme, key, source, value, apply, Some(range))
+                self.set_value_for_scheme(scheme, key, source, value, apply, range)
             }
             PowerMutation::Activate(_) => Err(LctrlError::ChannelUnavailable {
                 channel: "processor source pair contained a scheme activation".into(),

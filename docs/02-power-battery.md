@@ -217,8 +217,26 @@ PCManager `BatterySetting.exe` 提供四种充电策略(Vantage 仅有前三态�
 降亮度 + 收缩后台工作集(后两者由 ResScheduler 完成,见 03 文档 §6)。无独立硬件命令,
 是上述原语的组合;实现者可直接编排。
 
-内置屏的独立 `panel brightness` 原语与安全边界见 04 §3.0；它不构成已完成的
-`power saver-once`，后者仍须对全部适用目标进行预检、完整计划、逐项回读和失败恢复。
+内置屏的独立 `panel brightness` 原语与安全边界见 04 §3.0。
+
+**实现记录(2026-11-03,TB14P-EZRA):** `power saver-once` 已实现为编排器,逐步
+执行已验证的原语:
+
+1. **CPU 上限**:对活动电源方案写 `PROCTHROTTLEMAX` DC=60%。本机型只枚举一个
+   "平衡"方案,没有独立的 "Power saver" 方案可激活,因此策略直接写入当前活动
+   方案(与原版的"写活动方案处理器上限"语义一致)。
+2. **EPP**:`PERFEPP` AC/DC → 100%(最大能效)。
+3. **睿频**:`PERFBOOSTMODE` AC/DC → disabled。
+4. **亮度**:内置屏 → 30%(仅当当前值更高时)。
+
+`--dry-run` 报告每步将执行的动作;`--auto-restore` 在提交后逐项回放捕获的原值
+(升序为 boost→epp→brightness→throttle,后写入先恢复)。原版的关 dGPU 与收缩
+工作集两腿在本机型无对应原语,如实记为 skipped,不作冒充。
+
+**目标机怪癖(已在代码内处理):** `PROCTHROTTLEMAX`/`PERFEPP`/`PERFBOOSTMODE`
+的 AC/DC 索引可读写,但 `PowerReadValue{Min,Max,Increment}` 返回
+`ERROR_FILE_NOT_FOUND`。写路径在 range 缺失时以调用方记录的文档语义
+(百分比 0..=100)约束值,不再硬拒绝。
 
 ### 4.4 极限续航：原版组合策略,不是一次性省电原语
 

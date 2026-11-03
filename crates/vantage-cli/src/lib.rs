@@ -22,8 +22,8 @@ use lctrl_core::{
     DriverVersion, FanMode, HardwareInfo, LctrlError, LocalDriverRollbackRequest,
     LocalDriverUpdateRequest, NoiseCancelState, NoiseCancellationMode, PerformanceMode, Platform,
     PowerGuid, PowerMutation, PowerRangeObservation, PowerSchemeId, PowerSettingKey,
-    PowerSettingValue, PowerSource, ProcessPolicy, ProcessSnapshot, ProcessTarget, SceneAction,
-    UpdateCapability,
+    PowerSettingValue, PowerSource, PowerSourceValues, ProcessPolicy, ProcessSnapshot,
+    ProcessTarget, ProcessorBoostMode, SceneAction, UpdateCapability,
 };
 use lctrl_hal::ScenePolicyControl;
 use lctrl_hal::{
@@ -1471,6 +1471,9 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
         Command::Power {
             command: Some(PowerCommand::Scheme { command: None }),
         } => execute_active_power_scheme(services.power),
+        Command::Power {
+            command: Some(PowerCommand::SaverOnce),
+        } => execute_power_saver_once(&services, apply, cli.auto_restore),
         Command::Perf {
             command: Some(PerfCommand::Mode { mode }),
         } => execute_performance_mode(services.performance, mode, apply, cli.auto_restore),
@@ -1701,6 +1704,8 @@ fn command_is_mutating(command: &Command) -> bool {
             command: Some(PowerCommand::Scheme {
                 command: Some(SchemeCommand::Apply { .. } | SchemeCommand::Set { .. })
             })
+        } | Command::Power {
+            command: Some(PowerCommand::SaverOnce),
         } | Command::Perf {
             command: Some(
                 PerfCommand::Mode { .. } | PerfCommand::Pl1 { .. } | PerfCommand::Pl2 { .. }
@@ -3529,6 +3534,300 @@ fn execute_active_power_scheme(power: Option<&dyn PowerControl>) -> CommandResul
     structured_output(&scheme, format!("active power scheme: {}\n", scheme.name))
 }
 
+/// Steps applied (or would-be-applied) by the one-shot power saver workflow.
+///
+/// Mirrors the original `COneKeyPowerSaverFactory` contract within the
+/// primitives this platform verifies: activate the power-saver scheme, push
+/// CPU policy to efficiency (PERFEPP=100%, PERFBOOSTMODE=disabled), and dim
+/// the internal panel. The original also closes the dGPU and shrinks process
+/// working sets through its ResScheduler; this target has no dGPU leg and no
+/// process-trim contract, so those legs are reported as skipped, not faked.
+#[derive(Serialize)]
+struct SaverOnceStep {
+    step: &'static str,
+    outcome: String,
+}
+
+#[derive(Serialize)]
+struct SaverOnceReport {
+    apply: String,
+    steps: Vec<SaverOnceStep>,
+    skipped: Vec<SaverOnceStep>,
+    auto_restore: Option<Vec<String>>,
+    notes: &'static str,
+}
+
+fn execute_power_saver_once(
+    services: &CommandServices<'_>,
+    apply: ApplyMode,
+    auto_restore: bool,
+) -> CommandResult {
+    let power = services.power.ok_or_else(|| LctrlError::Unsupported {
+        feature: "power.saver-once: no power control service".into(),
+    })?;
+
+    const PROCTHROTTLEMAX: &str = "bc5038f7-23e0-4960-96da-33abaf5935ec";
+    const PROCESSOR_SUBGROUP: &str = "54533251-82be-4824-96c1-47b60b740d00";
+    const SAVER_CPU_CAP_PERCENT: u32 = 60;
+    const SAVER_BRIGHTNESS_PERCENT: u8 = 30;
+
+    // ---- Capture pre-state (read-only; needed for every unwind/restore path).
+    let scheme = power.active_power_scheme()?;
+    let throttle_key = PowerSettingKey {
+        subgroup: PowerGuid::new(PROCESSOR_SUBGROUP)?,
+        setting: PowerGuid::new(PROCTHROTTLEMAX)?,
+    };
+    // PROCTHROTTLEMAX keeps its AC/DC index reads while
+    // PowerReadValue{Min,Max,Increment} return ERROR_FILE_NOT_FOUND on this
+    // target; the setting's domain is documented as a percentage 0..=100, so
+    // a missing range falls back to a checked-percentage write rather than
+    // blocking the saver.
+    let throttle_range = power.power_value_range(&throttle_key).ok();
+    let throttle_value = |percent: u32| -> lctrl_core::Result<PowerSettingValue> {
+        if percent > 100 {
+            return Err(LctrlError::InvalidArgument {
+                detail: format!("processor maximum {percent}% is outside 0..=100"),
+            });
+        }
+        match &throttle_range {
+            Some(range) => PowerSettingValue::new(percent, range),
+            None => Ok(PowerSettingValue::unchecked(percent)),
+        }
+    };
+    let prev_throttle = power
+        .read_power_setting(&scheme.id, &throttle_key)
+        .map(|observation| observation.values)?;
+    let processor = services.processor_power;
+    let prev_epp = processor.map(|p| p.epp_percent_ac_dc()).transpose()?;
+    let prev_boost = processor.map(|p| p.boost_ac_dc()).transpose()?;
+    let panel = services.panel_brightness;
+    let prev_brightness = panel
+        .map(|p| p.brightness().map(|b| b.current_percent))
+        .transpose()?;
+
+    let mut steps: Vec<SaverOnceStep> = Vec::new();
+    let mut skipped: Vec<SaverOnceStep> = Vec::new();
+    let dry = apply == ApplyMode::DryRun;
+
+    // The original's "activate saver scheme" leg is not expressible on this
+    // target: powercfg enumerates only 平衡 (Balanced) — there is no
+    // dedicated Power saver scheme to activate. The saver policy is applied
+    // directly into the active scheme instead (which is exactly how the
+    // original's CPU-cap leg works: it writes the processor maximum of the
+    // active scheme, it does not clone one).
+    skipped.push(SaverOnceStep {
+        step: "scheme",
+        outcome: format!(
+            "no dedicated Power-saver scheme is enumerated on this target; writing saver policy into active scheme {} ({})",
+            scheme.name,
+            scheme.id.as_str()
+        ),
+    });
+
+    // Step 1: cap the processor maximum on DC (the original's CPU降频 leg).
+    let mut throttle_dc_report = None;
+    if prev_throttle.dc > SAVER_CPU_CAP_PERCENT {
+        let mutation = PowerMutation::SetValue {
+            key: throttle_key.clone(),
+            source: PowerSource::Dc,
+            value: throttle_value(SAVER_CPU_CAP_PERCENT)?,
+        };
+        if dry {
+            skipped.push(SaverOnceStep {
+                step: "cpu_cap_dc",
+                outcome: format!(
+                    "dry-run: would write PROCTHROTTLEMAX DC {}% → {}%",
+                    prev_throttle.dc, SAVER_CPU_CAP_PERCENT
+                ),
+            });
+        } else {
+            throttle_dc_report = Some(power.apply_power_mutation(mutation, apply)?);
+            steps.push(SaverOnceStep {
+                step: "cpu_cap_dc",
+                outcome: format!(
+                    "PROCTHROTTLEMAX DC {}% → {}%",
+                    prev_throttle.dc, SAVER_CPU_CAP_PERCENT
+                ),
+            });
+        }
+    } else {
+        skipped.push(SaverOnceStep {
+            step: "cpu_cap_dc",
+            outcome: format!(
+                "processor maximum already at/below {}% on DC ({}%)",
+                SAVER_CPU_CAP_PERCENT, prev_throttle.dc
+            ),
+        });
+    }
+
+    // Step 2: CPU efficiency policy — EPP 100% on AC+DC.
+    let mut epp_report = None;
+    if let (Some(processor), Some(_prev)) = (processor, prev_epp) {
+        if dry {
+            skipped.push(SaverOnceStep {
+                step: "epp",
+                outcome: "dry-run: would set PERFEPP → 100% (AC+DC)".into(),
+            });
+        } else {
+            epp_report =
+                Some(processor.set_epp_percent_ac_dc(PowerSourceValues::same(100), apply)?);
+            steps.push(SaverOnceStep {
+                step: "epp",
+                outcome: "PERFEPP → 100% (maximum energy preference, AC+DC)".into(),
+            });
+        }
+    } else {
+        skipped.push(SaverOnceStep {
+            step: "epp",
+            outcome: "processor-power service or EPP read unavailable; skipped".into(),
+        });
+    }
+
+    // Step 3: processor boost off — the largest single saver lever.
+    let mut boost_report = None;
+    if let (Some(processor), Some(_prev)) = (processor, prev_boost) {
+        if dry {
+            skipped.push(SaverOnceStep {
+                step: "boost",
+                outcome: "dry-run: would set PERFBOOSTMODE → disabled (AC+DC)".into(),
+            });
+        } else {
+            boost_report =
+                Some(processor.set_boost_ac_dc(
+                    PowerSourceValues::same(ProcessorBoostMode::DISABLED),
+                    apply,
+                )?);
+            steps.push(SaverOnceStep {
+                step: "boost",
+                outcome: "PERFBOOSTMODE → disabled (AC+DC)".into(),
+            });
+        }
+    } else {
+        skipped.push(SaverOnceStep {
+            step: "boost",
+            outcome: "processor-power service or boost read unavailable; skipped".into(),
+        });
+    }
+
+    // Step 4: dim panel to 30%.
+    let mut brightness_report = None;
+    if let (Some(panel), Some(prev)) = (panel, prev_brightness) {
+        if prev > SAVER_BRIGHTNESS_PERCENT {
+            if dry {
+                skipped.push(SaverOnceStep {
+                    step: "brightness",
+                    outcome: format!(
+                        "dry-run: would dim panel {prev}% → {SAVER_BRIGHTNESS_PERCENT}%"
+                    ),
+                });
+            } else {
+                brightness_report =
+                    Some(panel.set_brightness(SAVER_BRIGHTNESS_PERCENT, Some(prev), apply)?);
+                steps.push(SaverOnceStep {
+                    step: "brightness",
+                    outcome: format!("panel brightness {prev}% → {SAVER_BRIGHTNESS_PERCENT}%"),
+                });
+            }
+        } else {
+            skipped.push(SaverOnceStep {
+                step: "brightness",
+                outcome: format!(
+                    "panel brightness already at/below {SAVER_BRIGHTNESS_PERCENT}% ({prev}%)"
+                ),
+            });
+        }
+    } else {
+        skipped.push(SaverOnceStep {
+            step: "brightness",
+            outcome: "panel-brightness service or read unavailable; skipped".into(),
+        });
+    }
+
+    // Legs the original performs that this platform cannot verify; they are
+    // disclosed rather than claimed.
+    skipped.push(SaverOnceStep {
+        step: "dgpu_off",
+        outcome: "no verified target dGPU power-down primitive; skipped".into(),
+    });
+    skipped.push(SaverOnceStep {
+        step: "workset_trim",
+        outcome: "no process working-set trim contract attached; skipped".into(),
+    });
+
+    // ---- Optional auto-restore: replay each captured previous state.
+    let mut restored_log: Vec<String> = Vec::new();
+    if auto_restore && apply == ApplyMode::Commit {
+        if let (Some(processor), Some(prev)) = (processor, prev_boost) {
+            if boost_report.is_some() {
+                processor
+                    .set_boost_ac_dc(prev, ApplyMode::Commit)
+                    .map(|report| {
+                        restored_log.push(format!("boost → {:?}", report.actual()));
+                    })?;
+            }
+        }
+        if let (Some(processor), Some(prev)) = (processor, prev_epp) {
+            if epp_report.is_some() {
+                processor
+                    .set_epp_percent_ac_dc(prev, ApplyMode::Commit)
+                    .map(|report| {
+                        restored_log.push(format!("epp → {:?}", report.actual()));
+                    })?;
+            }
+        }
+        if let (Some(panel), Some(prev)) = (panel, prev_brightness) {
+            if brightness_report.is_some() {
+                panel
+                    .set_brightness(prev, None, ApplyMode::Commit)
+                    .map(|report| {
+                        restored_log.push(format!("brightness → {:?}%", report.actual()));
+                    })?;
+            }
+        }
+        if throttle_dc_report.is_some() {
+            let restore_mutation = PowerMutation::SetValue {
+                key: throttle_key.clone(),
+                source: PowerSource::Dc,
+                value: throttle_value(prev_throttle.dc)?,
+            };
+            power.apply_power_mutation(restore_mutation, ApplyMode::Commit)?;
+            restored_log.push(format!("PROCTHROTTLEMAX DC → {}%", prev_throttle.dc));
+        }
+    }
+
+    let report = SaverOnceReport {
+        apply: if dry {
+            "dry_run".into()
+        } else {
+            "commit".into()
+        },
+        steps,
+        skipped,
+        auto_restore: if restored_log.is_empty() {
+            None
+        } else {
+            Some(restored_log)
+        },
+        notes: "one-shot saver: writes are applied but not transactional; the restore plan is \
+                best-effort. The dedicated power-saver scheme, dGPU-off and workset-trim legs \
+                are absent on this platform.",
+    };
+    let mut human = String::from("power saver-once\n");
+    for s in &report.steps {
+        human.push_str(&format!("  ✓ {}: {}\n", s.step, s.outcome));
+    }
+    for s in &report.skipped {
+        human.push_str(&format!("  – {}: {}\n", s.step, s.outcome));
+    }
+    if let Some(restored) = &report.auto_restore {
+        human.push_str("  auto-restore applied:\n");
+        for line in restored {
+            human.push_str(&format!("    {line}\n"));
+        }
+    }
+    structured_output(&report, human)
+}
+
 fn resolve_power_scheme(
     mut schemes: Vec<lctrl_core::PowerScheme>,
     name: &str,
@@ -3658,12 +3957,16 @@ fn execute_power_scheme(
                 PowerSourceArg::Ac => PowerSource::Ac,
                 PowerSourceArg::Dc => PowerSource::Dc,
             };
-            let range = power.power_value_range(&key)?;
-            let mutation = PowerMutation::SetValue {
-                key,
-                source,
-                value: PowerSettingValue::new(value, &range)?,
+            // Numeric range metadata may be absent while AC/DC indices still
+            // read and write (PowerReadValue{Min,Max,Increment} can return
+            // ERROR_FILE_NOT_FOUND on PERFEPP/PERFBOOSTMODE/PROCTHROTTLEMAX);
+            // fall back to the caller-provided value without range checking.
+            let range = power.power_value_range(&key).ok();
+            let value = match &range {
+                Some(range) => PowerSettingValue::new(value, range)?,
+                None => PowerSettingValue::unchecked(value),
             };
+            let mutation = PowerMutation::SetValue { key, source, value };
             let report = power.apply_power_mutation(mutation, apply)?;
             let restore = if auto_restore && apply == ApplyMode::Commit {
                 Some(restore_power_mutation(power, report.previous())?)
