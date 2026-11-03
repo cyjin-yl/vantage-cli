@@ -219,16 +219,26 @@ where
         range: Option<PowerValueRange>,
     ) -> Result<ChangeReport<PowerMutation>> {
         let previous_raw = self.api.read_value(scheme, &key, source)?;
-        let range = match range {
-            Some(range) => range,
-            None => self.api.range(&key)?,
+        // Numeric range metadata may be absent while AC/DC indices still
+        // read and write (PowerReadValue{Min,Max,Increment} can return
+        // ERROR_FILE_NOT_FOUND on PROCTHROTTLEMAX). In that case the write is
+        // bounded only by the caller's documented domain; the
+        // previous/actual values are wrapped without range validation.
+        let range = range.or_else(|| self.api.range(&key).ok());
+        let wrap = |raw: u32| -> Result<PowerSettingValue> {
+            match &range {
+                Some(range) => PowerSettingValue::new(raw, range),
+                None => Ok(PowerSettingValue::unchecked(raw)),
+            }
         };
         let previous = PowerMutation::SetValue {
             key: key.clone(),
             source,
-            value: PowerSettingValue::new(previous_raw, &range)?,
+            value: wrap(previous_raw)?,
         };
-        validate_power_write(value.get(), &range)?;
+        if let Some(range) = &range {
+            validate_power_write(value.get(), range)?;
+        }
         let requested = PowerMutation::SetValue { key, source, value };
         self.require_active_scheme(scheme)?;
         if apply == ApplyMode::DryRun {
@@ -281,7 +291,7 @@ where
             Ok(PowerMutation::SetValue {
                 key: key.clone(),
                 source: *source,
-                value: PowerSettingValue::new(actual_raw, &range)?,
+                value: wrap(actual_raw)?,
             })
         }) {
             Ok(actual) => match self.require_active_scheme(scheme) {

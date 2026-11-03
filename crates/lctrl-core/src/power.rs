@@ -231,6 +231,18 @@ impl PowerSettingValue {
         Ok(Self(value))
     }
 
+    /// Construct a value without a `PowerValueRange`.
+    ///
+    /// Some Windows power settings (for example `PROCTHROTTLEMAX`) keep their
+    /// AC/DC index reads while `PowerReadValue{Min,Max,Increment}` return
+    /// `ERROR_FILE_NOT_FOUND`. The numeric domain is still documented for
+    /// such settings (a percentage in `0..=100`); the caller is responsible
+    /// for that justification — this constructor performs no validation.
+    #[must_use]
+    pub const fn unchecked(value: u32) -> Self {
+        Self(value)
+    }
+
     #[must_use]
     pub const fn get(self) -> u32 {
         self.0

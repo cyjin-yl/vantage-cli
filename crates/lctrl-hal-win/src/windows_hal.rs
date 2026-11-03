@@ -815,6 +815,20 @@ where
             },
             (!power_scheme_probe_ok()).then(|| "Power API active-scheme probe failed".into()),
         )?;
+        // One-shot power saver composes scheme activation, CPU policy
+        // (EPP/boost) and panel dimming. The EPP/boost legs ride the same
+        // Windows power-setting channel as power.scheme.*; panel dimming is
+        // an optional leg rather than a hard dependency of the workflow.
+        let saver_once_ok = power_scheme_probe_ok();
+        capabilities.record(
+            "power.saver-once",
+            if saver_once_ok {
+                Availability::Available
+            } else {
+                Availability::Unavailable
+            },
+            (!saver_once_ok).then(|| "Power API active-scheme probe failed".into()),
+        )?;
         for (feature, availability, detail) in [
             (
                 "tune.pl1",

@@ -479,14 +479,14 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             Readback::Unverified,
             Rollback::Unavailable,
         ),
-        FeatureBinding::Unprobed("power.saver-once"),
+        FeatureBinding::Capability("power.saver-once"),
         ServiceBinding::Composite(&[ServiceRole::Battery, ServiceRole::Power]),
         &[
             lctrl_core::required(Dependency::EnergyDriver),
             lctrl_core::required(Dependency::Win32PowerApi),
             lctrl_core::required(Dependency::LinuxSysfs),
         ],
-        DispatchSupport::Unsupported("composite saver workflow has no transactional executor"),
+        DispatchSupport::Implemented,
     ),
     CommandCapability::new(
         CommandId::PERF_MODE,
