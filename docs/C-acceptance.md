@@ -842,3 +842,35 @@ temporary_charge: 0x00000001 -> permanent=true (非临时模式)
 
 终态独立回读:HotkeyMode=Disable、F1-F12AsPrimaryFunction=Enable、
 FoolProofFnCtrl=Enable、AlwaysOnUSB=Enable,与写前基线一致。
+
+## C31 · 第二批 `--auto-restore` 与修复验收(2026-11-03)
+
+续 C29/C30:补齐此前丢弃 `--auto-restore` 的其余可变命令(commit `00c6477`),
+全部经各自的 setter 回放在写入前捕获的旧值并由该 setter 的已验证读回确认;
+`docs/evidence/target-restore-batch2-20261103.txt` 记录逐条输出。
+
+| 命令 | 结果 |
+|---|---|
+| `perf mode auto --auto-restore` | quiet→balanced→restored quiet;修复:restore 改用 setter 自身已验证报告(本机 `performance_state()` 因 PowerSlider 键缺 CURRENT_SETTING 必败) |
+| `touchpad off --auto-restore` | Enabled→Disabled→restored Enabled;独立 status=enabled |
+| `tune epp performance/power --auto-restore` | 两次均 restored EPP 127;`balance-power`(raw 192)无精确 PERFEPP 映射,诚实拒绝 |
+| `tune turbo off --auto-restore` | `PowerReadValueMin` 不可用——本机 PERFBOOSTMODE 无范围元数据,预校验拒猜边界 |
+| `panel brightness 40 --auto-restore` | 5→40→restored 5(verified) |
+| `kbd fnlock off --auto-restore` | HotkeyMode/F1-F12AsPrimaryFunction 两键各 restored(verified) |
+| `audio noise-cancel shared --auto-restore` | Shared→Shared,restored mic mode Shared(纯 Rust Elevoc RPC) |
+| `audio dolby movie --auto-restore` | enabled=false Dynamic→true Movie→restored Dynamic/off |
+| `battery charge-mode conservation --auto-restore` | rapid→conservation→restored rapid |
+| `battery night-charge off --auto-restore` | 原为 off,写 off→restored off |
+| `power scheme get/set`(PERFEPP GUID) | get 读回 ac/dc=2;set 因 `PowerReadValueMin` 缺失被拒,边界保持 |
+| `bios discard --yes` | 全局暂存缓冲已清除(契约警告已输出) |
+| `hotkey register` / `osd` | SSH 会话无交互桌面,`RegisterHotKey`/`CreateWindowExW` gated——环境边界而非通道失败 |
+| `sense kbd-light-auto` | 维持 Unsupported:Vantage contract RPC 未恢复 |
+| `update local-driver` | 仅 dry-run 可达(需签名 INF+HWID);catalog 类命令诚实 unavailable/unsupported |
+| `sense status` / `wifi security` / `scan run battery` / `magicbay detect` / `perf temp` / `perf top` / `perf dbdc get` / `snapshot capture/diff` / `tune telemetry` / `scene list` | 全部真实输出 |
+
+**fix.run 真机缺陷已闭合**(`1f01cb6`):`fix run` 在 `StartServiceW` 后立即
+单次读回,SCM 异步过渡态(2=START_PENDING/3=STOP_PENDING)被误判为
+VerifyMismatch,而写入实际生效且 ledger 无记录、声明的 rollback 不可达。
+现 `await_terminal_state` 轮询至终态(上限 30s);终态校验仍失败则先执行该
+规则声明的 rollback 再报错,rollback 亦失败时升级 ChannelUnavailable。
+真机:wuauserv 修复→RUNNING→ledger 记账→scan 判已解决;服务已恢复 STOPPED。

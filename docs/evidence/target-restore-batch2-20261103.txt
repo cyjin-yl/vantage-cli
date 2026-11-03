@@ -1,0 +1,89 @@
+# 2026-11-03 second --auto-restore verification batch on TB14P-EZRA
+# Binary: D:\YanduBuildCache\cargo-target\release\vantage.exe (built from
+# vantage-machine-fix-source at 1f01cb6 + lib.rs da9ab4f/00c6477).
+# All vendor-conflict gates acknowledged with --yes.
+
+perf mode auto --auto-restore --yes
+  -> performance mode: requested=balanced actual=balanced (previous=quiet)
+     restored performance mode: quiet
+  Note: restore uses the setter's own verified overlay readback; the richer
+  performance_state() read fails on this model because the PowerSlider
+  registry key lacks CURRENT_SETTING/CURRENT_STATE values.
+
+touchpad off --auto-restore --yes
+  -> touchpad: requested=Disabled actual=Disabled (previous=Enabled)
+     restored touchpad: Some(Enabled) (verified)
+  -> touchpad status afterwards: enabled
+
+tune epp performance --auto-restore --yes -> restored EPP: Some(127) (verified)
+tune epp power       --auto-restore --yes -> restored EPP: Some(127) (verified)
+  (balance-power rejected: raw 192 has no exact PERFEPP percentage mapping;
+   honest boundary kept)
+
+tune turbo off --auto-restore --yes
+  -> channel is unavailable: PowerReadValueMin
+     (model does not expose PERFBOOSTMODE range metadata; pre-validation
+      refuses to guess bounds)
+
+panel brightness 40 --auto-restore --yes --json
+  -> {"change":{"requested":40,"actual":40,"previous":5}}
+     auto_restore: restored panel brightness: 5% (verified)
+
+kbd fnlock off --auto-restore --yes --json
+  -> HotkeyMode Disable->Enable, F1-F12AsPrimaryFunction Enable->Disable
+     auto_restore: both keys restored (verified)
+
+audio noise-cancel shared --auto-restore --yes
+  -> previous mic=Shared speaker=off; requested Shared actual Shared
+     restored noise-cancel: mic mode Shared
+
+audio dolby movie --auto-restore --yes
+  -> previous enabled=false profile=Dynamic; requested enabled=true Movie;
+     actual enabled=true Movie; restored dolby: enabled=false profile=Dynamic
+
+battery charge-mode conservation --auto-restore --yes --json
+  -> change: rapid->conservation (actual conservation)
+     auto_restore: restored charge mode: rapid
+
+battery night-charge off --auto-restore --yes
+  -> night charge: false; restored night charge: enabled=false
+
+power scheme get 381b... --subgroup 54533... --setting be337238...(PERFEPP)
+  -> values ac=2 dc=2; range unavailable (PowerReadValueMin absent on model)
+
+power scheme set ... PERFEPP ac 0 --auto-restore --yes
+  -> channel is unavailable: PowerReadValueMin (write refused at range
+     pre-validation; boundary kept)
+
+bios discard --yes -> BIOS staged changes discarded (contract warning shown)
+bios password status -> read OK
+
+fix run service.stopped.wuauserv (before fix)
+  -> readback mismatch: requested service state 4, actual service state 2
+     while service actually reached RUNNING; ledger empty -> BUG
+fix run service.stopped.wuauserv (after machine_fix settle-poll fix)
+  -> fix applied; ledger records applied entry with declared rollback;
+     scan reports the issue resolved; service later returned to STOPPED.
+
+sense status --json -> real HPD RPC fields (lock_on_leave, wake_on_approach,
+  pause_video, distances, sensor_type=2, capability=1)
+sense kbd-light-auto on --auto-restore --yes
+  -> unsupported: requires the Vantage contract RPC channel (not recovered)
+     honest boundary kept
+
+hotkey register -> gated: no interactive desktop session (SSH is session 0)
+osd --json -> gated: CreateWindowExW failed, not attached to desktop session
+
+snapshot capture -> wrote C:\ProgramData\vantage\snapshot.json
+snapshot diff --json -> baseline+captured diff with per-field errors
+  (fan_mode GAMEZONE unsupported, perf registry values absent, tune.pl1/pl2)
+
+perf temp -> ACPI TZ00_0 51.0 C
+perf top -> real per-process CPU interval table
+perf dbdc get -> 3 discharge-tier rows
+update check -> unavailable: no authenticated public Lenovo catalog contract
+update ignore/history -> unsupported without catalog (honest)
+scan run battery -> real Win32_Battery measurements, outcome passed
+scan list -> battery,thermal,storage,memory,firmware,network
+wifi security -> live WLAN WPA3/CCMP + saved profile assessments
+magicbay detect -> {"acpi_devices":[],"devices":[]} (no hardware)
