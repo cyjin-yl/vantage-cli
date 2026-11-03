@@ -27,6 +27,11 @@ pub enum SenseFeature {
     PrivacyAlert(bool),
     /// `ENABLE_ATTENTION_TRACKING` (0x00160101), 0/1.
     AttentionTracking(bool),
+    /// HPD RPC `ResetAllSetting`, op 7, context only — resets user-visible
+    /// HPD settings to service defaults. Verified on TB14P-EZRA: it clears
+    /// CameraDetect, restores LeaveWait and Video to defaults; use
+    /// `--auto-restore` to capture and reapply every known field.
+    ResetAll,
 }
 
 impl SenseFeature {
@@ -43,7 +48,18 @@ impl SenseFeature {
             Self::ApproachAutoAdjust(enabled) => Some((10, enabled as u32)),
             Self::CameraAssist(enabled) => Some((13, enabled as u32)),
             Self::LeaveAutoAdjust(enabled) => Some((15, enabled as u32)),
-            Self::PrivacyAlert(_) | Self::AttentionTracking(_) => None,
+            // ResetAll is a context-only call; it has no u32 argument.
+            Self::PrivacyAlert(_) | Self::AttentionTracking(_) | Self::ResetAll => None,
+        }
+    }
+
+    /// Wire op for context-only operations that take no argument beyond the
+    /// context handle. Only `ResetAll` (op 7) uses this shape today.
+    #[must_use]
+    pub const fn context_only_rpc(self) -> Option<u32> {
+        match self {
+            Self::ResetAll => Some(7),
+            _ => None,
         }
     }
 

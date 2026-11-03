@@ -27,3 +27,20 @@
 - `AdjustDistance` 在服务自身自动调整下漂移(455→843),与探测写无关,不视为副作用。
 - `SenseState.privacy_alert` 与 `camera_assist` 同读 `CameraDetect`;legacy 肩窥管道
   (§13.2)在本机全拒,RPC 是本机唯一活写者,故两者统一按 RPC arg+1 解码。
+
+## 2026-11-03 后续:op7 ResetAllSetting + 枚举键 arg+1 更正
+
+**op17 参数扫描**:arg ∈ {0,1,2,4,8} 全部 4317 ERROR_INVALID_DATA——拒绝与值无关,
+21VG(非 Yoga 翻盖)无 Yoga 模式设置面,维持边界。
+
+**op7 ResetAllSetting 实测**:context-only 调用被接受;重置 **可写用户字段** 为服务默认
+(CameraDetect→off、LeaveWait→Middle、Video→on),只读键(AdjustDistance/FaceRegistered/
+Version/SensorType/UIInstalled)不动。新增 `sense reset` 子命令(context-only op7);
+`--auto-restore` 预检并捕获全部 RPC 字段,重置后逐项重写回原值——真机验证
+camera-assist=on、pause-video=off、leave_wait=Short 全部还原。
+
+**枚举键 arg+1 更正**:op14 arg0/1/2 → `LeaveDistance` =1/2/3,op12 arg0 → `LeaveWait`=1,
+即注册表枚举值也是 `arg + 1`(1=第一项)。`NativeHpdStore` 的 `leave_wait` /
+`leave_distance` / `approach_distance` 解码已改为 `raw-1` 再 `from_raw`,与 RPC status
+`values[6]/[8]/[3]` 和写入参数一致——此前按原值解码导致枚举写读回 mismatch。
+`PresentLeave`/`Approach` 仍为裸 `arg`(0/1),`Legacy01` 不变。

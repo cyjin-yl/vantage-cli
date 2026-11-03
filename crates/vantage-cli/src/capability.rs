@@ -498,6 +498,9 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
             command: Some(SenseCommand::LeaveAutoAdjust { .. }),
         } => CommandId::SENSE_LEAVE_AUTO_ADJUST,
         Command::Sense {
+            command: Some(SenseCommand::Reset),
+        } => CommandId::SENSE_RESET,
+        Command::Sense {
             command: Some(SenseCommand::AttentionTracking { .. }),
         } => CommandId::SENSE_ATTENTION_TRACKING,
         Command::Sense {
@@ -899,7 +902,10 @@ fn feature_presence(
     match binding {
         FeatureBinding::LocalOnly => FeaturePresence::Available,
         FeatureBinding::ServiceOnly => FeaturePresence::Unverified,
-        FeatureBinding::Unprobed(_) => FeaturePresence::Unverified,
+        // Unprobed bindings still consult the live capability set: a feature
+        // recorded at probe time (e.g. the HPD RPC channel) must not stay
+        // "unverified" just because the registry marked the binding unprobed.
+        FeatureBinding::Unprobed(feature) => capability_presence(feature, capabilities),
         FeatureBinding::Capability(feature) => capability_presence(feature, capabilities),
         FeatureBinding::AnyOf(features) => {
             let mut limited = false;

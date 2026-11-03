@@ -48,7 +48,7 @@ impl<R: HpdRpc, P: SensePipe, S: HpdSettingsStore> WindowsSenseControl<R, P, S> 
     }
 
     fn write_feature(&self, feature: SenseFeature) -> Result<()> {
-        if feature.rpc_command().is_some() {
+        if feature.rpc_command().is_some() || feature.context_only_rpc().is_some() {
             return self.rpc.set_feature(feature);
         }
         let (code, arg) = feature
@@ -149,13 +149,22 @@ fn apply_feature_to_state(feature: SenseFeature, mut state: SenseState) -> Sense
         SenseFeature::CameraAssist(enabled) => state.camera_assist = Some(enabled),
         SenseFeature::LeaveAutoAdjust(enabled) => state.leave_auto_adjust = Some(enabled),
         SenseFeature::PrivacyAlert(enabled) => state.privacy_alert = Some(enabled),
-        SenseFeature::AttentionTracking(_) => {}
+        // ResetAll rewrites the whole feature surface server-side; the
+        // requested model is captured from the live defaults on re-read,
+        // not predicted field-by-field.
+        SenseFeature::AttentionTracking(_) | SenseFeature::ResetAll => {}
     }
     state
 }
 
 const fn feature_readback_verifiable(feature: SenseFeature) -> bool {
-    !matches!(feature, SenseFeature::AttentionTracking(_))
+    // AttentionTracking has no observed persistence key; ResetAll rewrites
+    // every field at once and has no single requested value to poll for, so
+    // both read the registry without a bounded match poll.
+    !matches!(
+        feature,
+        SenseFeature::AttentionTracking(_) | SenseFeature::ResetAll
+    )
 }
 
 const fn feature_available(feature: SenseFeature, state: &SenseState) -> bool {
@@ -179,6 +188,7 @@ const fn feature_available(feature: SenseFeature, state: &SenseState) -> bool {
         SenseFeature::CameraAssist(_) => state.camera_assist.is_some(),
         SenseFeature::LeaveAutoAdjust(_) => state.leave_auto_adjust.is_some(),
         SenseFeature::PrivacyAlert(_) | SenseFeature::AttentionTracking(_) => true,
+        SenseFeature::ResetAll => true,
     }
 }
 
@@ -195,6 +205,7 @@ const fn feature_capability_bit(feature: SenseFeature) -> Option<u64> {
         SenseFeature::CameraAssist(_) => Some(0x0040),
         SenseFeature::LeaveAutoAdjust(_) => Some(0x0100),
         SenseFeature::PrivacyAlert(_) | SenseFeature::AttentionTracking(_) => None,
+        SenseFeature::ResetAll => None,
     }
 }
 
@@ -210,7 +221,7 @@ fn feature_matches(feature: SenseFeature, state: &SenseState) -> bool {
         SenseFeature::CameraAssist(value) => state.camera_assist == Some(value),
         SenseFeature::LeaveAutoAdjust(value) => state.leave_auto_adjust == Some(value),
         SenseFeature::PrivacyAlert(value) => state.privacy_alert == Some(value),
-        SenseFeature::AttentionTracking(_) => true,
+        SenseFeature::AttentionTracking(_) | SenseFeature::ResetAll => true,
     }
 }
 
@@ -331,10 +342,20 @@ impl HpdSettingsStore for NativeHpdStore {
             source: Some("hpd-registry-store"),
             advertised: None,
             lock_on_leave: read_bool(HPD_KEY, "PresentLeave", BoolEncoding::Legacy01)?,
-            leave_distance: read_u32(HPD_KEY, "LeaveDistance")?.and_then(SenseDistance::from_raw),
-            leave_wait: read_u32(HPD_KEY, "LeaveWait")?.and_then(SenseWait::from_raw),
+            // Enum selectors persist like the bools: the RPC service writes
+            // `arg + 1` (verified 2026-11-03: op14 arg0→LeaveDistance=1,
+            // arg2→LeaveDistance=3; op12 arg0→LeaveWait=1). Subtract one
+            // before decoding so the independent readback matches the RPC
+            // status array and the written argument.
+            leave_distance: read_u32(HPD_KEY, "LeaveDistance")?
+                .and_then(|raw| raw.checked_sub(1))
+                .and_then(SenseDistance::from_raw),
+            leave_wait: read_u32(HPD_KEY, "LeaveWait")?
+                .and_then(|raw| raw.checked_sub(1))
+                .and_then(SenseWait::from_raw),
             wake_on_approach: read_bool(HPD_KEY, "Approach", BoolEncoding::Legacy01)?,
             approach_distance: read_u32(HPD_KEY, "ApproachDistance")?
+                .and_then(|raw| raw.checked_sub(1))
                 .and_then(SenseDistance::from_raw),
             // Live-service mapping measured 2026-11-03 on TB14P-EZRA:
             // SetVideoAutoPauseResume(arg) persists Video = arg + 1, i.e.
