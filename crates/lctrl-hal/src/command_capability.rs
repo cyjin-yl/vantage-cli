@@ -1042,7 +1042,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             Readback::Required,
             Rollback::PreviousState,
         ),
-        FeatureBinding::Capability("privacy.camera"),
+        FeatureBinding::Capability("privacy.camera.runtime"),
         ServiceBinding::One(ServiceRole::Privacy),
         &[
             lctrl_core::required(Dependency::Win32DeviceManagement),
@@ -1069,7 +1069,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             Readback::Required,
             Rollback::PreviousState,
         ),
-        FeatureBinding::Capability("privacy.microphone"),
+        FeatureBinding::Capability("privacy.microphone.runtime"),
         ServiceBinding::One(ServiceRole::Privacy),
         &[
             lctrl_core::required(Dependency::Win32DeviceManagement),

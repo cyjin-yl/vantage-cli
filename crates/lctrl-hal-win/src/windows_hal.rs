@@ -308,6 +308,48 @@ where
                 Some("persistent BIOS privacy service is required for writes".into()),
             )?;
         }
+        // Runtime privacy channel: probe the internal camera and
+        // microphone PnP groups. A successful state read proves the whole
+        // PnP enable/disable write path, so the service role and the
+        // per-device runtime features can report availability honestly.
+        #[cfg(windows)]
+        {
+            let runtime = crate::NativeWindowsRuntimeDevices::new(crate::NativeRuntimeDeviceApi);
+            let camera = runtime.camera_group_state();
+            let microphone = runtime.microphone_state();
+            let camera_detail = camera.as_ref().err().map(|error| error.to_string());
+            let microphone_detail = microphone.as_ref().err().map(|error| error.to_string());
+            let runtime_ok = camera.is_ok() && microphone.is_ok();
+            capabilities.record(
+                "channel.privacy-runtime",
+                if runtime_ok {
+                    Availability::Available
+                } else {
+                    Availability::Unavailable
+                },
+                (!runtime_ok).then(|| {
+                    format!(
+                        "runtime privacy probe failed (camera: {}, microphone: {})",
+                        camera_detail.clone().unwrap_or_else(|| "ok".into()),
+                        microphone_detail.clone().unwrap_or_else(|| "ok".into())
+                    )
+                }),
+            )?;
+            for (feature, detail) in [
+                ("privacy.camera.runtime", camera_detail),
+                ("privacy.microphone.runtime", microphone_detail),
+            ] {
+                capabilities.record(
+                    feature,
+                    if detail.is_none() {
+                        Availability::Available
+                    } else {
+                        Availability::Unavailable
+                    },
+                    detail,
+                )?;
+            }
+        }
         // HPD settings channel: a live read of op-5 capability + op-6
         // settings proves the RPC endpoint, the NDR contract and the
         // registry readback all work. Recorded names match the registry
