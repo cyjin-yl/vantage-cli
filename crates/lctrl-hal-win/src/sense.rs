@@ -145,6 +145,9 @@ fn apply_feature_to_state(feature: SenseFeature, mut state: SenseState) -> Sense
         SenseFeature::WakeOnApproach(enabled) => state.wake_on_approach = Some(enabled),
         SenseFeature::ApproachDistance(distance) => state.approach_distance = Some(distance),
         SenseFeature::PauseVideo(enabled) => state.pause_video = Some(enabled),
+        SenseFeature::ApproachAutoAdjust(enabled) => state.approach_auto_adjust = Some(enabled),
+        SenseFeature::CameraAssist(enabled) => state.camera_assist = Some(enabled),
+        SenseFeature::LeaveAutoAdjust(enabled) => state.leave_auto_adjust = Some(enabled),
         SenseFeature::PrivacyAlert(enabled) => state.privacy_alert = Some(enabled),
         SenseFeature::AttentionTracking(_) => {}
     }
@@ -172,6 +175,9 @@ const fn feature_available(feature: SenseFeature, state: &SenseState) -> bool {
         SenseFeature::WakeOnApproach(_) => state.wake_on_approach.is_some(),
         SenseFeature::ApproachDistance(_) => state.approach_distance.is_some(),
         SenseFeature::PauseVideo(_) => state.pause_video.is_some(),
+        SenseFeature::ApproachAutoAdjust(_) => state.approach_auto_adjust.is_some(),
+        SenseFeature::CameraAssist(_) => state.camera_assist.is_some(),
+        SenseFeature::LeaveAutoAdjust(_) => state.leave_auto_adjust.is_some(),
         SenseFeature::PrivacyAlert(_) | SenseFeature::AttentionTracking(_) => true,
     }
 }
@@ -185,6 +191,9 @@ const fn feature_capability_bit(feature: SenseFeature) -> Option<u64> {
         SenseFeature::WakeOnApproach(_) => Some(0x0002),
         SenseFeature::ApproachDistance(_) => Some(0x0004),
         SenseFeature::PauseVideo(_) => Some(0x0200),
+        SenseFeature::ApproachAutoAdjust(_) => Some(0x0008),
+        SenseFeature::CameraAssist(_) => Some(0x0040),
+        SenseFeature::LeaveAutoAdjust(_) => Some(0x0100),
         SenseFeature::PrivacyAlert(_) | SenseFeature::AttentionTracking(_) => None,
     }
 }
@@ -197,6 +206,9 @@ fn feature_matches(feature: SenseFeature, state: &SenseState) -> bool {
         SenseFeature::WakeOnApproach(value) => state.wake_on_approach == Some(value),
         SenseFeature::ApproachDistance(value) => state.approach_distance == Some(value),
         SenseFeature::PauseVideo(value) => state.pause_video == Some(value),
+        SenseFeature::ApproachAutoAdjust(value) => state.approach_auto_adjust == Some(value),
+        SenseFeature::CameraAssist(value) => state.camera_assist == Some(value),
+        SenseFeature::LeaveAutoAdjust(value) => state.leave_auto_adjust == Some(value),
         SenseFeature::PrivacyAlert(value) => state.privacy_alert == Some(value),
         SenseFeature::AttentionTracking(_) => true,
     }
@@ -330,7 +342,16 @@ impl HpdSettingsStore for NativeHpdStore {
             // documentation. Decode the service's actual storage, not the
             // vendor client's send encoding.
             pause_video: read_bool(HPD_KEY, "Video", BoolEncoding::RpcService)?,
-            privacy_alert: read_bool(HPD_KEY, "CameraDetect", BoolEncoding::OneTwo)?,
+            // Live-service mapping measured 2026-11-03 on TB14P-EZRA: ops
+            // 10/13/15 persist `arg + 1` into AutoAdjust/CameraDetect/
+            // LeaveAutoAdjust (1 = disabled, 2 = enabled), the same encoding
+            // as `Video`. `CameraDetect` is shared with the privacy-alert
+            // field below; both decode through the RPC semantics because the
+            // RPC channel is the only live writer on this model.
+            approach_auto_adjust: read_bool(HPD_KEY, "AutoAdjust", BoolEncoding::RpcService)?,
+            camera_assist: read_bool(HPD_KEY, "CameraDetect", BoolEncoding::RpcService)?,
+            leave_auto_adjust: read_bool(HPD_KEY, "LeaveAutoAdjust", BoolEncoding::RpcService)?,
+            privacy_alert: read_bool(HPD_KEY, "CameraDetect", BoolEncoding::RpcService)?,
             // No registry value backs this feature on this model.
             attention_tracking: None,
             capability: read_u32(HPD_KEY, "Capability")?,
@@ -348,8 +369,6 @@ impl HpdSettingsStore for NativeHpdStore {
 enum BoolEncoding {
     /// Legacy commands persist 0/1.
     Legacy01,
-    /// Camera/video commands persist 1=enable/2=disable.
-    OneTwo,
     /// The LnvSST RPC service persists bools it writes as `arg + 1`:
     /// 1 = disabled, 2 = enabled. Verified live on TB14P-EZRA by
     /// correlated RPC writes, RPC status re-reads and registry reads.
@@ -411,7 +430,6 @@ fn read_u32(key: &str, value: &str) -> Result<Option<u32>> {
 fn read_bool(key: &str, value: &str, encoding: BoolEncoding) -> Result<Option<bool>> {
     Ok(read_u32(key, value)?.map(|raw| match encoding {
         BoolEncoding::Legacy01 => raw != 0,
-        BoolEncoding::OneTwo => raw == 1,
         BoolEncoding::RpcService => raw == 2,
     }))
 }

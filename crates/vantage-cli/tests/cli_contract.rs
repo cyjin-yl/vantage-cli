@@ -2352,6 +2352,9 @@ fn apply_sense_feature_to(state: &mut SenseState, feature: SenseFeature) {
         SenseFeature::WakeOnApproach(enabled) => state.wake_on_approach = Some(enabled),
         SenseFeature::ApproachDistance(distance) => state.approach_distance = Some(distance),
         SenseFeature::PauseVideo(enabled) => state.pause_video = Some(enabled),
+        SenseFeature::CameraAssist(enabled) => state.camera_assist = Some(enabled),
+        SenseFeature::ApproachAutoAdjust(enabled) => state.approach_auto_adjust = Some(enabled),
+        SenseFeature::LeaveAutoAdjust(enabled) => state.leave_auto_adjust = Some(enabled),
         SenseFeature::PrivacyAlert(enabled) => state.privacy_alert = Some(enabled),
         SenseFeature::AttentionTracking(enabled) => state.attention_tracking = Some(enabled),
     }

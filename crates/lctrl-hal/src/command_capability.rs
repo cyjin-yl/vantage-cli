@@ -1172,6 +1172,51 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
+        CommandId::SENSE_CAMERA_ASSIST,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Unverified,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::Unprobed("sense.camera-assist"),
+        ServiceBinding::One(ServiceRole::Sense),
+        &[
+            lctrl_core::required(Dependency::SmartSense),
+            lctrl_core::optional(Dependency::WindowsHpd),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::SENSE_APPROACH_AUTO_ADJUST,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Unverified,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::Unprobed("sense.approach-auto-adjust"),
+        ServiceBinding::One(ServiceRole::Sense),
+        &[
+            lctrl_core::required(Dependency::SmartSense),
+            lctrl_core::optional(Dependency::WindowsHpd),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::SENSE_LEAVE_AUTO_ADJUST,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Unverified,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::Unprobed("sense.leave-auto-adjust"),
+        ServiceBinding::One(ServiceRole::Sense),
+        &[
+            lctrl_core::required(Dependency::SmartSense),
+            lctrl_core::optional(Dependency::WindowsHpd),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
         CommandId::SENSE_ATTENTION_TRACKING,
         CommandAxes::mutation(
             StateLayer::Runtime,

@@ -96,6 +96,16 @@ impl NativeHpdRpc {
     pub fn raw_settings(&self) -> Result<[u32; SETTINGS_SCALARS]> {
         self.with_session(Session::settings)
     }
+
+    /// Raw op dispatch for contract probes: `op` 7 takes only the context,
+    /// ops 8–17 take the context plus one `[in] u32`. Diagnostic surface for
+    /// the hpd_probe example; typed features go through `set_feature`.
+    pub fn raw_call(&self, op: u32, arg: Option<u32>) -> Result<()> {
+        self.with_session(|session| match arg {
+            Some(value) => session.set_value(op, value),
+            None => session.no_arg_call(op),
+        })
+    }
 }
 
 impl Default for NativeHpdRpc {
@@ -127,6 +137,9 @@ impl HpdRpc for NativeHpdRpc {
                     .then(|| SenseDistance::from_raw(values[3]))
                     .flatten(),
                 pause_video: has(0x0200).then_some(values[10] != 0),
+                approach_auto_adjust: has(0x0008).then_some(values[4] != 0),
+                camera_assist: has(0x0040).then_some(values[7] != 0),
+                leave_auto_adjust: has(0x0100).then_some(values[9] != 0),
                 // These two legacy settings are not fields of this RPC.
                 privacy_alert: None,
                 attention_tracking: None,
@@ -400,11 +413,15 @@ impl Session {
         let operation = match op {
             8 => "SetApproachEnabled",
             9 => "SetApproachDistance",
+            10 => "SetApproachDistanceAutoAdjust",
             11 => "SetPresenceLeaveEnabled",
             12 => "SetPresenceLeaveWaitTime",
+            13 => "SetPresenceLeaveCameraAssist",
             14 => "SetPresenceLeaveDistance",
+            15 => "SetPresenceLeaveDistanceAutoAdjust",
             16 => "SetVideoAutoPauseResume",
-            _ => unreachable!("only typed SenseFeature RPC operations reach this method"),
+            17 => "SetHPDEnabledYogaModeV2",
+            _ => "unverified-op",
         };
         let status = Cell::new(0isize);
         let proxy = self.proxy();
@@ -413,6 +430,20 @@ impl Session {
             status.set(NdrClientCall3(proxy, op, ptr::null_mut(), context, value as usize).Simple);
         })?;
         server_status(operation, status.get())
+    }
+
+    /// Context-only call for ops that take no additional argument (op 7
+    /// ResetAllSetting). The proc-format table entry for the op determines
+    /// the marshalled arguments; calling an op that expects a u32 through
+    /// this path is a contract violation and must not be attempted.
+    fn no_arg_call(&mut self, op: u32) -> Result<()> {
+        let status = Cell::new(0isize);
+        let proxy = self.proxy();
+        let context = self.meta.context[0] as usize;
+        rpc_guarded("ResetAllSetting", || unsafe {
+            status.set(NdrClientCall3(proxy, op, ptr::null_mut(), context).Simple);
+        })?;
+        server_status("ResetAllSetting", status.get())
     }
 }
 
