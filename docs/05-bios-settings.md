@@ -1,7 +1,7 @@
 # 05 · BIOS 设置读写接口规范（`root\WMI` `Lenovo_*` 族）
 
-> 读者：**实现者**（用 Rust 重写 vantage、覆盖 BIOS 设置读写功能的人）。
-> 前置：`00-cleanroom-charter.md`（术语与文档地图）、`01-hal-interfaces.md`（通道总览与特权要求）、`A-wmi-reference.md`（全量类签名索引）。
+> 读者：BIOS 设置实现者。
+> 前置：`00-project-charter.md`（术语与文档地图）、`01-hal-interfaces.md`（通道总览与特权要求）、`A-wmi-reference.md`（全量类签名索引）。
 > 状态：v1 · 2026-08-27 · 目标机 Lenovo ThinkBook 21VG（Panther Lake，SMBIOS `THINKBOOK_14_G8+_IPH`）。
 > 范围：**BIOS 设置读写**（枚举、读、写、保存/回滚/恢复默认、supervisor 密码查询）。不含 EC 直连通道（见 01/02 文档）、不含 Linux 后端（见 09 文档）。
 
@@ -23,7 +23,7 @@
 
 **不变式**（实现者必读）：
 
-1. 所有类在 `root\WMI` 命名空间；方法类实例为 `ACPI\PNP0C14\ISET_*`；官方代码一律以 `SELECT * FROM <Class>` 取**第一个**实例并按其 `InstanceName` 定位调用。
+1. 所有类在 `root\WMI` 命名空间；方法类实例为 `ACPI\PNP0C14\ISET_*`；官方组件一律以 `SELECT * FROM <Class>` 取**第一个**实例并按其 `InstanceName` 定位调用。
 2. **属性类 `Lenovo_BiosSetting.CurrentSetting` 是只读镜像，写入必须走方法类** `Lenovo_SetBiosSetting`。
 3. `CurrentSetting` 的格式是 **`Name,Value`（英文逗号分两段）**，不是 `=` 分割（01 文档 §2.11 的 `=` 说法有误，以本文档为准，见 §4.1）。
 4. 写操作返回串 `"Success"` 才表示命令被接受；随后必须 `SaveBiosSettings` 才写入 NVRAM（**部分项需重启后真正生效**）。
@@ -78,7 +78,7 @@
   PROP: Active : Boolean
   PROP: InstanceName : String
   METHOD: SaveBiosSettings -> Boolean
-    PARAM: [ID,in]  parameter : String                ← 官方实测传 ";"
+    PARAM: [ID,in]  parameter : String                ← 官方组件行为传 ";"
     PARAM: [ID,out] return    : String
 
 ##### CLASS: Lenovo_DiscardBiosSettings               ← 回滚
@@ -141,7 +141,7 @@
 
 ### 1.3 `LENOVO_BIOS_ASSISTANT` — 数值型辅助接口
 
-标准 `Lenovo_SetBiosSetting` 之外，联想还提供一套**按索引寻址**的数值型 BIOS 接口，Vantage 用它实现 Fn/Ctrl 互换、SuperBoost、GPUMode（`目标机 WMI 仓库实机采集` L473 起；消费端 `WmiAgent.cs`）：
+标准 `Lenovo_SetBiosSetting` 之外，联想还提供一套**按索引寻址**的数值型 BIOS 接口，Vantage 用它实现 Fn/Ctrl 互换、SuperBoost、GPUMode（`目标机 WMI 仓库实机采集` L473 起；消费端 官方组件行为）：
 
 ```text
 ##### CLASS: LENOVO_BIOS_ASSISTANT
@@ -153,15 +153,15 @@
                                          [in] ValueData       : UInt32  [out] ReturnData : UInt32
 ```
 
-**已解码的 IndexData（FunctionID 枚举，`FunctionID.cs`）**：
+**已解码的 IndexData（FunctionID 枚举，官方组件行为）**：
 
 | IndexData | 名称 | GetValue Data 位域 | SetValue ValueData |
 |---|---|---|---|
 | 1 | `FnCtrlSwap` | bit0 = 是否已互换；bit31 = 命令成功位 | `0`=不互换 `1`=互换 |
 | 2 | `SuperBoost` | bit0 = 是否开启；bit31 = 命令成功位 | `0`=关 `1`=开 |
-| 3 | `GPUMode` | — | 官方代码实测传 `"01"`/`"02"`（§7.4.5 [推断] 语义未最终确认） |
+| 3 | `GPUMode` | — | 官方组件实测传 `"01"`/`"02"`（§7.4.5 [推断] 语义未最终确认） |
 
-**GetCapabilityValue 位域（`WmiAgent.cs::GetBiosCapability` / `AdvancedGPUCapbility`，`BiosCapability.cs`）**：
+**GetCapabilityValue 位域（官方组件行为 / `AdvancedGPUCapbility`，官方组件行为）**：
 
 ```text
 bit 0        (0x00000001)  SupportSuperMode   — 支持 SuperBoost
@@ -173,11 +173,11 @@ bit 31       (0x80000000)  CommandStatus      — 命令成功位 (1 = 成功)
 
 **本机实测**（`目标机 WMI 实例实机采集` L193）：`BA.GetCapabilityValue => Data=2147483656 (0x80000008)`，即 CommandStatus=1、SupportFnCtrlSwap=1、SupportSuperMode=0、SupportGPUMode=0。
 
-**调用语义**（`WmiAgent.cs`）：所有返回值以 **bit31（`0x80000000`）作为命令成功标志**；成功时业务位在低字节。官方代码 `CommandStatus = (value & 0x80000000) == 0x80000000`。
+**调用语义**（官方组件行为）：所有返回值以 **bit31（`0x80000000`）作为命令成功标志**；成功时业务位在低字节。官方组件 `CommandStatus = (value & 0x80000000) == 0x80000000`。
 
 ### 1.4 `LENOVO_GAMEZONE_DATA` 中的 GPU 模式方法（配套）
 
-GPU 模式切换在官方实现中横跨 BIOS 项与 GAMEZONE 通道（`WmiAgent.cs::SetGPUMode` / `GetGPUMode`）：
+GPU 模式切换在官方组件中横跨 BIOS 项与 GAMEZONE 通道（官方组件行为 / `GetGPUMode`）：
 
 ```text
 Lenovo_GetBiosSelections.GetBiosSelections("GraphicsDevice") → 合法 GPU 模式名列表
@@ -189,15 +189,15 @@ LENOVO_GAMEZONE_DATA.NotifyDGPUStatus    [in] status (UInt32)          — 上�
 LENOVO_GAMEZONE_DATA.IsBIOSSupportOC / SetBIOSOC / GetBIOSOCMode       — BIOS 放行 OC (需重启)
 ```
 
-**GPUModeStatus 枚举**（`GPUModeStatus.cs`）：`UnKnown=-1, HybirdMode=0, IGPUOnlyMode=1, AutoMode=2, DGPUMode=3`。
+**GPUModeStatus 枚举**（官方组件行为）：`UnKnown=-1, HybirdMode=0, IGPUOnlyMode=1, AutoMode=2, DGPUMode=3`。
 
-**GraphicsDevice 值**：官方代码匹配三种字符串（`WmiAgent.cs::GetGPUMode`）：`SwitchableGraphics`、`DynamicGraphics`、`DiscreteGraphics`；其中前两者语义等同"混合/可切换"，后者为"独显"。
+**GraphicsDevice 值**：官方组件匹配三种字符串（官方组件行为）：`SwitchableGraphics`、`DynamicGraphics`、`DiscreteGraphics`；其中前两者语义等同"混合/可切换"，后者为"独显"。
 
 **证据**
 
 - 全部类签名（含 `LENOVO_BIOS_ASSISTANT`）：`目标机 WMI 仓库实机采集` L367-426（`Lenovo_BIOSElement`…`Lenovo_LoadDefaultSettings`）、L473-484（`LENOVO_BIOS_ASSISTANT`）、L610（`LENOVO_REPORT_DIRECT_BIOS_DATA`）、L126-236（`LENOVO_GAMEZONE_DATA`）。
 - 消费端实现与位域解码：LenovoProductivitySystemAddin 的 WMI 组件（`GetBiosCapability`、`AdvancedGPUCapbility`、`Get/SetAssistantValue`、`GetInstanceName` 方法语义见附录 A）。
-- 枚举定义：同目录 `FunctionID.cs`（L5-7）、`GPUModeStatus.cs`；`…/LenovoProductivitySystemAddin.PayloadTypes/BiosCapability.cs`。
+- 枚举定义与 payload 结构见官方组件行为。
 - `BA.GetCapabilityValue` 实测值：`目标机 WMI 实例实机采集` L193。
 
 ---
@@ -209,11 +209,11 @@ LENOVO_GAMEZONE_DATA.IsBIOSSupportOC / SetBIOSOC / GetBIOSOCMode       — BIOS 
 - 命名空间：`ROOT\WMI`（大小写不敏感）。
 - 实例命名：`ACPI\PNP0C14\ISET_N`（N 为 0 起的索引）、密码类同为 `ISET_0`、资产标签为 `ATAG_N`（`目标机 WMI 实例实机采集` L235-299）。
 - **`Lenovo_BiosSetting` 每实例对应一个 BIOS 项**：`CurrentSetting` 是一行 `Name,Value` 文本，Empty 表示该项留空（本机 ISET_5/7/8/9/10 为空）。
-- 方法类（Set/Save/Discard/LoadDefault/GetSelections/SetFunctionRequest/SetBiosPassword）在采集中同样呈现为多个实例，但**官方代码一律取第一个实例**（`GetInstanceName` 返回 `SELECT * FROM <Class>` 的首行 `InstanceName`），把项名放在 `parameter`/`Item` 参数里。实现者照此办理即可（以 `SELECT * FROM Lenovo_SetBiosSetting` 首实例为调用目标）。
+- 方法类（Set/Save/Discard/LoadDefault/GetSelections/SetFunctionRequest/SetBiosPassword）在采集中同样呈现为多个实例，但**官方组件一律取第一个实例**（`GetInstanceName` 返回 `SELECT * FROM <Class>` 的首行 `InstanceName`），把项名放在 `parameter`/`Item` 参数里。实现者照此办理即可（以 `SELECT * FROM Lenovo_SetBiosSetting` 首实例为调用目标）。
 
 ### 2.2 方法调用协议（CIM）
 
-官方调用骨架（`WmiProvider.cs::CallMethod`，逐字节可对照）：
+官方调用骨架（官方组件行为，逐字节可对照）：
 
 ```text
 path   = "Lenovo_SetBiosSetting.InstanceName='ACPI\PNP0C14\ISET_0'"
@@ -237,7 +237,7 @@ ret    = outPar.GetPropertyValue("return").ToString()     # "Success" | 错误�
 
 ### 2.4 异常与错误码（官方容错模式）
 
-官方 `LenovoBiosWmiInterface.cs` 对 `LENOVO_CAPABILITY_DATA_00`/`LENOVO_OTHER_METHOD` 的容错模式（同类适用于所有 Lenovo WMI 调用）：
+官方 官方组件行为 对 `LENOVO_CAPABILITY_DATA_00`/`LENOVO_OTHER_METHOD` 的容错模式（同类适用于所有 Lenovo WMI 调用）：
 
 - `ManagementException.ErrorCode == 0x80041010`（-2147217392）：类/查询不存在 → 置 `_capabilityNotExist=true` 并**缓存**，后续调用直接返回空值（不再重复查询）。
 - `ManagementException.ErrorCode == 0x8004100F`（-2147217393）：对象无效 → 同样按"无能力"处理返回。
@@ -248,7 +248,7 @@ ret    = outPar.GetPropertyValue("return").ToString()     # "Success" | 错误�
 **证据**
 
 - 调用骨架：WmiProvider 组件（`CallMethod`、`QueryData`）。
-- 实例寻址与索引：`目标机 WMI 实例实机采集` L235-299；`WmiAgent.cs::GetInstanceName` L461-478。
+- 实例寻址与索引：`目标机 WMI 实例实机采集` L235-299；官方组件行为。
 - 容错 HRESULT：LenovoBiosWmiInterface 组件（`GetCapability`/`GetFeatureValue` 的异常分支）。
 - 权限：`docs/01-hal-interfaces.md` §0、§7（`root\WMI` 方法类需管理员或 SYSTEM）。
 
@@ -258,41 +258,41 @@ ret    = outPar.GetPropertyValue("return").ToString()     # "Success" | 错误�
 
 ### 3.1 `SetBiosSetting` — `"Name,Value;"` 串
 
-- 格式：`<项名>,<值>;` —— 项名英文逗号值，**结尾分号**。官方实测构造：`ItemName + "," + ItemValue + ";"`（`WmiAgent.cs::SetIOControlItem` L242）。
+- 格式：`<项名>,<值>;` —— 项名英文逗号值，**结尾分号**。官方组件行为构造：`ItemName + "," + ItemValue + ";"`（官方组件行为）。
 - 示例：`"IntegratedCamera,Disable;"`、`"FoolProofFnCtrl,Enable;"`、`"GraphicsDevice,DiscreteGraphics;"`。
 - 值未经客户端白名单过滤：`SetIOControlItem` 接受请求里任意 `ItemName/ItemValue`（UI 白名单只影响展示层，见 §8.3）。
 - 多项写入官方是**逐个串行调用**，任一项返回非 `Success` 即中止，不再执行 Save。
 
 ### 3.2 `SaveBiosSettings` / `DiscardBiosSettings` / `LoadDefaultSettings`
 
-- `SaveBiosSettings` 参数：官方实测传 **`";"`**（`WmiAgent.cs` L249-253：`{"parameter" = ";"}`）；`Vantage 设备组件内部接口说明 亦记录空串写法。实现者建议统一用 `";"`（与实测一致）。
-- `DiscardBiosSettings`/`LoadDefaultSettings` 参数：`Vantage 设备组件内部接口说明` 记录为空串；无更细实测。建议传 `";"` 或空串并**以返回 `"Success"` 为准**（实现时两者都尝试兼容 [推断]：不同固件可能二选一接受）。
+- `SaveBiosSettings` 参数：官方组件行为传 **`";"`**（官方组件行为：`{"parameter" = ";"}`）；`官方组件接口说明 亦记录空串写法。实现者建议统一用 `";"`（与实测一致）。
+- `DiscardBiosSettings`/`LoadDefaultSettings` 参数：`官方组件接口说明` 记录为空串；无更细实测。建议传 `";"` 或空串并**以返回 `"Success"` 为准**（实现时两者都尝试兼容 [推断]：不同固件可能二选一接受）。
 - 三个方法的 `return` 同为 `"Success"` 或错误描述串。
 
 ### 3.3 `GetBiosSelections`
 
 - 入参 `Item` 是项名（不带值、不带分号），如 `"GraphicsDevice"`；出参 `Selections` 为**逗号分隔的合法值列表**。
-- 官方解析：`Selections.Split(',')` 后 `Trim()` 每个元素（`WmiAgent.cs::AdvancedGPUCapbility` L84-90；`BiosSettings.cs` L91-99）。
+- 官方解析：`Selections.Split(',')` 后 `Trim()` 每个元素（官方组件行为；官方组件行为）。
 - 注意：返回的列表**可能首元素为空**（示例 `" ,SwitchableGraphics,..."` 的健壮性见 §9.1 的 `SplitRemoveEmpty` 处理）；官方用了 `RemoveEmptyEntries`。
 
 ### 3.4 返回码表
 
 | 位置 | 值 | 含义 | 出处 |
 |---|---|---|---|
-| `return`/`Return` out 串 | `"Success"` | 命令被接受（Set 项合法 / Save 已提交 / 回滚完成） | `WmiAgent.cs` L246/L256 比对 |
-| `return` out 串 | 其他字符串 | 错误描述（官方当作文本展示，未解析具体码） | `WmiAgent.cs`（`empty != "Success"` 即失败） |
+| `return`/`Return` out 串 | `"Success"` | 命令被接受（Set 项合法 / Save 已提交 / 回滚完成） | 官方组件行为/L256 比对 |
+| `return` out 串 | 其他字符串 | 错误描述（官方当作文本展示，未解析具体码） | 官方组件行为（`empty != "Success"` 即失败） |
 | WMI 方法 Boolean | `true` | 方法调用执行成功（不代表业务成功） | CIM 语义 |
-| `BA` 返回值 bit31 | `1` | BIOS Assistant 命令成功 | `WmiAgent.cs` L333/L421/L449 |
-| `PasswordState` | 位域 | §5.2 | `wmi-instances2.txt` L64 |
+| `BA` 返回值 bit31 | `1` | BIOS Assistant 命令成功 | 官方组件行为/L421/L449 |
+| `PasswordState` | 位域 | §5.2 | `实机采集样本` L64 |
 | WBEM `0x80041010` / `0x8004100F` | 异常 | 类/对象不存在 → 该机型无此接口 | §2.4 |
 
-> 官方代码对失败的处理：`SetIOControlItem` 中项写失败 → 立即中断且**不调用 Save**（防止部分提交）；Save 失败 → 返回 false，界面提示保存失败。这是官方最重要的保护逻辑之一（§8.3）。
+> 官方组件对失败的处理：`SetIOControlItem` 中项写失败 → 立即中断且**不调用 Save**（防止部分提交）；Save 失败 → 返回 false，界面提示保存失败。这是官方最重要的保护逻辑之一（§8.3）。
 
 **证据**
 
-- 编码构造/返回比对/串行中止：`WmiAgent.cs::SetIOControlItem` L225-261（`ItemName+","+ItemValue+";"`；`if (empty != "Success") { flag=false; break; }`；`SaveBiosSettings` 传 `";"` 且要求 `text == "Success"`）。
-- Selections 解析：`WmiAgent.cs::AdvancedGPUCapbility` L79-90；`…/LenovoSnapshotAddin/2.0.0.18/Lenovo.Cdat/Lenovo.Cdat.DataCollection.QuickData.Populators/BiosSettings.cs` L59-118。
-- 空串/分号写法：`Vantage 设备组件内部接口说明（`SaveBiosSettings(Empty)`/`DiscardBiosSettings(Empty)`）。
+- 编码构造/返回比对/串行中止：官方组件行为（`ItemName+","+ItemValue+";"`；`if (empty != "Success") { flag=false; break; }`；`SaveBiosSettings` 传 `";"` 且要求 `text == "Success"`）。
+- Selections 解析见官方组件行为。
+- 空串/分号写法：`官方组件接口说明（`SaveBiosSettings(Empty)`/`DiscardBiosSettings(Empty)`）。
 
 ---
 
@@ -300,7 +300,7 @@ ret    = outPar.GetPropertyValue("return").ToString()     # "Success" | 错误�
 
 ### 4.1 枚举算法（`vantage bios list`）
 
-官方快照收集器（`BiosSettings.cs::CaptureThinkPadBiosSettings`）的算法即实现模板：
+官方快照收集器（官方组件行为）的算法即实现模板：
 
 ```text
 1. rows = SELECT * FROM Lenovo_BiosSetting (属性 CurrentSetting)
@@ -310,18 +310,18 @@ ret    = outPar.GetPropertyValue("return").ToString()     # "Success" | 错误�
    得到该项目的合法值列表, 一并展示
 ```
 
-健壮性细节（官方实测）：
+健壮性细节（官方组件行为）：
 
 - `Split(',')` 后**少于 2 段则丢弃该行**（有实例的 `CurrentSetting` 为空串，本机 ISET_5/7/8/9/10）。
 - `GetBiosSelections` 对单个项失败（某些项不支持枚举）只记警告，**不中断整体枚举**——实现者应对每个项独立 try/catch。
-- 项名比较用 `OrdinalIgnoreCase`（`BiosSecuritySettings.cs` 的字典键）；展示时保留原始大小写（`array[0]`）。
-- 本机（SMB 平台）与 TPE（ThinkPad）平台的项集合不同：官方用两份清单做 UI 过滤（`WmiAgent.cs` L28-41）：`_smbIOControlItems`（11 项，见下表）与 `_tpeIOControlItems`（14 项，`EthernetLANAccess/WirelessLANAccess/WirelessWANAccess/BluetoothAccess/USBPortAccess/MemoryCardSlotAccess/SmartCardSlotAccess/IntegratedCameraAccess/IntegratedAudioAccess/MicrophoneAccess/FingerprintReaderAccess/ThunderboltAccess/IOAccessTouchPanel/NfcAccess`，ThinkPad 变体，本机未必枚举）。
+- 项名比较用 `OrdinalIgnoreCase`（官方组件行为 的字典键）；展示时保留原始大小写（`array[0]`）。
+- 本机（SMB 平台）与 TPE（ThinkPad）平台的项集合不同：官方用两份清单做 UI 过滤（官方组件行为）：`_smbIOControlItems`（11 项，见下表）与 `_tpeIOControlItems`（14 项，`EthernetLANAccess/WirelessLANAccess/WirelessWANAccess/BluetoothAccess/USBPortAccess/MemoryCardSlotAccess/SmartCardSlotAccess/IntegratedCameraAccess/IntegratedAudioAccess/MicrophoneAccess/FingerprintReaderAccess/ThunderboltAccess/IOAccessTouchPanel/NfcAccess`，ThinkPad 变体，本机未必枚举）。
 
-> ⚠️ 与 01 文档 §2.11 的差异：01 文档写 `CurrentSetting` "以 `=` 分割（形如 `CurrentValue=On`）"。**实测格式是英文逗号**（`WakeOnLan,Disabled`），消费端代码全部按 `,` 分割（`WmiAgent.cs`、`BiosSettings.cs`、`GetIOControlItems`）。本文档以逗号为准。
+> 注意 与 01 文档 §2.11 的差异：01 文档写 `CurrentSetting` "以 `=` 分割（形如 `CurrentValue=On`）"。**实测格式是英文逗号**（`WakeOnLan,Disabled`），消费端代码全部按 `,` 分割（官方组件行为、官方组件行为、`GetIOControlItems`）。本文档以逗号为准。
 
 ### 4.2 本机全量设置项表
 
-以下为 21VG 实机 `Lenovo_BiosSetting` 全量枚举（`目标机 WMI 实例实机采集` L1-55，含空实例在内共 36 项）；实例索引 ISET_N 为 `目标机 WMI 实例实机采集`（L235-284，采集截断于 ISET_11）与 `Vantage 设备组件内部接口说明/§6 的记录，**ISET_12+ 的索引编号以 vantage-device.md 为准，未在本项目原始采集中复核 [推断]**。（wmi-instances2 的"FULL"清单不含空行项的实例号。）
+以下为 21VG 实机 `Lenovo_BiosSetting` 全量枚举（`目标机 WMI 实例实机采集` L1-55，含空实例在内共 36 项）；实例索引 ISET_N 为 `目标机 WMI 实例实机采集`（L235-284，采集截断于 ISET_11）与官方组件接口说明。ISET_12+ 的索引编号以官方组件行为为准，未在本项目原始采集中复核 [推断]。
 
 | 设置项（枚举原串） | 本机当前值 | 值域（惯例） | 语义/官方用途 |
 |---|---|---|---|
@@ -333,7 +333,7 @@ ret    = outPar.GetPropertyValue("return").ToString()     # "Success" | 错误�
 | `WirelessLAN` | `Enable` | `Enable`/`Disable` | 无线网卡硬件开关（IO 控制清单项） |
 | `Intel(R)VirtualizationTechnology` | `Enable` | VT-x | Intel 虚拟化（需重启） |
 | `Intel(R)VT-dFeature` | `Enable` | VT-d | DMA 直通（需重启） |
-| `SecureRollbackPrevention` | `Enable` | `Enable`/`Disable` | BIOS 回滚保护（⚠️ §8.2） |
+| `SecureRollbackPrevention` | `Enable` | `Enable`/`Disable` | BIOS 回滚保护（注意 §8.2） |
 | `HotkeyMode` | `Disable` | `Enable`/`Disable` | F1-F12 是否"需 Fn"；`Enable`=需按 Fn，`Disable`=直接触发主功能 |
 | `FoolProofFnCtrl` | `Enable` | `Enable`/`Disable` | Fn 与 Ctrl 互换（防误触） |
 | `AlwaysOnUSB` | `Enable` | `Enable`/`Disable` | USB 关机充电（运行时覆盖走 EnergyDrv，§7.4.2） |
@@ -352,38 +352,38 @@ ret    = outPar.GetPropertyValue("return").ToString()     # "Success" | 错误�
 | `FingerprintReader` | `Enable` | `Enable`/`Disable` | 指纹读头硬断 |
 | `Thunderbolt(TM)` | `Enable` | `Enable`/`Disable` | Thunderbolt 口开关（项名含括号，见 §9.1 转义） |
 | `SecureBoot` | `Enable` | `Enable`/`Disable` | Secure Boot（快照安全收集项） |
-| `USBBoot` | `Enable` | `Enable`/`Disable` | USB 启动（⚠️ §8.2） |
-| `PXEBootToLAN` | `Enable` | `Enable`/`Disable` | PXE 网络启动（⚠️ §8.2） |
+| `USBBoot` | `Enable` | `Enable`/`Disable` | USB 启动（注意 §8.2） |
+| `PXEBootToLAN` | `Enable` | `Enable`/`Disable` | PXE 网络启动（注意 §8.2） |
 | `IPV4PXEFirst` | `Enable` | `Enable`/`Disable` | IPv4 PXE 优先 |
-| `EFI-BootOrder` | `01:02` | 十六进制启动项序 | 启动顺序（⚠️ §8.2；值格式不同：冒号分隔的两位 hex） |
+| `EFI-BootOrder` | `01:02` | 十六进制启动项序 | 启动顺序（注意 §8.2；值格式不同：冒号分隔的两位 hex） |
 | `F1-F12AsPrimaryFunction` | `Enable` | `Enable`/`Disable` | F1-F12 主功能为标准 F 键（**FnLock 的 BIOS 表达**） |
 | `FnAndCtrlKeySwap` | `Disable` | `Enable`/`Disable` | 另一套 Fn/Ctrl 互换项（本机与 FoolProofFnCtrl 并存） |
 | `PowerOnWithACAttach` | `Enable` | `Enable`/`Disable` | 插电自动开机 |
-| （空项）ISET_5/7/8/9/10 | （空） | — | 未公开/留空槽位 |
+| （空项）ISET_5/7/8/9/10 | （空） | — | 未提供/留空槽位 |
 
 **GraphicsDevice（GPU 模式，不在上述枚举的静态清单里出现，但 WriteAgent 实读）**：`CurrentSetting` 含 `GraphicsDevice,<模式>` 行；模式 ∈ `SwitchableGraphics`/`DynamicGraphics`/`DiscreteGraphics`（也可经 `GetBiosSelections("GraphicsDevice")` 拿全量）。
 
 ### 4.3 `GetBiosSelections` 用法案例
 
-- `GetBiosSelections("GraphicsDevice")` → Selections 逗号列表 → 每个元素 `Trim()`（`WmiAgent.cs` L79-90）。这是唯一在本项目样本中**观察到真实调用**的 Item——其余项均未在官方代码中调用过 Selections（快照收集器对每项都调，但那是运行时行为，未在本样本采集中留痕）。
-- 默认行为：`PcSystemType == "2"`（笔记本？）时快照收集器才调 Selections（`BiosSettings.cs` L85）。
+- `GetBiosSelections("GraphicsDevice")` → Selections 逗号列表 → 每个元素 `Trim()`（官方组件行为）。这是唯一在本项目样本中**观察到真实调用**的 Item——其余项均未在官方组件中调用过 Selections（快照收集器对每项都调，但那是运行时行为，未在本样本采集中留痕）。
+- 默认行为：`PcSystemType == "2"`（笔记本？）时快照收集器才调 Selections（官方组件行为）。
 
 ### 4.4 代码引用但本机枚举未见的项
 
-以下名称出现在官方代码中但**不在 21VG 枚举清单**里，存在性因平台/BIOS 版本而异，实现者应将其当作"可能项"，出现则展示，不出现则无需创建：
+以下名称出现在官方组件中但**不在 21VG 枚举清单**里，存在性因平台/BIOS 版本而异，实现者应将其当作"可能项"，出现则展示，不出现则无需创建：
 
-- 安全收集项（`BiosSecuritySettings.cs` 字典键）：`SecureBoot`（本机有）、`DeviceGuard`、`EnhancedWindowsBiometricSecurity`（本机有）、`BottomCoverTamperDetected`、`BlockSIDAuthentication`、`AMTControl`、`LockBIOSSettings`。
-- 快照诊断项：`DashEnabled`（`PotentialIssuesPopulator.cs`，Dash 检测）。
+- 安全收集项（官方组件行为 字典键）：`SecureBoot`（本机有）、`DeviceGuard`、`EnhancedWindowsBiometricSecurity`（本机有）、`BottomCoverTamperDetected`、`BlockSIDAuthentication`、`AMTControl`、`LockBIOSSettings`。
+- 快照诊断项：`DashEnabled`（官方组件行为，Dash 检测）。
 - 盟友建议项：`EffectivePowerModeMaxPerformance`（`hal-services.md` L70 [推断]：`SetBiosSetting` 的某些 key 触发 `LENOVO_DISPATCHER_EVENT`）。
 
 **证据**
 
 - 全量枚举：`目标机 WMI 实例实机采集` L1-55（`##### FULL Lenovo_BiosSetting`）。
-- 枚举算法与容错：`BiosSettings.cs::CaptureThinkPadBiosSettings` L59-118（分号 Split、少于 2 段跳过、Selections 每项独立容错）。
-- 项名清单（SMB/TPE）：`WmiAgent.cs` L28-41（`_smbIOControlItems`/`_tpeIOControlItems`）、`GetIOControlItems` L263-309。
-- 安全/诊断项：`BiosSecuritySettings.cs` L79-129（字典），`PotentialIssuesPopulator.cs` L84-102（`DashEnabled`）。
-- 实例索引 ISET_17/18/29/40/41/42/51：`Vantage 设备组件内部接口说明（ISET_18）、§3.2（ISET_17/51）、§6.1（ISET_40）、§6.2（ISET_41）、§6.3（ISET_42/ISET_29）。
-- GraphicsDevice 读取：`WmiAgent.cs` L96-121（`GetAdvancedGPUMode`）、L190-223（`GetGPUMode`）。
+- 枚举算法与容错：官方组件行为（分号 Split、少于 2 段跳过、Selections 每项独立容错）。
+- 项名清单（SMB/TPE）：官方组件行为（`_smbIOControlItems`/`_tpeIOControlItems`）、`GetIOControlItems` L263-309。
+- 安全/诊断项：官方组件行为（字典），官方组件行为（`DashEnabled`）。
+- 实例索引 ISET_17/18/29/40/41/42/51：`官方组件接口说明（ISET_18）、§3.2（ISET_17/51）、§6.1（ISET_40）、§6.2（ISET_41）、§6.3（ISET_42/ISET_29）。
+- GraphicsDevice 读取：官方组件行为（`GetAdvancedGPUMode`）、L190-223（`GetGPUMode`）。
 
 ---
 
@@ -412,7 +412,7 @@ SupportedKeyboard  : 1
 
 ### 5.2 `PasswordState` 位域
 
-官方消费端（`WmiAgent.cs::CheckBiosPasswordSet` L349-366）：
+官方消费端（官方组件行为）：
 
 ```csharp
 uint num = Convert.ToUInt32(QueryData("SELECT * FROM Lenovo_BiosPasswordSettings", "PasswordState")[0]);
@@ -421,11 +421,11 @@ PasswordState = (num & 2) == 2;   // bit1 = supervisor 密码已设置
 
 - **bit 1（0x2）= supervisor 密码已设置**。（bit0 未观察到使用 [推断]：部分文献将 bit0 作为"是否启用密码功能"的机型相关位，本样本 PasswordState=0 无法证实。）
 - 查询对象：`SELECT * FROM Lenovo_BiosPasswordSettings` 取 `PasswordState` 列；**属性存在且可枚举**是该类在本机型可用的前提。
-- 注意 `PasswordState` 与 WMI 别名 `Win32_ComputerSystem.AdminPasswordStatus`（快照收集器另用其 `==1` 判定 supervisor 密码，`BiosSecuritySettings.cs` L52-66）是两个独立来源，实现者可用后者交叉验证 [推断]（前者为联想通道，后者为 Windows 标准）。
+- 注意 `PasswordState` 与 WMI 别名 `Win32_ComputerSystem.AdminPasswordStatus`（快照收集器另用其 `==1` 判定 supervisor 密码，官方组件行为）是两个独立来源，实现者可用后者交叉验证 [推断]（前者为联想通道，后者为 Windows 标准）。
 
 ### 5.3 `SetBiosPassword` 编码（【推断】——未在本项目样本中实测）
 
-**事实**：类签名存在（`Lenovo_SetBiosPassword.SetBiosPassword(Parameter:String)→Return:String`），但**本项目所有官方样本中没有任何代码调用它**（全部组件资料中无任何消费端调用；Vantage 只读 `PasswordState`）。以下为**公开生态惯例**（联想 WMI 密码接口在社区文档/开源工具中的通用约定），实现者采用前应在实机验证：
+**事实**：类签名存在（`Lenovo_SetBiosPassword.SetBiosPassword(Parameter:String)→Return:String`），但**本项目所有官方组件中没有任何代码调用它**（未发现官方组件消费端调用；Vantage 只读 `PasswordState`）。以下为**公开生态惯例**（联想 WMI 密码接口在社区文档/开源工具中的通用约定），实现者采用前应在实机验证：
 
 - 设置/修改 supervisor 密码：`Parameter = "<新密码>,ascii,us"` —— 三段英文逗号：明文密码 + 编码（`ascii`）+ 键盘布局（`us`）。与之对应，`SupportedEncodings=1` ↔ `ascii`、`SupportedKeyboard=1` ↔ `us`（数值→关键字映射 [推断]）。
 - 清除密码：`Parameter = ",ascii,us"`（空密码段）。
@@ -433,7 +433,7 @@ PasswordState = (num & 2) == 2;   // bit1 = supervisor 密码已设置
 - 成功判定：out `Return` 为 `"Success"`（与 SetBiosSetting 相同的返回串约定 [推断]）。
 - 本机 `PasswordMode=1` 对应"supervisor 密码"（联想通常还有 HDD 密码模式，本机未暴露 [推断]）。
 
-> ⚠️ **净室提示**：§5.3 全部内容属于 [推断]，且是**唯一**可能造成访问锁死风险的功能（§8.2）。
+> 注意 **提示**：§5.3 全部内容属于 [推断]，且是**唯一**可能造成访问锁死风险的功能（§8.2）。
 >
 > **实现（2026-11-03）**：`vantage bios password set|clear` 继续如实拒绝（`docs/interfaces.md` §0
 > "不写 BIOS 口令"边界,README 安全模型同条）。唯一接入的口令操作是
@@ -452,9 +452,9 @@ PasswordState = (num & 2) == 2;   // bit1 = supervisor 密码已设置
 
 - 类签名：`目标机 WMI 仓库实机采集` L394-399（`Lenovo_SetBiosPassword`）、L412-420（`Lenovo_BiosPasswordSettings`）。
 - 本机属性实测：`目标机 WMI 实例实机采集` L56-70。
-- 位域解码：`WmiAgent.cs::CheckBiosPasswordSet` L349-366。
-- 无调用方：全部组件资料检索 `SetBiosPassword` 无命中。
-- 交叉验证源：`BiosSecuritySettings.cs::CaptureSupervisorPassword` L52-66（`AdminPasswordStatus`）。
+- 位域解码：官方组件行为。
+- 无调用方：官方组件中未见 `SetBiosPassword` 调用。
+- 交叉验证源：官方组件行为（`AdminPasswordStatus`）。
 
 ---
 
@@ -473,8 +473,8 @@ DiscardBiosSettings(...)        ← 丢弃缓冲区未提交更改（归属范�
 ```
 
 - 每次 `Set` 不落盘；`Save` 一次性提交**缓冲区里所有**未提交项。
-- `Save` 之后的部分项（网络/虚拟化/显卡模式/启动项）**需要重启才真正生效**；官方证据：PCManager 的 `SetBIOSOC`"需重启生效"（`电脑管家电源组件内部接口说明` L144）。
-- 官方代码序贯写多项时，任一项失败即**中止且不 Save**（§3.4）——防止"改坏一半"。
+- `Save` 之后的部分项（网络/虚拟化/显卡模式/启动项）**需要重启才真正生效**；官方证据：PCManager 的 `SetBIOSOC`"需重启生效"（`官方组件接口说明` L144）。
+- 官方组件序贯写多项时，任一项失败即**中止且不 Save**（§3.4）——防止"改坏一半"。
 - 暂存区是否跨 WMI 会话、进程或官方工具共享尚无目标机契约；不能认为 `Discard` 只影响
   当前调用者。[Lenovo 公共 WMI 指南](https://docs.lenovocdrt.com/ref/bios/wmi/wmi_guide/#limitations-and-notes)
   对所列 ThinkPad/ThinkCentre/ThinkStation 说明一次 Save 保存所有变更，但未声明 ThinkBook
@@ -490,17 +490,17 @@ ret = SaveBiosSettings(parameter = ";")
 success = (ret == "Success")
 ```
 
-来源 `WmiAgent.cs` L225-261。这是实现者 `vantage bios set` 的标准模板。
+来源 官方组件行为。这是实现者 `vantage bios set` 的标准模板。
 
 ### 6.3 `Save` 与重启的关系
 
 - `SaveBiosSettings` 返回 `"Success"` = NVRAM 写入成功，**不需要在 Save 后强制重启**（官方调用后不触发重启）。
 - 生效时机由项决定：热键/IO 开关类（`IntegratedCamera` 等硬件断供）官方文档语境即插即用或下次设备枚举生效；CPU 相关（VT、OC）需重启。**vantage 应在 save 成功后提示"部分更改需重启后生效"**。
-- `LENOVO_GAMEZONE_DATA.SetBIOSOC` 等通过 BIOS 放行的 OC 项官方标注"需重启生效"（`电脑管家电源组件内部接口说明` L144）。
+- `LENOVO_GAMEZONE_DATA.SetBIOSOC` 等通过 BIOS 放行的 OC 项官方标注"需重启生效"（`官方组件接口说明` L144）。
 
 ### 6.4 `Discard` / `LoadDefault`
 
-- `DiscardBiosSettings`：丢弃 Set 缓冲、恢复为上次 Save 的状态（`Vantage 设备组件内部接口说明"回滚"）。
+- `DiscardBiosSettings`：丢弃 Set 缓冲、恢复为上次 Save 的状态（`官方组件接口说明"回滚"）。
 - `LoadDefaultSettings`：**恢复 BIOS 出厂默认**（危险项，§8.2）——会覆盖所有设置包括安全/密码相关项 [推断]（类语义如名，本样本无调用方，未实测）。**实现**:`vantage bios defaults [--password CURRENT]` 经 `Lenovo_LoadDefaultSettings.LoadDefaultSettings` 下发,参数 `"<password>,ascii,us;"`（无 supervisor 口令时口令段为空,与官方 "Password,Encoding,KbdLang;" 文法一致）;需 `--yes`,且 `docs/interfaces.md` 的"不刷固件"边界不涵盖此项——这是官方 WMI 恢复默认入口,不是固件刷写。真机写验收未执行,执行路径如实保留为 `Readback::Unverified`。
 - 二者参数与返回约定同 Save（§3.2）。
 
@@ -511,9 +511,9 @@ success = (ret == "Success")
 
 **证据**
 
-- 事务序列：`WmiAgent.cs::SetIOControlItem` L225-261。
-- 提交/回滚描述：`Vantage 设备组件内部接口说明（"提交: SaveBiosSettings(Empty)；回滚: DiscardBiosSettings(Empty)"）。
-- 重启语义：`电脑管家电源组件内部接口说明` L144（`SetBIOSOC`/`SetBIOSOCMode` 需重启生效）。
+- 事务序列：官方组件行为。
+- 提交/回滚描述：`官方组件接口说明（"提交: SaveBiosSettings(Empty)；回滚: DiscardBiosSettings(Empty)"）。
+- 重启语义：`官方组件接口说明` L144（`SetBIOSOC`/`SetBIOSOCMode` 需重启生效）。
 - 类签名（Save/Discard/LoadDefault/SetFunctionRequest/FunctionRequest）：`目标机 WMI 仓库实机采集` L374-393、L406-411。
 
 ---
@@ -524,40 +524,40 @@ success = (ret == "Success")
 
 | 功能 | BIOS 通道 | 具体项/参数 | 出处 |
 |---|---|---|---|
-| I/O 开关批量读写（系统设置页） | 读 `Lenovo_BiosSetting`；写 `Lenovo_SetBiosSetting` + Save | `_smbIOControlItems` 11 项 + `_tpeIOControlItems` 14 项 | `WmiAgent.cs` L28-41, L225-309 |
-| Fn/Ctrl 互换 | `LENOVO_BIOS_ASSISTANT` Index 1 或 `FoolProofFnCtrl`/`FnAndCtrlKeySwap` | `Get/SetFnCtrlSwap` | `WmiAgent.cs` L301-309；`FunctionID.cs` L5 |
-| SuperBoost（超频助燃） | `LENOVO_BIOS_ASSISTANT` Index 2 | `Get/SetSuperBoost` | `WmiAgent.cs` L312-320 |
-| GPU 模式（独显/混合/自动/iGPU-only） | `Lenovo_BiosSetting.GraphicsDevice` + `GetBiosSelections("GraphicsDevice")` + `GAMEZONE_DATA.SetIGPUModeStatus` + BA Index 3 | `Set/GetGPUMode`、`Set/GetAdvancedGPUMode`、`AdvancedGPUCapbility` | `WmiAgent.cs` L69-223 |
-| BIOS 能力探测 | `LENOVO_BIOS_ASSISTANT.GetCapabilityValue` | 位域 §1.3，本机 `0x80000008` | `WmiAgent.cs` L323-345 |
-| supervisor 密码状态 | `Lenovo_BiosPasswordSettings.PasswordState` | bit1 | `WmiAgent.cs` L349-366 |
+| I/O 开关批量读写（系统设置页） | 读 `Lenovo_BiosSetting`；写 `Lenovo_SetBiosSetting` + Save | `_smbIOControlItems` 11 项 + `_tpeIOControlItems` 14 项 | 官方组件行为, L225-309 |
+| Fn/Ctrl 互换 | `LENOVO_BIOS_ASSISTANT` Index 1 或 `FoolProofFnCtrl`/`FnAndCtrlKeySwap` | `Get/SetFnCtrlSwap` | 官方组件行为；官方组件行为 |
+| SuperBoost（超频助燃） | `LENOVO_BIOS_ASSISTANT` Index 2 | `Get/SetSuperBoost` | 官方组件行为 |
+| GPU 模式（独显/混合/自动/iGPU-only） | `Lenovo_BiosSetting.GraphicsDevice` + `GetBiosSelections("GraphicsDevice")` + `GAMEZONE_DATA.SetIGPUModeStatus` + BA Index 3 | `Set/GetGPUMode`、`Set/GetAdvancedGPUMode`、`AdvancedGPUCapbility` | 官方组件行为 |
+| BIOS 能力探测 | `LENOVO_BIOS_ASSISTANT.GetCapabilityValue` | 位域 §1.3，本机 `0x80000008` | 官方组件行为 |
+| supervisor 密码状态 | `Lenovo_BiosPasswordSettings.PasswordState` | bit1 | 官方组件行为 |
 
-### 7.2 Vantage 设备设置页（键盘/隐私，vantage-device.md）
+### 7.2 Vantage 设备设置页（键盘/隐私，官方组件行为）
 
 | 功能 | BIOS 通道 | 项 | 出处 |
 |---|---|---|---|
-| 热键模式 | `Lenovo_SetBiosSetting` | `"HotkeyMode,Disable"`（F1-F12 直通） | vantage-device.md §3.2 |
-| F 键主功能 | 同上 | `"F1-F12AsPrimaryFunction,Enable"` | vantage-device.md §3.2 |
-| Fn/Ctrl 防误触 | 同上 | `"FoolProofFnCtrl,Enable"` | vantage-device.md §3.1 |
-| **FnLock 默认值** | 读 `Lenovo_BiosSetting` | 本机默认 `F1-F12AsPrimaryFunction,Enable` + `HotkeyMode,Disable` ⇒ **FnLock 默认锁定（F1-F12 即标准功能键）**；Vantage UI 的 FnLock 开关即映射此组合 | vantage-device.md §3.2；wmi-instances2.txt L18-19, L51-52 |
-| 摄像头硬断 | `SetBiosSetting("IntegratedCamera,Disable")` | `ISET_40` | vantage-device.md §6.1 |
-| 麦克风硬断 | `SetBiosSetting("Microphone,Disable")` | `ISET_41` | vantage-device.md §6.2 |
-| 指纹硬断 | `SetBiosSetting("FingerprintReader,Disable")` | `ISET_42` | vantage-device.md §6.3 |
+| 热键模式 | `Lenovo_SetBiosSetting` | `"HotkeyMode,Disable"`（F1-F12 直通） | 官方组件行为 |
+| F 键主功能 | 同上 | `"F1-F12AsPrimaryFunction,Enable"` | 官方组件行为 |
+| Fn/Ctrl 防误触 | 同上 | `"FoolProofFnCtrl,Enable"` | 官方组件行为 |
+| **FnLock 默认值** | 读 `Lenovo_BiosSetting` | 本机默认 `F1-F12AsPrimaryFunction,Enable` + `HotkeyMode,Disable` ⇒ **FnLock 默认锁定（F1-F12 即标准功能键）**；Vantage UI 的 FnLock 开关即映射此组合 | 官方组件行为；实机采集样本 L18-19, L51-52 |
+| 摄像头硬断 | `SetBiosSetting("IntegratedCamera,Disable")` | `ISET_40` | 官方组件行为 |
+| 麦克风硬断 | `SetBiosSetting("Microphone,Disable")` | `ISET_41` | 官方组件行为 |
+| 指纹硬断 | `SetBiosSetting("FingerprintReader,Disable")` | `ISET_42` | 官方组件行为 |
 
-### 7.3 电源页（vantage-power.md）
+### 7.3 电源页（官方组件行为）
 
 | 功能 | BIOS 通道 | 说明 | 出处 |
 |---|---|---|---|
-| **AlwaysOnUSB** | `Lenovo_BiosSetting.AlwaysOnUSB`（默认 `Enable`） | BI 配置；**运行时覆盖走 `\\.\EnergyDrv` IOCTL（重启后回归 BIOS 配置）** | vantage-power.md §7.4；wmi-instances2.txt L20 |
-| **ChargeInBatteryMode** | `Lenovo_BiosSetting.ChargeInBatteryMode`（默认 `Disable`） | 电池时 USB 充电；同上分层 | vantage-power.md §7.4；wmi-instances2.txt L21 |
-| 电池页 BIOS 静态信息 | `Lenovo_BiosSetting`/`BiosPasswordSettings`/`BiosSelections` | Bios 版本、两个 USB 充电项读取 | vantage-power.md L43；[推断] 具体读取点在 `BatteryInformationHandler`/`BatteryAgent`（本样本未直接定位到 Lenovo_* 调用） |
+| **AlwaysOnUSB** | `Lenovo_BiosSetting.AlwaysOnUSB`（默认 `Enable`） | BI 配置；**运行时覆盖走 `\\.\EnergyDrv` IOCTL（重启后回归 BIOS 配置）** | 实机采集样本 L20 |
+| **ChargeInBatteryMode** | `Lenovo_BiosSetting.ChargeInBatteryMode`（默认 `Disable`） | 电池时 USB 充电；同上分层 | 实机采集样本 L21 |
+| 电池页 BIOS 静态信息 | `Lenovo_BiosSetting`/`BiosPasswordSettings`/`BiosSelections` | Bios 版本、两个 USB 充电项读取 | [推断] 具体读取点在 `BatteryInformationHandler`/`BatteryAgent`（本样本未直接定位到 Lenovo_* 调用） |
 
 ### 7.4 快照诊断（LenovoSnapshotAddin / CDAT）
 
 | 功能 | 通道 | 项 | 出处 |
 |---|---|---|---|
-| 全量 BIOS 设置采集 | `SELECT * FROM Lenovo_BiosSetting` → `CurrentSetting` | 全部项 + 每项 Selections | `BiosSettings.cs` L59-118 |
-| 安全项采集 | 同上 | `SecureBoot/DeviceGuard/BottomCoverTamperDetected/BlockSIDAuthentication/AMTControl/LockBIOSSettings/EnhancedWindowsBiometricSecurity` | `BiosSecuritySettings.cs` L79-129 |
-| Dash 检测 | 同上 | `DashEnabled` | `PotentialIssuesPopulator.cs` L84-102 |
+| 全量 BIOS 设置采集 | `SELECT * FROM Lenovo_BiosSetting` → `CurrentSetting` | 全部项 + 每项 Selections | 官方组件行为 |
+| 安全项采集 | 同上 | `SecureBoot/DeviceGuard/BottomCoverTamperDetected/BlockSIDAuthentication/AMTControl/LockBIOSSettings/EnhancedWindowsBiometricSecurity` | 官方组件行为 |
+| Dash 检测 | 同上 | `DashEnabled` | 官方组件行为 |
 
 ### 7.5 PCManager（pcmgr-power.md）
 
@@ -571,10 +571,10 @@ success = (ret == "Success")
 
 **证据**
 
-- §7.1/§7.2/§7.4 全部文件与符号见各小节"出处"列；关键源文件：`WmiAgent.cs`、`FunctionID.cs`、`GPUModeStatus.cs`、`BiosSettings.cs`、`BiosSecuritySettings.cs`、`PotentialIssuesPopulator.cs`。
-- §7.3：`Vantage 电源组件内部接口说明（AOU/BIOS 配置）与 L43（静态信息读取）、`目标机 WMI 实例实机采集` L20-21。
-- §7.5：`电脑管家电源组件内部接口说明` L144。
-- §7.6：`Lenovo 系统服务组件内部接口说明` L68-70。
+- §7.1/§7.2/§7.4 全部文件与符号见各小节"出处"列；关键源文件：官方组件行为、官方组件行为、官方组件行为、官方组件行为、官方组件行为、官方组件行为。
+- §7.3：`官方组件接口说明（AOU/BIOS 配置）与 L43（静态信息读取）、`目标机 WMI 实例实机采集` L20-21。
+- §7.5：`官方组件接口说明` L144。
+- §7.6：`官方组件接口说明` L68-70。
 
 ---
 
@@ -596,14 +596,14 @@ success = (ret == "Success")
 | `SecureBoot` | 中 | 关闭后系统安全属性变化；开启但密钥不匹配会导致无法引导 |
 | `SecureRollbackPrevention` | 高 | 关闭后 BIOS 可被回滚到旧版本（降低安全）；与 BIOS 更新流程冲突 |
 | `Intel(R)VirtualizationTechnology`/`VT-d` | 低 | 误关影响虚拟化/沙箱软件，不易损坏但影响功能 |
-| supervisor 密码（§5.3） | **高** | 设置后遗忘 = 安全启动项被锁；清除失败 = 需要硬件级恢复（短接/官方工具）。官方软件完全不提供该写入口，实现者暴露时必须加门控 |
+| supervisor 密码（§5.3） | **高** | 设置后遗忘 = 安全启动项被锁；清除失败 = 需要硬件级恢复（短接/官方工具）。官方软件不提供该写入口，实现者暴露时必须加门控 |
 | `LoadDefaultSettings` | 高 | 一键恢复出厂会重置**全部**设置（含安全/启动项/密码），执行前必须强确认 |
-| `GraphicsDevice`/`SetIGPUModeStatus` | 中 | 切独显后部分机型在无外接显示时黑屏风险（官方对进程占用做了前置检查：`GPUProcessInfo` + 有前台进程占用即拒绝，`WmiAgent.cs` L153-169） |
+| `GraphicsDevice`/`SetIGPUModeStatus` | 中 | 切独显后部分机型在无外接显示时黑屏风险（官方对进程占用做了前置检查：`GPUProcessInfo` + 有前台进程占用即拒绝，官方组件行为） |
 
 ### 8.3 官方的保护逻辑（实现者照抄的最低标准）
 
 1. **UI 白名单 ≠ 通道白名单**：官方 UI 只向用户暴露白名单项（§4.1 两份清单），但 `SetIOControlItem` 对任意 `ItemName/ItemValue` 直接透传——**通道本身不过滤**，vantage 必须自己维护保护清单。
-2. **进程占用检查（GPU 模式）**：从混合模式切 iGPU-only 前检查前台进程列表，非空则拒绝（`WmiAgent.cs` L153-169）。
+2. **进程占用检查（GPU 模式）**：从混合模式切 iGPU-only 前检查前台进程列表，非空则拒绝（官方组件行为）。
 3. **不自动重启**：Save 成功提示"需重启"，但绝不代用户重启（官方亦然）。
 4. **只读密码**：官方从不在软件里写密码（§5.4）。
 5. **枚举容错**：查询/枚举单项失败不中断整体（§4.1）。
@@ -617,9 +617,9 @@ success = (ret == "Success")
 
 **证据**
 
-- 通道护栏/中止逻辑：`WmiAgent.cs` L225-261。
-- GPU 模式进程保护：`WmiAgent.cs` L135-189（`SetGPUMode` 中 `GPUProcessInfo(processList)` 判定）。
-- 白名单文件位置：`WmiAgent.cs` L28-41。
+- 通道护栏/中止逻辑：官方组件行为。
+- GPU 模式进程保护：官方组件行为（`SetGPUMode` 中 `GPUProcessInfo(processList)` 判定）。
+- 白名单文件位置：官方组件行为。
 - 密码无调用方：§5 证据（全树检索）。
 - 风险项清单来源：§4.2 表（本机枚举）与官方消费端引用。
 
@@ -657,7 +657,7 @@ vantage bios password status          # 只读密码状态
 4. `SetFunctionRequest` 的用途。
 5. 各方法类（Set/Save/…)实例有多个时，是否不同实例绑定不同项——官方只取第一个，未验证差异。
 6. `LENOVO_REPORT_DIRECT_BIOS_DATA`（`default_num`/`DependOnID`/`Step`）与 BIOS 项的对应关系未解码。
-7. ISET 索引 ≥12 的实例号（vantage-device.md 记录，未在原采集复核）。
+7. ISET 索引 ≥12 的实例号（官方组件行为 记录，未在原采集复核）。
 8. 密码设置后 `PasswordMode`/`PasswordState` 两口的值变化规律。
 
 > 以上未决项及暂存区归属会阻断安全写入；当前只读能力不等于已完成 BIOS 写入验收。
@@ -669,18 +669,18 @@ vantage bios password status          # 只读密码状态
 | 声称 | 证据位置 |
 |---|---|
 | 10 类 WMI 签名/属性 | `目标机 WMI 仓库实机采集` L367-426、L473-484、L610；`目标机 WMI 实例实机采集` L235-299 |
-| `CurrentSetting` 逗号格式与全量键值 | `目标机 WMI 实例实机采集` L1-55；`WmiAgent.cs` L263-309；`BiosSettings.cs` L78-82 |
-| Set/Save 编码与 "Success" 判定 | `WmiAgent.cs` L225-261（`SetIOControlItem`） |
-| WMI 调用骨架（CIM/实例路径/out 取值） | `WmiProvider.cs`（`CallMethod`/`QueryData`） |
-| BA 位域解码 | `WmiAgent.cs` L69-95（AdvancedGPUCapbility）、L323-345（GetBiosCapability）、L403-456（Get/SetAssistantValue）；`FunctionID.cs`；`BiosCapability.cs`；`GPUModeStatus.cs` |
+| `CurrentSetting` 逗号格式与全量键值 | `目标机 WMI 实例实机采集` L1-55；官方组件行为；官方组件行为 |
+| Set/Save 编码与 "Success" 判定 | 官方组件行为（`SetIOControlItem`） |
+| WMI 调用骨架（CIM/实例路径/out 取值） | 官方组件行为（`CallMethod`/`QueryData`） |
+| BA 位域解码 | 官方组件行为（AdvancedGPUCapbility）、L323-345（GetBiosCapability）、L403-456（Get/SetAssistantValue）；官方组件行为；官方组件行为；官方组件行为 |
 | `BA.GetCapabilityValue=0x80000008` | `目标机 WMI 实例实机采集` L193 |
-| GraphicsDevice 三值与模式 | `WmiAgent.cs` L96-121、L190-223 |
-| 密码类属性与状态 | `目标机 WMI 实例实机采集` L56-70；`WmiAgent.cs` L349-366（bit1）；`BiosSecuritySettings.cs` L52-66（AdminPasswordStatus） |
-| 安全/诊断项名 | `BiosSecuritySettings.cs` L79-129；`PotentialIssuesPopulator.cs` L84-102 |
-| AlwaysOnUSB/ChargeInBatteryMode | `Vantage 电源组件内部接口说明；`目标机 WMI 实例实机采集` L20-21 |
-| 键盘项与 ISET 索引 | `Vantage 设备组件内部接口说明、§3.2、§6.1-6.3 |
-| FnLock 默认（F1-F12 主功能） | `目标机 WMI 实例实机采集` L18-19、L51-52；`Vantage 设备组件内部接口说明 |
-| SetBIOSOC 需重启 | `电脑管家电源组件内部接口说明` L144 |
-| Dispatcher 联动 key [推断] | `Lenovo 系统服务组件内部接口说明` L68-70 |
-| 容错 HRESULT 0x80041010/0F | `LenovoBiosWmiInterface.cs`（GetCapability/GetFeatureValue catch） |
-| WBEM 异常语义 | 官方代码意图（类/对象不存在→缓存跳过），本文档 §2.4 |
+| GraphicsDevice 三值与模式 | 官方组件行为、L190-223 |
+| 密码类属性与状态 | `目标机 WMI 实例实机采集` L56-70；官方组件行为（bit1）；官方组件行为（AdminPasswordStatus） |
+| 安全/诊断项名 | 官方组件行为；官方组件行为 |
+| AlwaysOnUSB/ChargeInBatteryMode | `官方组件接口说明；`目标机 WMI 实例实机采集` L20-21 |
+| 键盘项与 ISET 索引 | `官方组件接口说明、§3.2、§6.1-6.3 |
+| FnLock 默认（F1-F12 主功能） | `目标机 WMI 实例实机采集` L18-19、L51-52；`官方组件接口说明 |
+| SetBIOSOC 需重启 | `官方组件接口说明` L144 |
+| Dispatcher 联动 key [推断] | `官方组件接口说明` L68-70 |
+| 容错 HRESULT 0x80041010/0F | 官方组件行为（GetCapability/GetFeatureValue catch） |
+| WBEM 异常语义 | 官方组件意图（类/对象不存在→缓存跳过），本文档 §2.4 |

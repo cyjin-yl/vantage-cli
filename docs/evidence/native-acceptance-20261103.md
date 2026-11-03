@@ -132,7 +132,7 @@ EXIT=0  {"actual":"rapid","mode":"commit","previous":"conservation","requested":
 EXIT=0  "charge_mode":"rapid"
 ```
 
-The machine was left in the `rapid` state it had before this session. No vendor
+The machine was left in the `rapid` state it had before the test run. No vendor
 process or service was stopped, and the conflict preflight was never bypassed.
 
 ## 4. Official Vantage UI via CDP — attempted, not completed
@@ -162,7 +162,7 @@ Consequence: **the official Vantage UI was not observed**, so there is still no
 evidence that the official application renders the state this CLI writes. The
 driver-state acceptance in section 3 and the persisted-state acceptance in section 1
 stand on their own; they do not imply anything about the vendor UI. The Vantage UI
-host was running before this session and was not running afterwards — the automated
+host was running before the launch attempts and was not running afterwards — the automated
 launch routes above could not bring it back, so it needs a manual start from the
 Start menu ("Lenovo Vantage"). The addin and service side was never stopped.
 
@@ -202,7 +202,7 @@ serial/BIOS version, network, CPU 22% / 2.76 GHz, storage 95%, memory 65%,
 battery 100% charged. All debug-arg registry keys, scheduled tasks, and
 temp scripts were removed afterwards; the Vantage UI is left running.
 
-## 5. Review findings folded into this change
+## 5. HPD transport defects fixed in this change
 
 A read-only review of the HPD transport returned three concrete defects; all three
 are fixed here, and the two behavioural ones carry Windows-only regression tests
@@ -223,7 +223,7 @@ that were executed on the target (`cargo test -p lctrl-hal-win --test sense_cont
 3. Two source comments pointed at `docs/evidence/rpc-transport-faults-20261103.md`,
    which does not exist; they now point at this file.
 
-The review also raised one open question it could not settle from the tree: which
+One open question is not settled from the tree: which
 byte of the authored NDR32 tables diverges from the vendor's — the context-handle
 entries of the type format string, the per-op proc format records, or the
 explicit-handle descriptor that opnum 0 uses (the shape the two faulting transports

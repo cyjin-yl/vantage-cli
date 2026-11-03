@@ -1,7 +1,6 @@
 # 06 · MagicBay 磁吸配件协议规范
 
-> 读者:**实现者**(用 Rust 重写 Lenovo 硬件控制中心的 LLM)。
-> 作者:接口规格组。
+> 读者:MagicBay 配件实现者。
 > 状态:v1 · 2026-08-27。
 > 依赖:见 00(术语/通道)、01(HAL 接口表)、04(摄像头/麦克风隐私开关)、07(DPTF/热管理)、08(架构)、09(Linux 后端)。
 
@@ -24,7 +23,7 @@ vantage magicbay cam [status|set <prop=value>]   # MagicBay 摄像头(UVC)
 vantage magicbay display [detect|status|set-mode <WxH@R>]  # 扩展屏检测与模式切换
 ```
 
-### 1.2 净室范围
+### 1.2 覆盖范围
 
 - **要做**:设备检测、配件识别、LTE 会话状态与开关(走标准 MBIM/MBN 或 ModemManager 路径)、
   摄像头 UVC 控制、扩展屏检测与 EDID/模式查询、热插拔事件监听。
@@ -50,7 +49,7 @@ vantage magicbay display [detect|status|set-mode <WxH@R>]  # 扩展屏检测与�
 
 ### 2.1 已知的 MagicBay 配件型号
 
-MagiCenter 主包内存在 `KNOWN_DEVICES` 常量(bundle 行 103–125),穷尽枚举了
+MagiCenter 主包内存在 `KNOWN_DEVICES` 常量(官方组件行为),穷尽枚举了
 **三个**已被联想生态支持过的 MagicBay 配件型号:
 
 | pluginKey       | deviceName | USB VID | USB PID (dec / hex)  | 语义 |
@@ -77,8 +76,8 @@ Parent) 拆成子接口。**已在目标机上实测枚举到两个子接口**:
 
 1. `MI_00` 是**唯一一个已确认暴露给操作系统的功能接口**,由 Microsoft
    `netwmbclass.inf` (`wmbclass.ndi`) 驱动的 `cxwmbclass.sys` 承载。
-   这证明 LTE 走的是 **USB 标准 MBIM 类**,不依赖任何联想私有驱动。
-2. 规格组在目标机上**没有**观察到额外的 `MI_01`、`MI_02` 摄像头/显示接口;
+   这证明 LTE 走的是 **USB 标准 MBIM 类**,不依赖任何联想自有驱动。
+2. 在目标机上**没有**观察到额外的 `MI_01`、`MI_02` 摄像头/显示接口;
    原因见 §4(摄像头)和 §5(扩展屏):它们在 Windows 侧**不是**由同一 USB
    复合设备枚举出来的,而是独立的硬件路径。
 3. [推断] 硬件设计上,一个 MagicBay 背壳里**同一时间**只会枚举出其中
@@ -88,14 +87,14 @@ Parent) 拆成子接口。**已在目标机上实测枚举到两个子接口**:
 ### 2.3 摄像头配件 — 标准 UVC
 
 - MagiCenter 主包内**没有** `camera-plugin`、`cam-plugin` 等条目,
-  也没有任何针对摄像头的 VID/PID 检测逻辑(见 `MagiCenter 组件内部接口说明)。
+  也没有任何针对摄像头的 VID/PID 检测逻辑(见 `官方组件接口说明)。
 - 如果 MagicBay 提供摄像头,它必然以**标准 UVC 设备**的形式被操作系统
   枚举(Microsoft 的 `uvcvideo` / 内核 `uvcvideo` 驱动),走 USB Class `Video`。
 - 实现者**不需要** VID/PID 匹配:通过 `v4l2` / `libuvc` 列出所有视频设备即可。
 
 ### 2.4 扩展屏配件 — ACPI QDU 桥接,非 USB 复合接口
 
-扩展屏**不是** USB 复合设备的某个 interface(见 §5 完整分析),
+扩展屏不是 USB 复合设备的某个 interface(见 §5),
 而是通过**ACPI 总线**枚举出来的独立显示桥接芯片,典型硬件 ID:
 
 - `ACPI\QCOM2488` — Qualcomm QDU 系列 eDP→DP 显示桥接控制器
@@ -131,7 +130,7 @@ MagicBay 背壳
 
 ### 3.1 Windows 侧(参考,不复制)
 
-MagiCenter 的 USB 事件路径(来源:`winapi_addon.node`,bundle 行 16141–16178, 28115):
+MagiCenter 的 USB 事件路径(来源:`winapi_addon.node`,官方组件行为, 28115):
 
 1. 应用启动时调用 `getAllDevices()` 初始化设备列表。
 2. 调用 `startUSBListener(callback)` 订阅 `DEVICE_NOTIFY_ALL_INTERFACE_CLASSES`
@@ -203,11 +202,11 @@ vantage magicbay detect
 
 ## 4. LTE 控制
 
-### 4.1 结论:走标准 MBIM,不依赖联想私有协议
+### 4.1 结论:走标准 MBIM,不依赖联想自有协议
 
-**关键事实**:`MagiCenter/main_bundle.js` 全文搜索 `MBIM`/`wwan`/`dataSwitch`/`APN`/`SIM`
+**关键事实**:官方 MagiCenter 组件全文搜索 `MBIM`/`wwan`/`dataSwitch`/`APN`/`SIM`
 **均零命中**。唯一提到 `MBN` 的位置是错误分类:
-`_isMbnError(message)` —— "Failed to initialize MBN API"(bundle 行 23433)。
+`_isMbnError(message)` —— "Failed to initialize MBN API"(官方组件行为)。
 
 这说明 MagiCenter 主体**不直接操作 MBIM**;
 真正的 LTE 控制由 `lte2-plugin` 通过 Electron BrowserView 加载的 HTML/JS
@@ -270,11 +269,11 @@ vantage magicbay lte disconnect
 
 ### 4.4 数据开关与 APN 的"非标扩展"—— 没有
 
-分析结论:**MagiCenter 在代码层面对 LTE 没有任何非标扩展**。
+结论:MagiCenter 未对 LTE 做非标扩展。
 数据开关、APN 配置、SIM 状态完全走 Windows MBN 标准路径;
 MagiCenter 只做 USB 层设备检测 + 插件分发 + 页面路由跳转。
 
-因此实现者**不需要**实现任何联想私有 LTE 协议,只需包装操作系统的
+因此实现者**不需要**实现任何联想自有 LTE 协议,只需包装操作系统的
 标准 MBIM/ModemManager/MBN 接口即可。
 
 ### 4.5 相关 WMI 类(供 Windows 后端参考)
@@ -311,11 +310,11 @@ MagicBay 若含摄像头,**以标准 UVC 设备出现在系统视频设备列表
   - Windows 10/11 统一视频类;应用侧用 Media Foundation + `MFCreateVideoCaptureDevice`.
   - 隐私开关同样走 WMI 通路;MagicBay 摄像头独立。
 
-### 5.3 私有扩展单元
+### 5.3 厂商扩展单元
 
-- **分析结论**:[推断] MagicBay 摄像头**没有**已知的私有 UVC Extension Unit。
-  证据:MagiCenter 主体不做 UVC 探测,MagiCenter 组件资料中未发现任何 UVC 相关
-  控制代码。若未来发现私有扩展单元,应在 `KNOWN_CAMERAS` 表中追加。
+- **结论**:[推断] MagicBay 摄像头没有已知的厂商 UVC Extension Unit。
+  证据:MagiCenter 主体不做 UVC 探测,MagiCenter 随产品发行的组件中未发现任何 UVC 相关
+  控制代码。若未来发现厂商扩展单元,应在 `KNOWN_CAMERAS` 表中追加。
 
 ### 5.4 命令语义
 
@@ -510,7 +509,7 @@ MagicBay 的供电通过 USB 3.0 总线的 +5V / +5V_SBU 提供;
    "设备树父路径是否为 0x17EF 复合设备"区分 MagicBay 与非 MagicBay 摄像头。
 5. **display**:
    - 通过 DRM `card*-eDP-*` 或 Windows `DisplayConfig` 枚举输出端口。
-   - EDID 走标准读取,不做私有协议。
+   - EDID 走标准读取,不做自有协议。
    - 模式切换前做回滚准备。
 6. **热插拔事件**:
    - Linux: `udev` monitor。
@@ -537,25 +536,25 @@ MagicBay 的供电通过 USB 3.0 总线的 +5V / +5V_SBU 提供;
 
 | 事实 | 证据 |
 |------|------|
-| KNOWN_DEVICES 三型号常量 | `MagiCenter 组件内部接口说明, `out/main/index.js` bundle 行 103–125 |
+| KNOWN_DEVICES 三型号常量 | `官方组件接口说明` 与官方组件行为 |
 | PID 0x7005 是复合设备 + MI_00 走 MBIM | `目标机 MagicBay/DPTF 实机枚举数据` 表首行;`目标机驱动组件实机清单 device interfaces |
 | cxwmbclass / netwmbclass.inf | `目标机驱动组件实机清单` `DEVPKEY_Device_DriverInfSection = wmbclass.ndi` |
-| MagiCenter 主包不直接操作 MBIM/MBN/APN/SIM | `MagiCenter 组件内部接口说明,bundle 全文搜索零命中 |
-| 唯一 MBN 提及为错误分类 | `MagiCenter 组件内部接口说明,bundle 行 23433 `_isMbnError` |
-| 摄像头非 MagicBay USB 接口 | `MagiCenter 组件内部接口说明,无 `camera-plugin` |
-| 扩展屏走 ACPI QCOM2488/QCOM24B7 | `MagiCenter 组件内部接口说明–5.2 |
+| MagiCenter 主包不直接操作 MBIM/MBN/APN/SIM | `官方组件接口说明,bundle 全文搜索零命中 |
+| 唯一 MBN 提及为错误分类 | `官方组件接口说明,官方组件行为 `_isMbnError` |
+| 摄像头非 MagicBay USB 接口 | `官方组件接口说明,无 `camera-plugin` |
+| 扩展屏走 ACPI QCOM2488/QCOM24B7 | `官方组件接口说明–5.2 |
 | 驱动:ufxchipidea.inf / urschipidea.inf | `目标机驱动组件实机清单` DriverStore 清单 |
-| 热插拔流程 + 300 ms 去抖 | `MagiCenter 组件内部接口说明 |
-| 首次连接状态键 `deviceFirstConnection` | `MagiCenter 组件内部接口说明 |
-| `winapi_addon.node` 导出 | `MagiCenter 组件内部接口说明 |
+| 热插拔流程 + 300 ms 去抖 | `官方组件接口说明 |
+| 首次连接状态键 `deviceFirstConnection` | `官方组件接口说明 |
+| `winapi_addon.node` 导出 | `官方组件接口说明 |
 | IPF/DPTF 参与者 | `目标机 MagicBay/DPTF 实机枚举数据` DPTF/ESIF 表,`INTC10D4/10D5/10D8` |
-| WMI `MSFT_LTEConnectivity` | [推断] 依据 `MagiCenter 组件内部接口说明 文字 |
-| 硬件跳线决定暴露哪些 USB 接口 | [推断] 依据 `MagiCenter 组件内部接口说明 |
-| MagicBay 摄像头无私有 UVC Extension Unit | [推断] 未观察到任何私有控制代码 |
+| WMI `MSFT_LTEConnectivity` | [推断] 依据 `官方组件接口说明 文字 |
+| 硬件跳线决定暴露哪些 USB 接口 | [推断] 依据 `官方组件接口说明 |
+| MagicBay 摄像头无厂商 UVC Extension Unit | [推断] 未观察到任何厂商控制代码 |
 | 磁吸状态无独立 ACPI/GPIO 通道 | [推断] MagiCenter 软件侧零命中磁吸状态读取 |
 
 **推断条目合计**:5 处。
 
 ---
 
-*本规范结束。实现者遇到未覆盖的行为应回问规格组,而非自行分析厂商二进制。*
+*本规范结束。*

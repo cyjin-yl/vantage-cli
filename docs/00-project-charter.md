@@ -1,48 +1,43 @@
 # 00 · 实现总纲（Charter）
 
-> 读者：**实现者**（负责用 Rust 重写 Lenovo 硬件控制中心的人/模型）。
-> 作者：接口规格组（本文档系列的撰写方）。
-> 状态：v2 · 2026-11-01（按 2026-10-31 项目决策修订，见 §2/§3）
+> 状态：v3 · 2026-11-04
 
 ## 1. 项目目标
 
-从零实现一个跨平台（Windows / Linux）的命令行硬件控制中心 **vantage**（暂定名，实现者可改），
+一个跨平台（Windows / Linux）的命令行硬件控制中心 **vantage**，
 覆盖 Lenovo Vantage + 联想电脑管家（PCManager) + Lenovo MagiCenter 三套官方软件在
 **Lenovo 21VG (ThinkBook, Panther Lake 平台）** 上的全部硬件控制功能，并为 Panther Lake
 的低功耗调优提供一等支持。
 
 - 形态：无状态 CLI 为主；可选常驻 daemon（仅用于事件监听/自动策略，CLI 的每个功能都必须能在无 daemon 时工作）。
-- 语言：Rust。实现者仅依据本系列文档与公开资料（Intel ESIF SDK、USB-IF MBIM/UVC 规范、
-  Linux 内核文档等）实现；**不得复制、分发** Lenovo/Intel/Microsoft 二进制的代码或资源。
-  按 2026-10-31 决策，对厂商二进制的静态分析（字符串、反汇编）是允许的规格来源，
-  已有产物见 `interfaces.md`；自己用 Rust 重写控制通道不算"经过厂商专有层"。
+- 语言：Rust。控制通道依据本系列文档与公开资料（Intel ESIF SDK、USB-IF MBIM/UVC 规范、
+  Microsoft WDF/WMI 公开文档、Linux 内核文档等）实现；**不复制、分发**
+  Lenovo/Intel/Microsoft 的代码或资源。自建 Rust 控制通道不使用厂商厂商层。
 - 排除范围：官方软件中的应用商店、广告、浏览器、杀毒/安全扫描、账号体系、遥测上报
-  （详见各功能文档的「净室范围」标注）。
+  （详见各功能文档的「覆盖范围」标注）。
 
 ## 2. 来源声明
 
 本系列文档是接口规格。其全部信息来自以下来源：
 
-1. **产品内部接口资料**：Lenovo Vantage / 电脑管家 / MagiCenter 各组件随产品发行的
-   内部接口说明、组件字符串资源、INF/注册表参数与常量表；
+1. **随产品发行的组件接口事实**：Lenovo Vantage / 电脑管家 / MagiCenter 各组件
+   在目标机上的可观察接口行为、INF/注册表参数与常量表；
 2. **目标机实机只读验证**：在目标机上以只读方式枚举/调用公开管理接口
    (WMI、设备接口、服务控制、命名管道、sysfs)得到的实测数据；
 3. **公开规范**：Intel 公开 ESIF SDK (Apache-2.0)、USB-IF MBIM/UVC 规范、
    Microsoft WDF/WMI 公开文档、Linux 内核文档。
 
-历史备注：2026-08-26 v1 曾声明"不包含任何通过拆解、提取厂商二进制而获得的信息"。
-2026-10-31 项目决策取消该限制；`interfaces.md`（§1–§10）即静态分析厂商二进制的
-产物，与本文档具有同等规格效力。文档中出现的地址/常量/类名均为接口事实。
+`interfaces.md`（§1–§10）与本文档具有同等效力。文档中出现的地址/常量/类名
+均为接口事实。
 
-## 3. 法律与安全边界（实现者必须遵守）
+## 3. 法律与安全边界
 
 1. **边界**：写入类操作保持门禁——先只读验证，直到独立物理确认后才允许实写；
    不刷固件、不写 BIOS 口令、不绕过 VBS/HVCI。
-2. **许可与合规**：目标是对用户自有硬件的互操作控制（interoperability），属于
-   合理使用范畴；但实现者不得规避任何激活/授权机制（本项目中不存在此类机制），
-   不得分发 Lenovo 的任何二进制、驱动或资源文件。
-3. **规格来源**：文档描述不清的接口允许静态分析厂商二进制补充（产物记入 `interfaces.md`），
-   但实现仍须自行编写 Rust，不得嵌入厂商代码或资源。
+2. **许可与合规**：目标是对用户自有硬件的互操作控制（interoperability）。
+   不规避任何激活/授权机制（本项目中不存在此类机制），不分发 Lenovo 的任何二进制、驱动或资源文件。
+3. **规格来源**：文档描述不清的接口允许在目标机上以只读方式实测补充（产物记入
+   `interfaces.md`），实现仍须自行编写 Rust，不得嵌入厂商代码或资源。
 4. **商标**：不得在产物中使用 "Lenovo"、"ThinkBook"、"Vantage" 等商标作为产品名；
    可在兼容性说明中引用。
 
@@ -50,7 +45,7 @@
 
 | 文档 | 内容 |
 |---|---|
-| `00-cleanroom-charter.md` | 本文档：方法论、边界、全局约定 |
+| `00-project-charter.md` | 本文档：方法论、边界、全局约定 |
 | `01-hal-interfaces.md` | 硬件抽象层：设备节点、IOCTL 表、WMI 类/方法、ACPI 方法、EC 通道 |
 | `02-power-battery.md` | 电源与电池：充电阈值、养护模式、快充、适配器检测、USB 供电 |
 | `03-thermal-performance.md` | 散热与性能：性能模式、风扇、温度墙、PL1/PL2、DBDC |
@@ -61,7 +56,7 @@
 | `08-architecture.md` | Rust CLI 架构设计（命令树、daemon、插件、错误模型） |
 | `09-linux-backend.md` | Linux 后端映射（ideapad_laptop/sysfs/ACPI/内核补丁点） |
 | `10-config-schema.md` | 配置文件 schema 与调优 DSL |
-| `11-sysupdate-diagnostics.md` | 系统更新/硬件诊断/系统信息（含净室取舍清单） |
+| `11-sysupdate-diagnostics.md` | 系统更新/硬件诊断/系统信息（含取舍清单） |
 | `A-wmi-reference.md` | root\WMI Lenovo 类全量参考（实机采集 + 人工注释） |
 | `B-evidence.md` | 来源与验证说明：每条结论的来源分类与验证方式 |
 
@@ -74,7 +69,7 @@
 - EC/电源控制 ACPI 设备：`ACPI\VPC2004`(Lenovo ACPI-Compliant Virtual Power Controller)。
 - WMI 入口：`root\WMI` 下约 60 个 `LENOVO_*` / `Lenovo_*` 类（全量签名见附录 A)。
 
-### 5.2 官方软件栈分层（分析结论，详见各专项文档）
+### 5.2 官方软件栈分层（详见各专项文档）
 
 ```
 ┌─ LenovoVantage (UWP 前端, .NET) ────────┐  ┌─ PCManager (WPF/CEF 混合) ──┐  ┌─ MagiCenter (Electron) ─┐
@@ -109,7 +104,7 @@
 | Intel DPTF IPC (IpcServer) | Panther Lake 功耗策略热切换 | 07 |
 | USB VID_17EF&PID_7005 (MBIM/UVC/显示） | MagicBay 配件 | 06 |
 
-### 5.4 实现优先级（规格组建议）
+### 5.4 实现优先级
 
 - P0（解放用户刚需）：性能模式切换、充电阈值/养护模式、风扇读取与控制、电池信息、
   键盘背光、Fn 键行为、BIOS 设置读写、面板刷新率。

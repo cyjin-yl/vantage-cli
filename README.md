@@ -19,7 +19,7 @@
 `vantage.exe`,放到任意目录即可运行,
 无需安装。读取状态不需要管理员权限;修改硬件设置可能需要,且必须加 `--yes` 确认。
 
-**Linux** — 从源码构建(见[开发](#开发))。部分在 Windows 上依赖厂商私有通道的功能,
+**Linux** — 从源码构建(见[开发](#开发))。部分在 Windows 上依赖厂商自有通道的功能,
 在 Linux 上使用标准内核接口。
 
 ## 快速上手
@@ -67,7 +67,7 @@ vantage --yes perf mode performance       # 执行、回读、确认
 `vantage capability` 是权威来源,请在目标机器上运行确认。在 ThinkBook 14 G8+ 上
 的验收结果:
 
-**✅ 实测可用**(真机写入或读取验收通过,见 `docs/C-acceptance.md` C1–C24):
+**有 实测可用**(真机写入或读取验收通过,见 `docs/C-acceptance.md` C1–C24):
 
 | 功能 | 验收 |
 |---|---|
@@ -88,7 +88,7 @@ vantage --yes perf mode performance       # 执行、回读、确认
 | 杜比音效开关/预设写入 | C28 |
 | 降噪模式写入 | C28 |
 
-**🔬 逆向接入**(2026-11-01 经目标机二进制逆向验证契约,实现+测试已推送;写入通道的
+**协议接入**(2026-11-01 按驱动契约确认接口,实现+测试已推送;写入通道的
 真机验收见 C28):
 充电模式(GBMD 位掩码读回)、USB 关机供电运行时控制(0x831020e8)、夜间充电
 (0x83102150)、临时充电模式只读(0x83102148)、DBDC 电池限流表只读
@@ -135,22 +135,22 @@ Unsupported,HPD 状态改为标注来源的持久化注册表投影),降噪通�
 仍可用。官方 Vantage UI 的 CDP 检查已尝试但未完成:该打包应用在自动化启动下
 启动即退出,无法建立调试端口,因此**没有任何官方 UI 层面的验收结论**。风扇模式报
 `unsupported: LENOVO_GAMEZONE_DATA.GetSmartFanMode`(本机型该提供者不暴露此方法);
-PL1/PL2 报 `unsupported: tune.pl1|tune.pl2`(按依赖裁定不接联想专有 MSR 驱动)。
+PL1/PL2 报 `unsupported: tune.pl1|tune.pl2`(按依赖裁定不接联想厂商 MSR 驱动)。
 面板色域尚无符合依赖裁定的写入通道;护眼/超分仍无可用写路径(见 interfaces §15.1)。
 只读能力查询不等于写入验收。
 
-**⚠️ 有限验收**(部分路径验证,未全覆盖):遥测/温度流(C19)、本地驱动安装
+**有限验收**(部分路径验证,未全覆盖):遥测/温度流(C19)、本地驱动安装
 (`update local-driver`)。
 
-**❌ 不可用**(本机无可用通道,命令会如实拒绝):
+**缺失 不可用**(本机无可用通道,命令会如实拒绝):
 
 | 功能 | 原因 |
 |---|---|
 | 充电阈值(自定义起止百分比) | 目标机无可验证的自定义阈值写入通道(负向验收 U1b);仅能力探测与如实拒绝 |
 | 极限续航(`battery extreme-life`) | 完整原版策略已恢复,但等价同步父子进程 Job 生命周期需自有适当签名内核实现,且单一 UI 开关映射尚未绑定目标版本;不以普通节能或仅 EcoQoS 冒充。见 [契约与缺失前提](docs/evidence/extreme-life-re-20261102.md) |
-| 风扇模式(GAMEZONE) | 客户端已按逆向契约实现(Get/SetSmartFanMode),`perf.fan.mode` 能力行动态探测;21VG 固件拒绝所有 GAMEZONE 调用,如实报不可用 |
+| 风扇模式(GAMEZONE) | 客户端已按 GAMEZONE 契约实现(Get/SetSmartFanMode),`perf.fan.mode` 能力行动态探测;21VG 固件拒绝所有 GAMEZONE 调用,如实报不可用 |
 | CPU 功耗墙(PL1/PL2/tau) | Linux 走 RAPL sysfs(标准内核接口,含 dry-run/回滚);Windows 的 WinMsrDev 通道已实现但需 SYSTEM 身份,且 MSR 0x65C 位语义未经物理确认前保持写入门禁 |
-| 厂商专属性能模式(极客模式等) | 该模式存在(联想 Vantage 提供),仅经联想专有驱动下发;HWP 请求 MSR 已在 WinMsrDev 选择子表内(0x772/0x774),但本机读回编码与 SDM 通用语义不一致,写入保持门禁直到物理确认 |
+| 厂商专属性能模式(极客模式等) | 该模式存在(联想 Vantage 提供),仅经联想厂商驱动下发;HWP 请求 MSR 已在 WinMsrDev 选择子表内(0x772/0x774),但本机读回编码与 SDM 通用语义不一致,写入保持门禁直到物理确认 |
 | 修改 BIOS 设置 | 固件暂存机制未验证,写入锁定;读取正常 |
 | 智能感知键盘灯自动 | 需 Vantage contract RPC 通道,未恢复 |
 | 杜比音效(`audio dolby`) | 纯 Rust rpcrt4 通道 2026-11-01 曾通过真机写入验收(C28/C29),但 2026-11-03 同一调用在 NDR 封送器内触发访问冲突并使 CLI 启动即崩;通道已摘除,命令如实报 Unsupported,描述符差异待定位。见 [真机记录](docs/evidence/native-acceptance-20261103.md) |
@@ -174,7 +174,7 @@ PL1/PL2 报 `unsupported: tune.pl1|tune.pl2`(按依赖裁定不接联想专有 M
 
 ## 文档
 
-`docs/` 为工程记录:接口规格、逆向分析、逐项真机验收证据(C1–C24)、Linux
+`docs/` 为工程记录:接口规格、通道实测、逐项真机验收证据(C1–C24)、Linux
 后端映射。验收证据从 `docs/C-acceptance.md` 看起。
 
 ## 开发

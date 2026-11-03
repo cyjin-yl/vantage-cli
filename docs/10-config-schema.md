@@ -259,7 +259,7 @@ on_temp_exceed = "silent-library"
 ## 5. 兼容性说明
 
 - 官方 PCManager 的 `cfg.data`(AES 加密)、XML 阈值文件、LiteDB/SQLite ML 库**均不兼容也不读取**;
-  本工具配置是唯一事实源(净室边界,charter §2)。
+  本工具配置是唯一事实源(实现边界,charter §2)。
 - 与官方共存的互操作键(可选):`battery.charge_mode` 写入时同步官方注册表键
   `HKCU\SOFTWARE\Lenovo\VantageService\AddinData\IdeaNotebookAddin\BatteryChargeMode`
   (02 §3.4),便于卸载本工具后官方软件读回一致状态。默认关闭:`[compat] write_vantage_registry = false`。
@@ -269,8 +269,8 @@ on_temp_exceed = "silent-library"
 | 结论 | 证据源 |
 |---|---|
 | 目标-约束-触发-回退模型与优先级 | `docs/07-pantherlake-tuning.md` §6(本文件为其文件化) |
-| 防抖 debounce 对标 | `电脑管家电源组件内部接口说明(官方防抖行为) |
-| 官方阈值 XML/cfg.data 不兼容决定 | `电脑管家电源组件内部接口说明 |
-| 官方注册表互操作键 | `Vantage 电源组件内部接口说明(HKCU AddinData 键) |
-| 进程白名单触发对标 Dispatcher | `电脑管家电源组件内部接口说明/§4.2(游戏白名单+ML 映射) |
-| 官方 ML 场景识别(被 DSL 规则替代) | `电脑管家电源组件内部接口说明、`Vantage SmartPerformance 组件内部接口说明 |
+| 防抖 debounce 对标 | `官方组件接口说明(官方防抖行为) |
+| 官方阈值 XML/cfg.data 不兼容决定 | `官方组件接口说明 |
+| 官方注册表互操作键 | `官方组件接口说明(HKCU AddinData 键) |
+| 进程白名单触发对标 Dispatcher | `官方组件接口说明/§4.2(游戏白名单+ML 映射) |
+| 官方 ML 场景识别(被 DSL 规则替代) | `官方组件接口说明、`官方组件接口说明 |

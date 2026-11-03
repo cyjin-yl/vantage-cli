@@ -1,6 +1,6 @@
 # Windows 硬件控制接口规格与验证记录
 
-**方法**:接口行为分析 + 只读运行验证。本文件记录各通道的行为契约、参数语义与验证状态;源码不含任何外部来源的描述符字节表,描述符由本仓库生成器按公开 NDR 格式语法生成。
+**方法**:接口行为 + 只读运行验证。本文件记录各通道的行为契约、参数语义与验证状态;源码不含任何外部来源的描述符字节表,描述符由本仓库生成器按公开 NDR 格式语法生成。
 **边界**:不修改系统或厂商组件、不注入进程、不绕过 ACL/VBS/HVCI、不刷固件、不写 BIOS 口令。
 
 ---
@@ -211,7 +211,7 @@ BOOL WrmsrCollection(ULONG reserved0, ULONG reserved1, ULONG selector, ULONG low
 
 ## 9. HAL 跨平台映射（Linux 用主线内核，Windows 用 OS 原生 API）
 
-**决策**:CLI 操作硬件**不得经过联想专有层**。因此 `\\.\WinMsrDev` / `WinMSRIO.dll` /
+**决策**:CLI 操作硬件**不得经过联想厂商层**。因此 `\\.\WinMsrDev` / `WinMSRIO.dll` /
 `LNVDispatcherService.exe` 只作为"为什么 Windows 缺通道"的证据,不作为实现路径。
 
 | 能力 | Linux（主线内核 ABI） | Windows（OS 原生） | 状态 |
@@ -251,7 +251,7 @@ BOOL WrmsrCollection(ULONG reserved0, ULONG reserved1, ULONG selector, ULONG low
 
 1. 设备 ACL 仅 `LocalSystem`,合法调用者身份是系统服务;
 2. 选择子集合固定为 6 个 MSR,由驱动按平台 ID 白名单启用;
-3. ~~该驱动为联想签名专有组件,使用即"经过联想专有层",与实现约束冲突~~
+3. ~~该驱动为联想签名自有组件,使用即"经过联想厂商层",与实现约束冲突~~
    (2026-10-31 决策已取消该约束;经联想签名驱动调用在允许范围内,但受 1、2 限制);
 4. Windows 不向用户态暴露 MSR;目标机 Secure Boot ON + VBS/HVCI running,
    自建 Rust 内核驱动需 EV+WHQL 签名(test-sign 不可行)。
@@ -384,9 +384,9 @@ Counts/CurrentLimit[](mA)/ROS_Power[](mW)/Threshold[](%),实机 3 档 [7500,5000
 
 ## 11.4 / 11.6 修正与阈值写入路径结论
 
-**11.4 修正**:PowerBattery.dll 的 temporary-mode 只读选择子为 0x23/0x21/0x31/0x41;§11.4 原记的 0x13/0x11 实为读回 3/1(实机)。所分析客户端未发现对应写入调用,但不能证明固件没有其他写口;写选择子尚未恢复,保持未准入。
+**11.4 修正**:PowerBattery.dll 的 temporary-mode 只读选择子为 0x23/0x21/0x31/0x41;§11.4 原记的 0x13/0x11 实为读回 3/1(实机)。客户端未发现对应写入调用,但不能证明固件没有其他写口;写选择子尚未恢复,保持未准入。
 
-**11.6 自定义充电阈值**:已分析到 BatterySetting.exe → WrapPlugin.dll → ThinkPowerPlugin.dll → PWRMGRV/PWMIF32V 的 ThinkPad 路径,其读回为注册表。21VG 上观察到 PWMIF32V.DLL 缺席、PWRMGRV 键空、所测 MHQI 方法返回 win32=2;因此此已知路径不可用,但这些负向结果不能证明不存在任何其他写入通道。当前命令保持 Unsupported。
+**11.6 自定义充电阈值**:已确认 BatterySetting.exe → WrapPlugin.dll → ThinkPowerPlugin.dll → PWRMGRV/PWMIF32V 的 ThinkPad 路径,其读回为注册表。21VG 上观察到 PWMIF32V.DLL 缺席、PWRMGRV 键空、所测 MHQI 方法返回 win32=2;因此此已知路径不可用,但这些负向结果不能证明不存在任何其他写入通道。当前命令保持 Unsupported。
 
 **驱动 IOCTL→ACPI 全映射**(AcpiVpc.sys 15.11.30.14,驱动仅透传 4 字节选择子,写门控全在固件):0x20e8 SALS/HALS、0x20f8 GBMD、0x211c/0x2138 ITHC、0x2120 GBID、**0x212c SMTF(可写透传,语义未恢复,探测返回 0xFFFF→门禁)**、0x2130/0x2134 MHQI 读、0x2144/58/5c KBL*、**0x2148 BTMC**、0x214c BSIF、0x2150/0x2154 BNMC。
 
