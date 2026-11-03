@@ -874,3 +874,18 @@ VerifyMismatch,而写入实际生效且 ledger 无记录、声明的 rollback �
 现 `await_terminal_state` 轮询至终态(上限 30s);终态校验仍失败则先执行该
 规则声明的 rollback 再报错,rollback 亦失败时升级 ChannelUnavailable。
 真机:wuauserv 修复→RUNNING→ledger 记账→scan 判已解决;服务已恢复 STOPPED。
+
+## C32 · 运行时麦克风与自动键盘背光边界(2026-11-03)
+
+- `privacy mic --runtime off --auto-restore`(`d51e093`):扩展 `PrivacyControl`
+  的 `microphone_state()/set_microphone()` 到既有 `WindowsRuntimeDevices`
+  内部麦克风 devnode 选择(INTELAUDIO/HDAUDIO 父节点的捕获端点)与受防护
+  PnP 启停事务。真机:Disable→`restored runtime microphone: Some(Enabled)
+  (verified)`;`privacy status` 现同时报告 `runtime_microphone`。Linux 无
+  已验证 sysfs 通路,诚实 Unsupported。
+- `sense kbd-light-auto`(保持 Unsupported,理由修正):`ThinkSmartSenseAddin.dll`
+  1.0.0.77 字符串取证显示自动键盘背光经 `LPATSVC_AUTO_KBD_BACKLIGHT_`
+  `REGISTRY_PATH`/`LISS_AUTO_KBD_BACKLIGHT_REGISTRY_PATH` 写 LPlatSvc/LITSSvc
+  服务参数;21VG 无这两个服务(`Get-CimInstance` 空),写无消费者注册表不构成
+  原版行为,不平替。`CommandNameGet/SetAutoKBDBacklight` 契约命令名已存档
+  (interfaces.md §13.3)供未来机型恢复。
