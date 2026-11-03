@@ -1517,6 +1517,25 @@ impl PrivacyControl for LinuxHal {
             }
         }
     }
+
+    fn microphone_state(&self) -> Result<DeviceState> {
+        // No verified sysfs/internal-microphone power path is attached;
+        // mutating an arbitrary audio control would not be the vendor
+        // runtime mute contract.
+        Err(LctrlError::Unsupported {
+            feature: "privacy.mic.runtime".into(),
+        })
+    }
+
+    fn set_microphone(
+        &self,
+        _state: DeviceState,
+        _apply: ApplyMode,
+    ) -> Result<ChangeReport<DeviceState>> {
+        Err(LctrlError::Unsupported {
+            feature: "privacy.mic.runtime".into(),
+        })
+    }
 }
 
 impl MagicBayControl for LinuxHal {
