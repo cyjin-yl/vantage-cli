@@ -847,13 +847,21 @@ where
             ),
             (
                 "tune.epp",
-                Availability::Limited,
-                "PERFEPP policy is probed at command time",
+                if power_scheme_probe_ok() {
+                    Availability::Available
+                } else {
+                    Availability::Unavailable
+                },
+                "PERFEPP write+readback verified via PowerSetting mutation",
             ),
             (
                 "tune.turbo",
-                Availability::Limited,
-                "PERFBOOSTMODE policy is probed at command time",
+                if power_scheme_probe_ok() {
+                    Availability::Available
+                } else {
+                    Availability::Unavailable
+                },
+                "PERFBOOSTMODE write+readback verified via PowerSetting mutation",
             ),
             (
                 "gpu.mode",
@@ -875,8 +883,12 @@ where
         )?;
         capabilities.record(
             "channel.processor-power",
-            Availability::Limited,
-            Some("PERFBOOSTMODE policy channel is probed at command time".into()),
+            if power_scheme_probe_ok() {
+                Availability::Available
+            } else {
+                Availability::Unavailable
+            },
+            Some("PERFBOOSTMODE policy channel is verified write+readback via PowerSetting".into()),
         )?;
         #[cfg(windows)]
         {
