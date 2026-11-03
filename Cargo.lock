@@ -6106,7 +6106,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "vantage"
+name = "vantage-cli"
 version = "1.0.0"
 dependencies = [
  "clap",
@@ -6115,12 +6115,12 @@ dependencies = [
  "lctrl-hal-linux",
  "lctrl-hal-win",
  "serde_json",
- "vantage-cli",
+ "vantage-cli-lib",
  "vantage-daemon",
 ]
 
 [[package]]
-name = "vantage-cli"
+name = "vantage-cli-lib"
 version = "1.0.0"
 dependencies = [
  "clap",

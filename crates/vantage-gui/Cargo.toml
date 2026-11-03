@@ -3,19 +3,21 @@ name = "vantage-gui"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
-publish = false
 repository.workspace = true
+homepage = "https://github.com/cyjin-yl/vantage-cli"
 description = "Read-only GPUI dashboard for Vantage"
+license = "AGPL-3.0-only"
+
 
 [dependencies]
 gpui = { version = "=0.2.2", default-features = true, features = ["wayland", "x11"] }
-lctrl-core = { path = "../lctrl-core" }
-lctrl-hal = { path = "../lctrl-hal" }
+lctrl-core = { path = "../lctrl-core", version = "0.1.0" }
+lctrl-hal = { path = "../lctrl-hal", version = "0.1.0" }
 idna_adapter = { version = "=1.2.0" }
 
 
 [target.'cfg(target_os = "linux")'.dependencies]
-lctrl-hal-linux = { path = "../lctrl-hal-linux" }
+lctrl-hal-linux = { path = "../lctrl-hal-linux", version = "0.1.0" }
 
 [target.'cfg(windows)'.dependencies]
-lctrl-hal-win = { path = "../lctrl-hal-win" }
+lctrl-hal-win = { path = "../lctrl-hal-win", version = "0.1.0" }

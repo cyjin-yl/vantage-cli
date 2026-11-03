@@ -3,9 +3,12 @@ name = "lctrl-tune"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
-publish = false
+description = "Panther Lake tuning engine for Vantage"
+license = "AGPL-3.0-only"
+repository.workspace = true
+homepage = "https://github.com/cyjin-yl/vantage-cli"
 
 [dependencies]
-lctrl-core = { path = "../lctrl-core" }
+lctrl-core = { path = "../lctrl-core", version = "0.1.0" }
 serde = { version = "1", features = ["derive"] }
 toml = "0.8.23"
