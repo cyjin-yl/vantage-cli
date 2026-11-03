@@ -1200,7 +1200,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             lctrl_core::optional(Dependency::WindowsHpd),
         ],
         DispatchSupport::Unsupported(
-            "keyboard-light auto requires the Vantage contract RPC channel, which is not recovered",
+            "automatic keyboard backlight has no consuming service on this model: ThinkSmartSenseAddin 1.0.0.77 targets LPlatSvc/LITSSvc registry parameters, and both services are absent on 21VG (docs/interfaces.md §13.3)",
         ),
     ),
     CommandCapability::new(

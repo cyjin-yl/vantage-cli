@@ -2872,7 +2872,7 @@ fn execute_sense(
             )
         }
         Some(SenseCommand::KbdLightAuto { .. }) => Err(LctrlError::Unsupported {
-            feature: "sense.kbd-light-auto: requires the Vantage contract RPC channel, which is not recovered"
+            feature: "sense.kbd-light-auto: automatic keyboard backlight has no consuming service on this model: ThinkSmartSenseAddin 1.0.0.77 targets LPlatSvc/LITSSvc registry parameters, and both services are absent on 21VG (docs/interfaces.md §13.3)"
                 .into(),
         }),
         None => Err(LctrlError::InvalidArgument {
@@ -6482,7 +6482,7 @@ fn unsupported_reason(command: &Command) -> &'static str {
         Command::Sense {
             command: Some(SenseCommand::KbdLightAuto { .. }),
         } => {
-            "keyboard-light auto requires the Vantage contract RPC channel, which is not recovered"
+            "automatic keyboard backlight has no consuming service on this model: ThinkSmartSenseAddin 1.0.0.77 targets LPlatSvc/LITSSvc registry parameters, and both services are absent on 21VG (docs/interfaces.md §13.3)"
         }
         Command::Sense { .. } => "a sense subcommand is required",
         Command::Audio { .. } => "an audio subcommand is required",
