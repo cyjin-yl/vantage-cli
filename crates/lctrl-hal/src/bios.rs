@@ -13,10 +13,14 @@ pub trait BiosControl: Send + Sync {
     fn list(&self) -> Result<Vec<BiosItem>>;
     fn get(&self, name: &str) -> Result<Option<BiosItem>>;
     fn selections(&self, name: &str) -> Result<Vec<String>>;
-    /// Admit writes only when stage/save/discard ownership excludes other clients.
-    fn require_owned_staging(&self) -> Result<()> {
+    /// Admit writes once the staging-buffer ownership contract is established
+    /// for this transport. Verified transports may expose a machine-global
+    /// buffer: a Save commits anything staged by any client and a Discard
+    /// clears it, so callers must disclose that scope rather than assume
+    /// process isolation.
+    fn require_staging_contract(&self) -> Result<()> {
         Err(LctrlError::ChannelUnavailable {
-            channel: "BIOS staging-buffer ownership and isolation are unverified".into(),
+            channel: "BIOS staging-buffer ownership contract is unverified".into(),
         })
     }
     fn stage(&self, change: BiosChange) -> Result<()>;
@@ -88,7 +92,7 @@ pub fn apply_bios_transaction(
     requested: &[BiosChange],
 ) -> Result<BiosApplyResult> {
     let plan = plan_bios_apply(bios, requested)?;
-    bios.require_owned_staging()?;
+    bios.require_staging_contract()?;
     stage_and_save(bios, plan.changes.iter().map(|change| &change.requested))?;
 
     let mut readback = Vec::with_capacity(plan.changes.len());

@@ -26,9 +26,17 @@ pub enum WmiValue {
 pub type WmiObject = BTreeMap<String, WmiValue>;
 
 pub trait WmiTransport: Send + Sync {
-    /// True only with an independently verified target-wide staging isolation
-    /// contract, not merely because WMI is reachable.
-    fn bios_staging_isolation_verified(&self) -> bool {
+    /// True only once the target's BIOS staging-buffer ownership contract has
+    /// been established by experiment — not merely because WMI is reachable.
+    ///
+    /// On TB14P-EZRA the contract is machine-global: a `SetBiosSetting` made
+    /// by one WMI client is committed by a `SaveBiosSettings` issued by a
+    /// different client that never staged anything (verified 2026-11-03:
+    /// process B staged `FnAndCtrlKeySwap,Enable`, a separate save-only
+    /// client committed it). Callers must therefore treat every Save as
+    /// "commit all pending staged changes, whoever staged them" and every
+    /// Discard as "clear all pending staged changes for every client".
+    fn bios_staging_contract_verified(&self) -> bool {
         false
     }
 
@@ -49,8 +57,8 @@ pub trait WmiTransport: Send + Sync {
 }
 
 impl<T: WmiTransport + ?Sized> WmiTransport for &T {
-    fn bios_staging_isolation_verified(&self) -> bool {
-        (**self).bios_staging_isolation_verified()
+    fn bios_staging_contract_verified(&self) -> bool {
+        (**self).bios_staging_contract_verified()
     }
 
     fn query(&self, namespace: &str, wql: &str) -> Result<Vec<WmiObject>> {

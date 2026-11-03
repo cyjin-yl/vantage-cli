@@ -1476,7 +1476,14 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
         }
         Command::Bios {
             command: Some(command),
-        } => execute_bios(services.bios, command, apply, confirmed, interactive),
+        } => execute_bios(
+            services.bios,
+            command,
+            apply,
+            confirmed,
+            interactive,
+            cli.auto_restore,
+        ),
         Command::Bios { command: None } => execute_bios_list(services.bios),
         Command::Usb { command } => execute_usb(
             services.usb,
@@ -1494,10 +1501,24 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
         } => execute_backlight(services.keyboard, level, effect, apply),
         Command::Kbd {
             command: Some(KbdCommand::Fnlock { state }),
-        } => execute_fnlock(services.bios, state, apply, confirmed, interactive),
+        } => execute_fnlock(
+            services.bios,
+            state,
+            apply,
+            confirmed,
+            interactive,
+            cli.auto_restore,
+        ),
         Command::Kbd {
             command: Some(KbdCommand::FnCtrlSwap { state }),
-        } => execute_fn_ctrl_swap(services.bios, state, apply, confirmed, interactive),
+        } => execute_fn_ctrl_swap(
+            services.bios,
+            state,
+            apply,
+            confirmed,
+            interactive,
+            cli.auto_restore,
+        ),
         Command::Touchpad { state } => execute_touchpad(services.touchpad, state, apply),
         Command::Panel {
             command:
@@ -1518,6 +1539,7 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
             apply,
             confirmed,
             interactive,
+            cli.auto_restore,
         ),
         Command::Magicbay {
             command: Some(MagicbayCommand::Detect),
@@ -2930,6 +2952,7 @@ fn execute_usb(
                     apply,
                     confirmed,
                     interactive,
+                    auto_restore,
                 );
             }
             let usb = usb.ok_or_else(|| LctrlError::Unsupported {
@@ -2964,6 +2987,7 @@ fn execute_usb(
                     apply,
                     confirmed,
                     interactive,
+                    auto_restore,
                 );
             }
             let usb = usb.ok_or_else(|| LctrlError::Unsupported {
@@ -5314,6 +5338,7 @@ fn execute_fnlock(
     apply: ApplyMode,
     confirmed: bool,
     interactive: bool,
+    auto_restore: bool,
 ) -> CommandResult {
     let bios = bios.ok_or_else(|| LctrlError::Unsupported {
         feature: "kbd.fnlock".into(),
@@ -5389,12 +5414,26 @@ fn execute_fnlock(
             ));
         }
         reports.push(lctrl_core::ChangeReport::committed(
-            previous, requested, actual,
+            previous.clone(),
+            requested,
+            actual,
         ));
     }
-    structured_output(
+    let restore = if auto_restore {
+        // Re-stage every captured previous value in one transaction; each is
+        // independently verified by restore_bios_change's readback.
+        let mut texts = Vec::with_capacity(previous_for_recovery.len());
+        for previous in &previous_for_recovery {
+            texts.push(restore_bios_change(bios, previous)?);
+        }
+        Some(texts.concat())
+    } else {
+        None
+    };
+    output_with_restore(
         &reports,
         "FnLock BIOS settings saved and read back\n".into(),
+        restore.as_deref(),
     )
 }
 
@@ -5404,6 +5443,7 @@ fn execute_fn_ctrl_swap(
     apply: ApplyMode,
     confirmed: bool,
     interactive: bool,
+    auto_restore: bool,
 ) -> CommandResult {
     execute_persistent_bios_toggle(
         bios,
@@ -5412,6 +5452,7 @@ fn execute_fn_ctrl_swap(
         apply,
         confirmed,
         interactive,
+        auto_restore,
     )
 }
 
@@ -5422,6 +5463,7 @@ fn execute_privacy(
     apply: ApplyMode,
     confirmed: bool,
     interactive: bool,
+    auto_restore: bool,
 ) -> CommandResult {
     match command {
         PrivacyCommand::Cam {
@@ -5437,6 +5479,7 @@ fn execute_privacy(
                 apply,
                 confirmed,
                 interactive,
+                auto_restore,
             ),
         },
         PrivacyCommand::Mic {
@@ -5454,6 +5497,7 @@ fn execute_privacy(
                 apply,
                 confirmed,
                 interactive,
+                auto_restore,
             ),
         },
         PrivacyCommand::Fingerprint { state } => execute_persistent_bios_toggle(
@@ -5463,6 +5507,7 @@ fn execute_privacy(
             apply,
             confirmed,
             interactive,
+            auto_restore,
         ),
         PrivacyCommand::Status => {
             if privacy.is_none() && bios.is_none() {
@@ -5531,6 +5576,7 @@ fn execute_persistent_bios_toggle(
     apply: ApplyMode,
     confirmed: bool,
     interactive: bool,
+    auto_restore: bool,
 ) -> CommandResult {
     let bios = bios.ok_or_else(|| LctrlError::Unsupported {
         feature: format!("bios.{name}"),
@@ -5600,9 +5646,16 @@ fn execute_persistent_bios_toggle(
             },
         ));
     }
-    structured_output(
-        &lctrl_core::ChangeReport::committed(previous, requested, actual),
+    let report = lctrl_core::ChangeReport::committed(previous.clone(), requested, actual);
+    let restore = if auto_restore {
+        Some(restore_bios_change(bios, &previous)?)
+    } else {
+        None
+    };
+    output_with_restore(
+        &report,
         format!("BIOS {name} saved and read back\n"),
+        restore.as_deref(),
     )
 }
 
@@ -5707,8 +5760,43 @@ fn stage_and_save(bios: &dyn BiosControl, change: BiosChange) -> lctrl_core::Res
     stage_and_save_many(bios, std::slice::from_ref(&change))
 }
 
+/// Re-apply `previous` after a verified write and confirm the mirror shows
+/// the original value again. Used by `--auto-restore`; a failure is reported
+/// as a firmware rejection so the caller never pretends the restore ran.
+fn restore_bios_change(
+    bios: &dyn BiosControl,
+    previous: &BiosChange,
+) -> lctrl_core::Result<String> {
+    stage_and_save(bios, previous.clone()).map_err(|error| LctrlError::FirmwareRejected {
+        detail: format!(
+            "BIOS auto-restore failed to re-stage {}: {error}",
+            previous.name
+        ),
+    })?;
+    let actual = bios
+        .get(previous.name.as_str())?
+        .ok_or_else(|| LctrlError::FirmwareRejected {
+            detail: format!(
+                "BIOS auto-restore: {} vanished after restore",
+                previous.name
+            ),
+        })?;
+    if actual.value != previous.value.as_str() {
+        return Err(LctrlError::FirmwareRejected {
+            detail: format!(
+                "BIOS auto-restore: {} reads {} after restore, expected {}",
+                previous.name, actual.value, previous.value
+            ),
+        });
+    }
+    Ok(format!(
+        "restored {}={} (verified)\n",
+        previous.name, previous.value
+    ))
+}
+
 fn stage_and_save_many(bios: &dyn BiosControl, changes: &[BiosChange]) -> lctrl_core::Result<()> {
-    bios.require_owned_staging()?;
+    bios.require_staging_contract()?;
     for change in changes {
         if let Err(error) = bios.stage(change.clone()) {
             return discard_after_bios_failure(bios, error);
@@ -5745,6 +5833,7 @@ fn execute_bios(
     apply: ApplyMode,
     confirmed: bool,
     interactive: bool,
+    auto_restore: bool,
 ) -> CommandResult {
     let bios = bios.ok_or_else(|| LctrlError::Unsupported {
         feature: "bios".into(),
@@ -5787,7 +5876,7 @@ fn execute_bios(
                 confirmed,
                 interactive,
                 &format!(
-                    "BIOS write: key={name} value={value}; effect timing may require reboot; recovery: vantage bios set {name} {} --save --yes",
+                    "BIOS write: key={name} value={value}; the save commits the machine-global staging buffer (any pending changes from other tools are committed too); effect timing may require reboot; recovery: vantage bios set {name} {} --save --yes",
                     previous.value
                 ),
             )?;
@@ -5832,9 +5921,16 @@ fn execute_bios(
                     },
                 ));
             }
-            structured_output(
-                &lctrl_core::ChangeReport::committed(previous, requested, actual),
+            let report = lctrl_core::ChangeReport::committed(previous.clone(), requested, actual);
+            let restore = if auto_restore {
+                Some(restore_bios_change(bios, &previous)?)
+            } else {
+                None
+            };
+            output_with_restore(
+                &report,
                 "BIOS setting saved and read back\n".into(),
+                restore.as_deref(),
             )
         }
         BiosCommand::Save => Err(LctrlError::Unsupported {
@@ -5847,7 +5943,12 @@ fn execute_bios(
                     "BIOS discard dry run validated; no staged changes discarded\n".into(),
                 )
             } else {
-                bios.require_owned_staging()?;
+                confirm_risky_change(
+                    confirmed,
+                    interactive,
+                    "BIOS discard clears the machine-global staging buffer: it drops every pending SetBiosSetting, including any staged by other tools",
+                )?;
+                bios.require_staging_contract()?;
                 bios.discard()?;
                 structured_output(&(), "BIOS staged changes discarded\n".into())
             }

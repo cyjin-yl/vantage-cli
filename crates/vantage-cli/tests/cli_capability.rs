@@ -244,7 +244,7 @@ fn unavailable_staging_is_reported_for_bios_writes_not_reads() {
     let mut capabilities = hal.capabilities().unwrap();
     capabilities
         .record(
-            "bios.staging.owned",
+            "bios.staging.contract",
             Availability::Unavailable,
             Some("ownership unverified".into()),
         )

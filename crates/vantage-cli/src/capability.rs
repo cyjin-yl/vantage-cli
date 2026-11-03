@@ -768,7 +768,7 @@ fn evaluate_command(
         && matches!(entry.dispatch, DispatchSupport::Implemented)
     {
         capabilities
-            .get("bios.staging.owned")
+            .get("bios.staging.contract")
             .filter(|capability| capability.availability == lctrl_core::Availability::Unavailable)
     } else {
         None

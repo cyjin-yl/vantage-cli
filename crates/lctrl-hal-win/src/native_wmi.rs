@@ -9,6 +9,16 @@ use crate::{WmiObject, WmiTransport, WmiValue, map_wmi_hresult};
 pub struct NativeWmi;
 
 impl WmiTransport for NativeWmi {
+    /// Established on TB14P-EZRA (2026-11-03): the NVRAM staging buffer is a
+    /// single machine-global buffer. A `SetBiosSetting` from one WMI client
+    /// is committed by a `SaveBiosSettings` issued from a different client
+    /// that never staged anything, and `DiscardBiosSettings` clears pending
+    /// changes for every client. Save/Discard are therefore disclosed as
+    /// machine-wide operations; they are never denied for lack of isolation.
+    fn bios_staging_contract_verified(&self) -> bool {
+        true
+    }
+
     fn query(&self, namespace: &str, wql: &str) -> Result<Vec<WmiObject>> {
         let connection = connect(namespace)?;
         let objects: Vec<HashMap<String, Variant>> = connection

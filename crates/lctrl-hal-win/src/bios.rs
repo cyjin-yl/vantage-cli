@@ -38,12 +38,12 @@ impl<W> BiosControl for WindowsBiosController<W>
 where
     W: WmiTransport,
 {
-    fn require_owned_staging(&self) -> Result<()> {
-        if self.transport.bios_staging_isolation_verified() {
+    fn require_staging_contract(&self) -> Result<()> {
+        if self.transport.bios_staging_contract_verified() {
             Ok(())
         } else {
             Err(LctrlError::ChannelUnavailable {
-                channel: "BIOS staging-buffer ownership and isolation are unverified".into(),
+                channel: "BIOS staging-buffer ownership contract is unverified".into(),
             })
         }
     }
@@ -85,7 +85,7 @@ where
     }
 
     fn stage(&self, change: BiosChange) -> Result<()> {
-        self.require_owned_staging()?;
+        self.require_staging_contract()?;
         let output = self.invoke(
             BIOS_SET_CLASS,
             "SetBiosSetting",
@@ -95,7 +95,7 @@ where
     }
 
     fn save(&self) -> Result<()> {
-        self.require_owned_staging()?;
+        self.require_staging_contract()?;
         let output = self.invoke(
             BIOS_SAVE_CLASS,
             "SaveBiosSettings",
@@ -108,7 +108,7 @@ where
     }
 
     fn discard(&self) -> Result<()> {
-        self.require_owned_staging()?;
+        self.require_staging_contract()?;
         let output = self.invoke(
             BIOS_DISCARD_CLASS,
             "DiscardBiosSettings",
