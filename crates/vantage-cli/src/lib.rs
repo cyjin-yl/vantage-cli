@@ -1411,18 +1411,18 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
                 Some(PowerCommand::Scheme {
                     command: Some(scheme),
                 }),
-        } => execute_power_scheme(services.power, scheme, apply),
+        } => execute_power_scheme(services.power, scheme, apply, cli.auto_restore),
         Command::Power {
             command: Some(PowerCommand::Scheme { command: None }),
         } => execute_active_power_scheme(services.power),
         Command::Perf {
             command: Some(PerfCommand::Mode { mode }),
-        } => execute_performance_mode(services.performance, mode, apply),
+        } => execute_performance_mode(services.performance, mode, apply, cli.auto_restore),
         Command::Perf {
             command: Some(PerfCommand::Fan {
                 command: Some(command),
             }),
-        } => execute_fan(services.fan, command, apply),
+        } => execute_fan(services.fan, command, apply, cli.auto_restore),
         Command::Perf {
             command: Some(PerfCommand::Fan { command: None }),
         } => execute_fan_status(services.fan),
@@ -1436,10 +1436,22 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
         } => execute_temperature(services.temperature, command),
         Command::Perf {
             command: Some(PerfCommand::Pl1 { watts }),
-        } => execute_power_limit(services.tuning, PowerLimitKind::Pl1, watts, apply),
+        } => execute_power_limit(
+            services.tuning,
+            PowerLimitKind::Pl1,
+            watts,
+            apply,
+            cli.auto_restore,
+        ),
         Command::Perf {
             command: Some(PerfCommand::Pl2 { watts }),
-        } => execute_power_limit(services.tuning, PowerLimitKind::Pl2, watts, apply),
+        } => execute_power_limit(
+            services.tuning,
+            PowerLimitKind::Pl2,
+            watts,
+            apply,
+            cli.auto_restore,
+        ),
         Command::Perf {
             command: Some(PerfCommand::Dbdc { command }),
         } => execute_dbdc(services.dbdc, command.unwrap_or(DbdcCommand::Get)),
@@ -1498,7 +1510,7 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
         ),
         Command::Kbd {
             command: Some(KbdCommand::Backlight { level, effect }),
-        } => execute_backlight(services.keyboard, level, effect, apply),
+        } => execute_backlight(services.keyboard, level, effect, apply, cli.auto_restore),
         Command::Kbd {
             command: Some(KbdCommand::Fnlock { state }),
         } => execute_fnlock(
@@ -1519,17 +1531,31 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
             interactive,
             cli.auto_restore,
         ),
-        Command::Touchpad { state } => execute_touchpad(services.touchpad, state, apply),
+        Command::Touchpad { state } => {
+            execute_touchpad(services.touchpad, state, apply, cli.auto_restore)
+        }
         Command::Panel {
             command:
                 Some(PanelCommand::Brightness {
                     percent,
                     expect_current,
                 }),
-        } => execute_panel_brightness(services.panel_brightness, percent, expect_current, apply),
+        } => execute_panel_brightness(
+            services.panel_brightness,
+            percent,
+            expect_current,
+            apply,
+            cli.auto_restore,
+        ),
         Command::Panel {
             command: Some(command),
-        } => execute_panel(services.panel, services.panel_features, command, apply),
+        } => execute_panel(
+            services.panel,
+            services.panel_features,
+            command,
+            apply,
+            cli.auto_restore,
+        ),
         Command::Privacy {
             command: Some(command),
         } => execute_privacy(
@@ -1558,13 +1584,13 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
         } => execute_wifi(services.wifi, command),
         Command::Tune {
             command: Some(TuneCommand::Pl1 { watts, pl2, tau }),
-        } => execute_tune_power_limits(services.tuning, watts, pl2, tau, apply),
+        } => execute_tune_power_limits(services.tuning, watts, pl2, tau, apply, cli.auto_restore),
         Command::Tune {
             command: Some(TuneCommand::Epp { value }),
-        } => execute_tune_epp(services.tuning, &value, apply),
+        } => execute_tune_epp(services.tuning, &value, apply, cli.auto_restore),
         Command::Tune {
             command: Some(TuneCommand::Turbo { state }),
-        } => execute_tune_turbo(services.processor_power, state, apply),
+        } => execute_tune_turbo(services.processor_power, state, apply, cli.auto_restore),
         Command::Tune {
             command: Some(TuneCommand::Telemetry { .. }),
         } => execute_tune_telemetry(&services),
@@ -1576,7 +1602,7 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
                 Some(TuneCommand::Profile {
                     command: Some(profile),
                 }),
-        } => execute_tune_profile(&services, profile, apply),
+        } => execute_tune_profile(&services, profile, apply, cli.auto_restore),
         Command::Fix { command: None } => execute_fix_rules(services.machine_fix),
         Command::Fix {
             command: Some(FixCommand::Scan),
@@ -1980,6 +2006,7 @@ fn execute_performance_mode(
     performance: Option<&dyn PerformanceControl>,
     mode: PerfModeArg,
     apply: ApplyMode,
+    auto_restore: bool,
 ) -> CommandResult {
     let performance = performance.ok_or_else(|| LctrlError::Unsupported {
         feature: "perf.mode".into(),
@@ -1991,7 +2018,12 @@ fn execute_performance_mode(
         PerfModeArg::Geek => lctrl_core::PerformanceMode::Geek,
     };
     let report = performance.set_performance_mode(mode, apply)?;
-    structured_output(
+    let restore = if auto_restore && apply == ApplyMode::Commit {
+        Some(restore_performance_mode(performance, *report.previous())?)
+    } else {
+        None
+    };
+    output_with_restore(
         &report,
         format!(
             "performance mode: requested={} actual={} (previous={})\n",
@@ -2001,7 +2033,28 @@ fn execute_performance_mode(
                 .map_or("dry-run".into(), ToString::to_string),
             report.previous()
         ),
+        restore.as_deref(),
     )
+}
+
+fn restore_performance_mode(
+    performance: &dyn PerformanceControl,
+    previous: lctrl_core::PerformanceMode,
+) -> lctrl_core::Result<String> {
+    // set_performance_mode already verifies the overlay readback and rolls
+    // back on mismatch; the richer performance_state() read is not needed
+    // and on this model fails when optional registry values are absent.
+    let restored = performance.set_performance_mode(previous, ApplyMode::Commit)?;
+    match restored.actual() {
+        Some(actual) if *actual == previous => {
+            Ok(format!("restored performance mode: {previous}"))
+        }
+        actual => Err(LctrlError::FirmwareRejected {
+            detail: format!(
+                "performance-mode restore mismatch: expected {previous}, actual {actual:?}"
+            ),
+        }),
+    }
 }
 
 fn execute_power_limit(
@@ -2009,6 +2062,7 @@ fn execute_power_limit(
     kind: PowerLimitKind,
     watts: u32,
     apply: ApplyMode,
+    auto_restore: bool,
 ) -> CommandResult {
     let tuning = tuning.ok_or_else(|| LctrlError::Unsupported {
         feature: "tune.rapl".into(),
@@ -2020,7 +2074,20 @@ fn execute_power_limit(
                 detail: format!("power limit {watts} W overflows µW"),
             })?;
     let report = tuning.set_power_limit(kind, microwatts, apply)?;
-    structured_output(&report, format!("power limit {kind:?}: {watts} W\n"))
+    let restore = if auto_restore && apply == ApplyMode::Commit {
+        let restored = tuning.set_power_limit(kind, *report.previous(), ApplyMode::Commit)?;
+        Some(format!(
+            "restored power limit {kind:?}: {:?} (verified)\n",
+            restored.actual()
+        ))
+    } else {
+        None
+    };
+    output_with_restore(
+        &report,
+        format!("power limit {kind:?}: {watts} W\n"),
+        restore.as_deref(),
+    )
 }
 
 fn execute_tune_power_limits(
@@ -2029,6 +2096,7 @@ fn execute_tune_power_limits(
     pl2_watts: Option<u32>,
     tau_seconds: Option<u32>,
     apply: ApplyMode,
+    auto_restore: bool,
 ) -> CommandResult {
     let tuning = tuning.ok_or_else(|| LctrlError::Unsupported {
         feature: "tune.rapl".into(),
@@ -2053,11 +2121,40 @@ fn execute_tune_power_limits(
         [(PowerLimitKind::Pl2, pl2), (PowerLimitKind::Pl1, pl1)]
     };
     let mut requests = Vec::from(order);
+    let mut current_tau = None;
     if let Some(tau_seconds) = tau_seconds {
+        if auto_restore {
+            // Capture before apply: reading Tau during restore would return
+            // the value this transaction just wrote.
+            current_tau = Some(tuning.power_limit(PowerLimitKind::Tau)?);
+        }
         requests.push((PowerLimitKind::Tau, u64::from(tau_seconds) * 1_000_000));
     }
     let reports = apply_limit_sequence(tuning, &requests, apply)?;
-    structured_output(&reports, "RAPL power limits applied and read back\n".into())
+    let restore = if auto_restore && apply == ApplyMode::Commit {
+        // Reverse the apply order: lower the ceiling before the floor so a
+        // mid-restore failure can never leave PL1 > PL2.
+        let mut restored = Vec::new();
+        for (kind, _) in requests.iter().rev() {
+            let previous = match kind {
+                PowerLimitKind::Pl1 => current_pl1,
+                PowerLimitKind::Pl2 => current_pl2,
+                PowerLimitKind::Tau => current_tau.ok_or_else(|| LctrlError::FirmwareRejected {
+                    detail: "tau restore snapshot missing".into(),
+                })?,
+            };
+            tuning.set_power_limit(*kind, previous, ApplyMode::Commit)?;
+            restored.push(format!("{kind:?}={}", previous / 1_000_000));
+        }
+        Some(format!("restored power limits: {}\n", restored.join(", ")))
+    } else {
+        None
+    };
+    output_with_restore(
+        &reports,
+        "RAPL power limits applied and read back\n".into(),
+        restore.as_deref(),
+    )
 }
 
 fn apply_limit_sequence(
@@ -2221,6 +2318,7 @@ fn execute_tune_epp(
     tuning: Option<&dyn TuningControl>,
     value: &str,
     apply: ApplyMode,
+    auto_restore: bool,
 ) -> CommandResult {
     let tuning = tuning.ok_or_else(|| LctrlError::Unsupported {
         feature: "tune.epp".into(),
@@ -2235,13 +2333,27 @@ fn execute_tune_epp(
         })?,
     };
     let report = tuning.set_epp(value, apply)?;
-    structured_output(&report, format!("EPP requested={value}\n"))
+    let restore = if auto_restore && apply == ApplyMode::Commit {
+        let restored = tuning.set_epp(*report.previous(), ApplyMode::Commit)?;
+        Some(format!(
+            "restored EPP: {:?} (verified)\n",
+            restored.actual()
+        ))
+    } else {
+        None
+    };
+    output_with_restore(
+        &report,
+        format!("EPP requested={value}\n"),
+        restore.as_deref(),
+    )
 }
 
 fn execute_tune_turbo(
     power: Option<&dyn ProcessorPowerControl>,
     state: Toggle,
     apply: ApplyMode,
+    auto_restore: bool,
 ) -> CommandResult {
     let power = power.ok_or_else(|| LctrlError::Unsupported {
         feature: "tune.turbo".into(),
@@ -2251,12 +2363,25 @@ fn execute_tune_turbo(
         Toggle::Off => false,
     };
     let report = power.set_turbo(enabled, apply)?;
-    structured_output(
+    let restore = if auto_restore && apply == ApplyMode::Commit {
+        // The report carries the exact per-source boost snapshot; replaying
+        // set_turbo(previous bool) would collapse aggressive/efficiency
+        // variants the snapshot preserved.
+        let restored = power.set_boost_ac_dc(*report.previous(), ApplyMode::Commit)?;
+        Some(format!(
+            "restored turbo: {:?} (verified)\n",
+            restored.actual()
+        ))
+    } else {
+        None
+    };
+    output_with_restore(
         &report,
         format!(
             "processor boost policy {} requested; this is an OS policy, not a hardware-frequency guarantee\n",
             if enabled { "enabled" } else { "disabled" }
         ),
+        restore.as_deref(),
     )
 }
 
@@ -3012,23 +3137,50 @@ fn execute_fan(
     fan: Option<&dyn FanControl>,
     command: FanCommand,
     apply: ApplyMode,
+    auto_restore: bool,
 ) -> CommandResult {
     let fan = fan.ok_or_else(|| LctrlError::Unsupported {
         feature: "perf.fan".into(),
     })?;
+    let restore =
+        |report: &lctrl_core::ChangeReport<FanMode>| -> lctrl_core::Result<Option<String>> {
+            if auto_restore
+                && apply == ApplyMode::Commit
+                && *report.previous() != *report.actual().unwrap_or(report.previous())
+            {
+                let restored = fan.set_fan_mode(*report.previous(), ApplyMode::Commit)?;
+                return Ok(Some(format!(
+                    "restored fan mode: {:?} (verified)\n",
+                    restored.actual()
+                )));
+            }
+            Ok(None)
+        };
     match command {
         FanCommand::Status => execute_fan_status(Some(fan)),
         FanCommand::Auto | FanCommand::Smart => {
             let report = fan.set_fan_mode(FanMode::Standard, apply)?;
-            structured_output(&report, "fan mode: balanced/automatic\n".into())
+            output_with_restore(
+                &report,
+                "fan mode: balanced/automatic\n".into(),
+                restore(&report)?.as_deref(),
+            )
         }
         FanCommand::Fullspeed => {
             let report = fan.set_fan_mode(FanMode::Performance, apply)?;
-            structured_output(&report, "fan mode: maximum performance\n".into())
+            output_with_restore(
+                &report,
+                "fan mode: maximum performance\n".into(),
+                restore(&report)?.as_deref(),
+            )
         }
         FanCommand::Manual => {
             let report = fan.set_fan_mode(FanMode::Custom, apply)?;
-            structured_output(&report, "fan mode: manual/custom\n".into())
+            output_with_restore(
+                &report,
+                "fan mode: manual/custom\n".into(),
+                restore(&report)?.as_deref(),
+            )
         }
         FanCommand::Curve { .. } => Err(LctrlError::Unsupported {
             feature: "perf.fan.curve.kernel-interface".into(),
@@ -3041,6 +3193,7 @@ fn execute_panel_brightness(
     percent: Option<u8>,
     expect_current: Option<u8>,
     apply: ApplyMode,
+    auto_restore: bool,
 ) -> CommandResult {
     let panel = panel.ok_or_else(|| LctrlError::Unsupported {
         feature: "panel.brightness".into(),
@@ -3048,9 +3201,26 @@ fn execute_panel_brightness(
     match percent {
         Some(percent) => {
             let report = panel.set_brightness(percent, expect_current, apply)?;
-            structured_output(
+            let restore =
+                if auto_restore && apply == ApplyMode::Commit && *report.previous() != percent {
+                    // No expected_current on restore: the just-verified write is
+                    // the freshest observation, and the restore should not be
+                    // gated on a stale snapshot.
+                    let restored =
+                        panel.set_brightness(*report.previous(), None, ApplyMode::Commit)?;
+                    Some(format!(
+                        "restored panel brightness: {}% (verified)\n",
+                        restored
+                            .actual()
+                            .map_or("unknown".into(), |v| v.to_string())
+                    ))
+                } else {
+                    None
+                };
+            output_with_restore(
                 &report,
                 format!("panel brightness transition requested: {percent}%\n"),
+                restore.as_deref(),
             )
         }
         None => {
@@ -3068,6 +3238,7 @@ fn execute_panel(
     panel_features: Option<&dyn PanelFeaturesControl>,
     command: PanelCommand,
     apply: ApplyMode,
+    auto_restore: bool,
 ) -> CommandResult {
     let panel = panel.ok_or_else(|| LctrlError::Unsupported {
         feature: "panel".into(),
@@ -3076,15 +3247,62 @@ fn execute_panel(
         PanelCommand::Brightness {
             percent,
             expect_current,
-        } => execute_panel_brightness(None, percent, expect_current, apply),
+        } => execute_panel_brightness(None, percent, expect_current, apply, auto_restore),
         PanelCommand::Rate { rate } => {
             let requested = match rate {
                 PanelRate::Fps60 => lctrl_core::PanelRefreshRequest::Fixed(60),
                 PanelRate::Fps120 => lctrl_core::PanelRefreshRequest::Fixed(120),
                 PanelRate::Auto => lctrl_core::PanelRefreshRequest::Auto,
             };
+            // Capture the adaptive/manual policy before the write: after the
+            // commit it already reflects the new state and cannot tell the
+            // restore which request shape the previous mode came from.
+            let previous_policy = panel.refresh_mode().ok();
             let report = panel.set_refresh_rate(requested, apply)?;
-            structured_output(&report, "panel refresh transition requested\n".into())
+            let restore = if auto_restore && apply == ApplyMode::Commit {
+                // The report carries the full PanelMode, not the request;
+                // restoring means replaying an equivalent request. Fixed
+                // restores the captured Hz; a pre-existing adaptive mode is
+                // restored through the same Auto request the firmware maps
+                // back.
+                let previous = report.previous();
+                let restore_request = match previous_policy {
+                    Some(lctrl_core::RefreshMode::Adaptive) => {
+                        lctrl_core::PanelRefreshRequest::Auto
+                    }
+                    _ => lctrl_core::PanelRefreshRequest::Fixed(
+                        u16::try_from(previous.refresh_hz).map_err(|_| {
+                            LctrlError::FirmwareRejected {
+                                detail: format!(
+                                    "panel refresh {} Hz cannot be restored: exceeds u16",
+                                    previous.refresh_hz
+                                ),
+                            }
+                        })?,
+                    ),
+                };
+                let restored = panel.set_refresh_rate(restore_request, ApplyMode::Commit)?;
+                if restored.actual().map(|m| m.refresh_hz) != Some(previous.refresh_hz) {
+                    return Err(LctrlError::FirmwareRejected {
+                        detail: format!(
+                            "panel refresh restore mismatch: expected {} Hz, actual {:?} Hz",
+                            previous.refresh_hz,
+                            restored.actual().map(|m| m.refresh_hz)
+                        ),
+                    });
+                }
+                Some(format!(
+                    "restored panel refresh: {} Hz (verified)\n",
+                    previous.refresh_hz
+                ))
+            } else {
+                None
+            };
+            output_with_restore(
+                &report,
+                "panel refresh transition requested\n".into(),
+                restore.as_deref(),
+            )
         }
         PanelCommand::Color { .. } => Err(LctrlError::Unsupported {
             feature: "panel.color.write".into(),
@@ -3201,6 +3419,7 @@ fn execute_power_scheme(
     power: Option<&dyn PowerControl>,
     command: SchemeCommand,
     apply: ApplyMode,
+    auto_restore: bool,
 ) -> CommandResult {
     let power = power.ok_or_else(|| LctrlError::Unsupported {
         feature: "power.scheme".into(),
@@ -3262,7 +3481,16 @@ fn execute_power_scheme(
             let scheme = resolve_power_scheme(power.power_schemes()?, &name)?;
             let mutation = PowerMutation::Activate(scheme.id);
             let report = power.apply_power_mutation(mutation, apply)?;
-            structured_output(&report, "power scheme activation requested\n".into())
+            let restore = if auto_restore && apply == ApplyMode::Commit {
+                Some(restore_power_mutation(power, report.previous())?)
+            } else {
+                None
+            };
+            output_with_restore(
+                &report,
+                "power scheme activation requested\n".into(),
+                restore.as_deref(),
+            )
         }
         SchemeCommand::Set {
             subgroup,
@@ -3285,9 +3513,29 @@ fn execute_power_scheme(
                 value: PowerSettingValue::new(value, &range)?,
             };
             let report = power.apply_power_mutation(mutation, apply)?;
-            structured_output(&report, "power setting requested\n".into())
+            let restore = if auto_restore && apply == ApplyMode::Commit {
+                Some(restore_power_mutation(power, report.previous())?)
+            } else {
+                None
+            };
+            output_with_restore(
+                &report,
+                "power setting requested\n".into(),
+                restore.as_deref(),
+            )
         }
     }
+}
+
+/// Re-apply the mutation the transaction captured as `previous`. The power
+/// layer verifies each mutation with its own readback/rollback, so a
+/// successful return already proves the restore took effect.
+fn restore_power_mutation(
+    power: &dyn PowerControl,
+    previous: &PowerMutation,
+) -> lctrl_core::Result<String> {
+    power.apply_power_mutation(previous.clone(), ApplyMode::Commit)?;
+    Ok(format!("restored power state: {previous}"))
 }
 
 fn execute_magicbay_detect(magicbay: Option<&dyn MagicBayControl>) -> CommandResult {
@@ -3395,6 +3643,7 @@ fn execute_tune_profile(
     services: &CommandServices<'_>,
     command: ProfileCommand,
     global_apply: ApplyMode,
+    auto_restore: bool,
 ) -> CommandResult {
     let catalog = load_profile_catalog()?;
     match command {
@@ -3451,9 +3700,30 @@ fn execute_tune_profile(
                 }
             };
             write_tune_state(services, &name, &snapshot, "active")?;
-            structured_output(
+            let restore = if auto_restore {
+                // Replay the pre-apply snapshot through the same guarded
+                // restore path tune.restore uses, then drop the recovery
+                // state — there is nothing left to restore manually.
+                let mut restored_changes = Vec::with_capacity(snapshot.len());
+                for rollback in snapshot.into_iter().rev() {
+                    restored_changes.push(restore_tune_setting(
+                        services,
+                        rollback,
+                        ApplyMode::Commit,
+                    )?);
+                }
+                fs::remove_file(tune_state_path()?).map_err(LctrlError::Io)?;
+                Some(format!(
+                    "restored tuning profile snapshot ({} setting(s))\n",
+                    restored_changes.len()
+                ))
+            } else {
+                None
+            };
+            output_with_restore(
                 &AppliedTunePayload { plan, changes },
                 format!("tuning profile {name} applied and read back\n"),
+                restore.as_deref(),
             )
         }
     }
@@ -5262,6 +5532,7 @@ fn execute_backlight(
     level: u8,
     effect: Option<BacklightEffect>,
     apply: ApplyMode,
+    auto_restore: bool,
 ) -> CommandResult {
     let keyboard = keyboard.ok_or_else(|| LctrlError::Unsupported {
         feature: "kbd.backlight".into(),
@@ -5271,7 +5542,17 @@ fn execute_backlight(
         BacklightEffect::Breath => lctrl_core::LightingEffect::Breathing,
     };
     let report = keyboard.set_backlight(level, effect, apply)?;
-    structured_output(
+    let restore = if auto_restore && apply == ApplyMode::Commit {
+        let before = report.previous();
+        let restored = keyboard.set_backlight(before.level, before.effect, ApplyMode::Commit)?;
+        Some(format!(
+            "restored keyboard backlight: {:?} (verified)\n",
+            restored.actual()
+        ))
+    } else {
+        None
+    };
+    output_with_restore(
         &report,
         format!(
             "keyboard backlight: requested={} actual={} (previous={})\n",
@@ -5281,12 +5562,14 @@ fn execute_backlight(
                 .map_or("dry-run".into(), ToString::to_string),
             report.previous()
         ),
+        restore.as_deref(),
     )
 }
 fn execute_touchpad(
     touchpad: Option<&dyn TouchpadControl>,
     state: TouchpadAction,
     apply: ApplyMode,
+    auto_restore: bool,
 ) -> CommandResult {
     let touchpad = touchpad.ok_or_else(|| LctrlError::Unsupported {
         feature: match state {
@@ -5319,7 +5602,16 @@ fn execute_touchpad(
         }
     };
     let report = touchpad.set_touchpad(requested, apply)?;
-    structured_output(
+    let restore = if auto_restore && apply == ApplyMode::Commit && *report.previous() != requested {
+        let restored = touchpad.set_touchpad(*report.previous(), ApplyMode::Commit)?;
+        Some(format!(
+            "restored touchpad: {:?} (verified)\n",
+            restored.actual()
+        ))
+    } else {
+        None
+    };
+    output_with_restore(
         &report,
         format!(
             "touchpad: requested={:?} actual={} (previous={:?})\n",
@@ -5329,6 +5621,7 @@ fn execute_touchpad(
                 .map_or("dry-run".into(), |value| format!("{value:?}")),
             report.previous(),
         ),
+        restore.as_deref(),
     )
 }
 
