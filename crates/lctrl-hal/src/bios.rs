@@ -27,6 +27,30 @@ pub trait BiosControl: Send + Sync {
     fn save(&self) -> Result<()>;
     fn discard(&self) -> Result<()>;
     fn password_status(&self) -> Result<BiosPasswordStatus>;
+
+    /// Reset the setup to BIOS defaults through
+    /// `Lenovo_LoadDefaultSettings.LoadDefaultSettings`. `password` is the
+    /// current supervisor password when one is required; `None` passes an
+    /// empty credential field, which the firmware accepts while
+    /// `PasswordState` is no-password-set.
+    fn load_defaults(&self, password: Option<&str>) -> Result<()> {
+        let _ = password;
+        Err(LctrlError::Unsupported {
+            feature: "bios.defaults".into(),
+        })
+    }
+
+    /// Verify the current supervisor password by submitting a same-value
+    /// set (`pap,<password>,<password>,ascii,us;`): the firmware answers
+    /// success only when the supplied password is authentic. Returns `false`
+    /// when the firmware rejects the credential; the call is side-effect
+    /// free because old and new values are identical.
+    fn verify_password(&self, password: &str) -> Result<bool> {
+        let _ = password;
+        Err(LctrlError::Unsupported {
+            feature: "bios.password.verify".into(),
+        })
+    }
 }
 
 /// Read-only access to the numeric BIOS Assistant methods.

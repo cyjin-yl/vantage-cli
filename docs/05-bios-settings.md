@@ -433,7 +433,14 @@ PasswordState = (num & 2) == 2;   // bit1 = supervisor 密码已设置
 - 成功判定：out `Return` 为 `"Success"`（与 SetBiosSetting 相同的返回串约定 [推断]）。
 - 本机 `PasswordMode=1` 对应"supervisor 密码"（联想通常还有 HDD 密码模式，本机未暴露 [推断]）。
 
-> ⚠️ **净室提示**：§5.3 全部内容属于 [推断]，且是**唯一**可能造成访问锁死风险的功能（§8.2）。实现者在本机验证前，应把 `password` 子命令标记为试验性（`--experimental` 门控）。
+> ⚠️ **净室提示**：§5.3 全部内容属于 [推断]，且是**唯一**可能造成访问锁死风险的功能（§8.2）。
+>
+> **实现（2026-11-03）**：`vantage bios password set|clear` 继续如实拒绝（`docs/interfaces.md` §0
+> "不写 BIOS 口令"边界,README 安全模型同条）。唯一接入的口令操作是
+> `vantage bios password verify <VALUE>`:它先读 `Lenovo_BiosPasswordSettings.PasswordState`,
+> 无口令时直接拒绝(避免同值下发**意外创建**口令);有口令时以同值
+> `pap,<pw>,<pw>,ascii,us;` 调用 `Lenovo_SetBiosPassword.SetBiosPassword`——旧新相同,
+> 固件返回 `"Success"` 即口令相符,`"Failed"` 即不符,不改变任何持久状态。
 
 ### 5.4 官方软件行为
 
@@ -494,7 +501,7 @@ success = (ret == "Success")
 ### 6.4 `Discard` / `LoadDefault`
 
 - `DiscardBiosSettings`：丢弃 Set 缓冲、恢复为上次 Save 的状态（`Vantage 设备组件内部接口说明"回滚"）。
-- `LoadDefaultSettings`：**恢复 BIOS 出厂默认**（危险项，§8.2）——会覆盖所有设置包括安全/密码相关项 [推断]（类语义如名，本样本无调用方，未实测）。
+- `LoadDefaultSettings`：**恢复 BIOS 出厂默认**（危险项，§8.2）——会覆盖所有设置包括安全/密码相关项 [推断]（类语义如名，本样本无调用方，未实测）。**实现**:`vantage bios defaults [--password CURRENT]` 经 `Lenovo_LoadDefaultSettings.LoadDefaultSettings` 下发,参数 `"<password>,ascii,us;"`（无 supervisor 口令时口令段为空,与官方 "Password,Encoding,KbdLang;" 文法一致）;需 `--yes`,且 `docs/interfaces.md` 的"不刷固件"边界不涵盖此项——这是官方 WMI 恢复默认入口,不是固件刷写。真机写验收未执行,执行路径如实保留为 `Readback::Unverified`。
 - 二者参数与返回约定同 Save（§3.2）。
 
 ### 6.5 `SetFunctionRequest`（用途未确认 【推断】）

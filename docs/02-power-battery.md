@@ -443,6 +443,11 @@ DeviceIoControl 返回 FALSE 时记 `"… failed, GLE = %d"`(GetLastError)。
 
 ## 11. 事件(`battery watch`)
 
+**当前实现**:`vantage battery watch [--interval S]` 以固定间隔轮询电池快照
+(`battery status` 的同一观测面),立即输出一次,此后每次读取完成后等待 S 秒;
+S 为正整数,默认 1 秒,Ctrl-C 退出。本机未接事件订阅通道,§11.1/§11.2 的
+真事件源仅作原始契约档案。
+
 ### 11.1 WMI 事件类(root\WMI,intrinsic 订阅)
 
 | 类 | 关键字段 | 触发时机 |
@@ -494,7 +499,7 @@ battery extreme-life on|off    # §4.4 完整常驻策略尚未实现；不是 �
 battery night-charge on|off    # §5,先 0x83102150 探测
 battery temporary-mode         # §5 bitmask 原样输出
 battery adapter [--json]       # §8 全字段
-battery watch                  # §11 事件流,Ctrl-C 退出
+battery watch [--interval S]   # §11 轮询快照流,默认 1 秒,Ctrl-C 退出
 usb always-on on|off [--persistent]
 usb charge-on-battery on|off [--persistent]
 power scheme list|get|apply NAME

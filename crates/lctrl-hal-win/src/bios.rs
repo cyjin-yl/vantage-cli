@@ -13,6 +13,8 @@ const BIOS_SETTING_CLASS: &str = "Lenovo_BiosSetting";
 const BIOS_SET_CLASS: &str = "Lenovo_SetBiosSetting";
 const BIOS_SAVE_CLASS: &str = "Lenovo_SaveBiosSettings";
 const BIOS_DISCARD_CLASS: &str = "Lenovo_DiscardBiosSettings";
+const BIOS_DEFAULTS_CLASS: &str = "Lenovo_LoadDefaultSettings";
+const BIOS_PASSWORD_SET_CLASS: &str = "Lenovo_SetBiosPassword";
 const BIOS_SELECTIONS_CLASS: &str = "Lenovo_GetBiosSelections";
 const BIOS_PASSWORD_CLASS: &str = "Lenovo_BiosPasswordSettings";
 const BIOS_ASSISTANT_CLASS: &str = "LENOVO_BIOS_ASSISTANT";
@@ -137,6 +139,61 @@ where
             required_u32(object, "SupportedKeyboard")?,
         ))
     }
+
+    fn load_defaults(&self, password: Option<&str>) -> Result<()> {
+        // Wire format per the Lenovo WMI deployment guide:
+        // "Password,Encoding,KbdLang;" — the password field is empty while no
+        // supervisor password is set.
+        let parameter = format!("{},ascii,us;", password.unwrap_or_default());
+        let output = self.invoke(
+            BIOS_DEFAULTS_CLASS,
+            "LoadDefaultSettings",
+            BTreeMap::from([("parameter".into(), WmiValue::String(parameter))]),
+        )?;
+        require_business_success(output, "bios.defaults")
+    }
+
+    fn verify_password(&self, password: &str) -> Result<bool> {
+        // Guard: with no supervisor password set, a same-value set would
+        // CREATE one rather than verify it. Refuse before touching the
+        // write method so verification stays read-equivalent.
+        if !self.password_status()?.supervisor_set {
+            return Err(LctrlError::InvalidArgument {
+                detail: "no supervisor password is set; verification is undefined".into(),
+            });
+        }
+        let output = self.invoke(
+            BIOS_PASSWORD_SET_CLASS,
+            "SetBiosPassword",
+            BTreeMap::from([(
+                "Parameter".into(),
+                WmiValue::String(set_password_parameter(password, password)),
+            )]),
+        )?;
+        let result = WmiMethodResult::parse(output)?;
+        result.require_accepted("bios.password.verify")?;
+        match result
+            .output()
+            .get("return")
+            .or_else(|| result.output().get("Return"))
+        {
+            Some(WmiValue::String(value)) if is_success(value) => Ok(true),
+            // "Failed" is the firmware's wrong-credential verdict; every
+            // other string is a contract failure, not a negative answer.
+            Some(WmiValue::String(value)) if value == "Failed" => Ok(false),
+            Some(WmiValue::String(value)) => Err(LctrlError::FirmwareRejected {
+                detail: format!("bios.password.verify rejected: {value}"),
+            }),
+            Some(other) => Err(LctrlError::ChannelUnavailable {
+                channel: format!(
+                    "bios.password.verify returned non-string business result: {other:?}"
+                ),
+            }),
+            None => Err(LctrlError::ChannelUnavailable {
+                channel: "bios.password.verify omitted business return value".into(),
+            }),
+        }
+    }
 }
 
 impl<W> BiosAssistantControl for WindowsBiosController<W>
@@ -200,6 +257,15 @@ where
 
 fn first_method_path(transport: &dyn WmiTransport, class: &str) -> Result<String> {
     Ok(crate::active_instance(transport, class)?.path().to_owned())
+}
+
+/// Serialise a `Lenovo_SetBiosPassword.SetBiosPassword` parameter. The
+/// Lenovo WMI deployment guide defines the grammar as
+/// "PasswordType,CurrentPassword,NewPassword,Encoding,KbdLang;" where the
+/// only password type exposed by this contract is the supervisor password
+/// (`pap`, matching `PasswordMode` 1 on consumer firmware).
+fn set_password_parameter(current: &str, new: &str) -> String {
+    format!("pap,{current},{new},ascii,us;")
 }
 
 fn require_business_success(output: WmiObject, feature: &str) -> Result<()> {

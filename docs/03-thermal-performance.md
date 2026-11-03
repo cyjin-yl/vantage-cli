@@ -404,6 +404,8 @@ Linux 上应优先使用 `/sys/class/thermal/` 下的内核热区:
 vantage perf temp               # 列出所有传感器: id, name, source, location
 vantage perf temp read <id>     # 读取单一传感器 (°C)
 vantage perf temp watch [--interval S]  # 持续轮询，默认 1 秒
+vantage battery watch [--interval S]    # 电池快照轮询，默认 1 秒
+vantage tune watch [--interval S]       # 调优遥测轮询，与 tune telemetry --interval 同源
 ```
 
 `watch` 立即读取一次，此后每次读取完成后等待 S 秒;S 为正整数。无需 daemon，串行读取，
