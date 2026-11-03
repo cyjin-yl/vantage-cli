@@ -2290,16 +2290,24 @@ fn execute_process_policy(
             applied.push((target, snapshot));
         }
     }
+    let mut restore = None;
     if matches!(apply, ApplyMode::Commit) && auto_restore {
         restore_processes(process, applied)?;
+        restore = Some(format!(
+            "restored {} process(es) to their pre-policy state\n",
+            changes.len()
+        ));
     }
-    let human = format!(
-        "{} {} process(es):\n{}",
-        operation.label(),
-        changes.len(),
-        serde_json::to_string_pretty(&changes).map_err(json_error)?
-    );
-    structured_output(&changes, human)
+    output_with_restore(
+        &changes,
+        format!(
+            "{} {} process(es):\n{}",
+            operation.label(),
+            changes.len(),
+            serde_json::to_string_pretty(&changes).map_err(json_error)?
+        ),
+        restore.as_deref(),
+    )
 }
 
 fn json_error(error: serde_json::Error) -> LctrlError {
