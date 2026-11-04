@@ -588,7 +588,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             lctrl_core::required(Dependency::LenovoFirmwareWmi),
             lctrl_core::required(Dependency::LinuxSysfs),
         ],
-        DispatchSupport::Unsupported("no verified fan-table kernel interface is attached"),
+        DispatchSupport::Unsupported("firmware rejects the fan-table plane: LENOVO_FAN_METHOD.Fan_Get_Table/Fan_Set_Table return WBEM_E_NOT_SUPPORTED on this SKU (docs/evidence/wmi-capability-exhaustion-20261104.md §3)"),
     ),
     CommandCapability::new(
         CommandId::PERF_TEMP_LIST,
@@ -900,7 +900,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         FeatureBinding::Capability("wmi.gamezone.methods"),
         ServiceBinding::Unsupported,
         &[lctrl_core::required(Dependency::LenovoFirmwareWmi)],
-        DispatchSupport::Unsupported("GAMEZONE Win-key methods are not verified on the target"),
+        DispatchSupport::Unsupported("firmware rejects the Win-key methods: LENOVO_GAMEZONE_DATA.GetWinKeyStatus/SetWinKeyStatus return WBEM_E_INVALID_OBJECT on this SKU (docs/evidence/wmi-capability-exhaustion-20261104.md §4)"),
     ),
     CommandCapability::new(
         CommandId::TOUCHPAD,
@@ -990,7 +990,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             lctrl_core::required(Dependency::LinuxDrm),
         ],
         DispatchSupport::Unsupported(
-            "panel gamut switching in the original requires MONITORCONTROL.dll delivered inside the Lenovo SmartColor addin; Lenovo-delivered components are not a permitted dependency (docs/RE-interfaces.md §15)",
+            "firmware rejects the gamut plane: every LENOVO_PANEL_METHOD method including Panel_Set_Gamut_Switch and Panel_Get_Gamut_Switch returns WBEM_E_NOT_SUPPORTED on this SKU, so no user-mode write path exists (docs/evidence/wmi-capability-exhaustion-20261104.md §2)",
         ),
     ),
     CommandCapability::new(
@@ -1021,7 +1021,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             lctrl_core::required(Dependency::LinuxDrm),
         ],
         DispatchSupport::Unsupported(
-            "overdrive is absent on this target: no SPBTESTTOOL PnP device and BIOSOD feature 0x1A0000 reads null (docs/RE-interfaces.md §15)",
+            "firmware rejects the overdrive plane: LENOVO_PANEL_METHOD.Panel_Get_MPRT and Panel_Set_MPRT return WBEM_E_NOT_SUPPORTED, and no SPBTESTTOOL PnP device is present (docs/evidence/wmi-capability-exhaustion-20261104.md §2)",
         ),
     ),
     CommandCapability::new(

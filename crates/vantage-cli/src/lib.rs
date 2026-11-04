@@ -6948,17 +6948,17 @@ fn unsupported_reason(command: &Command) -> &'static str {
         Command::Kbd { command: None } => "a keyboard subcommand is required",
         Command::Kbd {
             command: Some(KbdCommand::Winlock { .. }),
-        } => "GAMEZONE Win-key methods are not verified on the target",
+        } => "firmware rejects the Win-key methods: LENOVO_GAMEZONE_DATA.GetWinKeyStatus/SetWinKeyStatus return WBEM_E_INVALID_OBJECT on this SKU (docs/evidence/wmi-capability-exhaustion-20261104.md §4)",
         Command::Panel { command: None } => "a panel subcommand is required",
         Command::Panel {
             command: Some(PanelCommand::Color { .. }),
         } => {
-            "panel gamut switching requires MONITORCONTROL.dll delivered inside the Lenovo SmartColor addin; Lenovo-delivered components are not a permitted dependency (docs/RE-interfaces.md §15)"
+            "firmware rejects the gamut plane: every LENOVO_PANEL_METHOD method including Panel_Set_Gamut_Switch returns WBEM_E_NOT_SUPPORTED on this SKU, so no user-mode write path exists (docs/evidence/wmi-capability-exhaustion-20261104.md §2)"
         }
         Command::Panel {
             command: Some(PanelCommand::Overdrive { .. }),
         } => {
-            "overdrive is absent on this target: no SPBTESTTOOL PnP device and BIOSOD feature 0x1A0000 reads null (docs/RE-interfaces.md §15)"
+            "firmware rejects the overdrive plane: LENOVO_PANEL_METHOD.Panel_Get_MPRT and Panel_Set_MPRT return WBEM_E_NOT_SUPPORTED, and no SPBTESTTOOL PnP device is present (docs/evidence/wmi-capability-exhaustion-20261104.md §2)"
         }
         Command::Sense {
             command: Some(SenseCommand::KbdLightAuto { .. }),
