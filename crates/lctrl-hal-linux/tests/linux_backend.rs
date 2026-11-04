@@ -10,7 +10,7 @@ use lctrl_core::{
     AdapterAuthentication, ApplyMode, Availability, BatteryHealth, ChargeMode, ChargeModeActual,
     ChargeStatus, DeviceState, DiagnosticKind, DiagnosticOutcome, FanMode, LctrlError,
     LightingEffect, MagicBayKind, PerformanceMode, Platform, PowerGuid, PowerMutation,
-    PowerSchemeId, PowerSettingKey, UpdateCapability,
+    PowerSchemeId, PowerSettingKey, TemperatureLocation, UpdateCapability,
 };
 use lctrl_hal::{
     BatteryControl, ControlConflictDetection, DiagnosticsControl, FanControl, Hal, KeyboardControl,
@@ -952,4 +952,133 @@ fn capability_probe_records_msr_availability() {
     let entry = msr.get("tune.msr").unwrap();
     assert_eq!(entry.availability, Availability::Available);
     assert_eq!(hal.msr().cpu(), 0);
+}
+
+#[test]
+fn fan_inventory_reads_hwmon_fan_inputs_and_skips_missing_bounds() {
+    let tree = TempTree::new();
+    tree.write("sys/class/hwmon/hwmon0/name", "thinkpad\n");
+    // A complete fan with a min/max range is described.
+    tree.write("sys/class/hwmon/hwmon0/fan1_input", "2200\n");
+    tree.write("sys/class/hwmon/hwmon0/fan1_min", "800\n");
+    tree.write("sys/class/hwmon/hwmon0/fan1_max", "5500\n");
+    // A fan whose bounds are absent cannot be described honestly and is skipped
+    // rather than reported with a fabricated range.
+    tree.write("sys/class/hwmon/hwmon0/fan2_input", "1800\n");
+    // A malformed range (min >= max) is skipped, never reported.
+    tree.write("sys/class/hwmon/hwmon0/fan3_input", "1000\n");
+    tree.write("sys/class/hwmon/hwmon0/fan3_min", "6000\n");
+    tree.write("sys/class/hwmon/hwmon0/fan3_max", "6000\n");
+
+    let fans = tree.hal().fans().expect("fan inventory");
+
+    assert_eq!(fans.len(), 1);
+    assert_eq!(fans[0].id.raw(), 1);
+    assert_eq!(fans[0].min_rpm, 800);
+    assert_eq!(fans[0].max_rpm, 5500);
+}
+
+#[test]
+fn fan_inventory_reports_unavailable_without_readable_fan_nodes() {
+    let tree = TempTree::new();
+    // No fan*_input at all: no honest inventory exists.
+    tree.write("sys/class/hwmon/hwmon0/name", "thinkpad\n");
+
+    assert!(matches!(
+        tree.hal().fans(),
+        Err(LctrlError::ChannelUnavailable { .. })
+    ));
+}
+
+#[test]
+fn temperature_locations_cover_amd_die_and_nvme_storage_labels() {
+    let tree = TempTree::new();
+    tree.write("sys/class/hwmon/hwmon0/name", "k10temp\n");
+    tree.write("sys/class/hwmon/hwmon0/temp1_label", "Tctl\n");
+    tree.write("sys/class/hwmon/hwmon0/temp1_input", "53000\n");
+    tree.write("sys/class/hwmon/hwmon0/temp2_label", "Tccd1\n");
+    tree.write("sys/class/hwmon/hwmon0/temp2_input", "47000\n");
+    tree.write("sys/class/hwmon/hwmon1/name", "nvme\n");
+    tree.write("sys/class/hwmon/hwmon1/temp1_label", "Composite\n");
+    tree.write("sys/class/hwmon/hwmon1/temp1_input", "39000\n");
+    tree.write("sys/class/hwmon/hwmon1/temp2_label", "Sensor 1\n");
+    tree.write("sys/class/hwmon/hwmon1/temp2_input", "41000\n");
+
+    let sensors = tree
+        .hal()
+        .temperature_sensors()
+        .expect("temperature inventory");
+
+    let location = |id: &str| {
+        sensors
+            .iter()
+            .find(|sensor| sensor.metadata.id == id)
+            .unwrap_or_else(|| panic!("missing sensor {id}"))
+            .metadata
+            .location
+    };
+    assert_eq!(location("hwmon/hwmon0/temp1"), TemperatureLocation::Cpu);
+    assert_eq!(location("hwmon/hwmon0/temp2"), TemperatureLocation::Cpu);
+    assert_eq!(
+        location("hwmon/hwmon1/temp1"),
+        TemperatureLocation::Mainboard
+    );
+    assert_eq!(
+        location("hwmon/hwmon1/temp2"),
+        TemperatureLocation::Mainboard
+    );
+}
+
+#[test]
+fn service_role_channels_follow_the_sysfs_nodes_the_hal_drives() {
+    let tree = TempTree::new();
+    battery_fixture(&tree);
+    tree.write("sys/devices/platform/ideapad/touchpad", "1\n");
+    tree.write("sys/devices/platform/ideapad/kbd_backlight", "1\n");
+    tree.write("sys/devices/platform/ideapad/thermal_mode", "0\n");
+    tree.write("sys/devices/platform/ideapad/fan_mode", "0\n");
+    tree.write(
+        "sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference",
+        "balance_performance\n",
+    );
+    tree.write("sys/class/hwmon/hwmon0/fan1_input", "2200\n");
+    tree.write(
+        "sys/class/powercap/intel-rapl/intel-rapl:0/constraint_0_power_limit_uw",
+        "12000000\n",
+    );
+
+    let capabilities = tree.hal().capabilities().expect("capability probe");
+    for feature in [
+        "channel.battery",
+        "channel.touchpad",
+        "channel.keyboard",
+        "channel.performance",
+        "channel.fan",
+    ] {
+        assert_eq!(
+            capabilities.get(feature).unwrap().availability,
+            Availability::Available,
+            "{feature} should be available on its sysfs node"
+        );
+    }
+}
+
+#[test]
+fn service_role_channels_mark_missing_nodes_unavailable() {
+    let tree = TempTree::new();
+    let capabilities = tree.hal().capabilities().expect("capability probe");
+
+    for feature in [
+        "channel.battery",
+        "channel.touchpad",
+        "channel.keyboard",
+        "channel.performance",
+        "channel.fan",
+    ] {
+        assert_eq!(
+            capabilities.get(feature).unwrap().availability,
+            Availability::Unavailable,
+            "{feature} must not be available without its sysfs node"
+        );
+    }
 }

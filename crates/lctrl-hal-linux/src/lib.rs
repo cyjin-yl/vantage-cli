@@ -804,6 +804,55 @@ impl Hal for LinuxHal {
             "channel.acpi_call",
             "raw ACPI calls are intentionally not exposed by this backend",
         )?;
+
+        // Service-role channels. Each name maps a command's `role_channel()`
+        // lookup onto a sysfs node this HAL actually drives; record a channel
+        // only where the matching service is implemented, never a name for a
+        // role with no live backend.
+        self.record_node(
+            &mut capabilities,
+            "channel.battery",
+            Path::new(POWER_SUPPLY_ROOT).join(BATTERY_NAME),
+        )?;
+        self.record_node(&mut capabilities, "channel.touchpad", TOUCHPAD)?;
+        self.record_node(&mut capabilities, "channel.keyboard", KBD_BACKLIGHT)?;
+        self.record_node(&mut capabilities, "channel.performance", THERMAL_MODE)?;
+        match self.epp_paths() {
+            Ok(paths) => {
+                self.record_node(&mut capabilities, "channel.power", paths[0].clone())?;
+            }
+            Err(error) => {
+                capabilities.record(
+                    "channel.power",
+                    Availability::Unavailable,
+                    Some(error.to_string()),
+                )?;
+            }
+        }
+        match self.fan_mode_path() {
+            Ok(path) => {
+                self.record_node(&mut capabilities, "channel.fan", path)?;
+            }
+            Err(error) => {
+                capabilities.record(
+                    "channel.fan",
+                    Availability::Unavailable,
+                    Some(error.to_string()),
+                )?;
+            }
+        }
+        match self.rapl_limit_path(PowerLimitKind::Pl1, true) {
+            Ok(path) => {
+                self.record_node(&mut capabilities, "channel.tuning", path)?;
+            }
+            Err(error) => {
+                capabilities.record(
+                    "channel.tuning",
+                    Availability::Unavailable,
+                    Some(error.to_string()),
+                )?;
+            }
+        }
         Self::record_fixed_unsupported(
             &mut capabilities,
             "kbd.fnlock",
@@ -1028,9 +1077,14 @@ impl FanControl for LinuxHal {
     }
 
     fn fans(&self) -> Result<Vec<FanDescriptor>> {
-        Err(LctrlError::Unsupported {
-            feature: "perf.fan.inventory".into(),
-        })
+        let mut fans = Vec::new();
+        collect_hwmon_fans(self, &mut fans)?;
+        if fans.is_empty() {
+            return Err(LctrlError::ChannelUnavailable {
+                channel: "no readable hwmon fan*_input node".into(),
+            });
+        }
+        Ok(fans)
     }
 
     fn fan_table(&self, _fan: FanId, _sensor: SensorId) -> Result<FanTable> {
@@ -1742,6 +1796,52 @@ fn collect_hwmon_temperatures(hal: &LinuxHal, sensors: &mut Vec<TemperatureSenso
     Ok(())
 }
 
+fn collect_hwmon_fans(hal: &LinuxHal, fans: &mut Vec<FanDescriptor>) -> Result<()> {
+    let root = hal.path(HWMON_ROOT);
+    let entries = match fs::read_dir(root) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(map_io_error(error)),
+    };
+    for entry in entries {
+        let entry = entry.map_err(map_io_error)?;
+        for index in 1..=32 {
+            let input = entry.path().join(format!("fan{index}_input"));
+            if !hal.node_exists_path(&input)? {
+                continue;
+            }
+            // `fan*_min`/`fan*_max` are optional in sysfs. Only report a
+            // descriptor when both bounds are present and readable; a fan with
+            // an unknown RPM range cannot be described honestly.
+            let (Some(min), Some(max)) = (
+                read_fan_bound(hal, &entry, index, "min")?,
+                read_fan_bound(hal, &entry, index, "max")?,
+            ) else {
+                continue;
+            };
+            // Skip malformed descriptors (min>=max) rather than fabricate a
+            // range; `FanDescriptor::new` rejects them and would abort the loop.
+            if let Ok(descriptor) = FanDescriptor::new(FanId::new(index), min, max) {
+                fans.push(descriptor);
+            }
+        }
+    }
+    fans.sort_by_key(|descriptor| descriptor.id);
+    Ok(())
+}
+
+fn read_fan_bound(
+    hal: &LinuxHal,
+    entry: &fs::DirEntry,
+    index: u32,
+    bound: &str,
+) -> Result<Option<u32>> {
+    hal.read_optional_path(entry.path().join(format!("fan{index}_{bound}")))?
+        .and_then(|value| non_empty_trimmed(&value))
+        .map(|raw| parse_signed(&raw, "hwmon fan bound").map(|v| v.max(0) as u32))
+        .transpose()
+}
+
 fn collect_thermal_zone_temperatures(
     hal: &LinuxHal,
     sensors: &mut Vec<TemperatureSensor>,
@@ -1789,10 +1889,18 @@ fn temperature_location(label: &str) -> TemperatureLocation {
     let label = label.to_ascii_lowercase();
     if label.contains("cpu") || label.contains("core") || label.contains("package") {
         TemperatureLocation::Cpu
+    } else if label.contains("tctl") || label.contains("tccd") || label.contains("k10temp") {
+        // AMD core thermal sensors (Zen Tctl die temperature and per-CCD Tccd).
+        TemperatureLocation::Cpu
     } else if label.contains("gpu") || label.contains("graphics") {
         TemperatureLocation::Gpu
     } else if label.contains("battery") || label.contains("bat") {
         TemperatureLocation::Battery
+    } else if label.contains("composite") || label.contains("sensor") || label.contains("nvme") {
+        // NVMe "Composite"/"Sensor N" temperatures: on-motherboard storage, and
+        // there is no dedicated storage variant, so the mainboard location is
+        // the nearest honest mapping.
+        TemperatureLocation::Mainboard
     } else if label.contains("board") || label.contains("mother") {
         TemperatureLocation::Mainboard
     } else {
