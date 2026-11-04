@@ -214,9 +214,17 @@ const OPS: &[Op] = &[
 
 pub(crate) const PROC_COUNT: usize = 18;
 const TYPE_OUT_CONTEXT: u16 = 0;
-const TYPE_INOUT_CONTEXT: u16 = 4;
-const TYPE_IN_CONTEXT: u16 = 8;
-const TYPE_WCHARS: u16 = 12;
+// Each `[in]`/`[out]` context parameter is marshalled through a top-level
+// `FC_RP` (reference pointer) that points at the context-handle body — the
+// same indirection a MIDL compiler emits for `[context_handle]` arguments.
+// Emitting a bare `FC_BIND_CONTEXT` here makes the interpreter dereference
+// the argument slot directly, which faults inside `NdrClientCall3`. The
+// offsets below therefore step by the size of an `RP`-wrapped record (8
+// bytes) rather than a bare `FC_BIND_CONTEXT` record (4 bytes), and the
+// `[in]` context keeps its bare form (no pointer indirection on input).
+const TYPE_INOUT_CONTEXT: u16 = 8;
+const TYPE_IN_CONTEXT: u16 = 16;
+const TYPE_WCHARS: u16 = 20;
 const TYPE_LEN: usize = TYPE_WCHARS as usize + 4 + 4 + 12;
 const VOID_LEN: usize = 10 + 6 + EXTS64_SIZE;
 
@@ -358,16 +366,28 @@ const fn build_proc() -> ([u8; PROC_LEN], [u16; PROC_COUNT]) {
 const fn build_types() -> [u8; TYPE_LEN] {
     let mut buf = [0; TYPE_LEN];
     let mut p = 0;
-    // Context flags: OUT|NOSERIALIZE|VIA_PTR; IN|OUT|NOSERIALIZE|
-    // CANNOT_BE_NULL|VIA_PTR; IN|NOSERIALIZE|CANNOT_BE_NULL.
-    let flags = [0xa4, 0xe5, 0x45];
-    let mut i = 0;
-    while i < flags.len() {
-        byte(&mut buf, &mut p, fc::BIND_CONTEXT);
-        byte(&mut buf, &mut p, flags[i]);
-        word(&mut buf, &mut p, 0); // rundown/parameter indices
-        i += 1;
-    }
+    // `[out]` and `[in,out]` context parameters: `FC_RP` pointing at the
+    // context-handle body. The `RP` descriptor is `{FC_RP, pointer_flags,
+    // u16 offset}` where the offset is relative to the offset field itself
+    // and addresses the `FC_BIND_CONTEXT` record two bytes on. Flags mirror
+    // a MIDL `[context_handle]` argument: `OUT|NOSERIALIZE|VIA_PTR` and
+    // `IN|OUT|NOSERIALIZE|CANNOT_BE_NULL|VIA_PTR`.
+    byte(&mut buf, &mut p, fc::RP);
+    byte(&mut buf, &mut p, 0x04); // SIMPLE_POINTER | ALLOCED_ON_STACK
+    word(&mut buf, &mut p, 2); // -> FC_BIND_CONTEXT body
+    byte(&mut buf, &mut p, fc::BIND_CONTEXT);
+    byte(&mut buf, &mut p, 0xa4); // OUT | NOSERIALIZE | VIA_PTR
+    word(&mut buf, &mut p, 0);
+    byte(&mut buf, &mut p, fc::RP);
+    byte(&mut buf, &mut p, 0x04);
+    word(&mut buf, &mut p, 2);
+    byte(&mut buf, &mut p, fc::BIND_CONTEXT);
+    byte(&mut buf, &mut p, 0xe5); // IN|OUT | NOSERIALIZE | CANNOT_BE_NULL | VIA_PTR
+    word(&mut buf, &mut p, 0);
+    // `[in]` context parameter: bare context-handle body, no indirection.
+    byte(&mut buf, &mut p, fc::BIND_CONTEXT);
+    byte(&mut buf, &mut p, 0x45); // IN | NOSERIALIZE | CANNOT_BE_NULL
+    word(&mut buf, &mut p, 0);
     // [out] wchar_t **: reference pointer to a nullable, allocated array.
     byte(&mut buf, &mut p, fc::RP);
     byte(&mut buf, &mut p, 0x14); // ALLOCED_ON_STACK | POINTER_DEREF
@@ -439,6 +459,13 @@ mod tests {
         assert_eq!(b[11], 0xe4);
         assert_eq!(u16_at(b, 32), Param::InOutContext.attr());
         assert_eq!(u16_at(b, 36), TYPE_INOUT_CONTEXT);
-        assert_eq!(TYPE_FORMAT_STRING[TYPE_INOUT_CONTEXT as usize + 1], 0xe5);
+        // The in/out context parameter is marshalled through a reference
+        // pointer (`FC_RP`) that addresses the context-handle body, matching
+        // MIDL's `[context_handle]` lowering: {FC_RP, flags, off} then
+        // {FC_BIND_CONTEXT, 0xe5, rundown/param}.
+        let t = &TYPE_FORMAT_STRING[TYPE_INOUT_CONTEXT as usize..];
+        assert_eq!(t[0], fc::RP);
+        assert_eq!(t[4], fc::BIND_CONTEXT);
+        assert_eq!(t[5], 0xe5);
     }
 }
