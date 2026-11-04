@@ -119,6 +119,56 @@ fn unknown_registry_modes_remain_unmapped_not_fabricated() {
 }
 
 #[test]
+fn its_schema_without_legacy_values_still_reports() {
+    // The installed dispatcher on 21VG publishes the ITS-era names and no
+    // VERSION/CURRENT_SETTING/CURRENT_STATE/POWER_SLIDER at all. The report
+    // must not fail on the absent names, must decode the corroborated
+    // 1:BSM / 3:EPM mapping, and must surface the raw values it cannot
+    // attribute.
+    let controller = WindowsPerformanceP0::new(FakeRegistry::new([
+        ("ITS_CurrentSetting", 3),
+        ("ITS_CurrentSettingV", 3),
+        ("ITS_AutomaticModeSetting", 7),
+        ("ITS_HW_Capability", 16),
+        ("ITS_FN_Capability", 4122),
+        ("ITS_FanMode", 4),
+    ]));
+    let state = controller.performance_state().unwrap();
+
+    assert_eq!(state.requested, Some(PerformanceMode::Performance));
+    assert_eq!(state.active, Some(PerformanceMode::Performance));
+    assert_eq!(state.version, DispatcherVersion::Legacy(0));
+    let its = state.its.expect("ITS values are carried raw");
+    assert_eq!(its.current_setting, Some(3));
+    assert_eq!(its.hw_capability, Some(16));
+    assert_eq!(its.fn_capability, Some(4122));
+    assert_eq!(its.fan_mode, Some(4));
+}
+
+#[test]
+fn legacy_schema_still_reports_and_omits_the_its_block() {
+    let controller = WindowsPerformanceP0::new(reader(0x3000, 1, 2, 1, 0x1b));
+    let state = controller.performance_state().unwrap();
+
+    assert_eq!(state.requested, Some(PerformanceMode::Balanced));
+    assert_eq!(state.active, Some(PerformanceMode::Quiet));
+    assert!(state.its.is_none(), "no ITS values were published");
+}
+
+#[test]
+fn its_mode_outside_the_known_enum_is_not_coerced() {
+    let controller = WindowsPerformanceP0::new(FakeRegistry::new([
+        ("ITS_CurrentSetting", 9),
+        ("ITS_CurrentSettingV", 0),
+    ]));
+    let state = controller.performance_state().unwrap();
+
+    assert_eq!(state.requested, None);
+    assert_eq!(state.active, None);
+    assert_eq!(state.its.and_then(|its| its.current_setting), Some(9));
+}
+
+#[test]
 fn portable_modes_map_to_their_os_overlay_scheme() {
     assert_eq!(
         overlay_for_mode(PerformanceMode::Balanced).unwrap(),

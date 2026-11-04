@@ -899,6 +899,7 @@ impl PerformanceControl for LinuxHal {
             automatic: false,
             version: DispatcherVersion::Legacy(0),
             capabilities: PerformanceCapabilities::new(0x0b),
+            its: None,
         })
     }
 

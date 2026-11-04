@@ -56,6 +56,7 @@ fn requested_and_active_modes_remain_distinct() {
         automatic: true,
         version: DispatcherVersion::V4,
         capabilities: PerformanceCapabilities::new(0x1b),
+        its: None,
     };
     assert_ne!(state.requested, state.active);
     assert!(state.automatic);

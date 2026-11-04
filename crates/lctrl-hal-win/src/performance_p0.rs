@@ -1,6 +1,6 @@
 use lctrl_core::{
-    ApplyMode, ChangeReport, DispatcherVersion, LctrlError, PerformanceCapabilities,
-    PerformanceMode, PerformanceState, Result,
+    ApplyMode, ChangeReport, DispatcherVersion, ItsPowerSlider, LctrlError,
+    PerformanceCapabilities, PerformanceMode, PerformanceState, Result,
 };
 use lctrl_hal::PerformanceControl;
 
@@ -60,17 +60,48 @@ where
     O: PowerOverlayControl,
 {
     fn performance_state(&self) -> Result<PerformanceState> {
-        let version = DispatcherVersion::from_raw(self.registry.read_dword("VERSION")?);
-        let requested = decode_mode(self.registry.read_dword("CURRENT_SETTING")?);
-        let active = decode_mode(self.registry.read_dword("CURRENT_STATE")?);
-        let automatic = self.registry.read_dword("AUTOMATIC_MODE_SETTING")? != 0;
-        let capabilities = PerformanceCapabilities::new(self.registry.read_dword("POWER_SLIDER")?);
+        // Each value is read independently. A field the installed dispatcher
+        // does not publish must not abort the report, and the older schema
+        // (VERSION / CURRENT_SETTING / CURRENT_STATE / POWER_SLIDER) and the
+        // ITS-era schema (ITS_*) are both accepted.
+        let read = |name: &str| self.registry.read_dword(name).ok();
+
+        let version_raw = read("VERSION");
+        // `Legacy(0)` records "the dispatcher published no version", which is
+        // the truth for the ITS-era key; it is not a decoded version.
+        let version = version_raw.map_or(DispatcherVersion::Legacy(0), DispatcherVersion::from_raw);
+
+        let requested_raw = read("ITS_CurrentSetting").or_else(|| read("CURRENT_SETTING"));
+        let active_raw = read("ITS_CurrentSettingV").or_else(|| read("CURRENT_STATE"));
+        let automatic_raw =
+            read("ITS_AutomaticModeSetting").or_else(|| read("AUTOMATIC_MODE_SETTING"));
+        // `POWER_SLIDER` is the legacy capability mask. The ITS-era masks
+        // (`ITS_HW_Capability`, `ITS_FN_Capability`, `ITS_SE_AutoModeCapability`)
+        // are carried raw below but are deliberately not attributed to modes:
+        // the three disagree and their bit assignment is unproven.
+        let capabilities = PerformanceCapabilities::new(read("POWER_SLIDER").unwrap_or(0));
+
+        let its = ItsPowerSlider {
+            current_setting: read("ITS_CurrentSetting"),
+            current_setting_v: read("ITS_CurrentSettingV"),
+            automatic_mode_setting: read("ITS_AutomaticModeSetting"),
+            hw_capability: read("ITS_HW_Capability"),
+            fn_capability: read("ITS_FN_Capability"),
+            fan_mode: read("ITS_FanMode"),
+        };
+        let its = (its != ItsPowerSlider::default()).then_some(its);
+
+        // Mode decoding uses `PerformanceMode::from_its`, whose mapping is
+        // corroborated by the dispatcher's own `(1:BSM, 3:EPM)` status string:
+        // 1 = Balanced (BSM), 3 = Performance (EPM). An out-of-range value is
+        // reported as unknown rather than coerced to a neighbouring mode.
         Ok(PerformanceState {
-            requested,
-            active,
-            automatic,
+            requested: requested_raw.and_then(decode_mode),
+            active: active_raw.and_then(decode_mode),
+            automatic: automatic_raw.is_some_and(|value| value != 0),
             version,
             capabilities,
+            its,
         })
     }
 

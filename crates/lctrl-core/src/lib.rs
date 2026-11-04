@@ -70,8 +70,8 @@ pub use panel::{
 };
 pub use performance::{
     DbdcProfile, DispatcherVersion, FanDescriptor, FanId, FanMode, FanStep, FanTable,
-    PerformanceCapabilities, PerformanceMode, PerformanceState, SensorId, TemperatureLocation,
-    TemperatureSensor, TemperatureSensorMetadata, TemperatureSource,
+    ItsPowerSlider, PerformanceCapabilities, PerformanceMode, PerformanceState, SensorId,
+    TemperatureLocation, TemperatureSensor, TemperatureSensorMetadata, TemperatureSource,
 };
 pub use power::{
     PowerGuid, PowerMutation, PowerRangeObservation, PowerScheme, PowerSchemeId, PowerSettingKey,

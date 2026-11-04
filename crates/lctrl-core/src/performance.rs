@@ -117,6 +117,34 @@ pub struct PerformanceState {
     pub automatic: bool,
     pub version: DispatcherVersion,
     pub capabilities: PerformanceCapabilities,
+    /// Raw `PowerSlider` DWORDs as published by the installed dispatcher.
+    ///
+    /// The newer ITS-era schema replaces the older
+    /// `VERSION`/`CURRENT_SETTING`/`POWER_SLIDER` names with `ITS_*` names
+    /// whose capability bit assignments are not yet attributed to modes. This
+    /// block carries those values verbatim so a report never hides what the
+    /// machine actually published; `None` when the key predates that schema.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub its: Option<ItsPowerSlider>,
+}
+
+/// The ITS-era `PowerSlider` value set. Every field is `None` when the value
+/// is absent from the key, so a partially-populated key stays representable
+/// instead of failing the whole read.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize)]
+pub struct ItsPowerSlider {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub current_setting: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub current_setting_v: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub automatic_mode_setting: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hw_capability: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fn_capability: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fan_mode: Option<u32>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize)]

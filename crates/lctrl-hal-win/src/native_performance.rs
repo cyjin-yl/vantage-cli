@@ -15,8 +15,12 @@ pub struct NativePerformanceRegistry;
 
 impl PerformanceRegistryReader for NativePerformanceRegistry {
     fn read_dword(&self, value: &str) -> Result<u32> {
+        // The value *name* is kept separately from the NUL-terminated wide
+        // buffer. Shadowing it with the buffer made every error message print
+        // the UTF-16 code units (for example `[67, 85, 82, 82, 69, 78, 84]`)
+        // instead of the name the caller asked for.
         let key = wide(POWER_SLIDER_KEY);
-        let value = wide(value);
+        let name = wide(value);
         let mut data = 0u32;
         let mut bytes = u32::try_from(std::mem::size_of_val(&data)).expect("u32 size fits");
         let mut kind: REG_VALUE_TYPE = 0;
@@ -24,7 +28,7 @@ impl PerformanceRegistryReader for NativePerformanceRegistry {
             RegGetValueW(
                 HKEY_LOCAL_MACHINE,
                 key.as_ptr(),
-                value.as_ptr(),
+                name.as_ptr(),
                 RRF_RT_REG_DWORD,
                 &mut kind,
                 (&mut data as *mut u32).cast::<c_void>(),
