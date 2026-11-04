@@ -179,3 +179,48 @@ safety analysis and is not implemented here.
 Read-only. No `Set*` method was invoked. No BIOS variable was written, no
 service was stopped. Section 7 deliberately lists settings that already existed
 before the probe; nothing was changed.
+
+## 10. PL1/PL2 MSR channel — driver present, device gated by logon type
+
+`tune.pl1` / `tune.pl2` / `tune.tau` are not implemented: `power_limit()` and
+`set_power_limit()` in `crates/lctrl-hal-win/src/power_tuning.rs` return
+`Unsupported` unconditionally. The MSR transport that would carry them does
+exist and is loaded on this machine:
+
+```text
+LnvMSRIO   state=Running  start=Auto
+           C:\WINDOWS\system32\DriverStore\FileRepository\lnvprocessmanagement.inf_amd64_863cdf71782696c8\LnvMSRIO.sys
+```
+
+The driver exposes exactly six selectors; selector 5 is `PLATFORM_POWER_LIMIT`,
+MSR `0x65C`, which is the register that carries PL1/PL2 on this CPU family.
+So the register is reachable in principle and the whitelist already includes it.
+
+It is not reachable from an SSH automation session. Opening the device is
+refused even though the account is in `BUILTIN\Administrators` and
+`.IsInRole(Administrator)` returns `True`:
+
+```text
+user=TB14P-EZRA\ezra elevated=True
+CreateFileW("\\.\WinMsrDev", GENERIC_READ|GENERIC_WRITE, ...) -> err=5 (ACCESS_DENIED)
+\\.\LnvMSRIO   -> not found
+\\.\MsrDrv     -> not found
+```
+
+The token's group list contains `NT AUTHORITY\NETWORK`, i.e. the SSH logon is a
+network logon. The device DACL does not grant that logon type, so the failure is
+an environment property, not a driver or code defect.
+
+Consequence for this change set: the PL1/PL2 path is left unimplemented. Writing
+an MSR the harness cannot read even once would ship an unverified hardware
+write, and MSR `0x65C` is a documented register whose power-limit fields are
+scaled by `MSR_RAPL_POWER_UNIT` (`0x606`), which the driver's six-selector
+whitelist does not expose — so watts could not be derived even with access.
+Verifying either the read or the write needs an interactive elevated session on
+the console, not an SSH logon.
+
+## 11. Scope of this file
+
+Read-only for every section: the single `CreateFileW` on the MSR device failed
+before any IOCTL was issued, and no `Set*` WMI method, BIOS write, or registry
+write was performed anywhere in this document.
