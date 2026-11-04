@@ -588,7 +588,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             lctrl_core::required(Dependency::LenovoFirmwareWmi),
             lctrl_core::required(Dependency::LinuxSysfs),
         ],
-        DispatchSupport::Unsupported("firmware rejects the fan-table plane: LENOVO_FAN_METHOD.Fan_Get_Table/Fan_Set_Table return WBEM_E_NOT_SUPPORTED on this SKU (docs/evidence/wmi-capability-exhaustion-20261104.md §3)"),
+        DispatchSupport::Unsupported(
+            "firmware rejects the fan-table plane: LENOVO_FAN_METHOD.Fan_Get_Table/Fan_Set_Table return WBEM_E_NOT_SUPPORTED on this SKU (docs/evidence/wmi-capability-exhaustion-20261104.md §3)",
+        ),
     ),
     CommandCapability::new(
         CommandId::PERF_TEMP_LIST,
@@ -900,7 +902,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         FeatureBinding::Capability("wmi.gamezone.methods"),
         ServiceBinding::Unsupported,
         &[lctrl_core::required(Dependency::LenovoFirmwareWmi)],
-        DispatchSupport::Unsupported("firmware rejects the Win-key methods: LENOVO_GAMEZONE_DATA.GetWinKeyStatus/SetWinKeyStatus return WBEM_E_INVALID_OBJECT on this SKU (docs/evidence/wmi-capability-exhaustion-20261104.md §4)"),
+        DispatchSupport::Unsupported(
+            "firmware rejects the Win-key methods: LENOVO_GAMEZONE_DATA.GetWinKeyStatus/SetWinKeyStatus return WBEM_E_INVALID_OBJECT on this SKU (docs/evidence/wmi-capability-exhaustion-20261104.md §4)",
+        ),
     ),
     CommandCapability::new(
         CommandId::TOUCHPAD,

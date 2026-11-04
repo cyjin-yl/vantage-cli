@@ -6948,7 +6948,9 @@ fn unsupported_reason(command: &Command) -> &'static str {
         Command::Kbd { command: None } => "a keyboard subcommand is required",
         Command::Kbd {
             command: Some(KbdCommand::Winlock { .. }),
-        } => "firmware rejects the Win-key methods: LENOVO_GAMEZONE_DATA.GetWinKeyStatus/SetWinKeyStatus return WBEM_E_INVALID_OBJECT on this SKU (docs/evidence/wmi-capability-exhaustion-20261104.md §4)",
+        } => {
+            "firmware rejects the Win-key methods: LENOVO_GAMEZONE_DATA.GetWinKeyStatus/SetWinKeyStatus return WBEM_E_INVALID_OBJECT on this SKU (docs/evidence/wmi-capability-exhaustion-20261104.md §4)"
+        }
         Command::Panel { command: None } => "a panel subcommand is required",
         Command::Panel {
             command: Some(PanelCommand::Color { .. }),
