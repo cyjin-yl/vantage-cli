@@ -471,6 +471,42 @@ impl LinuxHal {
         })
     }
 
+    fn temperature_inventory(&self) -> Result<Vec<TemperatureSensor>> {
+        let mut sensors = Vec::new();
+        collect_hwmon_temperatures(self, &mut sensors)?;
+        collect_thermal_zone_temperatures(self, &mut sensors)?;
+        sensors.sort_by(|left, right| left.metadata.id.cmp(&right.metadata.id));
+        Ok(sensors)
+    }
+
+    /// Probe the temperature service from a live sysfs read and record both
+    /// the feature the temperature commands bind to (`perf.temp`) and the
+    /// service role channel (`channel.temperature`). A probe never aborts the
+    /// whole capability report: an unreadable or malformed sensor node means
+    /// this channel is not usable here, not that the report failed.
+    fn record_temperature_channels(&self, capabilities: &mut CapabilitySet) -> Result<()> {
+        let probe = self.temperature_inventory();
+        let (availability, detail) = match probe {
+            Ok(sensors) if !sensors.is_empty() => (
+                Availability::Available,
+                Some(format!(
+                    "{} read-only sysfs temperature sensor(s) readable \
+                     (hwmon temp*_input / thermal_zone*/temp)",
+                    sensors.len()
+                )),
+            ),
+            Ok(_) => (
+                Availability::Unavailable,
+                Some("no readable hwmon temp*_input or thermal_zone*/temp node".into()),
+            ),
+            Err(error) => (Availability::Unavailable, Some(error.to_string())),
+        };
+        for feature in ["perf.temp", "channel.temperature"] {
+            capabilities.record(feature, availability, detail.clone())?;
+        }
+        Ok(())
+    }
+
     fn record_node(
         &self,
         capabilities: &mut CapabilitySet,
@@ -694,6 +730,7 @@ impl Hal for LinuxHal {
                 )?;
             }
         }
+        self.record_temperature_channels(&mut capabilities)?;
         capabilities.record(
             "tune.rapl",
             if rapl_energy {
@@ -1102,10 +1139,7 @@ impl TuningControl for LinuxHal {
 
 impl TemperatureControl for LinuxHal {
     fn temperature_sensors(&self) -> Result<Vec<TemperatureSensor>> {
-        let mut sensors = Vec::new();
-        collect_hwmon_temperatures(self, &mut sensors)?;
-        collect_thermal_zone_temperatures(self, &mut sensors)?;
-        sensors.sort_by(|left, right| left.metadata.id.cmp(&right.metadata.id));
+        let sensors = self.temperature_inventory()?;
         if sensors.is_empty() {
             return Err(LctrlError::Unsupported {
                 feature: "perf.temp".into(),

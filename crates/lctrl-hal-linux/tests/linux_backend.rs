@@ -204,6 +204,8 @@ fn capability_probe_marks_missing_channels_unavailable() {
         "tune.pl1",
         "tune.pl2",
         "panel.refresh",
+        "perf.temp",
+        "channel.temperature",
     ] {
         assert_capability(&hal, feature, Availability::Unavailable);
     }
@@ -386,6 +388,62 @@ fn linux_temperature_control_reads_hwmon_and_thermal_zone_values() {
     }));
     let sensor = tree.hal().temperature("thermal/thermal_zone0").unwrap();
     assert_eq!(sensor.value_c, Some(42.0));
+}
+
+#[test]
+fn capability_probe_advertises_temperature_channels_from_readable_sysfs_sensors() {
+    let tree = TempTree::new();
+    tree.write("sys/class/hwmon/hwmon0/name", "coretemp\n");
+    tree.write("sys/class/hwmon/hwmon0/temp1_label", "Package id 0\n");
+    tree.write("sys/class/hwmon/hwmon0/temp1_input", "47500\n");
+    tree.write("sys/class/thermal/thermal_zone0/type", "acpitz\n");
+    tree.write("sys/class/thermal/thermal_zone0/temp", "42000\n");
+
+    let capabilities = tree.hal().capabilities().expect("capability probe");
+
+    for feature in ["perf.temp", "channel.temperature"] {
+        let capability = capabilities
+            .get(feature)
+            .unwrap_or_else(|| panic!("missing capability {feature}"));
+        assert_eq!(
+            capability.availability,
+            Availability::Available,
+            "{feature} should be advertised from a live read-only probe"
+        );
+        assert!(
+            capability
+                .detail
+                .as_deref()
+                .expect("available temperature channels explain the probe")
+                .contains("2 read-only sysfs temperature sensor(s)"),
+            "unexpected detail for {feature}: {:?}",
+            capability.detail
+        );
+    }
+}
+
+#[test]
+fn unreadable_temperature_sensor_marks_channels_unavailable_without_aborting_the_probe() {
+    let tree = TempTree::new();
+    tree.write("sys/class/hwmon/hwmon0/name", "coretemp\n");
+    tree.write("sys/class/hwmon/hwmon0/temp1_input", "not-a-temperature\n");
+
+    let capabilities = tree.hal().capabilities().expect("capability probe");
+
+    for feature in ["perf.temp", "channel.temperature"] {
+        let capability = capabilities
+            .get(feature)
+            .expect("capability is recorded even on a malformed node");
+        assert_eq!(
+            capability.availability,
+            Availability::Unavailable,
+            "{feature} must not be advertised from an unreadable sensor"
+        );
+        assert!(
+            capability.detail.is_some(),
+            "{feature} must explain why the channel is unavailable"
+        );
+    }
 }
 
 #[test]
