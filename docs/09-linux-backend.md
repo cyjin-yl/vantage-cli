@@ -1119,3 +1119,48 @@ enum BackendError {
 | 12 | 与 Windows 后端的功能差距清单 |
 | 13 | 证据 |
 | 14 | 章节索引 |
+
+---
+
+## 12. 进程遥测与温度通道的已实现状态(2026-11-04)
+
+本节记录 Linux 后端**已经实现并验证**的两条通道,修正上文"缺失"的判断。
+
+### 12.1 `perf.top` — `/proc` 进程遥测
+
+实现:`crates/lctrl-hal-linux/src/process.rs`(`LinuxProcessController`),
+在 `vantage/src/main.rs` 的 Linux 组合根接入。
+
+- 两次采样 `/proc/<pid>/stat`(间隔 120 ms),按区间 CPU 时间排序;
+  字段按 `proc(5)` 取:`utime`(14)/`stime`(15)/`starttime`(22)/`rss`(24)。
+- 身份用 `starttime` 派生,因此 PID 复用不会被静默接受:两次采样之间
+  `starttime` 不一致的进程计为 `skipped`,而不是给出一个伪造的零区间。
+- `(command)` 字段按最后一个 `)` 切分,名称含空格或括号不会被误解析。
+- `interval_wall_time_100ns` 用**实测**耗时,不是请求的间隔,避免短睡眠时
+  PPM 虚高。
+
+**边界**:`perf.boost` / `perf.throttle` / `perf.restore` 在 Linux 上**不实现**。
+原因是 `ProcessState` 携带 Windows 的硬 working-set 配额,而 Linux 没有对等
+概念;与其填入伪造范围,不如如实报 `Unsupported`。此处 `ProcessState.working_set`
+已改为 `Option`,序列化时缺省省略,Windows 侧仍恒为 `Some`。
+
+验证:`vantage --json perf top` 在本机返回按真实区间 CPU 排序的进程表与 RSS。
+
+### 12.2 `perf.temp` / `channel.temperature` — sysfs 温度
+
+实现:`crates/lctrl-hal-linux/src/lib.rs` 的 `temperature_inventory()` +
+`record_temperature_channels()`。
+
+- 采集 `hwmon temp*_input` 与 `thermal_zone*/temp`,按 id 排序;
+  `TemperatureControl::temperature_sensors()` 复用同一读取器。
+- 能力探针**不中断**整份能力报告:无可用传感器或节点格式错误时记
+  `Unavailable` 并给出原因,与 `rapl_energy_readable` 的既有约定一致。
+- 路径一律经 `self.path(...)` 解析,便于挂载 sysroot 与测试。
+
+验证:`vantage --json perf temp` 在本机返回 6 个真实传感器
+(hwmon `Composite`、`Tctl`、`Tccd1/3/5/7`);`capability` 中 `perf.temp`
+与 `perf.temp.read` 为 `available`。
+
+**遗留**:AMD/NVMe 的标签(`Tctl`、`Tccd1`、`Composite`)在
+`temperature_location()` 中映射为 `Unknown`(目前只匹配 cpu/core/package/
+gpu/battery/board 子串);`perf.fan.inventory` 仍缺 hwmon `fan*_input` 实现。
