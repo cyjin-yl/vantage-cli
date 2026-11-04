@@ -86,8 +86,13 @@ fn off_disables_without_profile_write() {
     let report = audio
         .set_dolby_profile(DolbyProfile::Off, ApplyMode::Commit)
         .expect("off applies");
-    assert_eq!(*report.requested(), report.actual().copied().unwrap());
-    assert!(!report.actual().expect("readback").enabled);
+    // `Off` only clears `enabled` — the device keeps its last preset, so the
+    // committed readback reports `active_profile` as the prior `Game`, not the
+    // requested `Off`. Assert the fields the write is allowed to change, not a
+    // full `requested == actual` that the Off path is designed to violate.
+    let actual = report.actual().expect("readback");
+    assert_eq!(actual.enabled, report.requested().enabled);
+    assert!(!actual.enabled);
     assert_eq!(
         audio.dolby_state().expect("state").active_profile,
         DolbyProfile::Game
