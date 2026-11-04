@@ -249,7 +249,12 @@ impl ProcessWorkingSet {
 pub struct ProcessState {
     pub priority_class: ProcessPriorityClass,
     pub affinity_mask: usize,
-    pub working_set: ProcessWorkingSet,
+    /// Hard working-set quota. `None` on platforms where the concept does not
+    /// exist (Linux has no per-process hard working-set limit); the field is
+    /// omitted from serialized output there instead of being filled with a
+    /// fabricated range.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub working_set: Option<ProcessWorkingSet>,
 }
 
 impl ProcessState {
@@ -259,7 +264,10 @@ impl ProcessState {
                 feature: "empty or multi-group process affinity mask".into(),
             });
         }
-        self.working_set.validate()
+        match &self.working_set {
+            Some(working_set) => working_set.validate(),
+            None => Ok(()),
+        }
     }
 }
 
@@ -267,13 +275,17 @@ impl fmt::Display for ProcessState {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             formatter,
-            "priority={} affinity=0x{:x} workset={}:{}:0x{:x}",
-            self.priority_class,
-            self.affinity_mask,
-            self.working_set.minimum_bytes,
-            self.working_set.maximum_bytes,
-            self.working_set.flags
-        )
+            "priority={} affinity=0x{:x}",
+            self.priority_class, self.affinity_mask
+        )?;
+        match &self.working_set {
+            Some(working_set) => write!(
+                formatter,
+                " workset={}:{}:0x{:x}",
+                working_set.minimum_bytes, working_set.maximum_bytes, working_set.flags
+            ),
+            None => Ok(()),
+        }
     }
 }
 

@@ -13,8 +13,10 @@
 //! `deci-C + 273.2 -> deci-K` (rounded to the nearest representable tenth).
 
 mod msr;
+mod process;
 
 pub use msr::{DevMsr, MsrAddress, MsrTransport};
+pub use process::LinuxProcessController;
 
 use std::fs;
 use std::io;
@@ -650,14 +652,31 @@ impl Hal for LinuxHal {
         self.record_node(&mut capabilities, "touchpad", TOUCHPAD)?;
         self.record_node(&mut capabilities, "privacy.camera", CAMERA_POWER)?;
 
-        // Process telemetry and per-process policy control are implemented on
-        // Windows only. The Linux backend is not attached, so the capability
-        // is reported unavailable instead of being implied by the registry.
-        for feature in ["perf.top", "perf.boost", "perf.throttle"] {
+        // Process telemetry is implemented through the `/proc` backend
+        // (`LinuxProcessController`). Per-process policy mutation is not:
+        // the `ProcessState` model carries a Windows hard working-set quota
+        // with no Linux equivalent, so `boost`/`throttle`/`restore` stay
+        // honestly unsupported rather than emitting a fabricated quota.
+        let proc_telemetry = fs::read_dir("/proc")
+            .map(|mut d| d.next().is_some())
+            .unwrap_or(false);
+        capabilities.record(
+            "perf.top",
+            if proc_telemetry {
+                Availability::Available
+            } else {
+                Availability::Unavailable
+            },
+            (!proc_telemetry).then(|| "/proc process samples are not readable".into()),
+        )?;
+        for feature in ["perf.boost", "perf.throttle"] {
             capabilities.record(
                 feature,
                 Availability::Unavailable,
-                Some("no Linux process telemetry backend is attached".into()),
+                Some(
+                    "process working-set quota is a Windows concept; no honest Linux quota model"
+                        .into(),
+                ),
             )?;
         }
 

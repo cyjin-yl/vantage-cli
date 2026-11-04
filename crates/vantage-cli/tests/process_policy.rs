@@ -76,12 +76,14 @@ fn snapshot(pid: u32) -> ProcessSnapshot {
         state: ProcessState {
             priority_class: ProcessPriorityClass::Normal,
             affinity_mask: 0b1111,
-            working_set: ProcessWorkingSet::new(
-                4096,
-                8192,
-                ProcessWorkingSet::HARDWS_MIN_ENABLE | ProcessWorkingSet::HARDWS_MAX_DISABLE,
-            )
-            .expect("valid working set"),
+            working_set: Some(
+                ProcessWorkingSet::new(
+                    4096,
+                    8192,
+                    ProcessWorkingSet::HARDWS_MIN_ENABLE | ProcessWorkingSet::HARDWS_MAX_DISABLE,
+                )
+                .expect("valid working set"),
+            ),
         },
     }
 }

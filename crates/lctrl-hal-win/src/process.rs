@@ -199,7 +199,7 @@ where
             }
         }
         if let Some(working_set) = policy.working_set {
-            requested.working_set = working_set;
+            requested.working_set = Some(working_set);
         }
         Ok(requested)
     }
@@ -261,7 +261,10 @@ where
         match field {
             ProcessField::Priority => self.api.set_priority_class(identity, state.priority_class),
             ProcessField::Affinity => self.api.set_affinity_mask(identity, state.affinity_mask),
-            ProcessField::WorkingSet => self.api.set_working_set(identity, state.working_set),
+            ProcessField::WorkingSet => match state.working_set {
+                Some(working_set) => self.api.set_working_set(identity, working_set),
+                None => Ok(()),
+            },
         }
     }
 
@@ -972,7 +975,7 @@ mod native {
             ProcessState {
                 priority_class,
                 affinity_mask,
-                working_set,
+                working_set: Some(working_set),
             },
             system_affinity_mask,
         ))

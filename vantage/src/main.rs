@@ -358,6 +358,7 @@ fn main() {
         return;
     }
     let hal = lctrl_hal_linux::LinuxHal::new();
+    let process = lctrl_hal_linux::LinuxProcessController::new();
     let services = vantage_cli::CommandServices::new(&hal)
         .with_battery(&hal)
         .with_conflict_detection(&hal)
@@ -368,6 +369,7 @@ fn main() {
         .with_privacy(&hal)
         .with_performance(&hal)
         .with_power(&hal)
+        .with_process(&process)
         .with_touchpad(&hal)
         .with_tuning(&hal)
         .with_temperature(&hal)

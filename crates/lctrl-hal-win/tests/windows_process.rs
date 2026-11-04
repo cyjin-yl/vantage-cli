@@ -108,7 +108,7 @@ impl ProcessApi for FakeProcessApi {
     ) -> Result<()> {
         self.guard(identity)?;
         self.writes.lock().push("working_set");
-        self.current.lock().state.working_set = working_set;
+        self.current.lock().state.working_set = Some(working_set);
         Ok(())
     }
 }
@@ -122,12 +122,14 @@ fn snapshot() -> ProcessSnapshot {
         state: ProcessState {
             priority_class: ProcessPriorityClass::Normal,
             affinity_mask: 0b1111,
-            working_set: ProcessWorkingSet::new(
-                4096,
-                8192,
-                ProcessWorkingSet::HARDWS_MIN_ENABLE | ProcessWorkingSet::HARDWS_MAX_DISABLE,
-            )
-            .unwrap(),
+            working_set: Some(
+                ProcessWorkingSet::new(
+                    4096,
+                    8192,
+                    ProcessWorkingSet::HARDWS_MIN_ENABLE | ProcessWorkingSet::HARDWS_MAX_DISABLE,
+                )
+                .unwrap(),
+            ),
         },
     }
 }
@@ -278,7 +280,14 @@ fn explicit_restore_recovers_priority_affinity_and_working_set_flags() {
     assert_eq!(report.actual(), Some(&saved.state));
     assert_eq!(controller.api().current.lock().state, previous.state);
     assert_eq!(
-        controller.api().current.lock().state.working_set.flags,
+        controller
+            .api()
+            .current
+            .lock()
+            .state
+            .working_set
+            .unwrap()
+            .flags,
         ProcessWorkingSet::HARDWS_MIN_ENABLE | ProcessWorkingSet::HARDWS_MAX_DISABLE
     );
 }

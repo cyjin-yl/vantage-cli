@@ -108,6 +108,9 @@ fn fixture(
         capability: Some(1),
         sensor_type: Some(2),
         facial_feature_registered: Some(true),
+        approach_auto_adjust: None,
+        camera_assist: None,
+        leave_auto_adjust: None,
     }));
     let rpc = FakeRpc {
         calls: Arc::new(Mutex::new(Vec::new())),
@@ -251,6 +254,9 @@ fn missing_registry_projection_does_not_block_the_rpc_read() {
         capability: Some(1),
         sensor_type: Some(2),
         facial_feature_registered: None,
+        approach_auto_adjust: None,
+        camera_assist: None,
+        leave_auto_adjust: None,
     }));
     let rpc = FakeRpc {
         calls: Arc::new(Mutex::new(Vec::new())),
@@ -286,6 +292,9 @@ fn an_advertised_feature_stays_available_when_its_value_cannot_be_modelled() {
         capability: Some(1),
         sensor_type: Some(2),
         facial_feature_registered: None,
+        approach_auto_adjust: None,
+        camera_assist: None,
+        leave_auto_adjust: None,
     };
     state.advertised = Some(0x0080);
     let state = Arc::new(Mutex::new(state));
