@@ -8,6 +8,7 @@ use lctrl_core::{
 use lctrl_hal::{BatteryControl, DbdcControl, FanControl, TemperatureControl, poll_readback};
 
 use crate::{GameZone, WmiObject, WmiTransport, WmiValue, wmi_contract::ROOT_WMI};
+use crate::{NativePerformanceRegistry, PerformanceRegistryReader};
 
 const BATTERY_SENSOR_ID: &str = "windows-battery-class/temperature";
 const THERMAL_ZONE_QUERY: &str =
@@ -145,10 +146,27 @@ where
     B: BatteryControl,
 {
     fn fan_mode(&self) -> Result<FanMode> {
-        let raw = GameZone::new(&self.wmi).smart_fan_mode()?;
-        let raw = u16::try_from(raw).map_err(|_| LctrlError::ChannelUnavailable {
-            channel: format!("GetSmartFanMode returned {raw}, outside the u16 fan-mode domain"),
-        })?;
+        // Prefer the GAMEZONE WMI channel; on 21VG it returns an out-of-domain
+        // value, so fall back to the dispatcher's registry mirror of the same
+        // smart-fan tier (`ITS_FanMode` under PowerSlider).
+        let wmi_raw = GameZone::new(&self.wmi)
+            .smart_fan_mode()
+            .ok()
+            .and_then(|v| u16::try_from(v).ok());
+        let raw = match wmi_raw {
+            Some(v) => v,
+            None => {
+                let reg = NativePerformanceRegistry
+                    .read_dword("ITS_FanMode")
+                    .map_err(|_| LctrlError::ChannelUnavailable {
+                        channel: "GetSmartFanMode out of range and ITS_FanMode registry unreadable"
+                            .to_string(),
+                    })?;
+                u16::try_from(reg).map_err(|_| LctrlError::ChannelUnavailable {
+                    channel: format!("ITS_FanMode registry value {reg} outside u16"),
+                })?
+            }
+        };
         Ok(FanMode::from_raw(raw))
     }
 
