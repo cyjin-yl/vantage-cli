@@ -2,7 +2,8 @@ use std::ffi::c_void;
 
 use lctrl_core::{LctrlError, Result};
 use windows_sys::Win32::System::Registry::{
-    HKEY_LOCAL_MACHINE, REG_VALUE_TYPE, RRF_RT_REG_DWORD, RegGetValueW,
+    HKEY, HKEY_LOCAL_MACHINE, KEY_SET_VALUE, REG_DWORD, REG_VALUE_TYPE, RRF_RT_REG_DWORD,
+    RegCloseKey, RegCreateKeyExW, RegGetValueW, RegSetValueExW,
 };
 
 use crate::{PerformanceRegistryReader, map_win_error};
@@ -49,6 +50,50 @@ impl PerformanceRegistryReader for NativePerformanceRegistry {
             });
         }
         Ok(data)
+    }
+
+    fn write_dword(&self, value: &str, data: u32) -> Result<()> {
+        let key = wide(POWER_SLIDER_KEY);
+        let name = wide(value);
+        let mut handle: HKEY = std::ptr::null_mut();
+        let status = unsafe {
+            RegCreateKeyExW(
+                HKEY_LOCAL_MACHINE,
+                key.as_ptr(),
+                0,
+                std::ptr::null_mut(),
+                0,
+                KEY_SET_VALUE,
+                std::ptr::null(),
+                &mut handle,
+                std::ptr::null_mut(),
+            )
+        };
+        if status != 0 {
+            return Err(map_win_error(
+                status,
+                &format!("open PowerSlider registry key for {value:?}"),
+            ));
+        }
+        let bytes = data.to_ne_bytes();
+        let status = unsafe {
+            RegSetValueExW(
+                handle,
+                name.as_ptr(),
+                0,
+                REG_DWORD,
+                bytes.as_ptr(),
+                bytes.len() as u32,
+            )
+        };
+        unsafe { RegCloseKey(handle) };
+        if status != 0 {
+            return Err(map_win_error(
+                status,
+                &format!("write PowerSlider registry value {value:?}"),
+            ));
+        }
+        Ok(())
     }
 }
 

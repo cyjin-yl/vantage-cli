@@ -11,13 +11,29 @@ use lctrl_hal_win::{
 
 struct FakeRegistry {
     values: Mutex<Vec<(&'static str, u32)>>,
+    writes: Mutex<Vec<(&'static str, u32)>>,
+    ignore_writes: bool,
 }
 
 impl FakeRegistry {
     fn new(values: impl IntoIterator<Item = (&'static str, u32)>) -> Self {
         Self {
             values: Mutex::new(values.into_iter().collect()),
+            writes: Mutex::new(Vec::new()),
+            ignore_writes: false,
         }
+    }
+
+    fn ignoring_writes(values: impl IntoIterator<Item = (&'static str, u32)>) -> Self {
+        Self {
+            values: Mutex::new(values.into_iter().collect()),
+            writes: Mutex::new(Vec::new()),
+            ignore_writes: true,
+        }
+    }
+
+    fn writes(&self) -> Vec<(&'static str, u32)> {
+        self.writes.lock().clone()
     }
 }
 
@@ -31,6 +47,33 @@ impl PerformanceRegistryReader for FakeRegistry {
             .ok_or_else(|| LctrlError::ChannelUnavailable {
                 channel: format!("missing test registry {value}"),
             })
+    }
+
+    fn write_dword(&self, value: &str, data: u32) -> lctrl_core::Result<()> {
+        // Leak the key so the stored tuple can keep a 'static name only when
+        // the caller passed one; read path looks up by the same literal.
+        let name: &'static str = Box::leak(value.to_string().into_boxed_str());
+        self.writes.lock().push((name, data));
+        let mut values = self.values.lock();
+        if self.ignore_writes {
+            return Ok(());
+        }
+        if let Some(entry) = values.iter_mut().find(|(n, _)| *n == value) {
+            entry.1 = data;
+        } else {
+            values.push((name, data));
+        }
+        Ok(())
+    }
+}
+
+impl PerformanceRegistryReader for &FakeRegistry {
+    fn read_dword(&self, value: &str) -> lctrl_core::Result<u32> {
+        (**self).read_dword(value)
+    }
+
+    fn write_dword(&self, value: &str, data: u32) -> lctrl_core::Result<()> {
+        (**self).write_dword(value, data)
     }
 }
 
@@ -275,4 +318,110 @@ fn an_unowned_current_scheme_is_refused_before_writing() {
 
     assert!(matches!(error, LctrlError::ChannelUnavailable { .. }));
     assert!(overlay.writes().is_empty());
+}
+
+fn modern_registry(values: &[(&'static str, u32)]) -> FakeRegistry {
+    FakeRegistry::new(
+        // Overrides come first: `read_dword` returns the first matching entry,
+        // so a duplicate name must have the override ahead of the base value.
+        values.iter().copied().chain(
+            [
+                ("VERSION", 0x4000u32),
+                ("ITS_CurrentSetting", 1),
+                ("ITS_CurrentSettingV", 1),
+                ("ITS_AutomaticModeSetting", 0),
+                ("Policy_ModernITS", 0),
+            ]
+            .into_iter(),
+        ),
+    )
+}
+
+#[test]
+fn dispatcher_owned_automatic_mode_writes_only_the_overlay() {
+    let overlay = FakeOverlay::starting_at(OverlayGuid::BALANCED);
+    // AutomaticModeSetting == 7: the dispatcher chooses ITS_CurrentSetting; a
+    // manual tier write would fight it, so only the overlay may change.
+    let registry = modern_registry(&[("ITS_AutomaticModeSetting", 7)]);
+    let controller = WindowsPerformanceP0::with_overlay(&registry, &overlay);
+
+    let report = controller
+        .set_performance_mode(PerformanceMode::Performance, ApplyMode::Commit)
+        .unwrap();
+
+    assert_eq!(report.actual(), Some(&PerformanceMode::Performance));
+    // Overlay committed; the ITS tier must not have been touched.
+    let writes = registry.writes();
+    assert!(
+        writes.is_empty(),
+        "auto-mode must not write ITS, got {writes:?}"
+    );
+}
+
+#[test]
+fn modern_its_policy_blocks_the_tier_write() {
+    let overlay = FakeOverlay::starting_at(OverlayGuid::BALANCED);
+    let registry = modern_registry(&[("Policy_ModernITS", 1)]);
+    let controller = WindowsPerformanceP0::with_overlay(&registry, &overlay);
+
+    controller
+        .set_performance_mode(PerformanceMode::Performance, ApplyMode::Commit)
+        .unwrap();
+
+    assert!(registry.writes().is_empty());
+}
+
+#[test]
+fn dispatcher_free_mode_writes_and_verifies_the_its_tier() {
+    let overlay = FakeOverlay::starting_at(OverlayGuid::BALANCED);
+    let registry = modern_registry(&[]);
+    let controller = WindowsPerformanceP0::with_overlay(&registry, &overlay);
+
+    let report = controller
+        .set_performance_mode(PerformanceMode::Performance, ApplyMode::Commit)
+        .unwrap();
+
+    assert_eq!(report.actual(), Some(&PerformanceMode::Performance));
+    let writes = registry.writes();
+    assert_eq!(writes, vec![("ITS_CurrentSetting", 3)]);
+}
+
+#[test]
+fn its_readback_mismatch_rolls_back_tier_and_overlay() {
+    // A registry that accepts the write but never reflects it: the firmware
+    // did not take the tier, so both the registry and overlay must restore.
+    let overlay = FakeOverlay::starting_at(OverlayGuid::BALANCED);
+    let registry = FakeRegistry::ignoring_writes([
+        ("VERSION", 0x4000u32),
+        ("ITS_CurrentSetting", 1),
+        ("ITS_CurrentSettingV", 1),
+        ("ITS_AutomaticModeSetting", 0),
+        ("Policy_ModernITS", 0),
+    ]);
+    let controller = WindowsPerformanceP0::with_overlay(&registry, &overlay);
+
+    let error = controller
+        .set_performance_mode(PerformanceMode::Performance, ApplyMode::Commit)
+        .expect_err("an ITS readback that never confirms must roll back");
+
+    assert!(matches!(error, LctrlError::VerifyMismatch { .. }));
+    // Overlay restored to the prior scheme.
+    assert_eq!(
+        overlay.writes(),
+        vec![OverlayGuid::PERFORMANCE, OverlayGuid::BALANCED]
+    );
+}
+
+#[test]
+fn legacy_schema_never_fabricates_modern_its_keys() {
+    // The shared `reader()` fixture has only CURRENT_* legacy names; the ITS
+    // path must stay inert and the overlay change still reported.
+    let overlay = FakeOverlay::starting_at(OverlayGuid::BALANCED);
+    let controller = WindowsPerformanceP0::with_overlay(reader(0x3000, 1, 1, 0, 0x1b), &overlay);
+
+    controller
+        .set_performance_mode(PerformanceMode::Performance, ApplyMode::Commit)
+        .unwrap();
+
+    assert!(overlay.writes() == vec![OverlayGuid::PERFORMANCE]);
 }

@@ -13,6 +13,17 @@ use crate::power_overlay::{
 /// state and never drives hardware.
 pub trait PerformanceRegistryReader: Send + Sync {
     fn read_dword(&self, value: &str) -> Result<u32>;
+
+    /// Persist a PowerSlider `REG_DWORD`. Used only when the ITS dispatcher
+    /// does not own the mode (automatic mode off, ModernITS not asserted).
+    /// Implemented on `NativePerformanceRegistry`; the default refuses so a
+    /// read-only test fixture stays honest.
+    fn write_dword(&self, value: &str, data: u32) -> Result<()> {
+        let _ = data;
+        Err(LctrlError::Unsupported {
+            feature: format!("PowerSlider registry write {value:?}"),
+        })
+    }
 }
 
 /// Windows performance control.
@@ -132,7 +143,15 @@ where
 
         let observed_guid = self.overlay.actual()?;
         match mode_for_overlay(&observed_guid) {
-            Some(actual) if actual == mode => Ok(ChangeReport::committed(previous, mode, actual)),
+            Some(actual) if actual == mode => {
+                // Also drive the vendor ITS tier when the dispatcher does not
+                // own it. `ITS_AutomaticModeSetting == 7` means the dispatcher
+                // chooses ITS_CurrentSetting itself; `Policy_ModernITS`
+                // asserts an active policy owner. Writing then would fight the
+                // firmware/service, so we report the overlay change and leave
+                // the tier alone.
+                self.sync_its_tier(mode, previous, &target, &previous_guid, actual)
+            }
             _ => {
                 let restore = self.overlay.set_active(&previous_guid);
                 match restore {
@@ -149,6 +168,70 @@ where
                 }
             }
         }
+    }
+}
+
+impl<R: PerformanceRegistryReader, O: PowerOverlayControl> WindowsPerformanceP0<R, O> {
+    /// Best-effort ITS-tier write; honest on failure. Only runs after the
+    /// overlay already committed to `mode`. Rolls back the ITS value and the
+    /// overlay if the ITS readback does not confirm the requested tier.
+    fn sync_its_tier(
+        &self,
+        mode: PerformanceMode,
+        previous: PerformanceMode,
+        target: &OverlayGuid,
+        previous_guid: &OverlayGuid,
+        actual: PerformanceMode,
+    ) -> Result<ChangeReport<PerformanceMode>> {
+        const AUTO_MODE_SENTINEL: u32 = 7;
+        let read = |value: &str| self.registry.read_dword(value).ok();
+
+        // Vendor-only modes have no documented ITS tier; overlay-only change.
+        let its_tier = mode.its_value();
+        if its_tier == 0 {
+            return Ok(ChangeReport::committed(previous, mode, actual));
+        }
+
+        // Only drive the tier when the modern `ITS_*` schema is actually
+        // present; a legacy-only surface (CURRENT_SETTING/CURRENT_STATE) is a
+        // different dispatcher and we must not fabricate modern keys on it.
+        if read("ITS_CurrentSetting").is_none() {
+            return Ok(ChangeReport::committed(previous, mode, actual));
+        }
+
+        let auto_mode = read("ITS_AutomaticModeSetting").or_else(|| read("AUTOMATIC_MODE_SETTING"));
+        let modern_its = read("Policy_ModernITS").or_else(|| read("POLICY_MODERNITS"));
+        if auto_mode == Some(AUTO_MODE_SENTINEL) || modern_its == Some(1) {
+            // Dispatcher/policy owns the tier; overlay change stands on its own.
+            return Ok(ChangeReport::committed(previous, mode, actual));
+        }
+
+        let prior_its = read("ITS_CurrentSetting").or_else(|| read("CURRENT_SETTING"));
+        self.registry
+            .write_dword("ITS_CurrentSetting", its_tier)
+            .map_err(|e| LctrlError::FirmwareRejected {
+                detail: format!("ITS tier write failed: {e}"),
+            })?;
+
+        // Read back the value we wrote first — that proves our write landed.
+        // `ITS_CurrentSettingV` is the dispatcher's own confirmed echo and lags
+        // a manual write, so prefer the direct setting mirror.
+        let observed = read("ITS_CurrentSetting")
+            .or_else(|| read("CURRENT_SETTING"))
+            .or_else(|| read("ITS_CurrentSettingV"));
+        if observed == Some(its_tier) {
+            return Ok(ChangeReport::committed(previous, mode, actual));
+        }
+
+        // Readback mismatch: restore ITS and the overlay.
+        if let Some(prior) = prior_its {
+            let _ = self.registry.write_dword("ITS_CurrentSetting", prior);
+        }
+        let _ = self.overlay.set_active(previous_guid);
+        Err(LctrlError::VerifyMismatch {
+            requested: format!("ITS tier {its_tier} ({mode}, overlay {target})"),
+            actual: format!("ITS readback {observed:?}"),
+        })
     }
 }
 

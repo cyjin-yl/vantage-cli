@@ -36,8 +36,6 @@ mod catalog {
         /// `ConfigUpdateRequired=1` marks the cached config stale.
         #[serde(default)]
         pub(crate) config_update_required: Option<u32>,
-        #[serde(default)]
-        pub(crate) update_check_date_time: Option<String>,
     }
 
     #[derive(Debug, Deserialize)]
