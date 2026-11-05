@@ -12,6 +12,7 @@ homepage = "https://github.com/cyjin-yl/vantage-cli"
 lctrl-core = { path = "../lctrl-core", version = "0.1.0" }
 lctrl-hal = { path = "../lctrl-hal", version = "0.1.0" }
 serde_json.workspace = true
+serde.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 wmi = "0.18"

@@ -66,6 +66,7 @@ mod sense;
 mod sense_rpc;
 mod system_inventory;
 mod thermal;
+mod update_catalog;
 #[cfg(windows)]
 mod wifi_security;
 #[cfg(windows)]

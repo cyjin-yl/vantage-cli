@@ -3086,6 +3086,7 @@ dependencies = [
  "lctrl-core",
  "lctrl-hal",
  "parking_lot",
+ "serde",
  "serde_json",
  "windows-sys 0.61.2",
  "wmi",

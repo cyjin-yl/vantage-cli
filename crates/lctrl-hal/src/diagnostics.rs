@@ -25,4 +25,13 @@ pub trait DiagnosticsControl: Send + Sync {
 
 pub trait UpdateControl: Send + Sync {
     fn update_capability(&self) -> Result<UpdateCapability>;
+
+    /// Report what the machine's synced update catalog offers, after the
+    /// device's own applicability filter. Read-only. Backends without a
+    /// readable catalog stay honest.
+    fn check_updates(&self) -> Result<lctrl_core::UpdateCheckReport> {
+        Err(lctrl_core::LctrlError::Unsupported {
+            feature: "update.check".into(),
+        })
+    }
 }

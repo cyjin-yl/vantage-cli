@@ -5481,14 +5481,57 @@ fn execute_update(
         feature: "update".into(),
     })?;
     match command {
-        UpdateCommand::Check { .. } => match update.update_capability()? {
-            capability @ UpdateCapability::TrustedLocalInfOnly => {
-                structured_output(&capability, "update capability checked\n".into())
+        UpdateCommand::Check { .. } => {
+            // Prefer the synced-catalog report when the backend can evaluate
+            // it (Windows UDC). Fall back to the capability summary for
+            // backends without a readable catalog (Linux / no UDC config).
+            match update.check_updates() {
+                Ok(report) => {
+                    let mut human = format!(
+                        "{} package(s) offered by the synced update catalog\n",
+                        report.packages.len()
+                    );
+                    if let Some(sync) = &report.last_sync {
+                        human.push_str(&format!("catalog synced: {sync}\n"));
+                    }
+                    if report.stale {
+                        human.push_str("catalog is marked stale\n");
+                    }
+                    for package in &report.packages {
+                        human.push_str(&format!(
+                            "  {} {} ({})\n",
+                            package.name,
+                            package.version,
+                            package
+                                .update_type
+                                .clone()
+                                .unwrap_or_else(|| "unknown".into())
+                        ));
+                    }
+                    structured_output(&report, human)
+                }
+                Err(check_error) => {
+                    if matches!(check_error, LctrlError::Unsupported { .. }) {
+                        // Backend has no catalog evaluator (Linux): keep the
+                        // capability-summary fallback.
+                        match update.update_capability()? {
+                            capability @ UpdateCapability::TrustedLocalInfOnly => {
+                                structured_output(&capability, "update capability checked\n".into())
+                            }
+                            UpdateCapability::Unavailable { reason } => {
+                                Err(LctrlError::ChannelUnavailable {
+                                    channel: format!("update catalog: {reason}"),
+                                })
+                            }
+                        }
+                    } else {
+                        // The catalog exists but the read/eval failed; the real
+                        // error is more useful than the generic Unavailable.
+                        Err(check_error)
+                    }
+                }
             }
-            UpdateCapability::Unavailable { reason } => Err(LctrlError::ChannelUnavailable {
-                channel: format!("update catalog: {reason}"),
-            }),
-        },
+        }
         UpdateCommand::LocalDriver { command } => execute_local_driver(local_update, command),
         UpdateCommand::Download { .. } => Err(LctrlError::Unsupported {
             feature: "update.download.without-authenticated-manifest".into(),

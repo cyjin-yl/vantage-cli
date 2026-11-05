@@ -431,3 +431,39 @@ pub enum UpdateCapability {
     TrustedLocalInfOnly,
     Unavailable { reason: String },
 }
+
+/// One package offered by the machine's synced update catalog (Lenovo UDC).
+/// This is a report only — download/install stay gated on the mTLS contract.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct CatalogPackage {
+    pub name: String,
+    pub version: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub package_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub update_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size_bytes: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub manifest_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub download_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_hash: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub handler: Option<String>,
+}
+
+/// The result of evaluating the synced update catalog against this machine.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct UpdateCheckReport {
+    /// Catalog provenance: when UDC last synced the config (RFC 3339 as stored).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_sync: Option<String>,
+    /// Whether the catalog is known stale (ConfigUpdateRequired=1 or no
+    /// packages evaluated). An empty `packages` with `stale=true` is an honest
+    /// "nothing offered", never a fabricated list.
+    pub stale: bool,
+    /// Packages whose applicability filter matches this machine.
+    pub packages: Vec<CatalogPackage>,
+}

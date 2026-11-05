@@ -12,6 +12,7 @@ use lctrl_core::{
     DiagnosticCancellationReason, DiagnosticKind, DiagnosticMeasurement, DiagnosticOutcome,
     DiagnosticReason, DiagnosticResult, DiagnosticRunOptions, DiagnosticRunState,
     DiagnosticStatusSnapshot, DiagnosticThreshold, LctrlError, Result, UpdateCapability,
+    UpdateCheckReport,
 };
 use lctrl_hal::{DiagnosticsControl, UpdateControl};
 
@@ -81,6 +82,29 @@ where
         Ok(UpdateCapability::Unavailable {
             reason: "no authenticated public Lenovo update catalog/manifest contract is specified; private MCP packages and firmware flashing are excluded".into(),
         })
+    }
+
+    /// Report the packages the synced Lenovo UDC catalog offers this machine.
+    /// The live server check needs the mTLS client certificate, which this
+    /// backend does not present; what is available read-only is the signed
+    /// `LastUpdateConfig` the UDC service already wrote to the registry, plus
+    /// the device's own `Applicability\Tags`. Evaluating those yields the
+    /// offered set without a network call. Read-only: download/install stay
+    /// gated on the mTLS contract.
+    fn check_updates(&self) -> Result<UpdateCheckReport> {
+        // The device's machine-type-model for the `mtm` applicability term.
+        let product = self
+            .transport
+            .query(ROOT_CIMV2, "SELECT Name FROM Win32_ComputerSystemProduct")?;
+        let mtm = product
+            .first()
+            .and_then(|object| object.get("Name"))
+            .and_then(|value| match value {
+                WmiValue::String(text) => Some(text.trim().to_string()),
+                _ => None,
+            })
+            .unwrap_or_default();
+        crate::update_catalog::check_updates_impl(&mtm)
     }
 }
 

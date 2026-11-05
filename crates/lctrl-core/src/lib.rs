@@ -40,10 +40,11 @@ pub use command_capability::{
     HardwarePresence, HardwareRequirement, Readback, Rollback, StateLayer, optional, required,
 };
 pub use diagnostics::{
-    DEFAULT_DIAGNOSTIC_ITEM_DEADLINE, DiagnosticCancellationReason, DiagnosticCancellationToken,
-    DiagnosticKind, DiagnosticMeasurement, DiagnosticOutcome, DiagnosticReason, DiagnosticResult,
-    DiagnosticRunOptions, DiagnosticRunState, DiagnosticStatusSnapshot, DiagnosticThreshold,
-    DiagnosticThresholdComparison, DiagnosticValue, UpdateCapability,
+    CatalogPackage, DEFAULT_DIAGNOSTIC_ITEM_DEADLINE, DiagnosticCancellationReason,
+    DiagnosticCancellationToken, DiagnosticKind, DiagnosticMeasurement, DiagnosticOutcome,
+    DiagnosticReason, DiagnosticResult, DiagnosticRunOptions, DiagnosticRunState,
+    DiagnosticStatusSnapshot, DiagnosticThreshold, DiagnosticThresholdComparison, DiagnosticValue,
+    UpdateCapability, UpdateCheckReport,
 };
 pub use error::{ErrorReport, LctrlError, Result};
 pub use inventory::{
