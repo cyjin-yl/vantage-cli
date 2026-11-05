@@ -434,7 +434,11 @@ mod imp {
         let packages = evaluate(&config, &device);
         let stale = config.config_update_required.unwrap_or(0) == 1 || packages.is_empty();
         Ok(UpdateCheckReport {
-            last_sync: config.update_check_date_time,
+            // `UpdateCheckDateTime` is a sibling registry value, not a JSON
+            // field — it is the catalog's sync provenance.
+            last_sync: read_sz(UDC_PACKAGES_KEY, "UpdateCheckDateTime")?
+                .map(|v| v.trim().to_string())
+                .filter(|v| !v.is_empty()),
             stale,
             packages,
         })
