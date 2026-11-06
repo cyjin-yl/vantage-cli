@@ -1,6 +1,6 @@
 [package]
 name = "lctrl-hal-win"
-version = "0.1.0"
+version = "1.0.0"
 edition.workspace = true
 rust-version.workspace = true
 description = "Windows HAL backend for Vantage (WMI/IOCTL/RPC)"
@@ -9,8 +9,8 @@ repository.workspace = true
 homepage = "https://github.com/cyjin-yl/vantage-cli"
 
 [dependencies]
-lctrl-core = { path = "../lctrl-core", version = "0.1.0" }
-lctrl-hal = { path = "../lctrl-hal", version = "0.1.0" }
+lctrl-core = { path = "../lctrl-core", version = "1.0.0" }
+lctrl-hal = { path = "../lctrl-hal", version = "1.0.0" }
 serde_json.workspace = true
 serde.workspace = true
 

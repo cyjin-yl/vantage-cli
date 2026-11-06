@@ -3055,7 +3055,7 @@ dependencies = [
 
 [[package]]
 name = "lctrl-core"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -3064,7 +3064,7 @@ dependencies = [
 
 [[package]]
 name = "lctrl-hal"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "lctrl-core",
  "serde",
@@ -3072,7 +3072,7 @@ dependencies = [
 
 [[package]]
 name = "lctrl-hal-linux"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "lctrl-core",
  "lctrl-hal",
@@ -3080,7 +3080,7 @@ dependencies = [
 
 [[package]]
 name = "lctrl-hal-win"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "futures",
  "lctrl-core",
@@ -3094,7 +3094,7 @@ dependencies = [
 
 [[package]]
 name = "lctrl-tune"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "lctrl-core",
  "serde",
@@ -6137,7 +6137,7 @@ dependencies = [
 
 [[package]]
 name = "vantage-daemon"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "lctrl-core",
  "lctrl-hal",
@@ -6152,7 +6152,7 @@ dependencies = [
 
 [[package]]
 name = "vantage-gui"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "gpui",
  "idna_adapter",

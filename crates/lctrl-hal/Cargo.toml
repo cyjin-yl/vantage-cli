@@ -1,6 +1,6 @@
 [package]
 name = "lctrl-hal"
-version = "0.1.0"
+version = "1.0.0"
 edition.workspace = true
 rust-version.workspace = true
 description = "Hardware abstraction traits for Vantage"
@@ -9,6 +9,6 @@ repository.workspace = true
 homepage = "https://github.com/cyjin-yl/vantage-cli"
 
 [dependencies]
-lctrl-core = { path = "../lctrl-core", version = "0.1.0" }
+lctrl-core = { path = "../lctrl-core", version = "1.0.0" }
 serde.workspace = true
 

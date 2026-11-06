@@ -1,6 +1,6 @@
 [package]
 name = "lctrl-hal-linux"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
 rust-version = "1.85"
 description = "Linux HAL backend for Vantage (ideapad/sysfs/RAPL)"
@@ -9,5 +9,5 @@ repository.workspace = true
 homepage = "https://github.com/cyjin-yl/vantage-cli"
 
 [dependencies]
-lctrl-core = { path = "../lctrl-core", version = "0.1.0" }
-lctrl-hal = { path = "../lctrl-hal", version = "0.1.0" }
+lctrl-core = { path = "../lctrl-core", version = "1.0.0" }
+lctrl-hal = { path = "../lctrl-hal", version = "1.0.0" }

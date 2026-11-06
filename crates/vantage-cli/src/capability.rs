@@ -934,21 +934,40 @@ fn evaluate_command(
                 dependencies(entry, platform),
             );
         }
-        (DispatchSupport::Implemented, _service, FeaturePresence::Unsupported) => {
-            ObservedStatus::Unsupported
-        }
-        (DispatchSupport::Implemented, _service, FeaturePresence::Unavailable) => {
-            ObservedStatus::Unavailable
+        (DispatchSupport::Implemented, _service, FeaturePresence::Unsupported)
+        | (DispatchSupport::Implemented, _service, FeaturePresence::Unavailable)
+        | (DispatchSupport::Implemented, _service, FeaturePresence::Limited)
+        | (DispatchSupport::Implemented, _service, FeaturePresence::Unverified) => {
+            // The feature probe recorded a reason on the capability record;
+            // surface it so `capability` does not print a bare status.
+            let detail = feature_reason(entry.feature, capabilities);
+            return make(
+                entry,
+                hardware,
+                match feature {
+                    FeaturePresence::Unsupported => ObservedStatus::Unsupported,
+                    FeaturePresence::Unavailable => ObservedStatus::Unavailable,
+                    FeaturePresence::Limited => ObservedStatus::Limited,
+                    _ => ObservedStatus::Unverified,
+                },
+                detail,
+                service_roles,
+                dependencies(entry, platform),
+            );
         }
         (DispatchSupport::Implemented, ServicePresence::Unexposed, _) => ObservedStatus::Unverified,
         // A composite command whose service legs are partially present can
         // still do verified work; it is limited, not unverified.
-        (DispatchSupport::Implemented, ServicePresence::Partial, _) => ObservedStatus::Limited,
-        (DispatchSupport::Implemented, _service, FeaturePresence::Limited) => {
-            ObservedStatus::Limited
-        }
-        (DispatchSupport::Implemented, _service, FeaturePresence::Unverified) => {
-            ObservedStatus::Unverified
+        (DispatchSupport::Implemented, ServicePresence::Partial, _) => {
+            let detail = feature_reason(entry.feature, capabilities);
+            return make(
+                entry,
+                hardware,
+                ObservedStatus::Limited,
+                detail,
+                service_roles,
+                dependencies(entry, platform),
+            );
         }
         (DispatchSupport::Implemented, _service, FeaturePresence::Available) => {
             if entry.hardware != HardwareRequirement::None
@@ -968,6 +987,29 @@ fn evaluate_command(
         service_roles,
         dependencies(entry, platform),
     )
+}
+
+/// The detail string a feature probe recorded, or `None` when the probe
+/// ran clean or the feature was never recorded.
+fn feature_reason(
+    binding: FeatureBinding,
+    capabilities: &CapabilitySet,
+) -> Option<String> {
+    let features = match binding {
+        FeatureBinding::Capability(feature) | FeatureBinding::Unprobed(feature) => vec![feature],
+        FeatureBinding::AnyOf(features) | FeatureBinding::Dynamic(features) => {
+            features.to_vec()
+        }
+        FeatureBinding::LocalOnly | FeatureBinding::ServiceOnly => return None,
+    };
+    for feature in features {
+        if let Some(capability) = capabilities.get(feature) {
+            if let Some(detail) = &capability.detail {
+                return Some(detail.clone());
+            }
+        }
+    }
+    None
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
