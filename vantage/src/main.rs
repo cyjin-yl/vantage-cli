@@ -102,9 +102,7 @@ fn handle_daemon_command(cli: &Cli, json: bool) -> bool {
 
 fn execute_daemon_command(command: &DaemonCommand, dry_run: bool) -> CommandResult {
     match command {
-        DaemonCommand::Status => {
-            daemon_request(vantage_daemon::DaemonRequest::Status, "daemon status")
-        }
+        DaemonCommand::Status => daemon_status(),
         DaemonCommand::Stop => {
             daemon_request(vantage_daemon::DaemonRequest::Stop, "daemon stopped")
         }
@@ -126,6 +124,275 @@ fn daemon_request(request: vantage_daemon::DaemonRequest, human: &str) -> Comman
         human: format!("{human}\n"),
         json: response.data.unwrap_or(serde_json::Value::Null),
     })
+}
+
+/// `daemon status` reports only what can be observed: one IPC probe plus the
+/// on-disk autostart record. A daemon that is not running is a normal answer
+/// (exit 0 with `running: false`); an endpoint that exists but cannot complete
+/// the exchange is a fault and stays an error.
+///
+/// The daemon keeps no log, so `observed_error` is strictly what this
+/// invocation saw; a failure from an earlier daemon lifetime is not
+/// recoverable here.
+fn daemon_status() -> CommandResult {
+    use vantage_daemon::StatusProbe;
+
+    let endpoint = vantage_daemon::endpoint_text();
+    let autostart = daemon_autostart();
+    let mut running = false;
+    let mut daemon = None;
+    let mut uptime_ms = None;
+    let mut event_count = None;
+    let mut last_event = None;
+    let mut protocol_matches = None;
+    let mut observed_error = None;
+    let mut human = String::new();
+
+    match vantage_daemon::probe() {
+        StatusProbe::Running(status) => {
+            running = true;
+            let uptime = unix_time_ms().saturating_sub(status.started_at_unix_ms);
+            let version = if status.version.is_empty() {
+                "unreported"
+            } else {
+                status.version.as_str()
+            };
+            human.push_str(&format!(
+                "daemon: running\n  endpoint: {endpoint}\n  version: {version} (protocol {})\n  pid: {}\n  uptime: {}\n  subscribers: {}\n  buffered events: {}/{}\n",
+                status.protocol_version,
+                status.pid,
+                format_uptime(uptime),
+                status.subscribers,
+                status.last_events.len(),
+                vantage_daemon::MAX_EVENTS,
+            ));
+            if let Some(event) = status.last_events.last() {
+                human.push_str(&format!(
+                    "  last event: {} at {} (unix ms)\n",
+                    event.kind,
+                    event.ts_unix_ms
+                ));
+                last_event = Some(serde_json::to_value(event).map_err(serialization_error)?);
+            }
+            if status.protocol_version != vantage_daemon::PROTOCOL_VERSION {
+                human.push_str(&format!(
+                    "  warning: the daemon speaks protocol {}, this CLI speaks {}\n",
+                    status.protocol_version,
+                    vantage_daemon::PROTOCOL_VERSION
+                ));
+            }
+            uptime_ms = Some(uptime);
+            event_count = Some(status.last_events.len());
+            protocol_matches = Some(status.protocol_version == vantage_daemon::PROTOCOL_VERSION);
+            daemon = Some(serde_json::to_value(&status).map_err(serialization_error)?);
+        }
+        StatusProbe::Absent { detail } => {
+            human.push_str(&format!(
+                "daemon: not running\n  endpoint: {endpoint}\n  last error: {detail} (observed by this status call; the daemon keeps no log)\n"
+            ));
+            observed_error = Some(detail);
+        }
+        StatusProbe::Fault { detail } => {
+            return Err(lctrl_core::LctrlError::ChannelUnavailable {
+                channel: format!("daemon status: {detail}"),
+            });
+        }
+    }
+    human.push_str(&autostart.human());
+
+    Ok(CommandOutput {
+        human,
+        json: serde_json::json!({
+            "running": running,
+            "endpoint": endpoint,
+            "cli_version": env!("CARGO_PKG_VERSION"),
+            "cli_protocol_version": vantage_daemon::PROTOCOL_VERSION,
+            "protocol_matches": protocol_matches,
+            "daemon": daemon,
+            "uptime_ms": uptime_ms,
+            "event_count": event_count,
+            "last_event": last_event,
+            "autostart": autostart.json(),
+            "observed_error": observed_error,
+            "observed_error_scope": "this status invocation only; the daemon keeps no log",
+        }),
+    })
+}
+
+fn serialization_error(error: serde_json::Error) -> lctrl_core::LctrlError {
+    lctrl_core::LctrlError::Io(std::io::Error::other(error))
+}
+
+fn unix_time_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |elapsed| {
+            u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX)
+        })
+}
+
+fn format_uptime(milliseconds: u64) -> String {
+    let seconds = milliseconds / 1000;
+    let (hours, minutes, seconds) = (seconds / 3600, (seconds / 60) % 60, seconds % 60);
+    if hours > 0 {
+        format!("{hours}h{minutes:02}m{seconds:02}s")
+    } else if minutes > 0 {
+        format!("{minutes}m{seconds:02}s")
+    } else {
+        format!("{seconds}s")
+    }
+}
+
+/// The installed-autostart record, read from disk. Nothing here starts, stops
+/// or modifies a service.
+struct DaemonAutostart {
+    kind: &'static str,
+    path: Option<PathBuf>,
+    installed: bool,
+    /// `None` when the platform record does not expose an inspected state.
+    enabled: Option<bool>,
+    note: &'static str,
+}
+
+impl DaemonAutostart {
+    fn json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "kind": self.kind,
+            "path": self.path.as_ref().map(|path| path.display().to_string()),
+            "installed": self.installed,
+            "enabled": self.enabled,
+            "note": self.note,
+        })
+    }
+
+    fn human(&self) -> String {
+        let Some(path) = &self.path else {
+            return format!("  autostart: {}\n", self.note);
+        };
+        let state = match self.enabled {
+            Some(true) => ", enabled",
+            Some(false) => ", not enabled",
+            None => "",
+        };
+        format!(
+            "  autostart: {} at {}{state} ({})\n",
+            self.kind,
+            path.display(),
+            self.note
+        )
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn daemon_autostart() -> DaemonAutostart {
+    let unit = match daemon_unit_path() {
+        Ok(path) => path,
+        Err(_) => {
+            return DaemonAutostart {
+                kind: "systemd-user-unit",
+                path: None,
+                installed: false,
+                enabled: None,
+                note: "HOME and XDG_CONFIG_HOME are unset, so no user unit path resolves",
+            };
+        }
+    };
+    let installed = unit.is_file();
+    // `systemctl --user enable` with `WantedBy=default.target` writes this
+    // symlink, so its presence is the enable evidence; a status query does not
+    // call the service manager.
+    let mut enabled = None;
+    if installed {
+        enabled = Some(daemon_unit_enable_link().is_ok_and(|link| link.is_symlink()));
+    }
+    DaemonAutostart {
+        kind: "systemd-user-unit",
+        path: Some(unit),
+        installed,
+        enabled,
+        note: match enabled {
+            Some(true) => "enabled for default.target",
+            Some(false) => "not enabled for default.target",
+            None => "the unit file is absent; run `vantage daemon install`",
+        },
+    }
+}
+
+#[cfg(windows)]
+fn daemon_autostart() -> DaemonAutostart {
+    let task = daemon_task_path();
+    let installed = task.is_file();
+    let note = if installed {
+        "the task record exists; its enabled state is not inspected"
+    } else {
+        "the task record is absent; run `vantage daemon install`"
+    };
+    DaemonAutostart {
+        kind: "logon-task",
+        path: Some(task),
+        installed,
+        enabled: None,
+        note,
+    }
+}
+
+#[cfg(not(any(target_os = "linux", windows)))]
+fn daemon_autostart() -> DaemonAutostart {
+    DaemonAutostart {
+        kind: "unsupported",
+        path: None,
+        installed: false,
+        enabled: None,
+        note: "autostart is not implemented on this platform",
+    }
+}
+
+/// The user config root that both `daemon install` and `daemon status` resolve.
+#[cfg(target_os = "linux")]
+fn daemon_config_root() -> lctrl_core::Result<PathBuf> {
+    std::env::var_os("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".config")))
+        .ok_or_else(|| lctrl_core::LctrlError::ChannelUnavailable {
+            channel: "HOME or XDG_CONFIG_HOME".into(),
+        })
+}
+
+/// Unit file name shared by `daemon install` and `daemon status`.
+#[cfg(target_os = "linux")]
+const DAEMON_UNIT_NAME: &str = "vantaged.service";
+
+/// The systemd user-unit directory under the shared config root.
+#[cfg(target_os = "linux")]
+fn daemon_unit_dir() -> lctrl_core::Result<PathBuf> {
+    Ok(daemon_config_root()?.join("systemd/user"))
+}
+
+/// The user unit `daemon install` writes and `daemon status` reports.
+#[cfg(target_os = "linux")]
+fn daemon_unit_path() -> lctrl_core::Result<PathBuf> {
+    Ok(daemon_unit_dir()?.join(DAEMON_UNIT_NAME))
+}
+
+/// The `systemctl --user enable` symlink the unit's `WantedBy=` creates.
+#[cfg(target_os = "linux")]
+fn daemon_unit_enable_link() -> lctrl_core::Result<PathBuf> {
+    Ok(daemon_unit_dir()?.join("default.target.wants").join(DAEMON_UNIT_NAME))
+}
+
+/// Task name registered by `schtasks` and reported by `daemon status`.
+#[cfg(windows)]
+const DAEMON_TASK_NAME: &str = "vantage-daemon";
+
+/// The task record `daemon install` registers and `daemon status` reports.
+#[cfg(windows)]
+fn daemon_task_path() -> PathBuf {
+    std::env::var_os("SystemRoot")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(r"C:\Windows"))
+        .join("System32")
+        .join("Tasks")
+        .join(DAEMON_TASK_NAME)
 }
 
 fn daemon_binary() -> lctrl_core::Result<PathBuf> {
@@ -220,13 +487,7 @@ fn install_daemon(dry_run: bool) -> CommandResult {
 
 #[cfg(target_os = "linux")]
 fn install_daemon_platform(binary: &Path, dry_run: bool) -> CommandResult {
-    let config_root = std::env::var_os("XDG_CONFIG_HOME")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".config")))
-        .ok_or_else(|| lctrl_core::LctrlError::ChannelUnavailable {
-            channel: "HOME or XDG_CONFIG_HOME".into(),
-        })?;
-    let unit_path = config_root.join("systemd/user/vantaged.service");
+    let unit_path = daemon_unit_path()?;
     let binary_text = binary.to_string_lossy();
     if binary_text.contains(['\n', '\r', '"']) {
         return Err(lctrl_core::LctrlError::InvalidArgument {
@@ -242,7 +503,7 @@ fn install_daemon_platform(binary: &Path, dry_run: bool) -> CommandResult {
         }
         write_atomic(&unit_path, unit.as_bytes())?;
         run_checked("systemctl", &["--user", "daemon-reload"])?;
-        run_checked("systemctl", &["--user", "enable", "vantaged.service"])?;
+        run_checked("systemctl", &["--user", "enable", DAEMON_UNIT_NAME])?;
     }
     Ok(CommandOutput {
         human: format!(
@@ -270,7 +531,7 @@ fn install_daemon_platform(binary: &Path, dry_run: bool) -> CommandResult {
             .args([
                 "/Create",
                 "/TN",
-                "vantage-daemon",
+                DAEMON_TASK_NAME,
                 "/SC",
                 "ONLOGON",
                 "/TR",
@@ -302,7 +563,7 @@ fn install_daemon_platform(binary: &Path, dry_run: bool) -> CommandResult {
         ),
         json: serde_json::json!({
             "mode": if dry_run { "dry_run" } else { "commit" },
-            "task": "vantage-daemon",
+            "task": DAEMON_TASK_NAME,
             "binary": binary,
         }),
     })
@@ -359,6 +620,9 @@ fn main() {
     }
     let hal = lctrl_hal_linux::LinuxHal::new();
     let process = lctrl_hal_linux::LinuxProcessController::new();
+    // No Linux radio plane is bound yet, so the service is attached and answers
+    // `Unsupported` instead of leaving `radio` commands looking unimplemented.
+    let radio = lctrl_hal_linux::LinuxRadio::new();
     let services = vantage_cli::CommandServices::new(&hal)
         .with_battery(&hal)
         .with_conflict_detection(&hal)
@@ -370,6 +634,7 @@ fn main() {
         .with_performance(&hal)
         .with_power(&hal)
         .with_process(&process)
+        .with_radio(&radio)
         .with_touchpad(&hal)
         .with_tuning(&hal)
         .with_temperature(&hal)
@@ -403,27 +668,85 @@ fn main() {
     );
     let conflicts = lctrl_hal_win::WindowsControlConflictDetector::new(lctrl_hal_win::NativeWmi);
     let bios = lctrl_hal_win::WindowsBiosController::new(lctrl_hal_win::NativeWmi);
+    // Firmware inventory is a read of the platform's own ESRT projection and
+    // firmware-update record; nothing here can flash a capsule.
+    let firmware = lctrl_hal_win::WindowsFirmware::new(lctrl_hal_win::NativeWmi);
     let performance =
         lctrl_hal_win::WindowsPerformanceP0::new(lctrl_hal_win::NativePerformanceRegistry);
     let system_inventory = lctrl_hal_win::WindowsSystemInventory::new(lctrl_hal_win::NativeWmi);
     let magicbay = lctrl_hal_win::NativeMagicBay;
-    let peripherals = lctrl_hal_win::WindowsPeripheralController::new(lctrl_hal_win::NativeWmi);
+    let mobile_broadband = lctrl_hal_win::WindowsMobileBroadband::new(lctrl_hal_win::NativeWmi);
+    // The keyboard backlight follows the ACPI `KBLC` method the Lenovo virtual
+    // power controller re-exposes on `\\.\EnergyDrv`; the WMI lighting plane
+    // stays attached for models that publish it instead.
+    let keyboard = lctrl_hal_win::WindowsKeyboardSources::new(
+        lctrl_hal_win::WindowsKeyboardBacklight::new(lctrl_hal_win::NativeIoctl),
+        lctrl_hal_win::WindowsPeripheralController::new(lctrl_hal_win::NativeWmi),
+    );
     let panel = lctrl_hal_win::WindowsPanelController::new(
         lctrl_hal_win::NativeDisplayApi,
         lctrl_hal_win::NativeWmi,
     );
     let panel_brightness = lctrl_hal_win::WindowsPanelBrightness::new(lctrl_hal_win::NativeWmi);
+    // Panel identity joins the OS monitor-connection classification with the
+    // per-instance EDID registry value; both are read-only.
+    let panel_identity = lctrl_hal_win::WindowsPanelIdentity::new(
+        lctrl_hal_win::NativeWmi,
+        lctrl_hal_win::NativePanelRegistry,
+    );
+    // Display state is read-only: the live session's CCD/DPI/advanced-colour
+    // state plus the display driver's machine-wide per-monitor colour store.
+    let display_status = lctrl_hal_win::WindowsDisplayStatus::new(
+        lctrl_hal_win::NativeDisplayApi,
+        lctrl_hal_win::NativeDisplayState,
+        lctrl_hal_win::NativeWmi,
+        lctrl_hal_win::NativeMonitorColorStore,
+    );
     let power = lctrl_hal_win::WindowsPowerP0::new(lctrl_hal_win::NativePowerApi);
     let thermal = lctrl_hal_win::WindowsThermal::new(lctrl_hal_win::NativeWmi, &battery);
+    let gpu_oc = lctrl_hal_win::WindowsGpuOc::new(lctrl_hal_win::NativeWmi);
     let runtime_devices = lctrl_hal_win::NativeWindowsRuntimeDevices::default();
     let wifi_security = lctrl_hal_win::WindowsWifiSecurity::default();
+    // The link-state verb binds the WLAN API directly (no scan), and the
+    // Bluetooth verb enumerates the OS device cache (no inquiry).
+    let wifi_status = lctrl_hal_win::WindowsWifiStatus;
+    let bluetooth = lctrl_hal_win::WindowsBluetooth;
+    // The radio channel holds no state: each command opens and releases its own
+    // WinRT apartment, so it is attached unconditionally and reports per-call.
+    let radio = lctrl_hal_win::NativeRadio::new();
+    // The sensor channel is the public Sensor API: each call opens its own COM
+    // apartment and enumerates from the platform, so it is attached
+    // unconditionally and reports per-call. Read-only; no report interval or
+    // event sink is written (docs/evidence/re-sensors-20261105.md §1).
+    let sensor = lctrl_hal_win::WindowsSensors::new();
+    // Secure Boot / TPM / BitLocker: the UEFI variable set, `Win32_Tpm`, and
+    // `Win32_EncryptableVolume`, all read-only. Attached unconditionally; each
+    // component reports its own state or its own reason for being unavailable.
+    let security = lctrl_hal_win::WindowsSecurity::new(
+        lctrl_hal_win::NativeWmi,
+        lctrl_hal_win::NativeFirmwareEnvironment,
+    );
     let local_update =
         lctrl_hal_win::WindowsLocalUpdateController::new(lctrl_hal_win::NativeLocalDriverUpdateApi);
+    // A package the UDC service already downloaded is installed by its own
+    // Lenovo-signed `install.ps1`; nothing here downloads, schedules, flashes
+    // firmware, or reboots.
+    let local_package = lctrl_hal_win::WindowsLocalPackageInstaller::new(
+        lctrl_hal_win::NativeLocalPackageApi,
+    );
     let machine_fix = lctrl_hal_win::WindowsMachineFix::new();
     let scene = lctrl_hal_win::NativeScenePolicy::new();
     let osd = lctrl_hal_win::NativeOsd::new();
     let hotkey = lctrl_hal_win::NativeHotkey::new();
+    // The event-log channel holds no state: the query opens and releases its
+    // own wevtapi handles per call, so it is attached unconditionally and
+    // reports ChannelUnavailable if the log itself refuses the query.
+    let event_log = lctrl_hal_win::WindowsEventLog;
     let usb_power = lctrl_hal_win::WindowsUsbPower::new(lctrl_hal_win::NativeIoctl);
+    let usb_ports = lctrl_hal_win::WindowsUsbPorts::new();
+    // The storage service holds no state: each call enumerates the disk device
+    // interface class and queries the devices on a zero-access handle.
+    let storage = lctrl_hal_win::WindowsStorage::new(lctrl_hal_win::NativeStorageProbe);
     // The Dolby client speaks the DAX contract over rpcrt4 (no Lenovo
     // payload dependency). `load()` only composes the binding; a missing
     // DAX3API surfaces when the first command runs, so the service is
@@ -442,32 +765,52 @@ fn main() {
             None
         }
     };
+    // The OS endpoint surface is the MMDevice API, so it is attached
+    // unconditionally: a missing vendor audio stack cannot disable it and the
+    // per-call path reports ChannelUnavailable if the audio services are down.
+    let audio_endpoints =
+        lctrl_hal_win::WindowsAudioEndpoints::new(lctrl_hal_win::NativeMmDeviceApi);
     let services = vantage_cli::CommandServices::new(&hal)
         .with_battery(&battery)
         .with_conflict_detection(&conflicts)
         .with_bios(&bios)
+        .with_firmware(&firmware)
         .with_diagnostics(&system_inventory)
         .with_dbdc(&thermal)
-        .with_keyboard(&peripherals)
+        .with_gpu_oc(&gpu_oc)
+        .with_keyboard(&keyboard)
+        .with_its_policy(&performance)
         .with_magicbay(&magicbay)
+        .with_mobile_broadband(&mobile_broadband)
         .with_performance(&performance)
         .with_power(&power)
         .with_privacy(&runtime_devices)
         .with_touchpad(&runtime_devices)
         .with_tuning(&power)
         .with_usb(&usb_power)
+        .with_usb_ports(&usb_ports)
         .with_processor_power(&power)
         .with_panel(&panel)
         .with_panel_brightness(&panel_brightness)
+        .with_panel_identity(&panel_identity)
+        .with_display_status(&display_status)
         .with_temperature(&thermal)
         .with_fan(&thermal)
         .with_update(&system_inventory)
         .with_local_update(&local_update)
+        .with_local_package(&local_package)
         .with_wifi(&wifi_security)
+        .with_wifi_status(&wifi_status)
+        .with_bluetooth(&bluetooth)
+        .with_radio(&radio)
+        .with_sensor(&sensor)
+        .with_security(&security)
         .with_machine_fix(&machine_fix)
         .with_scene(&scene)
         .with_osd(&osd)
-        .with_hotkey(&hotkey);
+        .with_hotkey(&hotkey)
+        .with_storage(&storage)
+        .with_event_log(&event_log);
     let services = match &noise_cancel {
         Some(noise_cancel) => services.with_noise_cancel(noise_cancel),
         None => services,
@@ -476,11 +819,18 @@ fn main() {
         Some(dolby) => services.with_audio(dolby),
         None => services,
     };
+    let services = services.with_audio_endpoints(&audio_endpoints);
     // Panel image-quality features ride the graphics driver's Intel Control
     // Library (IGCL). The library ships with the Intel driver, so a missing
-    // package only disables eye-care/super-resolution.
+    // package only disables super-resolution. Eye-care is applied through the
+    // desktop gamma ramp (the mechanism the vendor's own EyeCareMode uses),
+    // so it is attached independently of IGCL.
     let panel_features = match lctrl_hal_win::IntelControlLib::load() {
-        Ok(ctl) => Some(lctrl_hal_win::WindowsPanelFeatures::new(ctl)),
+        Ok(ctl) => Some(
+            lctrl_hal_win::WindowsPanelFeatures::new(ctl).with_gamma_ramp(Box::new(
+                lctrl_hal_win::NativeGammaRamp,
+            )),
+        ),
         Err(error) => {
             debug_note(&format!("panel features channel unavailable: {error}"));
             None

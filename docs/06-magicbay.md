@@ -54,13 +54,19 @@ MagiCenter 主包内存在 `KNOWN_DEVICES` 常量(官方组件行为),穷尽枚�
 
 | pluginKey       | deviceName | USB VID | USB PID (dec / hex)  | 语义 |
 |-----------------|-----------|---------|----------------------|------|
-| `tiko-plugin`   | `tiko`    | 0x17EF  | 25253 / 0x62B5       | 早期 4G/LTE 备用型号(2022 前后) |
+| `tiko-plugin`   | `tiko`    | 0x17EF  | 25253 / **0x62A5**   | 早期 4G/LTE 备用型号(2022 前后) |
 | `lte2-plugin`   | `lte`     | 0x17EF  | 28677 / **0x7005**   | 当前主流 MagicBay LTE 模块 |
 | `hud-plugin`    | `hud`     | 0x17EF  | 4375 / **0x1117**    | MagicBay HUD / 配件 |
 
 > 实现者**必须**内置该常量表(用于检测 + 识别),但不必保留 MagiCenter 的
 > `pluginKey` 语义;可映射为本项目自己的 `MagicBayKind` 枚举:
 > `TikoLTE`、`LTE2`、`HUD`。
+>
+> PID 已对照 `LenovoMagiCenterDetector.exe` 2.0.2.1 的常量表复核:
+> `HUDDevicePidLists = {PID_1117}`、`LTEDevicePidLists = {PID_7005}`、
+> `TIKODevicePidLists = {PID_62A5}`(十进制 25253 = 0x62A5;
+> 此前写作 0x62B5 与十进制不符)。依据见
+> `evidence/re-magicbay-20261105.md` §2.1。
 
 ### 2.2 复合设备的接口划分(PID 0x7005)
 
@@ -275,6 +281,14 @@ MagiCenter 只做 USB 层设备检测 + 插件分发 + 页面路由跳转。
 
 因此实现者**不需要**实现任何联想自有 LTE 协议,只需包装操作系统的
 标准 MBIM/ModemManager/MBN 接口即可。
+
+> 实现边界(21VG,build 26300,实测见 `evidence/re-magicbay-20261105.md` §3):
+> `magicbay lte status` 只读实现走公开 CIM——`Win32_PnPEntity`(配件在位)、
+> `MSFT_NetAdapter`(WWAN 接口 `IF_TYPE_WWANPP`/`WWANPP2` 的链路与运行状态)、
+> `MSFT_NetIPAddress`(PDP 上下文地址)。`lte connect`/`disconnect`/`apn`
+> 需要调制解调器控制 API:该构建没有 `mbnapi.dll`,WWAN Service API 是纯 COM
+> 且其接口契约只存在于未安装的 WDK `wwanapi.h` 中,因此保持 Unsupported。
+> 信号强度/注册状态/运营商/IMEI/SIM/APN 名称不在这三个类里,同样保持不可用。
 
 ### 4.5 相关 WMI 类(供 Windows 后端参考)
 

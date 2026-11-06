@@ -22,7 +22,8 @@
 | 风扇 | `vantage perf fan` | WMI `LENOVO_FAN_TABLE_DATA` / `LENOVO_FAN_METHOD` / `LENOVO_FAN_MAX_SPEED_DATA` / `LENOVO_FAN_TEST_DATA` |
 | 温度 | `vantage perf temp` | WMI `LENOVO_GAMEZONE_DATA` 方法族 + (可选) Linux `/sys/class/thermal/` |
 | 功耗墙 | `vantage perf pl1` / `vantage perf pl2` / `vantage perf dbdc` | ESIF IPC (ipfsvc) + Windows Power API |
-| 超频 | `vantage perf oc` | WMI `LENOVO_CPU_OVERCLOCKING_DATA` / `LENOVO_GPU_OVERCLOCKING_DATA` / `LENOVO_MEMORY_OC_DATA` |
+| 超频(只读) | `vantage perf gpu status` | WMI `LENOVO_GAMEZONE_DATA.IsSupportGpuOC` + `LENOVO_GAMEZONE_GPU_OC_DATA`;CPU/内存 OC 数据类 (无命令) |
+| 策略解码(只读) | `vantage perf policy` | `LenovoProcessManagement\Performance\PowerSlider` 注册表 (只读,不写不驱动固件) |
 
 **关键约束**:所有"下发型"命令在 Windows 上均要求以管理员权限执行,且 `AcpiVpc.sys` (EnergyVpc) 与 `ipf_acpi` 驱动必须已加载;Linux 后端仅通过 `ideapad_laptop` / sysfs / ACPI 暴露能力,若缺失应返回 `ENOTSUP`。
 
@@ -191,6 +192,35 @@ vantage perf mode status                       # 输出: 模式, ITS版本, 支�
 - `list`: 遍历 `SupportedMmcModeType` 位域输出可用模式。
 - `geek-*`: 仅在 Dispatcher V4+ 允许。
 
+### 2.7 `Policy_*` 只读解码 (`vantage perf policy`)
+
+```
+vantage perf policy            # 只读;解码 LNVDispatcherService 发布在 PowerSlider 下的 Policy_* 值
+```
+
+这条命令**只读** `HKLM\SYSTEM\CurrentControlSet\Services\LenovoProcessManagement\Performance\PowerSlider`,
+通过 `RegGetValueW(RRF_RT_REG_DWORD / RRF_RT_REG_SZ)` 读取,不写任何值、不触碰固件。
+每个字段都把**原始值**与**解释值**并排输出;解释来自 `LNVDispatcherService.exe` 的真实代码路径
+(见 `docs/evidence/re-its-policy-20261105.md`)。
+
+| 值 | 解码 | 状态 |
+|---|---|---|
+| `Policy_PLxSetMode` | 打包两个 u16:低半 = AC 通道,高半 = DC 通道(由 `GetSystemPowerStatus` 的 `ACLineStatus` 选择);通道值决定用哪条写入过程下发 PLx 限值 | 已证明(含默认 `0x00010001`);通道成员名二进制未公开,保持 raw |
+| `Policy_APMinSTDFan(_GPU/_CPU)` | 使能字节 + 两个阈值;阈值按 0..=100 截断,读不到时用 50(与二进制一致) | 已证明 |
+| `Policy_TurboValue` | turbo EPP 值;`0xff` 是 `uDefaultEPP` 哨兵(不当作可用 EPP 档) | 已证明 |
+| `Policy_TurboTime` | 4×u8;第 3 字节 `turbo_time` 与 `Policy_EPPTurbo` 同字段取大,首字节进最大追踪,其余字节无读者 | 已证明;无读者的字节保持 raw |
+| `Policy_EPPTurbo` | bits24..28 = 模式 nibble(与 5/1 比较)、bits16..24 = turbo time、bit28 = "not turbo to APM" | 已证明;bits0..16 与 29..32 无读者 |
+| `Policy_FanSpeedAddress` | 32 位值,落在配置对象 +0x1c | **无消费者**:二进制里除加载器外无读取点,故只报 raw |
+| `Policy_PowerBucket` / `Policy_CPPC` / `Policy_CFQC` / `Policy_CFQC1` | `REG_SZ` 的 `x:y;` 文本:调度器不按冒号前的数字索引,而是把字符串里的十进制数**按顺序**填进定长数组(PowerBucket 12 槽,其余 16 槽),即 `[x0,y0,x1,y1,…]` | 已证明;四张表是固件曲线,**不赋予索引物理含义** |
+
+解码失败不会被吞成空值:值不存在 → 字段 `None` 且不报噪声;值存在但读失败(权限、类型不符)
+→ `decode issue` 带错误文本;值读到但数字个数与调度器数组容量不符 → 字段 `None`,同时在
+`decode issue` 里回显**原始字符串**和计数。最后一种情况在目标机上真实存在:
+`Policy_PowerBucket` 的发布默认值有 7 对(14 个数),而调度器数组只有 12 槽。
+
+Linux 后端没有等价注册表,`services.its_policy` 不接入:命令返回 `Unsupported`,能力矩阵报
+Unavailable,而不是返回空表。
+
 ---
 
 ## 3. 风扇
@@ -230,6 +260,13 @@ Windows 上先读 `LENOVO_FAN_TEST_DATA` 实例:
 | `LENOVO_GAMEZONE_DATA.GetSmartFanStatus(out Data)` | 读 | 同上 |
 | `LENOVO_GAMEZONE_DATA.StartFan` | 写 | 强制风扇转 (参数 `0`=开) |
 | `LENOVO_GAMEZONE_DATA.StopFan` | 写 | 停风扇 (参数 `0`=停) |
+
+> **本机型实测(2026-11-05,`docs/evidence/re-fan-write-20261105.md`)**:同一进程内
+> `SetSmartFanMode` 只有第一次调用返回 success,之后无论取值(0/1/2/3/4/5/255)还是
+> VARIANT 类型(`VT_I4`/`VT_UI2`/`VT_UI8`/`VT_BSTR`)都返回 `0x80004005`;全部风扇
+> `Get*`/`IsSupport*` 返回 `WBEM_E_INVALID_OBJECT (0x8004100F)`。因此上表的 `Data`
+> 取值域在本 SKU 上不可观测,`SetSmartFanMode` 的 success 不能当作生效证据。
+> 实现只在 `GetSmartFanMode` 可读时才写入并以回读校验,否则如实报不可用。
 
 **Smart Fan 模式含义**:
 - **标准 (0)**:BIOS 出厂曲线,自动调速,转速受温度驱动。
@@ -355,19 +392,36 @@ JSON 曲线 schema:
 
 ### 4.1 传感器来源
 
-当前 Windows 实现只读 `MSAcpi_ThermalZoneTemperature` 和可选 Windows 电池类温度。
+当前 Windows 实现读三个来源:`MSAcpi_ThermalZoneTemperature`、可选 Windows 电池类温度、
+以及 Intel ESIF/DTT 参与者 `root\WMI EsifDeviceInformation`。
 电池类温度来自同一电池类句柄和 tag 的 `BatteryTemperature` 查询，输出来源
 `windows_battery_class`、ID `windows-battery-class/temperature`;该电池与厂商索引 0 的
 关联未验证。没有温度时数值为 null，不能把有记录等同于测得温度。ACPI 热区保留固件
 实例名，物理位置标为 unknown，不猜测为 CPU/GPU;查询失败(除不支持外)不会被隐藏。
-两者以 `deci_kelvin / 10 - 273.15` 换算摄氏度。目标传感器覆盖仍需真机验收。
+两者以 `deci_kelvin / 10 - 273.15` 换算摄氏度。
+
+ESIF 参与者是本机型唯一能给出封装级温度的通道:每条实例以提供者自己的实例名
+(`esif/<InstanceName>`,21VG 上 16 条实例共用 `PCI\VEN_8086&DEV_B01D…` 处理器参与者
+设备路径、仅尾号不同)作为 ID，来源 `wmi_esif`，位置 unknown——该类不发布参与者名字，
+也不允许把序号当成物理位置。类元数据声明 `Temperature` 为 1/10 K，但实机同时刻的
+ACPI 热区(45 °C)与电池(28.75 °C)都高于按 1/10 K 换算的 6.6 °C，且 `_AC0`/`_AC1`
+行程点 67/55 只有按 °C 才有意义，故实现按 **°C** 直报、不做换算(推断已标注)。
+`Temperature` 返回 0 的实例(21VG 上 16 条中有 8 条，跨 7 次采样恒为 0)不是读数，
+因此**不输出**该条传感器，绝不写成 0 °C;只有真正返回温度的实例才出现(21VG 为 8 条)。
+行里缺 `Temperature` 属性或值非数值属畸形响应，直接报错而不是跳过。`Power` 与
+`_AC*`/`_CRT` 等字段是限值不是测量值，不作为传感器输出。取证与逐条原始值见
+[`evidence/re-thermal-20261105.md`](evidence/re-thermal-20261105.md)。
 
 下面列出原设计拟聚合的温度来源，并不表示当前都已实现:
 
-| 来源 | WMI/接口 | 粒度 |
+| 来源 | WMI/接口 | 21VG 实况 |
 |---|---|---|
-| EC 报告 (WMI) | `LENOVO_GAMEZONE_DATA.GetCPUTemp()` / `.GetGPUTemp()` | 单值 UInt32 (单位 °C,整数) |
-| 曲线关联 | `LENOVO_FAN_TABLE_DATA.Sensor_ID` + `LENOVO_FAN_METHOD.SensorTable` | 每个 Fan-Sensor 组合一列 |
+| EC 报告 (WMI) | `LENOVO_GAMEZONE_DATA.GetCPUTemp()` / `.GetGPUTemp()` | **死通道**:方法体未实现,`WBEM_E_INVALID_OBJECT` (§2.3 勘误) |
+| Intel ESIF 参与者 | `root\WMI EsifDeviceInformation` | **已实现**:16 条实例,8 条有读数 |
+| 曲线关联 | `LENOVO_FAN_TABLE_DATA.Sensor_ID` + `LENOVO_FAN_METHOD.SensorTable` | **死通道**:类实例查询 `WBEM_E_NOT_SUPPORTED` |
+| 调试用 CIM 探针 | `Win32_TemperatureProbe` | 占位实例(`CurrentReading` 为空,数值字段全 `0x8000`),不输出 |
+| 已注册但无实例 | `root\WMI BatteryTemperature` | 0 条实例,放弃;电池温度走电池类 IOCTL |
+| 热区性能计数器 | `Win32_PerfFormattedData_Counters_ThermalZoneInformation` | 只是同一个 `TZ00` 的另一种视图,不重复输出 |
 | OS 热区 (Linux) | `/sys/class/thermal/thermal_zone<N>/type` + `temp` | 内核热区,单位 mK |
 
 ### 4.2 `LENOVO_GAMEZONE_DATA` 温度方法
@@ -378,7 +432,18 @@ JSON 曲线 schema:
 | `GetGPUTemp(out Data)` | `Data: UInt32`, °C | 封装后当前 dGPU 温度 (无独显返回 0 或 `0xFFFF`) |
 | `GetCpuFrequency(out Data)` | `Data: UInt32`, MHz | 当前 CPU 频率 (可作性能侧面指标) |
 
-> 温度传感器**枚举**通过遍历 `LENOVO_FAN_TABLE_DATA` 实例,每个实例的 `Sensor_ID` 唯一标识一个传感器;传感器物理位置 (CPU / GPU / 电池 / 主板) 由 `InstanceName` 字符串推断 (通常包含 `CPU`, `GPU`, `BAT`, `MAIN` 关键字)。
+> **21VG 实况(2026-11-05)**:上表三个方法在本机型均返回 `WBEM_E_INVALID_OBJECT`
+> (0x8004100F)——GMZN 作用域只有数据块,没有 GameZone 方法体,而同实例的
+> `IsSupportGpuOC` 会应答,说明 provider 可达、拒绝是逐方法的(见 §2.3 勘误与
+> `evidence/wmi-capability-exhaustion-20261104.md` §4)。
+> `perf temp` 因此**不**经此通道取 CPU/GPU 温度,改由 §4.1 的 ESIF 参与者提供;
+> 也不从 `Sensor_ID` 推断物理位置。
+
+> 温度传感器**枚举**原设计为遍历 `LENOVO_FAN_TABLE_DATA` 实例,每个实例的 `Sensor_ID`
+> 唯一标识一个传感器。**21VG 实况**:`LENOVO_FAN_TABLE_DATA`、`LENOVO_FAN_METHOD`、
+> `LENOVO_FAN_MAX_SPEED_DATA` 的实例查询全部返回 `WBEM_E_NOT_SUPPORTED`,该枚举不可用
+> (`evidence/re-thermal-20261105.md` §4.4)。由 `InstanceName` 关键字猜测 CPU/GPU 的做法
+> 已被废除:公开类不建立物理映射,位置一律 `unknown`。
 
 ### 4.3 Linux 后端映射
 
@@ -500,7 +565,14 @@ ROS_Power    = [对应 3 档系统可用功率]
 
 ### 5.4 超频 (CPU / GPU / 内存 OC 数据类)
 
-> **硬件适配提示**:目标机 21VG (Panther Lake) **没有独立 GPU**, `LENOVO_GPU_OVERCLOCKING_DATA` 实例通常返回"不支持";CPU 与内存 OC 也可能被 SMBIOS 过滤。`vantage` 应**先枚举**再暴露子命令;若所有 OC 能力均 `IsSupport=0`, 则隐藏 `vantage perf oc` 命令并在 help 中说明 "OC not supported on this platform"。
+> **硬件适配提示**:目标机 21VG (Panther Lake) **没有独立 GPU**, `LENOVO_GPU_OVERCLOCKING_DATA` 实例通常返回"不支持";CPU 与内存 OC 也可能被 SMBIOS 过滤。`vantage` 应**先枚举**再暴露子命令。
+>
+> **21VG 实机结论 (2026-11-05,`evidence/re-gpu-oc-20261105.md`)**:`IsSupportGpuOC` 返回 `ReturnValue=True, Data=0`;
+> `LENOVO_GAMEZONE_GPU_OC_DATA`(厂商插件实际查询的 13 属性类)与 `LENOVO_GPU_OVERCLOCKING_DATA` 均无实例
+> (`WBEM_E_NOT_SUPPORTED 0x8004100C`),`LENOVO_GPU_METHOD` 未声明任何方法,其余 51 个 `LENOVO_GAMEZONE_DATA`
+> 方法一律 `WBEM_E_INVALID_OBJECT 0x8004100F`;厂商 `gpuoc/config.json` 的 30 条白名单全部是 `PCI\VEN_10DE` 独显。
+> 因此本机只有"能力探测"这一条可读通道:`vantage perf gpu status` 输出 `supported=false` 与参数块缺失原因,
+> **不隐藏命令**;写入面维持 `Unsupported`(该接口没有带独立回读的可逆写入契约)。
 
 **CPU 超频**:`LENOVO_CPU_OVERCLOCKING_DATA` + `LENOVO_CPU_METHOD` + `LENOVO_GAMEZONE_CPU_OC_DATA`
 
@@ -521,6 +593,14 @@ ROS_Power    = [对应 3 档系统可用功率]
 | `GpuType` (UInt8), `mode`, `Capability`, `ClockID`, `PStateID`, `OCOffsetFreq`, `OCOffsetScale`, `OCMinOffset`, `OCMaxOffset`, `defaultvalue`, `Interval`, `Tuneid`, `NOCOrderid`, `OCOrderid` |
 
 能力探测: `LENOVO_GAMEZONE_DATA.IsSupportGpuOC(out Data)`。
+
+厂商 GPU OC 消费者 (`SEGPUOCPlugin.dll`,`SmartDisplayAddin` 1.0.2.623) 实际使用的是**另一个**数据类
+`LENOVO_GAMEZONE_GPU_OC_DATA`(`SELECT * FROM LENOVO_GAMEZONE_GPU_OC_DATA`),其 13 个属性为
+`Capability, ClockID, defaultvalue, Interval, NOCOrderid, OCMaxOffset, OCMinOffset, OCOffsetFreq,
+OCOffsetScale, OCOrderid, PStateID`(外加 `Active`/`InstanceName`);本机该类无实例。
+该接口**没有** `GetGpuOCMode`/`SetGpuOCMode` 方法,也没有 GPU TGP 字段:厂商写入走 NVAPI
+`NvAPI_GPU_SetPstates20`(独显)或 Intel OC SDK 的时钟域偏移,均不是 Lenovo WMI 动词。
+`vantage perf gpu status` 只读该探测与参数块,单位/物理含义不臆测(`evidence/re-gpu-oc-20261105.md`)。
 
 **内存超频**:`LENOVO_MEMORY_OC_DATA` + `LENOVO_MEMORY_METHOD`
 
@@ -570,9 +650,9 @@ ROS_Power    = [对应 3 档系统可用功率]
 vantage perf pl1 [get | set <mW>]           # CPU 长时功耗墙
 vantage perf pl2 [get | set <mW>]           # CPU 短时峰值
 vantage perf dbdc [get | set <thr> <mA>]    # DBDC 电池直充
-vantage perf oc cpu   [get | set <MHz> | enable | disable]
-vantage perf oc gpu   [get | set <MHz> | enable | disable]
-vantage perf oc mem   [get | set-xmp <n> | customize <json>]
+vantage perf gpu  [status]                  # GPU 超频能力探测 + OC 参数块(只读;21VG 返回 supported=false)
+# `perf oc cpu|gpu|mem` 未实现:21VG 上 LENOVO_GPU_METHOD 不声明方法、OC 数据类无实例,
+# 该接口也没有带独立回读的可逆写入契约(证据 evidence/re-gpu-oc-20261105.md)
 ```
 
 ---

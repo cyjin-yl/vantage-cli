@@ -106,6 +106,13 @@ where
             .unwrap_or_default();
         crate::update_catalog::check_updates_impl(&mtm)
     }
+
+    /// Read the update history the machine's own Lenovo System Update add-in
+    /// recorded (`%ProgramData%\Lenovo\Vantage\AddinData\...`). Read-only: the
+    /// ledger is opened `READONLY` through the operating system's SQLite engine.
+    fn update_history(&self) -> Result<lctrl_core::UpdateHistoryReport> {
+        crate::update_history::read_history()
+    }
 }
 
 struct DiagnosticJob {

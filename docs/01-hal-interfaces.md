@@ -70,7 +70,7 @@
 | 电池信息、充电阈值、快充、保养 | `\\.\EnergyDrv` `0x831020f8` (GBMD 相关)+ `SetFeatureValue` 组合;充电模式也可 `LENOVO_GAMEZONE_DATA.GetPowerChargeMode` | 快充打开/关闭必须直驱 |
 | 适配器识别 (65W/100W/USB 充电) | `\\.\EnergyDrv` `IOCTL_PMDRV_GAPD` 宏(具体码待查) | 官方文档未走 WMI |
 | USB 充电开关 | `\\.\EnergyDrv` 直驱 [推断:复用 GBMD 通道] | 无 WMI 方法 |
-| 键盘背光 | `LENOVO_LIGHTING_METHOD.Set_Lighting_Current_Status` | 清晰 WMI 语义 |
+| 键盘背光 | `\\.\EnergyDrv` IOCTL `0x83102144` → ACPI `KBLC`;RGB 机型回退 `LENOVO_LIGHTING_METHOD.Set_Lighting_Current_Status` | VPC2004 机型(WMI 面回 `不支持`) |
 | 面板刷新率/色彩/游戏辅助 | `LENOVO_PANEL_METHOD.*` + `LENOVO_INTERNAL_PANEL_REFRESH_RATE_DATA` | WMI 完整支持 |
 | BIOS 设置读写 | `Lenovo_BiosSetting` (读) / `Lenovo_SetBiosSetting` (写) / `Lenovo_SaveBiosSettings` / `Lenovo_GetBiosSelections` / `Lenovo_BiosPasswordSettings` 等 | 标准 Lenovo BIOS WMI |
 | 智能感应 (Smart Sense) | `LENOVO_SMART_THERMAL_MONITOR_EVENT` 订阅 + UMDF `LnvSST.dll` [推断] | 事件驱动 |
@@ -134,8 +134,13 @@ fn pick_channel(feature: Feature) -> Channel {
 > object"/"Invalid method Parameter(s)"** —— 本表所述全部方法(含
 > `GetVersion`、`GetFanCoolingStatus`、`GetSmartFanMode`、`GetWinKeyStatus`
 > 等读方法)在本机型上不可调用,`perf.fan.*`、`kbd.winlock`、
-> `kbd.backlight` 对应通路确认为死通道。凡期望 `LENOVO_GAMEZONE_DATA`
+> `LENOVO_GAMEZONE_DATA` 形态的 `kbd.backlight` 对应通路确认为死通道。凡期望该
 > 语义的功能,在 21VG 上必须继续报 Unsupported,不要按本表当可用。
+>
+> **更正(2026-11-05):** `kbd.backlight` 在 21VG 上另有活通道——ACPI 虚拟电源控制器
+> 的 `KBLC` 方法(经 `AcpiVpc.sys` 的 `\\.\EnergyDrv` IOCTL `0x83102144`),实机
+> `KBLC(0x1)=0x7`(四态)、`KBLC(0x32)=0x1`。契约与偏移见
+> `interfaces.md` §11.8,取证见 `evidence/re-kbd-backlight-20261105.md`。
 
 > **补充(同日):** `EsifDeviceInformation`(Intel DPTF/ipf_cpu)在本机存活并
 > 暴露 `EsifExecutePrimitive`,但内核注册的 WMI provider 对任意
@@ -175,7 +180,7 @@ fn pick_channel(feature: Feature) -> Channel {
 | `SetGSyncStatus -> Boolean` | `[in] Data` | G-Sync 开关 | `1`/`0` |
 | `GetGSyncStatus -> Boolean` | `[out] Data` | G-Sync 状态 | `1`/`0` |
 | `IsSupportSmartFan -> Boolean` | `[out] Data` | 智能风扇支持 | 同上 |
-| `SetSmartFanMode -> Boolean` | `[in] Data` | 智能风扇模式 | `1`=静音 / `2`=均衡 / `3`=性能 / `4`=极致 [推断] |
+| `SetSmartFanMode -> Boolean` | `[in] Data` | 智能风扇模式 | `1`=静音 / `2`=均衡 / `3`=性能 / `4`=极致 [推断;21VG 未观测到任何可用取值域,见 `docs/evidence/re-fan-write-20261105.md`] |
 | `GetSmartFanMode -> Boolean` | `[out] Data` | 当前智能风扇模式 | 同上 |
 | `GetSmartFanSetting -> Boolean` | `[out] Data` | 风扇设置 (位图) | 位图 [推断] |
 | `GetPowerChargeMode -> Boolean` | `[out] Data` | 充电模式 | `1`=标准 / `2`=快速 / `3`=保养 [推断] |
@@ -285,7 +290,21 @@ fn pick_channel(feature: Feature) -> Channel {
 - 公共字段:`Capability, DefaultValue, Interval, MaxValue, MinValue, ScaleValue, OCMinOffset, OCMaxOffset, OCOffsetFreq, OCOffsetScale, Tuneid, OCOrderid, NOCOrderid, PStateID`。
 - `LENOVO_MEMORY_OC_DATA` 特化:`MEM_OC_Ability, MEM_OC_XMP_Numbers, MEM_OC_*_Customize_*`(VDD/tCL/tRAS/tRCD/...共 13 个时序字段,`UInt16` 单位)。
 
+> **21VG 实机更正 (2026-11-05,`evidence/re-gpu-oc-20261105.md`)**:
+> `LENOVO_GPU_METHOD` 在本机**不声明任何方法**(仅 `Active`/`InstanceName`),
+> `LENOVO_GPU_OVERCLOCKING_DATA`(15 属性)与厂商消费者实际查询的
+> `LENOVO_GAMEZONE_GPU_OC_DATA`(13 属性:`Capability, ClockID, defaultvalue,
+> Interval, NOCOrderid, OCMaxOffset, OCMinOffset, OCOffsetFreq, OCOffsetScale,
+> OCOrderid, PStateID`)均无实例,查询返回 `WBEM_E_NOT_SUPPORTED 0x8004100C`。
+> `LENOVO_GAMEZONE_DATA` 只有 `IsSupportGpuOC` 应答(`Data=0`),没有
+> `GetGpuOCMode`/`SetGpuOCMode`,也没有 GPU TGP 字段。因此本机 GPU OC 只有
+> `vantage perf gpu status` 这一条只读通道,写入面为 `Unsupported`。
+
 ### 2.8 `LENOVO_LIGHTING_METHOD` / `LENOVO_LIGHTING_DATA` — 键盘背光
+
+> 本族是 **RGB/灯效** 面。21VG 这类四态单色背光机型回 `不支持`,其通道是
+> §11.8 的 ACPI `KBLC`(`\\.\EnergyDrv` `0x83102144`);实现按"先 `KBLC`,
+> 通道缺失再回退本族"路由。
 
 | 方法 | 参数 | 语义 |
 |---|---|---|

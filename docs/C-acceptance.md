@@ -39,7 +39,7 @@ BIOS 密码元数据、MagicBay 检测和 scan 清单共 **12 次实际运行,�
 | #3 OSD | 当前未附接真实 overlay/热键动作消费者 |
 | #4 能力/切换检查 | 原生矩阵可运行;平台依赖投影、实际服务绑定与替代就绪报告仍需修正 |
 | #5 电池/适配器 | C14:来源分组及实时电压/功率只读对照通过;健康/寿命、适配器额定功率等仍待逐字段验收 |
-| #6 充电/阈值 | 任意阈值仍 Unsupported。Rapid/Normal 的驱动状态写入与恢复已有记录(C28/C29)。本轮按厂商 bit14 分型修正基础养护 `0x03/0x05` 与追加 `0x0d/0x0f` 的关系；生产 CLI `conservation --dry-run`→`--yes --auto-restore` 已读回养护并自动恢复 Rapid，另启进程读回 `0x00860004`。见 [生产 CLI 回执](evidence/conservation-cli-native-20261102.md)；同驱动分次查询不等于独立物理 80% 停充或官方 UI 验收。bit23 单独不足以证明 Storage80 支持，旧 EM Spec=2 结论撤销 |
+| #6 充电/阈值 | 任意阈值仍 Unsupported。Rapid/Normal 的驱动状态写入与恢复已有记录(C28/C29)。本轮按厂商 bit14 分型修正基础养护 `0x03/0x05` 与追加 `0x0d/0x0f` 的关系；生产 CLI `battery charge-mode conservation --dry-run`→`--yes --auto-restore` 已读回养护并自动恢复 Rapid，另启进程读回 `0x00860004`。见 [生产 CLI 回执](evidence/conservation-cli-native-20261102.md)；同驱动分次查询不等于独立物理 80% 停充或官方 UI 验收。bit23 单独不足以证明 Storage80 支持，旧 EM Spec=2 结论撤销 |
 | #7 夜间/临时充电 | 夜充真实写、独立回读及自动恢复已验收(C28/C29);临时模式写选择子尚未恢复,保持只读 |
 | #8 USB 供电 | AC/电池模式两态真实写、EnergyDrv 独立回读及自动恢复已验收(C28/C29) |
 | #9 电源计划 | 实际枚举成功;高级字段/名称一致性仍须按 issue 逐项验证 |
@@ -55,8 +55,8 @@ BIOS 密码元数据、MagicBay 检测和 scan 清单共 **12 次实际运行,�
 | #19 profile/省电事务 | 现有部分手动执行/restore;完整目标、配方及复合动作仍须完成。极限续航已恢复真实策略,但同步内核 Job 生命周期与目标版本单一 UI 开关映射尚缺准入前提,命令仍 Unsupported;不以电源计划/EcoQoS 部分动作冒充验收。见 [完整边界](evidence/extreme-life-re-20261102.md) |
 | #20 键盘灯 | 当前目标机方法不可用;不得以静态灯光元数据提升写能力 |
 | #21 Win 锁/触控板 | C7 仅确认触控板恢复及非中断 smoke;新版禁用循环与 Win 锁尚未完成验收 |
-| #22 内屏刷新率 | C1 已验收;要求交互式会话,不以 SSH 无显示路径误判硬件不支持 |
-| #23 色彩/显示增强 | 修正 pixtx 使用显示输出句柄与 1.1 ABI、超分 get/set 为 92B。独立只读探针在当前输出返回 0 块;超分 caps 仍 0x4000000b,写保持拒绝(证据 igcl-readonly-probe-20261102.md)。旧错误句柄/布局探针不再用于能力判断。色域 Unsupported(依赖被禁的 MONITORCONTROL.dll),overdrive 目标设备未观察到 |
+| #22 内屏刷新率 | C1 已验收;要求交互式会话,不以 SSH 无显示路径误判硬件不支持。2026-11-05 独立复核实机复现 `--auto-restore` 缺陷(自适应固件下把 `auto` 当恢复目标,恢复落空且面板停在新频率),已修正为只回放观测到的前一固定刷新率,修正后真机验收待做;模式列表改以 `EnumDisplaySettings` 实枚举核对,见 [证据](evidence/re-panel-refresh-20261105.md) |
+| #23 色彩/显示增强 | 修正 pixtx 使用显示输出句柄与 1.1 ABI、超分 get/set 为 92B。独立只读探针在当前输出返回 0 块;超分 caps 仍 0x4000000b。2026-11-05 复核(证据 re-panel-20261105.md):超分能力查询改为契约规定的两趟枚举,写路径改为“读到旧状态才写、写后回读、不一致回滚”;overdrive 原版 owner(BiosOD.dll → `LENOVO_OTHER_METHOD` IDs 0x1A0000)已恢复,但本机 `LENOVO_CAPABILITY_DATA_00` 无 0x1A 家族,保持 Unsupported;护眼 owner(Vantage `EyeCareMode` / PCManager `LenovoMonitorManager.exe`)已恢复,机制为系统 gamma ramp,已实现 `GammaRampApi`/`NativeGammaRamp` 并修正 Tanner-Helland 量纲缺陷,写入验收需交互会话(SSH 网络登录不可验收)。色域仍 Unsupported(依赖被禁的 MONITORCONTROL.dll) |
 | #24 运行时隐私 | 状态实际读取成功;逐层写入、独立读回及恢复证据须按版本保存 |
 | #25 SmartSense/HPD | **已修复真机访问冲突**。根因:生成的类型格式串把 `[out]`/`[in,out]` 上下文参数写成裸 `FC_BIND_CONTEXT`,而 MIDL 为 `[context_handle]` 参数生成 `FC_RP -> FC_BIND_CONTEXT` 的间接层;同时类型偏移按裸 4 字节记录步进,`TYPE_IN_CONTEXT` 落在第二条记录内部。该错位使解释器直接解引用参数槽,在 `NdrClientCall3` 内触发 0xC0000005。改后上下文区与厂商字节逐字节一致(`1104020030a4` / `1104020030e5` / `3045`)。真机验收:`sense status` 返回 `source=hpd-rpc` 与实时 `advertised=2047`;`sense pause-video on/off` 经 RPC 往返并由独立读回确认。由于 HPD 能力探针在 HAL 构造期运行,此前该崩溃会杀掉**每一条**命令,修复后 `audio dolby` 等通道一并恢复。见 [WMI 穷尽记录](evidence/wmi-capability-exhaustion-20261104.md)。attention-tracking 仍保留独立旧通道与 write-only 边界;键盘灯自动受固件限制(见 #31 行与同一证据) |
 | #26 Dolby | 纯 Rust rpcrt4/NDR 客户端不加载 DolbyRpcClient.dll,描述符由本仓库生成(interfaces §0/§12)。2026-11-01 的禁用/启用及 profile 真实写、厂商 DLL 独立读回与 C29 自动恢复已验收(C28/C29)。2026-11-03 观察到的启动崩溃并非 Dolby 通道自身缺陷:HPD 能力探针在 HAL 构造期于封送器内触发 0xC0000005,使每条命令启动即死,从而把 Dolby 也一并掩盖。HPD 描述符修正后真机复验:`audio dolby game` 提交(enabled false→true, profile dynamic→game)、`dynamic` 与 `off` 恢复均成功且无崩溃。仍不宣称物理音效;见 [WMI 穷尽记录](evidence/wmi-capability-exhaustion-20261104.md) |
@@ -230,12 +230,15 @@ BIOS 密码元数据、MagicBay 检测和 scan 清单共 **12 次实际运行,�
 | 初始 | 读取 | previous ac=2 dc=2 | AC=(缺省→有效 2) DC=2 |
 | 关闭 | `vantage --yes tune turbo off` | actual 0/0 | **AC=0 DC=0** |
 | 开启 | `vantage --yes tune turbo on` | actual 1/1 | **AC=1 DC=1** |
-| 恢复 | `vantage --yes tune turbo aggressive` | actual 2/2 | **AC=2 DC=2** |
+| 恢复 | `vantage --yes tune turbo aggressive` | actual 2/2 | **AC=2 DC=2**(该取值当前不可解析,见 C34) |
 | dry-run | `vantage --dry-run tune turbo off` | previous 2/2, requested 0/0 | AC=2 DC=2(未变) |
 
 真机暴露并修复的缺陷:`PERFBOOSTMODE` 的 `PowerReadValueMin` 在本机返回不可用,旧实现因此把整条
-睿频写入判定为不可用。修复为按文档枚举域(0..4)约束写入,`tune turbo` 也由布尔开关扩展为文档
-模式集(`off|on|aggressive|efficient|efficient-aggressive`),并保留原值恢复能力。
+睿频写入判定为不可用。修复为按文档枚举域(0..4)约束写入,并保留原值恢复能力。
+**命令面校对(C34,2026-11-06):**上文曾记"`tune turbo` 由布尔开关扩展为文档模式集
+(`off|on|aggressive|efficient|efficient-aggressive`)",该扩展在现行声明中不存在——
+`TuneCommand::Turbo` 只接受 `on|off`;本表 `aggressive` 一行是历史运行记录,当前二进制
+无法复现。
 
 ## C7 · 触控板失效恢复与控制器禁用缺陷修复
 
@@ -290,11 +293,11 @@ dry-run 的实际运行,不能证明写入、事件、OSD 或自动化完成。
 |---|---|---|---|
 | #4 能力矩阵 | `vantage capability/info/doctor` 改为按 `CommandServices` 实际服务绑定评估,输出 read/write/readback/rollback 轴、官方依赖清单与替代就绪报告 | 源码 + 单测 | 目标机重跑矩阵,确认服务绑定与实际执行路径一致 |
 | #18 进程调度 | `perf top`:间隔 CPU 采样排序;`perf boost/throttle`:仅优先级(原版为 AboveNormal/BelowNormal),精确 PID + 创建时间身份守卫,写入后独立回读,`--auto-restore` 用同一快照复原。亲和性、工作集收缩、游戏白名单与前台识别尚未接入 | 源码 + 单测(CLI 契约 10 项 + Windows 事务/回读/回滚) | 目标机对自有进程实际读写优先级并恢复;不得对关键系统进程操作 |
-| #38 Wi-Fi | `wifi security/history/policy`:改用公开 WlanApi 读取当前认证/加密,历史仅存本地且默认脱敏 | 源码 + 单测 | 目标机读取当前连接的认证/加密并与系统显示核对;未连接/权限拒绝需如实报告 |
+| #38 Wi-Fi | `wifi security/history/clear-history`:改用公开 WlanApi 读取当前认证/加密,历史仅存本进程内存且默认脱敏 | 源码 + 单测 | 目标机读取当前连接的认证/加密并与系统显示核对;未连接/权限拒绝需如实报告 |
 | #1 事件/watch | 有实验性 WMI 订阅与轮询路径 | 源码,未完成运行验证 | 实际变化、错误传播、断线重连、Ctrl+C/释放及 MagicBay 300 ms 重查 |
 | #2 自动策略 | 有求值引擎、配置模型与尚在检查的 daemon 集成 | 引擎单测,运行闭环未验收 | 不得把 UTC 冒充本地时间、硬件前值或未执行的回退当成功;完整场景切换和恢复待验证 |
-| #3 OSD | 有实验性 Windows overlay 与事件消费者 | 尚无真实画面或多屏证据 | 显示、非夺焦、生命周期、持久偏好及只显示实际回读均需修复并验证 |
-| #28 BIOS | `bios apply` 批量事务(复用 HAL 的 `plan_bios_apply`/`apply_bios_transaction`),破坏性项需 `--allow-destructive`,JSON 区分 accepted/saved/pending-reboot | 源码 + 单测 | 目标机批量写入后逐项回读并恢复;不得自动重启 |
+| #3 OSD | 有实验性 Windows overlay 与事件消费者;Fn OSD 持久偏好已按厂商通道实现(服务控制码 146/147、148/149 + `VantageToast` 读回) | overlay 尚无真实画面或多屏证据;Fn OSD 通道已在目标机做过控制码前后值取证(`evidence/re-osd-20261105.md`),CLI 端到端尚未验收 | overlay 的显示/非夺焦/生命周期待验;Fn OSD 需目标机跑 `osd disable`→`osd enable` 并核对独立读回与恢复 |
+| #28 BIOS | `bios apply` 批量事务(复用 HAL 的 `plan_bios_apply`/`apply_bios_transaction`),破坏性项需 `--allow-destructive`,JSON 区分 accepted/saved/pending-reboot。**校对(C34):`bios apply` 与 `--allow-destructive` 当前都没有命令声明,本行是计划而非已落地源码** | 源码 + 单测 | 目标机批量写入后逐项回读并恢复;不得自动重启 |
 | #35 诊断 | HAL 有七态结果及取消模型;新 CLI 的跨进程生命周期尚未可靠 | HAL 单测;CLI 生命周期未验收 | 修复扫描结束等待、跨进程状态/取消的身份与并发;真机验证六类检查 |
 | #37 清单 | 有实验性只读固件报告 | 尚未有有效的变量读取证据 | 修复命名空间 GUID 和错误分类;结构布局/版本缺契约时只报告原始受限状态 |
 
@@ -370,6 +373,11 @@ Windows fake PnP 测试 33 passed，未操作真实设备。
 HID 节点前后状态/问题码完全一致；未提交 touchpad off/on/recover。真实混合状态恢复
 和有独立备用输入条件下的完整 off/on 循环仍待验收。见
 `evidence/pr44-touchpad-dryrun-20261028.json` 和 PR 评论 324。
+
+**2026-11-05 契约变更（本条未执行验收）:** `touchpad recover` 现在按观察到的叶状态选择
+策略，报告新增 `strategy` 字段，并在全部叶已启用时对输入叶执行 disable→enable 重启；
+因此上表 dry-run 的 JSON 形状多了 `strategy`(当时二进制无此字段)，其余结论不变。新契约、
+边界与待验收项见 `evidence/re-touchpad-20261105.md`，目标机写入仍未执行。
 
 ## C14 · 电池来源分离的只读验证（非充电控制验收）
 
@@ -571,6 +579,13 @@ SSH 控制台中运行,捕获原始 stdout 后再解析样本:
 终端宿主、物理传感器位置、CPU/GPU 包功耗与频率、风扇/模式控制、崩溃恢复及完整
 替代仍未完成;#12 和 #39 保持开放。
 
+> **2026-11-05 追补(不影响上述运行记录)**:`perf temp` 的传感器集合此后增加了
+> Intel ESIF/DTT 参与者来源(`root\WMI EsifDeviceInformation`,来源 `wmi_esif`,
+> 契约与逐条原始值见 `evidence/re-thermal-20261105.md`)。上面的 2026-10-29 运行
+> 早于该来源,只覆盖一个 ACPI 热区与电池类温度,不能作为 ESIF 行的验收证据;
+> 新增行的验收(实例身份、0 值按无读数处理、`perf.temp` 能力行在只有 ESIF 可读
+> 时的可用性)仍需在目标机重跑并单独记录。
+
 ## C20 · 自动场景策略、热键与 OSD 的接管验收
 
 **状态:场景策略与恢复路径已验收;OSD 与热键的真实画面/按键效果在交互式会话 1 才可见,
@@ -585,16 +600,20 @@ OSD 与全局热键(commit 65c01a9)是场景策略生效时的可见/可触达�
 
 | 命令 | SSH 服务会话 0 的实际结果 | 语义 |
 |---|---|---|
-| `osd test` / `osd enable` / `osd show <行…>` | `state=gated`,`detail` 指明 `CreateWindowExW failed; this service is not attached to the active desktop session` | overlay 需要活动交互桌面,服务会话无显示拓扑,如实门控 |
+| `osd test` / `osd show <行…>` | `state=gated`,`detail` 指明 `CreateWindowExW failed; this service is not attached to the active desktop session` | overlay 需要活动交互桌面,服务会话无显示拓扑,如实门控 |
+| `osd enable` / `osd disable` | 不再绘制 overlay;改为驱动联想 Fn OSD 偏好(`LenovoFnAndFunctionKeys` 用户自定义控制码 146/147、148/149)并读回 `VantageToast\ShowCapslkOSD` / `ShowNumlkOSD` | 持久偏好 + 实际回读;`NumLk` 在 `Capbility\SupportNumlkKey=0` 的机型如实 `not_supported` 且不发控制码;`--dry-run` 只报告当前值与将发送的码 |
 | `hotkey register <id> <vk>` | `state=gated`,`detail` 指明 `RegisterHotKey failed; no interactive desktop session / hotkey already owned` | 全局热键注册需要交互桌面,服务会话如实门控 |
 | `hotkey list` | `{"registered":[]}` | 注册被门控时列表为空,不伪报已注册 |
+| `hotkey status` | `service_running=true`、`utility_running=true`、`fn_lock.state=on`(`HotkeyMode=Disable` + `F1-F12AsPrimaryFunction=Enable`)、`fn_ctrl_swap.state=on`(`FoolProofFnCtrl=Enable`)、`tables` 为 37 个当前用户表 + 3 个机器表 | 只读报告联想 Fn 热键包状态:服务/渲染进程、`Capbility` 标志、固件 FnLock 与 Fn/Ctrl 互换、持久化的按机型映射表;不写注册表、不发服务控制码、不改键位(`docs/evidence/re-hotkeys-20261105.md`) |
 | `hotkey trigger <id>` | `{"id":<id>,"live":false}` | 未注册时触发如实报非存活 |
 | `hotkey unregister <id>` | `{"id":<id>,"removed":false}` | 未注册时释放如实报未移除 |
 
 overlay 用 GDI 顶层分层窗口自绘(WM_PAINT 重绘),不做无界隐藏定时器;热键用
 RegisterHotKey + 消息泵线程,WM_HOTKEY 记录内部 id。两者在交互式会话 1 才真正
 绘制/按键,服务会话一律 `gated`,与 C1 显示验收同属"交互式会话"边界。能力矩阵
-新增 `osd.show` 与 `hotkey.list/register/trigger/unregister` 行,`DispatchSupport=Implemented`,
+新增 `osd.show`、`osd.fn.capslock`、`osd.fn.numlock`、`channel.fn-osd` 与
+`hotkey.list/status/register/trigger/unregister` 行(`hotkey.status` 为只读复合状态,
+`StateLayer=Composite`),`DispatchSupport=Implemented`,
 读回如实 `unverified`(硬件效果仅在交互桌面可验证)。daemon 在每次场景策略生效时调用
 overlay 标注场景 id、动作与 applied/unavailable 状态。
 
@@ -728,7 +747,8 @@ ERROR_INSUFFICIENT_BUFFER 拒绝);GBMD 写回空的 4 字节槽,须由读回轮�
 
 未通过(如实记录,不是"已实现"):SmartSense 三项开关(lock-on-leave / wake-on-approach / pause-video)在管道层
 被拒(`0x00090101 arg 0/1`、`0x00070101 arg 0`、`0x000d0101 arg 1/2`),HPD 三个值均未改变,写入通道尚不可用;
-风扇 `perf fan auto|manual` 报 `unsupported: LENOVO_GAMEZONE_DATA.GetSmartFanMode`(本机型该提供者不暴露此方法);
+风扇 `perf fan auto|manual` 在写入前的前置回读检查处被拒(本机型 `GetSmartFanMode` 一律 `WBEM_E_INVALID_OBJECT`,
+`SetSmartFanMode` 的 success 不校验取值也无法回读,见 `docs/evidence/re-fan-write-20261105.md`);
 `perf pl1|pl2` 报 `unsupported: tune.pl1|pl2`(按依赖裁定不接联想厂商 MSR 驱动)。三者的契约缺口见
 docs/interfaces.md §13/§15,属待开发项,不计入已验收。
 
@@ -809,6 +829,12 @@ temporary_charge: 0x00000001 -> permanent=true (非临时模式)
 - 夜间充电支持位为真、状态为关;发现并修正了"探测 bit4=当前状态"的错误推断
   (interfaces.md §11.3 更正)。
 - 临时模式原始值 0x01=Permanent,与 docs/02 §5 契约一致。
+
+> 2026-11-05 追加(不修改上面的逐字输出):`GetTemporaryMode`/`DoesSupportTemporaryMode`
+> 的精确解码已从导出函数复核(interfaces.md §11.4、`docs/evidence/re-battery-adv-20261105.md`)。
+> `0x11` 回包的 bit0 是有效位、模式在 `(raw>>4)&0x07ffffff`,不是位掩码;`0x01` 仍解为
+> Permanent(非临时),结论不变,但 `battery temporary-mode` 输出改为
+> `supported/valid/mode` 三个字段。
 
 写路径(充电模式 GBMD 03/05/07/08、USB 0x0a/0x0b/0x12/0x13、夜间充电
 0x80000012/0x12)契约经实测验证、实现带 dry-run/回滚/读回轮询,但**真机写入
@@ -904,3 +930,22 @@ VerifyMismatch,而写入实际生效且 ledger 无记录、声明的 rollback �
   组合编排不编造"一键省电"语义。
 - `tune turbo` / `power scheme set`(PERFEPP/PERFBOOST):`PowerReadValueMin`
   在本机无范围元数据,预校验拒猜边界,维持 unavailable。
+
+## C34 · 命令面校对(2026-11-06)
+
+本节只对齐**文档与 clap 声明**的差异,不新增硬件验收。基准为
+`crates/vantage-cli/src/lib.rs`(`sha256 1afe6721…`,8078 行,命令面与 `f6f5aa…`/8067 行
+逐项一致);双向差异与逐行定位见 [DOCS-TRUTH 校对](evidence/doc-truth-20261105.md)。
+
+| 位置 | 原文 | 现行声明 | 处理 |
+|---|---|---|---|
+| #6 行(本文件 42 行) | `conservation --dry-run` | 无 `conservation` 子命令;`battery charge-mode conservation`(值枚举 normal\|conservation\|rapid) | 已就地改为完整拼写;回执与结论不变 |
+| C6 表(233 行) | `vantage --yes tune turbo aggressive` | `TuneCommand::Turbo { state: Toggle }`,只接受 `on\|off` | 保留历史行,结果列加"当前不可解析"标注 |
+| C6 结论(237-238 行) | turbo 扩展为 5 模式集 | 声明仍是 2 值;`grep` 无 `efficient*` 实现 | 已改为"扩展在现行声明中不存在" |
+| C8 #38(293 行) | `wifi security/history/policy` | 三叶为 `security`/`history`/`clear-history` | 已就地更正叶名 |
+| C8 #28(297 行) | `bios apply` + `--allow-destructive` | `BiosCommand` 无 `apply`,全局无 `--allow-destructive` | 已标注为未实现计划 |
+
+未在本节处理、且属其他 owner 的同源偏差:`docs/03` 的 `perf pl1|pl2 [get|set]`、
+`perf oc`、`perf mode set` 形态;`docs/04`/`docs/10` 的 `farfield`;
+`docs/11` §9 把 `update download/install/ignore/rollback/schedule` 当可用契约;
+`docs/interfaces.md` 对 `sense reset` 的"未暴露子命令"表述。

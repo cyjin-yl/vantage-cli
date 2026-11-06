@@ -108,7 +108,7 @@ impl<R: HpdRpc, P: SensePipe, S: HpdSettingsStore> SenseControl for WindowsSense
                 feature: format!("HPD RPC does not advertise {feature:?}"),
             });
         }
-        let requested = apply_feature_to_state(feature, previous);
+        let requested = apply_feature_to_state(feature, &previous);
         if apply == ApplyMode::DryRun {
             return Ok(ChangeReport::dry_run(previous, requested));
         }
@@ -137,7 +137,8 @@ impl<R: HpdRpc, P: SensePipe, S: HpdSettingsStore> SenseControl for WindowsSense
 /// Update the modeled state as the registry should reflect after `feature`.
 /// Attention tracking has no known persistence key, so it is left unchanged
 /// here; the caller still reports the intent via the pipe write.
-fn apply_feature_to_state(feature: SenseFeature, mut state: SenseState) -> SenseState {
+fn apply_feature_to_state(feature: SenseFeature, state: &SenseState) -> SenseState {
+    let mut state = (*state).clone();
     match feature {
         SenseFeature::LockOnLeave(enabled) => state.lock_on_leave = Some(enabled),
         SenseFeature::LeaveDistance(distance) => state.leave_distance = Some(distance),
@@ -382,6 +383,10 @@ impl HpdSettingsStore for NativeHpdStore {
                 "FacialFeatureRegistered",
                 BoolEncoding::Legacy01,
             )?,
+            // `GetVersion` (wire op 4) exists only on the RPC channel; the
+            // persisted store has no equivalent, so absence is preserved.
+            interface_version: None,
+            interface_version_error: None,
         })
     }
 }

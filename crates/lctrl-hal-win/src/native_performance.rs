@@ -3,7 +3,7 @@ use std::ffi::c_void;
 use lctrl_core::{LctrlError, Result};
 use windows_sys::Win32::System::Registry::{
     HKEY, HKEY_LOCAL_MACHINE, KEY_SET_VALUE, REG_DWORD, REG_VALUE_TYPE, RRF_RT_REG_DWORD,
-    RegCloseKey, RegCreateKeyExW, RegGetValueW, RegSetValueExW,
+    RRF_RT_REG_SZ, RegCloseKey, RegCreateKeyExW, RegGetValueW, RegSetValueExW,
 };
 
 use crate::{PerformanceRegistryReader, map_win_error};
@@ -94,6 +94,52 @@ impl PerformanceRegistryReader for NativePerformanceRegistry {
             ));
         }
         Ok(())
+    }
+
+    fn read_string(&self, value: &str) -> Result<String> {
+        // The dispatcher reads the curve tables into a 520-byte buffer
+        // (`movl $0x208` before `RegQueryValueExW`) and expects `REG_SZ`.
+        // Matching that bound means an oversized value surfaces as
+        // `ERROR_MORE_DATA` instead of being cut down to a shorter table.
+        const MAX_BYTES: u32 = 520;
+        const MAX_UNITS: usize = (MAX_BYTES / 2) as usize;
+        let key = wide(POWER_SLIDER_KEY);
+        let name = wide(value);
+        let mut buffer = [0u16; MAX_UNITS];
+        let mut bytes = MAX_BYTES;
+        let mut kind: REG_VALUE_TYPE = 0;
+        let status = unsafe {
+            RegGetValueW(
+                HKEY_LOCAL_MACHINE,
+                key.as_ptr(),
+                name.as_ptr(),
+                RRF_RT_REG_SZ,
+                &mut kind,
+                buffer.as_mut_ptr().cast::<c_void>(),
+                &mut bytes,
+            )
+        };
+        if status != 0 {
+            return Err(map_win_error(
+                status,
+                &format!("PowerSlider registry value {value:?}"),
+            ));
+        }
+        if bytes > MAX_BYTES {
+            return Err(LctrlError::ChannelUnavailable {
+                channel: format!(
+                    "PowerSlider registry value {value:?} reported {bytes} bytes; buffer holds \
+                     {MAX_BYTES}"
+                ),
+            });
+        }
+        // `bytes` counts the terminating NUL; the decode needs the units only.
+        let units = buffer.len().min(bytes as usize / 2);
+        let end = buffer[..units]
+            .iter()
+            .position(|unit| *unit == 0)
+            .unwrap_or(units);
+        Ok(String::from_utf16_lossy(&buffer[..end]))
     }
 }
 

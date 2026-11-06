@@ -18,6 +18,7 @@
 | 夜间充电 | ✔ | ✗ | `battery night-charge {on|off}` |
 | 临时充电模式查询 | ✔ | ✗ | `battery temporary-mode` |
 | 电池信息(健康/循环/固件) | ✔ | ✔ | `battery status [--json]` |
+| 电池磨损(设计容量/满充容量/循环数/磨损百分比) | ✔ | ✔ | `battery health [--json]`（只读,§7.4） |
 | 适配器检测与功率识别 | ✔ | ✔ | `battery adapter` |
 | AlwaysOnUSB(AC 下 USB 对外供电) | ✔ | ✔(BIOS 层) | `usb always-on {on|off}` |
 | 电池模式下 USB 对外供电 | ✔ | ✔(BIOS 层) | `usb charge-on-battery {on|off}` |
@@ -264,10 +265,17 @@ PCManager `BatterySetting.exe` 提供四种充电策略(Vantage 仅有前三态�
 
 | 功能 | 语义 | 接口 |
 |---|---|---|
-| 夜间充电 `GetNightChargeMode()` | 返回 bitmask:bit0=On, bit1=Off | `SetNightChargeMode(1)`=On,`(2)`=Off;`RestoreNightChargeMode` 若支持则恢复为 Off |
-| 临时模式 `GetTemporaryMode()` | 返回 bitmask:bit0=Permanent, bit1=PlugIn, bit2=DynamicLifeSpan;返回值 ∈ {2,4} 时 `IsTemporaryChargeMode=true` | 只读探测 |
+| 夜间充电 `GetNightChargeMode()` | 返回 `BatteryNightChargeModeType`:0=NotSupported,1=On,2=Off | `SetNightChargeMode(1)`=On,`(2)`=Off;写后按 `Sleep(50ms)`×10 轮询回读;`RestoreNightChargeMode` 若支持则恢复为 Off |
+| 临时模式 `GetTemporaryMode()` | 返回 `BatteryTemporaryModeType`:0=None,1=Permanent,2=PlugIn,4=DynamicLifeSpan;`PlugIn`/`DynamicLifeSpan` 即临时模式 | 只读探测,本 DLL 无写方 |
 
-能力探测:`DoesSupportNightChargeMode()` → `IOCTL 0x83102150`(已验证,见 §9 表)。
+能力与读回选择子(RE 见 [re-battery-adv-20261105.md](evidence/re-battery-adv-20261105.md)):
+
+- 夜间充电 `IOCTL 0x83102150`:`0x13` 探测——`(raw&1)!=0 && (raw>>4 &1)!=0` 才算支持;
+  `0x11` 状态——bit4=开;写 `0x80000012`=开、`0x12`=关(4B 输入,4B 输出)。
+- 临时模式 `IOCTL 0x83102148`:`0x13` 探测——`(raw&1)!=0 && (raw&6)!=0`;
+  `0x11` 状态——bit0 是有效位,模式在 `(raw>>4)&0x07ffffff`(0=Permanent,1=PlugIn,
+  2=DynamicLifeSpan,其余为 None)。旧记录的“bit0/1/2 位掩码”只对 `0x01/0x02/0x04`
+  三种回包偶然一致,已更正。
 
 ---
 
@@ -296,7 +304,7 @@ PCManager `BatterySetting.exe` 提供四种充电策略(Vantage 仅有前三态�
 
 ---
 
-## 7. 电池信息读取(`battery status`)
+## 7. 电池信息读取(`battery status` / `battery health`)
 
 ### 7.1 `_BATTERY_INFORMATION_EX` 结构(字段偏移,值 0xFFFF = 不支持)
 
@@ -365,6 +373,56 @@ Windows WMI 原始 `ChargeRate`/`DischargeRate` 不标作 mA;`capacity_ratio_per
 
 ---
 
+### 7.4 容量健康度(`battery health`)
+
+**归属**:`root\WMI` 电池类链(`MSBatteryClass` 家族)是本机唯一暴露设计容量的通道——
+`BatteryStaticData.DesignedCapacity`、`BatteryFullChargedCapacity.FullChargedCapacity`、
+`BatteryCycleCount.CycleCount`,按非空 `InstanceName` 精确关联同一块电池。已排除的候选:
+`Win32_Battery` 的 `DesignCapacity`/`FullChargeCapacity` 在本机返回 **NULL**(类定义有属性、
+provider 不给值);`Lenovo_BatteryInformation` 的 `WBAT_0..5` 实例只有
+`{Active, CurrentSetting, InstanceName}` 三个属性,`CurrentSetting` 是身份字符串
+(`BAT0 BatMaker,…` / `BAT0 HwId,…` / `BAT0 MfgDate,…`),不含容量或循环数。
+`\\.\EnergyDrv` `0x83102138` 的 83 字节响应(偏移 `0x00/0x02/0x04`,单位 10 mWh)是**旁证**
+通道:2026-10-28 与 WMI 给出同一组 99900 / 94090 / 65240 mWh;循环数只能取自 WMI,
+因为 `0x83102120`(SMBus 固件+循环数)尚未实现。
+
+注:本机 `Get-CimInstance`(MI)读 `BatteryStaticData` 返回 `0x80041001` 通用故障,
+只有经典 WMI(`IWbemServices`)能读到设计容量;现有 `WmiTransport` 即经典绑定,不得改走 MI。
+
+**单位(取自 `BATTERY_INFORMATION` 文档,不从名字推断)**:`Capabilities` 的
+`0x4000_0000`(`BATTERY_CAPACITY_RELATIVE`)清零 ⇒ 容量 mWh、速率 mW;置位 ⇒ 单位未定义。
+本机 `Capabilities = 0x8000_0000`(仅 `BATTERY_SYSTEM_BATTERY`),因此设计/满充/剩余容量
+均为绝对 mWh(2026-10-28、2026-11-05 两次确认)。`DesignedCapacity` = 新电池理论容量;
+`FullChargedCapacity` = 当前满充容量,文档原文即"与 `DesignedCapacity` 比较可估算磨损";
+`CycleCount` **为 0 表示该电池不支持循环计数**。**不输出 mAh**:换算需要同一时刻的端电压,
+而固定偏移 `0x14` 是标称/设计电压(15600 mV),`BatteryStatus.Voltage` 是瞬时值
+(两次采样 15956 mV 与 16797 mV),用二者之一去除容量会凭空造出安时数;因此字段只用
+`_mwh` 后缀,不存在 `_mah` 字段。
+
+**算例(2026-11-05T16:49:13Z 只读采样)**:design 99900、full 93810、cycle 233 ⇒
+`capacity_ratio_percent = floor(100×93810/99900) = 93`、
+`wear_percent = floor(100×(99900−93810)/99900) = 6`;两者各自向下取整,不保证相加为 100。
+
+**拒绝规则(显式,不得猜)**:
+
+| 情形 | 输出 |
+|---|---|
+| 设计容量缺失或为 0 | `capacity_ratio_percent`/`wear_percent` 均为 null;满充容量照常给出,issue 指明缺设计容量;0 按"不支持"处理,绝不做除数 |
+| 满充容量缺失或为 0 | 两个百分比均为 null,issue 指明缺满充容量 |
+| 满充 > 设计 | 比值照实输出(可 >100),`wear_percent` 为 null + issue |
+| `BATTERY_CAPACITY_RELATIVE` 置位 | 通道保留 "relative capacity units; mWh unavailable" issue,不计算百分比 |
+| `CycleCount == 0` | `cycle_count` 为 null + issue(文档语义是"不支持",不是"0 次循环") |
+
+**输出**:`battery health --json` 含 `source_association: "unverified"`、
+`capacity_wear`(上述字段 + `fields` 逐字段来源:`root\WMI:BatteryStaticData.DesignedCapacity`、
+`root\WMI:BatteryFullChargedCapacity.FullChargedCapacity`、`root\WMI:BatteryCycleCount.CycleCount`)、
+`capacity_wear_error`,以及独立的 `vendor_health`
+(`source: "energy_drv_83102138_device0"`,`health`/`life_percent`)与 `vendor_health_error`;
+两个通道各自保留错误,不合并。本机 `vendor_health` 的 `health`/`life_percent` 目前为 null
+(83 字节响应尾段偏移仍是推断值),因此健康等级不从厂商通道声明。容量通道本身失败时命令失败,
+其余情况成功并带上 issue。Linux 后端同一契约:节点为 `energy_full_design`/`energy_full`,
+仅有 `charge_full_design`/`charge_full` 时用电压换算为 mWh,`fields` 标明实际取值节点。
+
 ## 8. 适配器检测与功率(`battery adapter`)
 
 `CAdapter` 经 EnergyDrv 读取:
@@ -388,6 +446,21 @@ in=4B 零,out=10B `{u16 PID, u16 VID, u16 SystemPowerW, u16 CurrentChargerPowerW
 仅在 GBMD `0xFF` 返回 DWORD 的 bit24=1(认证充电器能力存在)时调用,否则 err=87。
 认证判定:GBMD `0xFF` DWORD 的 bit15-16(`AdapterType`)==1 ⇒ Lenovo 认证适配器;
 ==0 ⇒ Inbox(通用);==3 ⇒ SlowCharger(慢充)。
+
+### 8.1 只读 AC/取电观测(`power ac` / `power draw`)
+
+- `power ac`:AC 接入状态取 `GetSystemPowerStatus.ACLineStatus`;适配器认证状态取
+  GBMD `0xFF`(bit15-16),身份与功率仅在 bit24=1 时取 GAPD `0x8310215c`。两者独立返回、不合并。适配器
+  电压、适配器电流、额定瓦数在本机没有只读通道:GAPD 只有 PID/VID/SystemPowerW/
+  CurrentPowerW;UCM-UCSI 设备存在但没有文档化的用户态 PD 契约 API。缺失字段列入
+  `unavailable[]` 并给出原因,不用设计电压或额定功率补齐。目标机 2026-11-05 实测
+  GBMD `0xFF=0x00860004`(bit24=0),故不调用 GAPD,功率字段为 null。
+- `power draw`:唯一来源是 SetupAPI 电池类 `IOCTL_BATTERY_QUERY_STATUS` 的
+  `BATTERY_STATUS`。`Voltage` 为 mV;`Rate` 为 mW,正充负放,`BATTERY_CAPACITY_RELATIVE`
+  时该通道整体不给出绝对值;`PowerState` 原样保留。`rate=0` 记为 `state=zero` 且
+  `draw_mw=null`(实测零,不是 0 W 取电);`rate` 缺失记为 `not_reported`,不算功率。
+  AC 下零速率会附 issue 说明本机没有墙端输入功率计。`Win32_Battery` 在 21VG 上无
+  `Voltage`/`PowerRate` 属性,不作回退。证据见 `docs/evidence/re-power-ac-20261105.md`。
 
 **EM Spec 版本**：安装 PowerBattery.dll 的 `GetEmSpecVersion()`（RVA `0x22d0`）发
 **IOCTL `0x8310214c`**，输入 **DWORD `0x11`**、输出 4B raw。IOCTL 失败或 raw
@@ -511,11 +584,12 @@ Linux 替代:upower D-Bus + udev + `/sys/class/power_supply` uevent(见 09 文�
 
 ```
 battery status [--json]        # §7 来源分组、各自错误及当前 charge-mode(回读 bitmask)
+battery health [--json]        # §7.4 只读:设计/满充容量(mWh)、循环数、磨损百分比;算不出时为 null + issue
 battery charge-mode MODE       # normal|conservation|rapid;先探测支持,§3.3 序列下发,回读校验
 battery thresholds S E         # PCManager 语义,§4.2;S<E,5≤S≤95,10≤E≤100
 battery extreme-life on|off    # §4.4 完整常驻策略尚未实现；不是 §4.3 的同义开关
 battery night-charge on|off    # §5,先 0x83102150 探测
-battery temporary-mode         # §5 bitmask 原样输出
+battery temporary-mode         # §5 只读:support 探测 + 有效位/模式解码
 battery adapter [--json]       # §8 全字段
 battery watch [--interval S]   # §11 轮询快照流,默认 1 秒,Ctrl-C 退出
 usb always-on on|off [--persistent]
@@ -524,6 +598,8 @@ power scheme list|get|apply NAME
 power scheme get NAME --subgroup GUID --setting GUID  # 只读指定方案的 AC/DC 设置与策略状态
 power scheme set SUBGROUP SETTING AC|DC VALUE   # PowerWrite*ValueIndex 直映射
 power saver-once               # §4.3
+power ac [--json]              # §8.1 只读:AC 状态 + 适配器身份/功率(缺通道时 null)
+power draw [--json]            # §8.1 只读:电池包瞬时功率(正充负放)及其来源
 ```
 
 ---
@@ -545,3 +621,6 @@ power saver-once               # §4.3
 | VPC 事件掩码 | `官方组件接口说明 |
 | 阈值下发链(ThinkPowerPlugin→宿主回调→服务)与读通道 0x83102120/0x83102138 | 组件行为 + **实机探测**:`目标机实机接口探测记录`;终端写命令字仍未定死(见 §4.2 两条实现路径) |
 | GetAdapterStatus = GBMD `0xFF` + GAPD `0x8310215c` 格式 | **实机闭环**:AdapterInformation 接口规格 + 实机 GBMD 0xFF→`0x00860004`;`目标机实机接口探测记录` |
+| 设计/满充容量与循环数的归属(`root\WMI` 电池类链;`Win32_Battery` 两容量为 NULL;`Lenovo_BatteryInformation` 只有身份字符串) | **实机只读闭环**:2026-11-05 `Get-WmiObject`/`Get-CimInstance` 类与实例转储;`evidence/re-battery-health-20261105.md` |
+| 容量单位 mWh 与 `CycleCount==0` 表示"不支持" | `BATTERY_INFORMATION`(Poclass.h/Batclass.h)字段文档 + 本机 `Capabilities = 0x8000_0000`(`BATTERY_CAPACITY_RELATIVE` 清零) |
+| MI(`Get-CimInstance`)读 `BatteryStaticData` 返回 `0x80041001`,经典 WMI 可读 | **实机只读复现**(2026-11-05,两次);结论:容量读取必须保留经典 `IWbemServices` 绑定 |

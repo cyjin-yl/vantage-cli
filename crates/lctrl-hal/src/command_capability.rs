@@ -25,6 +25,7 @@ pub enum ServiceRole {
     Touchpad,
     Panel,
     PanelBrightness,
+    PanelIdentity,
     Temperature,
     Tuning,
     Update,
@@ -32,14 +33,20 @@ pub enum ServiceRole {
     Process,
     ProcessorPower,
     Usb,
+    UsbPorts,
     Sense,
     Audio,
     MobileBroadband,
     MagicBayCamera,
     MagicBayDisplay,
     Osd,
+    Storage,
     Hotkey,
     Wifi,
+    Bluetooth,
+    Radio,
+    Sensor,
+    Security,
     MachineFix,
     ScenePolicy,
 }
@@ -61,6 +68,7 @@ impl ServiceRole {
             Self::Touchpad => "touchpad",
             Self::Panel => "panel",
             Self::PanelBrightness => "panel_brightness",
+            Self::PanelIdentity => "panel_identity",
             Self::Temperature => "temperature",
             Self::Tuning => "tuning",
             Self::Update => "update",
@@ -68,14 +76,20 @@ impl ServiceRole {
             Self::Process => "process",
             Self::ProcessorPower => "processor_power",
             Self::Usb => "usb",
+            Self::UsbPorts => "usb_ports",
             Self::Sense => "sense",
             Self::Audio => "audio",
             Self::MobileBroadband => "mobile_broadband",
             Self::MagicBayCamera => "magicbay_camera",
             Self::MagicBayDisplay => "magicbay_display",
             Self::Osd => "osd",
+            Self::Storage => "storage",
             Self::Hotkey => "hotkey",
             Self::Wifi => "wifi",
+            Self::Bluetooth => "bluetooth",
+            Self::Radio => "radio",
+            Self::Sensor => "sensor",
+            Self::Security => "security",
             Self::MachineFix => "machine_fix",
             Self::ScenePolicy => "scene_policy",
         }
@@ -255,6 +269,30 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
+        CommandId::CPU_STATUS,
+        CommandAxes::read_only(StateLayer::NotApplicable),
+        FeatureBinding::Capability("cpu.status"),
+        ServiceBinding::One(ServiceRole::Hal),
+        &[
+            lctrl_core::required(Dependency::PublicWin32Cim),
+            lctrl_core::required(Dependency::Win32Registry),
+            lctrl_core::required(Dependency::Win32PowerApi),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::EVENTS_LOG,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("events.log"),
+        ServiceBinding::One(ServiceRole::Events),
+        &[
+            lctrl_core::required(Dependency::Win32EventLog),
+            lctrl_core::required(Dependency::Win32Registry),
+            lctrl_core::optional(Dependency::LenovoPcManagerService),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
         CommandId::BATTERY_STATUS,
         CommandAxes::read_only(StateLayer::Runtime),
         FeatureBinding::Capability("battery.status"),
@@ -270,6 +308,18 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandId::BATTERY_ADAPTER,
         CommandAxes::read_only(StateLayer::Runtime),
         FeatureBinding::Capability("battery.adapter"),
+        ServiceBinding::One(ServiceRole::Battery),
+        &[
+            lctrl_core::optional(Dependency::EnergyDriver),
+            lctrl_core::optional(Dependency::PublicWin32Cim),
+            lctrl_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::BATTERY_HEALTH,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("battery.health"),
         ServiceBinding::One(ServiceRole::Battery),
         &[
             lctrl_core::optional(Dependency::EnergyDriver),
@@ -318,7 +368,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ServiceBinding::Unsupported,
         &[],
         DispatchSupport::Unsupported(
-            "full extreme-life equivalence requires an owned signed kernel Job lifecycle implementation and the target UI toggle mapping; a partial power-plan or EcoQoS substitute is not implemented (docs/evidence/extreme-life-re-20261102.md)",
+            "extreme life is the AiTurbo run-state policy (BatteryLife.exe/AiPerfSvc), not a charge-firmware mode: no GBMD/BNMC/BTMC selector carries it, and the PCManager charge radio's extra state is night charge (BNMC 0x83102150), not a fourth firmware mode. Full equivalence needs an owned signed kernel Job lifecycle implementation and the target UI toggle mapping; a partial power-plan or EcoQoS substitute is not implemented (docs/evidence/extreme-life-re-20261102.md, docs/evidence/re-battery-adv-20261105.md)",
         ),
     ),
     CommandCapability::new(
@@ -372,7 +422,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             Readback::Required,
             Rollback::PreviousState,
         ),
-        FeatureBinding::Unprobed("bios"),
+        FeatureBinding::Capability("bios"),
         ServiceBinding::One(ServiceRole::Bios),
         &[lctrl_core::required(Dependency::LenovoFirmwareWmi)],
         DispatchSupport::Implemented,
@@ -396,9 +446,17 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             Readback::Required,
             Rollback::PreviousState,
         ),
-        FeatureBinding::Unprobed("bios"),
+        FeatureBinding::Capability("bios"),
         ServiceBinding::One(ServiceRole::Bios),
         &[lctrl_core::required(Dependency::LenovoFirmwareWmi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::USB_PORTS,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("usb.ports"),
+        ServiceBinding::One(ServiceRole::Usb),
+        &[lctrl_core::required(Dependency::Win32SetupApi)],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -489,6 +547,30 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
+        CommandId::POWER_AC,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("battery.adapter"),
+        ServiceBinding::One(ServiceRole::Battery),
+        &[
+            lctrl_core::optional(Dependency::EnergyDriver),
+            lctrl_core::required(Dependency::Win32PowerApi),
+            lctrl_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::POWER_DRAW,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("battery.status"),
+        ServiceBinding::One(ServiceRole::Battery),
+        &[
+            lctrl_core::required(Dependency::Win32SetupApi),
+            lctrl_core::optional(Dependency::Win32PowerApi),
+            lctrl_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
         CommandId::PERF_MODE,
         CommandAxes::mutation(
             StateLayer::Runtime,
@@ -519,10 +601,10 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandId::PERF_FAN_AUTO,
         CommandAxes::mutation(
             StateLayer::Runtime,
-            Readback::Unverified,
+            Readback::Required,
             Rollback::PreviousState,
         ),
-        FeatureBinding::Capability("perf.fan.mode"),
+        FeatureBinding::Capability("perf.fan.mode.write"),
         ServiceBinding::One(ServiceRole::Fan),
         &[
             lctrl_core::required(Dependency::LenovoFirmwareWmi),
@@ -534,10 +616,10 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandId::PERF_FAN_MANUAL,
         CommandAxes::mutation(
             StateLayer::Runtime,
-            Readback::Unverified,
+            Readback::Required,
             Rollback::PreviousState,
         ),
-        FeatureBinding::Capability("perf.fan.mode"),
+        FeatureBinding::Capability("perf.fan.mode.write"),
         ServiceBinding::One(ServiceRole::Fan),
         &[
             lctrl_core::required(Dependency::LenovoFirmwareWmi),
@@ -549,10 +631,10 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandId::PERF_FAN_FULLSPEED,
         CommandAxes::mutation(
             StateLayer::Runtime,
-            Readback::Unverified,
+            Readback::Required,
             Rollback::PreviousState,
         ),
-        FeatureBinding::Capability("perf.fan.mode"),
+        FeatureBinding::Capability("perf.fan.mode.write"),
         ServiceBinding::One(ServiceRole::Fan),
         &[
             lctrl_core::required(Dependency::LenovoFirmwareWmi),
@@ -564,10 +646,10 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandId::PERF_FAN_SMART,
         CommandAxes::mutation(
             StateLayer::Runtime,
-            Readback::Unverified,
+            Readback::Required,
             Rollback::PreviousState,
         ),
-        FeatureBinding::Capability("perf.fan.mode"),
+        FeatureBinding::Capability("perf.fan.mode.write"),
         ServiceBinding::One(ServiceRole::Fan),
         &[
             lctrl_core::required(Dependency::LenovoFirmwareWmi),
@@ -664,6 +746,25 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         FeatureBinding::Capability("perf.dbdc"),
         ServiceBinding::One(ServiceRole::Performance),
         &[lctrl_core::required(Dependency::LenovoVendorWmi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::PERF_GPU_STATUS,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("perf.gpu"),
+        ServiceBinding::One(ServiceRole::Performance),
+        &[lctrl_core::required(Dependency::LenovoVendorWmi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::PERF_POLICY,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("perf.policy"),
+        ServiceBinding::One(ServiceRole::Performance),
+        &[
+            lctrl_core::required(Dependency::Win32Registry),
+            lctrl_core::optional(Dependency::LenovoProcessManagement),
+        ],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -887,7 +988,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             Readback::Required,
             Rollback::Transactional,
         ),
-        FeatureBinding::Unprobed("kbd.fn-ctrl-swap"),
+        FeatureBinding::Capability("kbd.fn-ctrl-swap"),
         ServiceBinding::One(ServiceRole::Bios),
         &[lctrl_core::required(Dependency::LenovoFirmwareWmi)],
         DispatchSupport::Implemented,
@@ -924,7 +1025,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
     CommandCapability::new(
         CommandId::TOUCHPAD_STATUS,
         CommandAxes::read_only(StateLayer::Runtime),
-        FeatureBinding::Unprobed("touchpad.status"),
+        FeatureBinding::Capability("touchpad.status"),
         ServiceBinding::One(ServiceRole::Touchpad),
         &[
             lctrl_core::required(Dependency::Win32DeviceManagement),
@@ -939,7 +1040,15 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             Readback::Required,
             Rollback::Unavailable,
         ),
-        FeatureBinding::Unprobed("touchpad.recover"),
+        FeatureBinding::Capability("touchpad.recover"),
+        ServiceBinding::One(ServiceRole::Touchpad),
+        &[lctrl_core::required(Dependency::Win32DeviceManagement)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::TOUCHPAD_CAPS,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("touchpad.caps"),
         ServiceBinding::One(ServiceRole::Touchpad),
         &[lctrl_core::required(Dependency::Win32DeviceManagement)],
         DispatchSupport::Implemented,
@@ -961,9 +1070,20 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
+        CommandId::PANEL_INFO,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("panel.identity"),
+        ServiceBinding::One(ServiceRole::PanelIdentity),
+        &[
+            lctrl_core::required(Dependency::PublicWin32Cim),
+            lctrl_core::required(Dependency::Win32Registry),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
         CommandId::PANEL_BRIGHTNESS_STATUS,
         CommandAxes::read_only(StateLayer::Runtime),
-        FeatureBinding::Unprobed("panel.brightness.status"),
+        FeatureBinding::Capability("panel.brightness.status"),
         ServiceBinding::One(ServiceRole::PanelBrightness),
         &[lctrl_core::required(Dependency::PublicWin32Cim)],
         DispatchSupport::Implemented,
@@ -975,7 +1095,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             Readback::Required,
             Rollback::PreviousState,
         ),
-        FeatureBinding::Unprobed("panel.brightness.set"),
+        FeatureBinding::Capability("panel.brightness.set"),
         ServiceBinding::One(ServiceRole::PanelBrightness),
         &[lctrl_core::required(Dependency::PublicWin32Cim)],
         DispatchSupport::Implemented,
@@ -1001,14 +1121,14 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandId::PANEL_SUPER_RESOLUTION,
         CommandAxes::mutation(
             StateLayer::Runtime,
-            Readback::Unverified,
-            Rollback::Unavailable,
+            Readback::Required,
+            Rollback::PreviousState,
         ),
         FeatureBinding::Capability("panel.super-resolution.write"),
         ServiceBinding::Unsupported,
         &[],
         DispatchSupport::Unsupported(
-            "the driver rejects the super-resolution state query, so the write contract is unverified (docs/interfaces.md §15.1)",
+            "IGCL is the vendor channel (SESuperResolutionPlugin64.dll -> IntelControlLib.dll), but this driver answers CTL_RESULT_ERROR_INVALID_ARGUMENT (0x4000000b) to both the two-pass capability enumeration and the get/set state query, so there is no previous state to verify or roll back; the write is guarded by that read and stays closed (docs/evidence/re-panel-20261105.md §4)",
         ),
     ),
     CommandCapability::new(
@@ -1025,7 +1145,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             lctrl_core::required(Dependency::LinuxDrm),
         ],
         DispatchSupport::Unsupported(
-            "firmware rejects the overdrive plane: LENOVO_PANEL_METHOD.Panel_Get_MPRT and Panel_Set_MPRT return WBEM_E_NOT_SUPPORTED, and no SPBTESTTOOL PnP device is present (docs/evidence/wmi-capability-exhaustion-20261104.md §2)",
+            "firmware advertises no overdrive feature on this SKU: the vendor owner (SmartPanelAddin -> BiosOD.dll) drives LENOVO_OTHER_METHOD Get/SetFeatureValue with IDs 0x1A0000 but only after LENOVO_CAPABILITY_DATA_00 lists an 0x1A family, and this machine lists none (dump in docs/evidence/re-panel-20261105.md §3); the Legion plane (LENOVO_PANEL_METHOD MPRT, LENOVO_GAMEZONE_DATA OD) rejects with 不支持/无效的对象 and the TCON plane needs \\\\.\\SPBTESTTOOL, which is absent",
         ),
     ),
     CommandCapability::new(
@@ -1042,7 +1162,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             lctrl_core::required(Dependency::LinuxDrm),
         ],
         DispatchSupport::Unsupported(
-            "the Intel pixel-transformation block contract is not honoured by this driver, so the channel stays closed (docs/interfaces.md §15.1)",
+            "vendor owner recovered (Vantage SmartInteractAddin EyeCareMode + PCManager LenovoMonitorManager.exe) and the mechanism is the system gamma ramp (GetDeviceGammaRamp/SetDeviceGammaRamp), implemented here through lctrl-hal-win's NativeGammaRamp with readback classification; the row stays unsupported because this SSH/network logon cannot exercise a desktop gamma write and the Mid/High Kelvin table is repo-inferred rather than vendor-extracted (docs/evidence/re-panel-20261105.md §5)",
         ),
     ),
     CommandCapability::new(
@@ -1131,7 +1251,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
     CommandCapability::new(
         CommandId::SENSE_STATUS,
         CommandAxes::read_only(StateLayer::Runtime),
-        FeatureBinding::Unprobed("sense.status"),
+        FeatureBinding::Capability("sense.status"),
         ServiceBinding::One(ServiceRole::Sense),
         &[lctrl_core::required(Dependency::SmartSense)],
         DispatchSupport::Implemented,
@@ -1143,7 +1263,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             Readback::Unverified,
             Rollback::Unavailable,
         ),
-        FeatureBinding::Unprobed("sense.lock-on-leave"),
+        FeatureBinding::Capability("sense.lock-on-leave"),
         ServiceBinding::One(ServiceRole::Sense),
         &[
             lctrl_core::required(Dependency::SmartSense),
@@ -1158,7 +1278,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             Readback::Unverified,
             Rollback::Unavailable,
         ),
-        FeatureBinding::Unprobed("sense.wake-on-approach"),
+        FeatureBinding::Capability("sense.wake-on-approach"),
         ServiceBinding::One(ServiceRole::Sense),
         &[
             lctrl_core::required(Dependency::SmartSense),
@@ -1173,7 +1293,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             Readback::Unverified,
             Rollback::Unavailable,
         ),
-        FeatureBinding::Unprobed("sense.pause-video"),
+        FeatureBinding::Capability("sense.pause-video"),
         ServiceBinding::One(ServiceRole::Sense),
         &[
             lctrl_core::required(Dependency::SmartSense),
@@ -1188,7 +1308,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             Readback::Unverified,
             Rollback::Unavailable,
         ),
-        FeatureBinding::Unprobed("sense.camera-assist"),
+        FeatureBinding::Capability("sense.camera-assist"),
         ServiceBinding::One(ServiceRole::Sense),
         &[
             lctrl_core::required(Dependency::SmartSense),
@@ -1203,7 +1323,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             Readback::Unverified,
             Rollback::Unavailable,
         ),
-        FeatureBinding::Unprobed("sense.approach-auto-adjust"),
+        FeatureBinding::Capability("sense.approach-auto-adjust"),
         ServiceBinding::One(ServiceRole::Sense),
         &[
             lctrl_core::required(Dependency::SmartSense),
@@ -1218,7 +1338,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             Readback::Unverified,
             Rollback::Unavailable,
         ),
-        FeatureBinding::Unprobed("sense.leave-auto-adjust"),
+        FeatureBinding::Capability("sense.leave-auto-adjust"),
         ServiceBinding::One(ServiceRole::Sense),
         &[
             lctrl_core::required(Dependency::SmartSense),
@@ -1233,7 +1353,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             Readback::Unverified,
             Rollback::Unavailable,
         ),
-        FeatureBinding::Unprobed("sense.reset"),
+        FeatureBinding::Capability("sense.reset"),
         ServiceBinding::One(ServiceRole::Sense),
         &[
             lctrl_core::required(Dependency::SmartSense),
@@ -1248,7 +1368,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             Readback::Unverified,
             Rollback::Unavailable,
         ),
-        FeatureBinding::Unprobed("sense.attention-tracking"),
+        FeatureBinding::Capability("sense.attention-tracking"),
         ServiceBinding::One(ServiceRole::Sense),
         &[
             lctrl_core::required(Dependency::SmartSense),
@@ -1280,7 +1400,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             Readback::Unverified,
             Rollback::PreviousState,
         ),
-        FeatureBinding::Unprobed("audio.dolby"),
+        FeatureBinding::Capability("audio.dolby"),
         ServiceBinding::One(ServiceRole::Audio),
         &[lctrl_core::required(Dependency::DolbyAudioSdk)],
         DispatchSupport::Implemented,
@@ -1292,15 +1412,47 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             Readback::Unverified,
             Rollback::PreviousState,
         ),
-        FeatureBinding::Unprobed("audio.noise-cancel"),
+        FeatureBinding::Capability("audio.noise-cancel"),
         ServiceBinding::One(ServiceRole::Audio),
         &[lctrl_core::required(Dependency::NoiseCancellationSdk)],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
+        CommandId::AUDIO_ENDPOINTS,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("audio.endpoints"),
+        ServiceBinding::One(ServiceRole::Audio),
+        &[lctrl_core::required(Dependency::WindowsAudio)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::AUDIO_VOLUME,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("audio.volume"),
+        ServiceBinding::One(ServiceRole::Audio),
+        &[lctrl_core::required(Dependency::WindowsAudio)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::AUDIO_MUTE,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("audio.mute"),
+        ServiceBinding::One(ServiceRole::Audio),
+        &[lctrl_core::required(Dependency::WindowsAudio)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
         CommandId::BIOS_LIST,
         CommandAxes::read_only(StateLayer::BiosPersistent),
-        FeatureBinding::Unprobed("bios"),
+        FeatureBinding::Capability("bios"),
         ServiceBinding::One(ServiceRole::Bios),
         &[lctrl_core::required(Dependency::LenovoFirmwareWmi)],
         DispatchSupport::Implemented,
@@ -1308,7 +1460,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
     CommandCapability::new(
         CommandId::BIOS_GET,
         CommandAxes::read_only(StateLayer::BiosPersistent),
-        FeatureBinding::Unprobed("bios"),
+        FeatureBinding::Capability("bios"),
         ServiceBinding::One(ServiceRole::Bios),
         &[lctrl_core::required(Dependency::LenovoFirmwareWmi)],
         DispatchSupport::Implemented,
@@ -1320,7 +1472,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             Readback::Required,
             Rollback::Transactional,
         ),
-        FeatureBinding::Unprobed("bios"),
+        FeatureBinding::Capability("bios"),
         ServiceBinding::One(ServiceRole::Bios),
         &[lctrl_core::required(Dependency::LenovoFirmwareWmi)],
         DispatchSupport::Implemented,
@@ -1344,7 +1496,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             Readback::NotApplicable,
             Rollback::Unavailable,
         ),
-        FeatureBinding::Unprobed("bios.discard"),
+        FeatureBinding::Capability("bios.discard"),
         ServiceBinding::One(ServiceRole::Bios),
         &[lctrl_core::required(Dependency::LenovoFirmwareWmi)],
         DispatchSupport::Implemented,
@@ -1356,7 +1508,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             Readback::Unverified,
             Rollback::Unavailable,
         ),
-        FeatureBinding::Unprobed("bios.defaults"),
+        FeatureBinding::Capability("bios.defaults"),
         ServiceBinding::One(ServiceRole::Bios),
         &[lctrl_core::required(Dependency::LenovoFirmwareWmi)],
         DispatchSupport::Implemented,
@@ -1364,7 +1516,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
     CommandCapability::new(
         CommandId::BIOS_PASSWORD_STATUS,
         CommandAxes::read_only(StateLayer::BiosPersistent),
-        FeatureBinding::Unprobed("bios.password.status"),
+        FeatureBinding::Capability("bios.password.status"),
         ServiceBinding::One(ServiceRole::Bios),
         &[lctrl_core::required(Dependency::LenovoFirmwareWmi)],
         DispatchSupport::Implemented,
@@ -1400,9 +1552,25 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
     CommandCapability::new(
         CommandId::BIOS_PASSWORD_VERIFY,
         CommandAxes::read_only(StateLayer::BiosPersistent),
-        FeatureBinding::Unprobed("bios.password.verify"),
+        FeatureBinding::Capability("bios.password.verify"),
         ServiceBinding::One(ServiceRole::Bios),
         &[lctrl_core::required(Dependency::LenovoFirmwareWmi)],
+        DispatchSupport::Implemented,
+    ),
+    // Firmware inventory reads the platform's own firmware projection
+    // (`Win32_BIOS`, the ESRT firmware-class devices, the firmware update
+    // driver's record) rather than a Lenovo service. It has no write axis: a
+    // capsule is never staged or flashed from this tool.
+    CommandCapability::new(
+        CommandId::FIRMWARE_STATUS,
+        CommandAxes::read_only(StateLayer::BiosPersistent),
+        FeatureBinding::Capability("firmware.status"),
+        ServiceBinding::One(ServiceRole::Hal),
+        &[
+            lctrl_core::required(Dependency::PublicWin32Cim),
+            lctrl_core::optional(Dependency::Win32SetupApi),
+            lctrl_core::optional(Dependency::Win32Registry),
+        ],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -1419,13 +1587,10 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
     CommandCapability::new(
         CommandId::MAGICBAY_LTE_STATUS,
         CommandAxes::read_only(StateLayer::Runtime),
-        FeatureBinding::Unprobed("magicbay.lte"),
+        FeatureBinding::Capability("magicbay.lte"),
         ServiceBinding::One(ServiceRole::MobileBroadband),
-        &[
-            lctrl_core::required(Dependency::Win32MobileBroadband),
-            lctrl_core::required(Dependency::LinuxModemManager),
-        ],
-        DispatchSupport::Unsupported("standard MBIM control is not attached"),
+        &[lctrl_core::required(Dependency::PublicWin32Cim)],
+        DispatchSupport::Implemented,
     )
     .with_hardware(HardwareRequirement::MagicBay),
     CommandCapability::new(
@@ -1511,10 +1676,10 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandId::OSD_ENABLE,
         CommandAxes::mutation(
             StateLayer::OsPersistent,
-            Readback::Unverified,
+            Readback::Required,
             Rollback::PreviousState,
         ),
-        FeatureBinding::Unprobed("osd.enable"),
+        FeatureBinding::AnyOf(&["osd.fn.capslock", "osd.fn.numlock"]),
         ServiceBinding::One(ServiceRole::Osd),
         &[
             lctrl_core::required(Dependency::LocalDaemon),
@@ -1527,10 +1692,10 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandId::OSD_DISABLE,
         CommandAxes::mutation(
             StateLayer::OsPersistent,
-            Readback::Unverified,
+            Readback::Required,
             Rollback::PreviousState,
         ),
-        FeatureBinding::Unprobed("osd.disable"),
+        FeatureBinding::AnyOf(&["osd.fn.capslock", "osd.fn.numlock"]),
         ServiceBinding::One(ServiceRole::Osd),
         &[
             lctrl_core::required(Dependency::LocalDaemon),
@@ -1542,7 +1707,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
     CommandCapability::new(
         CommandId::OSD_TEST,
         CommandAxes::action(StateLayer::Runtime),
-        FeatureBinding::Unprobed("osd.test"),
+        FeatureBinding::Capability("osd.test"),
         ServiceBinding::One(ServiceRole::Osd),
         &[
             lctrl_core::required(Dependency::LocalDaemon),
@@ -1554,7 +1719,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
     CommandCapability::new(
         CommandId::OSD_SHOW,
         CommandAxes::action(StateLayer::Runtime),
-        FeatureBinding::Unprobed("osd.show"),
+        FeatureBinding::Capability("osd.show"),
         ServiceBinding::One(ServiceRole::Osd),
         &[
             lctrl_core::required(Dependency::LocalDaemon),
@@ -1566,9 +1731,20 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
     CommandCapability::new(
         CommandId::HOTKEY_LIST,
         CommandAxes::read_only(StateLayer::Runtime),
-        FeatureBinding::Unprobed("hotkey.list"),
+        FeatureBinding::Capability("hotkey.list"),
         ServiceBinding::One(ServiceRole::Hotkey),
         &[lctrl_core::required(Dependency::LocalDaemon)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::HOTKEY_STATUS,
+        CommandAxes::read_only(StateLayer::Composite),
+        FeatureBinding::AnyOf(&["channel.hotkey", "kbd.fnlock"]),
+        ServiceBinding::AnyOf(&[ServiceRole::Hotkey, ServiceRole::Bios]),
+        &[
+            lctrl_core::optional(Dependency::LenovoFnAndFunctionKeys),
+            lctrl_core::optional(Dependency::LenovoFirmwareWmi),
+        ],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -1578,7 +1754,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             Readback::Unverified,
             Rollback::PreviousState,
         ),
-        FeatureBinding::Unprobed("hotkey.register"),
+        FeatureBinding::Capability("hotkey.register"),
         ServiceBinding::One(ServiceRole::Hotkey),
         &[lctrl_core::required(Dependency::LocalDaemon)],
         DispatchSupport::Implemented,
@@ -1586,7 +1762,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
     CommandCapability::new(
         CommandId::HOTKEY_TRIGGER,
         CommandAxes::action(StateLayer::Runtime),
-        FeatureBinding::Unprobed("hotkey.trigger"),
+        FeatureBinding::Capability("hotkey.trigger"),
         ServiceBinding::One(ServiceRole::Hotkey),
         &[lctrl_core::required(Dependency::LocalDaemon)],
         DispatchSupport::Implemented,
@@ -1598,7 +1774,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             Readback::Unverified,
             Rollback::PreviousState,
         ),
-        FeatureBinding::Unprobed("hotkey.unregister"),
+        FeatureBinding::Capability("hotkey.unregister"),
         ServiceBinding::One(ServiceRole::Hotkey),
         &[lctrl_core::required(Dependency::LocalDaemon)],
         DispatchSupport::Implemented,
@@ -1606,16 +1782,29 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
     CommandCapability::new(
         CommandId::UPDATE_CHECK,
         CommandAxes::read_only(StateLayer::NotApplicable),
-        FeatureBinding::Unprobed("update.capability"),
+        // `update check` serves the catalogue the UDC service already synced
+        // into `HKLM\SOFTWARE\Lenovo\UDC\Packages`, so the row binds the local
+        // catalogue probe (`update.catalog.local`) rather than the remote
+        // refresh contract. The two legs are deliberately different ids:
+        //
+        // * local: read `LastUpdateConfig`, parse it, evaluate applicability —
+        //   read-only, no network, recorded `available`/`limited` when a config
+        //   exists. This is what the verb does.
+        // * remote: "remote update checking has no authenticated catalog
+        //   contract" (the previous verdict this row carried). It is refused by
+        //   `UPDATE_DOWNLOAD`/`UPDATE_INSTALL`/`UPDATE_SCHEDULE`
+        //   (`update.*.without-authenticated-manifest|without-catalog`) and by
+        //   `vantage doctor`'s `update.capability` channel, because the UDC mTLS
+        //   client credential is service-held
+        //   (docs/evidence/udc-mtls-credential-hunt-20261105.md).
+        FeatureBinding::Capability("update.catalog.local"),
         ServiceBinding::One(ServiceRole::Update),
         &[
             lctrl_core::required(Dependency::Win32SetupApi),
             lctrl_core::required(Dependency::Win32WinTrust),
             lctrl_core::optional(Dependency::LocalFilesystem),
         ],
-        DispatchSupport::Unsupported(
-            "remote update checking has no authenticated catalog contract",
-        ),
+        DispatchSupport::Implemented,
     ),
     CommandCapability::new(
         CommandId::UPDATE_LOCAL_INSTALL,
@@ -1628,6 +1817,24 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ServiceBinding::One(ServiceRole::Update),
         &[
             lctrl_core::required(Dependency::Win32SetupApi),
+            lctrl_core::required(Dependency::Win32WinTrust),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::UPDATE_LOCAL_PACKAGE,
+        CommandAxes::mutation(
+            StateLayer::NotApplicable,
+            // The vendor installer reports success through its own exit code
+            // and log; this tool reads no post-install device state back.
+            Readback::Unverified,
+            // A package installer exposes no CLI-driven rollback.
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::Unprobed("update.local_package"),
+        ServiceBinding::One(ServiceRole::Update),
+        &[
+            lctrl_core::required(Dependency::LocalFilesystem),
             lctrl_core::required(Dependency::Win32WinTrust),
         ],
         DispatchSupport::Implemented,
@@ -1713,10 +1920,12 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
     CommandCapability::new(
         CommandId::UPDATE_HISTORY,
         CommandAxes::read_only(StateLayer::LocalPersistent),
-        FeatureBinding::Unprobed("update.history.without-catalog"),
+        // Reads the update ledger the machine's own Lenovo System Update
+        // add-in wrote; no catalogue, network, or vendor service is involved.
+        FeatureBinding::Unprobed("update.history.ledger"),
         ServiceBinding::One(ServiceRole::Update),
         &[lctrl_core::required(Dependency::LocalFilesystem)],
-        DispatchSupport::Unsupported("no remote update catalog is attached"),
+        DispatchSupport::Implemented,
     ),
     CommandCapability::new(
         CommandId::UPDATE_IGNORE,
@@ -1782,9 +1991,104 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
     CommandCapability::new(
         CommandId::WIFI_SECURITY,
         CommandAxes::read_only(StateLayer::NotApplicable),
-        FeatureBinding::Unprobed("wifi.security"),
+        FeatureBinding::Capability("wifi.security"),
         ServiceBinding::One(ServiceRole::Wifi),
         &[lctrl_core::required(Dependency::Win32ProcessApi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::WIFI_STATUS,
+        CommandAxes::read_only(StateLayer::NotApplicable),
+        // `windows_hal::capabilities()` records this id from the WLAN API
+        // link-state query (`WindowsWifiStatus::wifi_status`), so the static
+        // "no current capability probe" claim is no longer true.
+        FeatureBinding::Capability("wifi.status"),
+        ServiceBinding::One(ServiceRole::Wifi),
+        &[lctrl_core::required(Dependency::Win32WlanApi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::BLUETOOTH_LIST,
+        CommandAxes::read_only(StateLayer::NotApplicable),
+        // Recorded from the non-inquiring WinRT radio/device enumeration
+        // (`WindowsBluetooth::bluetooth_devices`).
+        FeatureBinding::Capability("bluetooth.list"),
+        ServiceBinding::One(ServiceRole::Bluetooth),
+        &[lctrl_core::required(Dependency::Win32BluetoothApi)],
+        DispatchSupport::Implemented,
+    ),
+    // Both sensor verbs are decided by the platform's own enumeration, so the
+    // listing probe is what proves the channel: an absent sensor type is
+    // reported as absent by `read`, never as a zero reading
+    // (docs/evidence/re-sensors-20261105.md §1, §3.1).
+    CommandCapability::new(
+        CommandId::SENSOR_LIST,
+        CommandAxes::read_only(StateLayer::NotApplicable),
+        FeatureBinding::Capability("sensor.list"),
+        ServiceBinding::One(ServiceRole::Sensor),
+        &[lctrl_core::required(Dependency::Win32SensorApi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::SENSOR_READ,
+        CommandAxes::read_only(StateLayer::NotApplicable),
+        FeatureBinding::Capability("sensor.list"),
+        ServiceBinding::One(ServiceRole::Sensor),
+        &[lctrl_core::required(Dependency::Win32SensorApi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::SECURITY_STATUS,
+        CommandAxes::read_only(StateLayer::NotApplicable),
+        FeatureBinding::Capability("security.status"),
+        ServiceBinding::One(ServiceRole::Security),
+        &[
+            lctrl_core::required(Dependency::PublicWin32Cim),
+            lctrl_core::required(Dependency::Win32FirmwareEnvironment),
+            lctrl_core::optional(Dependency::Win32Registry),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::RADIO_STATUS,
+        CommandAxes::read_only(StateLayer::Runtime),
+        // Recorded from the read-only WinRT radio enumeration; a machine with
+        // no radio of a kind reports that kind as absent, not as a failure.
+        // `radio.off`/`radio.on` stay `Unprobed`: a status query cannot prove an
+        // owned set-state with readback.
+        FeatureBinding::Capability("radio.status"),
+        ServiceBinding::One(ServiceRole::Radio),
+        &[lctrl_core::required(
+            Dependency::WindowsRadioManagement,
+        )],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::RADIO_OFF,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Unprobed("radio.off"),
+        ServiceBinding::One(ServiceRole::Radio),
+        &[lctrl_core::required(
+            Dependency::WindowsRadioManagement,
+        )],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::RADIO_ON,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Unprobed("radio.on"),
+        ServiceBinding::One(ServiceRole::Radio),
+        &[lctrl_core::required(
+            Dependency::WindowsRadioManagement,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -1798,7 +2102,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
     CommandCapability::new(
         CommandId::FIX_SCAN,
         CommandAxes::read_only(StateLayer::Runtime),
-        FeatureBinding::Unprobed("machinefix.scan"),
+        FeatureBinding::Capability("machinefix.scan"),
         ServiceBinding::One(ServiceRole::MachineFix),
         &[lctrl_core::required(Dependency::Win32Scm)],
         DispatchSupport::Implemented,
@@ -1810,7 +2114,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             Readback::Required,
             Rollback::PreviousState,
         ),
-        FeatureBinding::Unprobed("machinefix.run"),
+        FeatureBinding::Capability("machinefix.run"),
         ServiceBinding::One(ServiceRole::MachineFix),
         &[
             lctrl_core::required(Dependency::Win32Scm),
@@ -1821,7 +2125,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
     CommandCapability::new(
         CommandId::FIX_TRACK,
         CommandAxes::read_only(StateLayer::LocalPersistent),
-        FeatureBinding::Unprobed("machinefix.track"),
+        FeatureBinding::Capability("machinefix.track"),
         ServiceBinding::One(ServiceRole::MachineFix),
         &[lctrl_core::required(Dependency::LocalFilesystem)],
         DispatchSupport::Implemented,
@@ -1841,7 +2145,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             Readback::Required,
             Rollback::PreviousState,
         ),
-        FeatureBinding::Unprobed("scene.test"),
+        FeatureBinding::Capability("scene.test"),
         ServiceBinding::One(ServiceRole::ScenePolicy),
         &[
             lctrl_core::required(Dependency::Win32Scm),
@@ -1852,7 +2156,7 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
     CommandCapability::new(
         CommandId::SCENE_TRACK,
         CommandAxes::read_only(StateLayer::LocalPersistent),
-        FeatureBinding::Unprobed("scene.track"),
+        FeatureBinding::Capability("scene.track"),
         ServiceBinding::One(ServiceRole::ScenePolicy),
         &[lctrl_core::required(Dependency::LocalFilesystem)],
         DispatchSupport::Implemented,
@@ -1900,6 +2204,19 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ServiceBinding::External,
         &[lctrl_core::required(Dependency::LocalDaemon)],
         DispatchSupport::External,
+    ),
+    // `storage status` reads the drive through
+    // `IOCTL_STORAGE_QUERY_PROPERTY` / `IOCTL_DISK_GET_DRIVE_GEOMETRY_EX` on a
+    // handle opened with no requested access, so it has no write verb and no
+    // WMI dependency: the Storage WMI namespace is admin-gated on this SKU
+    // (docs/evidence/re-storage-20261105.md §6.1).
+    CommandCapability::new(
+        CommandId::STORAGE_STATUS,
+        CommandAxes::read_only(StateLayer::NotApplicable),
+        FeatureBinding::Capability("storage.status"),
+        ServiceBinding::One(ServiceRole::Storage),
+        &[lctrl_core::required(Dependency::Win32SetupApi)],
+        DispatchSupport::Implemented,
     ),
     CommandCapability::new(
         CommandId::DAEMON_STOP,

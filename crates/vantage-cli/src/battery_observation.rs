@@ -63,11 +63,12 @@ pub(crate) fn execute(battery: Option<&dyn BatteryControl>) -> crate::CommandRes
     Ok(crate::CommandOutput { human, json })
 }
 
-fn serialization_error(error: serde_json::Error) -> LctrlError {
+pub(crate) fn serialization_error(error: serde_json::Error) -> LctrlError {
     LctrlError::Io(std::io::Error::other(error))
 }
 
-fn capture<T: Serialize>(
+/// Record one independent source's value or error without hiding the other.
+pub(crate) fn capture<T: Serialize>(
     payload: &mut Map<String, Value>,
     value_key: &str,
     error_key: &str,

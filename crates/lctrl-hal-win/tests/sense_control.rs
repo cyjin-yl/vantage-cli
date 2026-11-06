@@ -15,7 +15,7 @@ struct FakeRpc {
 
 impl HpdRpc for FakeRpc {
     fn read_state(&self) -> Result<SenseState> {
-        Ok(*self.state.lock())
+        Ok(self.state.lock().clone())
     }
 
     fn set_feature(&self, feature: SenseFeature) -> Result<()> {
@@ -81,7 +81,7 @@ struct FakeStore {
 impl HpdSettingsStore for FakeStore {
     fn read_state(&self) -> Result<SenseState> {
         *self.reads.lock() += 1;
-        Ok(*self.state.lock())
+        Ok(self.state.lock().clone())
     }
 }
 
@@ -97,6 +97,8 @@ fn fixture(
     let state = Arc::new(Mutex::new(SenseState {
         source: None,
         advertised: None,
+        interface_version: None,
+        interface_version_error: None,
         lock_on_leave: Some(false),
         leave_distance: Some(SenseDistance::Near),
         leave_wait: Some(SenseWait::Short),
@@ -243,6 +245,8 @@ fn missing_registry_projection_does_not_block_the_rpc_read() {
     let state = Arc::new(Mutex::new(SenseState {
         source: Some("hpd-rpc"),
         advertised: Some(0x0010),
+        interface_version: None,
+        interface_version_error: None,
         lock_on_leave: Some(true),
         leave_distance: None,
         leave_wait: None,
@@ -281,6 +285,8 @@ fn an_advertised_feature_stays_available_when_its_value_cannot_be_modelled() {
     let mut state = SenseState {
         source: Some("hpd-rpc"),
         advertised: Some(0x0080),
+        interface_version: None,
+        interface_version_error: None,
         lock_on_leave: None,
         leave_distance: None,
         leave_wait: None,

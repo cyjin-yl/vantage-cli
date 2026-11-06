@@ -8,6 +8,22 @@
 //! pinned at build time (`CTL_API_VERSION`) and the implementation version
 //! reported by `ctlInit` is checked at runtime; unsupported versions fail
 //! closed instead of mis-marshalling.
+//!
+//! Super-resolution contract (recovered 2026-11-05 from the vendor's own
+//! `SESuperResolutionPlugin64.dll` and Intel's published Media sample, see
+//! docs/evidence/re-panel-20261105.md):
+//!
+//! - capability: `ctlGetSupportedVideoProcessingCapabilities` is a two-pass
+//!   enumeration — a null `pFeatureDetails` returns the feature count, the
+//!   allocated array returns the detail records, and the custom payload of the
+//!   SUPER_RESOLUTION entry (116 bytes) is fetched by querying that single
+//!   feature again;
+//! - get/set: `ctlGetSetVideoProcessingFeature` with `FeatureType = 4`,
+//!   `ValueType = CUSTOM` and a 92-byte
+//!   `ctl_video_processing_super_resolution_t` payload whose flag field is
+//!   `DISABLE = 1` / `ENABLE_DEFAULT_SCENARIO_MODE = 2`;
+//! - a write requires a readable previous payload (verification and rollback
+//!   target). On readback mismatch the previous flag is restored.
 
 use std::ffi::c_void;
 use std::path::PathBuf;
@@ -15,7 +31,6 @@ use std::sync::Mutex;
 
 use lctrl_core::{ApplyMode, ChangeReport, EyeCareLevel, LctrlError, Result};
 use lctrl_hal::PanelFeaturesControl;
-use std::sync::Mutex as StdMutex;
 
 struct DllModule {
     handle: *mut c_void,
@@ -95,12 +110,16 @@ const CTL_PROPERTY_VALUE_TYPE_CUSTOM: u32 = 5;
 const CTL_VIDEO_PROCESSING_SUPER_RESOLUTION_FLAG_DISABLE: u32 = 1;
 const CTL_VIDEO_PROCESSING_SUPER_RESOLUTION_FLAG_ENABLE_DEFAULT_SCENARIO_MODE: u32 = 2;
 
-/// Eye-care color temperatures. Lenovo's own helper keeps a ~360-entry
-/// Kelvin lookup table (`kelvin_table`, 1988K-19964K, recovered from
-/// PlatformInterface.dll) but the UI-level defaults are delivered at runtime
-/// through Vantage config, so the two levels below are the standard
-/// Tanner-Helland approximation and are marked inferred pending the
-/// read-only LUT comparison acceptance (docs/interfaces.md §15).
+/// Eye-care color temperatures.
+///
+/// **Repo-inferred, not vendor-equivalent.** The level names come from the
+/// recovered vendor contract (`EyeCareMode` presets / `EyeCareSliderBar` in
+/// Vantage, `ColorTemperature` in PCManager), but the vendor's own preset
+/// table has not been extracted byte-exactly, so the two Kelvin values below
+/// are the standard Tanner-Helland approximation used by this repository.
+/// They must not be described as the vendor's values until a byte-level
+/// comparison against the vendor table succeeds
+/// (docs/evidence/re-panel-20261105.md §5.3, docs/interfaces.md §15).
 const EYE_CARE_MID_KELVIN: u32 = 5000;
 const EYE_CARE_HIGH_KELVIN: u32 = 4000;
 const LUT_SAMPLES: usize = 256;
@@ -396,6 +415,10 @@ struct IntelCtlHandles {
 /// must not turn into an unbounded allocation.
 const MAX_PIXTX_BLOCKS: u32 = 64;
 
+/// Sanity bound on the video-processing feature count a driver may report;
+/// the capability enumeration allocates one 120-byte detail record per entry.
+const MAX_VIDEO_PROCESSING_FEATURES: u32 = 64;
+
 /// One pixel-transform block as reported by the driver.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PixtxBlock {
@@ -433,6 +456,12 @@ pub trait IntelCtlApi: Send + Sync {
     /// Current super-resolution flag as reported by the driver.
     fn super_resolution_flag(&self) -> Result<u32>;
     /// Request a super-resolution flag change.
+    ///
+    /// Implementations must capture the previous payload, write through the
+    /// get/set contract, and confirm the new flag by reading it back, restoring
+    /// the previous flag when the readback disagrees. A driver that refuses the
+    /// state read must refuse the write: without a previous value there is
+    /// nothing to verify against or roll back to.
     fn set_super_resolution_flag(&self, flag: u32) -> Result<()>;
     /// Pixel-transform capability of the primary display output. Read-only:
     /// the driver is asked for its capability, never for a configuration
@@ -612,6 +641,205 @@ impl Drop for IntelControlLib {
     }
 }
 
+/// Zeroed `ctl_property_info_t` union. Capability probes overwrite it; the
+/// driver fills the member that matches the reported value type.
+fn empty_property_info() -> CtlPropertyInfo {
+    CtlPropertyInfo {
+        enum_info: CtlPropertyInfoEnum {
+            supported_types: 0,
+            default_type: 0,
+        },
+    }
+}
+
+/// Zeroed 116-byte `ctl_video_processing_super_resolution_info_t`, the custom
+/// value of a SUPER_RESOLUTION capability query.
+fn empty_super_resolution_info() -> CtlVideoProcessingSuperResolutionInfo {
+    CtlVideoProcessingSuperResolutionInfo {
+        size: std::mem::size_of::<CtlVideoProcessingSuperResolutionInfo>() as u32,
+        version: 0,
+        super_resolution_flag: 0,
+        super_resolution_range_in_width: CtlPropertyInfoUint {
+            default_enable: false,
+            range_info: CtlPropertyRangeInfoUint {
+                min_possible_value: 0,
+                max_possible_value: 0,
+                step_size: 0,
+                default_value: 0,
+            },
+        },
+        super_resolution_range_in_height: CtlPropertyInfoUint {
+            default_enable: false,
+            range_info: CtlPropertyRangeInfoUint {
+                min_possible_value: 0,
+                max_possible_value: 0,
+                step_size: 0,
+                default_value: 0,
+            },
+        },
+        reserved_fields: [0; 16],
+    }
+}
+
+/// Zeroed 92-byte `ctl_video_processing_super_resolution_t`, the custom value
+/// of a SUPER_RESOLUTION get/set call.
+fn empty_super_resolution_payload() -> CtlVideoProcessingSuperResolution {
+    CtlVideoProcessingSuperResolution {
+        size: std::mem::size_of::<CtlVideoProcessingSuperResolution>() as u32,
+        version: 0,
+        super_resolution_flag: 0,
+        super_resolution_max_in_enabled: false,
+        super_resolution_max_in_width: 0,
+        super_resolution_max_in_height: 0,
+        super_resolution_reboot_reset: false,
+        reserved_fields: [0; 15],
+        reserved_bytes: [0; 3],
+    }
+}
+
+/// One zeroed 120-byte entry of the capability enumeration array.
+fn empty_video_processing_details() -> CtlVideoProcessingFeatureDetails {
+    CtlVideoProcessingFeatureDetails {
+        size: std::mem::size_of::<CtlVideoProcessingFeatureDetails>() as u32,
+        version: 0,
+        feature_type: 0,
+        value_type: 0,
+        value: empty_property_info(),
+        custom_value_size: 0,
+        p_custom_value: std::ptr::null_mut(),
+        reserved_fields: [0; 16],
+    }
+}
+
+impl IntelControlLib {
+    /// One `ctlGetSetVideoProcessingFeature` call for the SUPER_RESOLUTION
+    /// feature, carrying `payload` as the custom value.
+    ///
+    /// The caller must hold `state`: the control library serializes per
+    /// adapter and these calls are not reentrant.
+    fn super_resolution_call(
+        &self,
+        payload: &mut CtlVideoProcessingSuperResolution,
+        set: bool,
+    ) -> u32 {
+        let mut feature = CtlVideoProcessingFeatureGetSet {
+            size: std::mem::size_of::<CtlVideoProcessingFeatureGetSet>() as u32,
+            version: 0,
+            feature_type: CTL_VIDEO_PROCESSING_FEATURE_SUPER_RESOLUTION,
+            application_name: std::ptr::null(),
+            application_name_length: 0,
+            b_set: set,
+            value_type: CTL_PROPERTY_VALUE_TYPE_CUSTOM,
+            value: [0; 8],
+            custom_value_size: std::mem::size_of::<CtlVideoProcessingSuperResolution>() as i32,
+            p_custom_value: payload as *mut _ as *mut c_void,
+            reserved_fields: [0; 16],
+        };
+        unsafe {
+            (self.handles.ctl_get_set_video_processing_feature)(
+                self.primary_adapter,
+                &mut feature,
+            )
+        }
+    }
+
+    /// Read the whole super-resolution payload so a write can preserve the
+    /// maximum-input limiter fields it does not own.
+    ///
+    /// The caller must hold `state`.
+    fn read_super_resolution_payload(&self) -> Result<CtlVideoProcessingSuperResolution> {
+        let mut payload = empty_super_resolution_payload();
+        let result = self.super_resolution_call(&mut payload, false);
+        if result == CTL_RESULT_ERROR_INVALID_ARGUMENT {
+            // The driver refuses this query (21VG: both the capability
+            // enumeration and the get answer INVALID_ARGUMENT). The state
+            // stays unknown instead of being invented; the public header
+            // also states super-resolution needs activation by Intel, so a
+            // rejection is not proof that the hardware lacks the pipeline.
+            return Err(LctrlError::Unsupported {
+                feature: "panel.super-resolution.state-query.rejected".to_string(),
+            });
+        }
+        if result != CTL_RESULT_SUCCESS {
+            return Err(LctrlError::ChannelUnavailable {
+                channel: format!(
+                    "ctlGetSetVideoProcessingFeature(get SUPER_RESOLUTION) failed (result 0x{result:08x})"
+                ),
+            });
+        }
+        Ok(payload)
+    }
+
+    /// Write `flag` through the get/set contract and confirm it by reading the
+    /// payload back.
+    ///
+    /// The previous state is captured first: without it there is nothing to
+    /// compare against and nothing to roll back to, so a driver that refuses
+    /// the read is refused the write. On a readback mismatch the previous flag
+    /// is written back (and skipped when it is already the observed value) and
+    /// the mismatch is reported.
+    ///
+    /// The caller must hold `state`.
+    fn write_super_resolution_flag(&self, flag: u32) -> Result<()> {
+        let previous = self.read_super_resolution_payload()?;
+        if previous.super_resolution_flag == flag {
+            return Ok(());
+        }
+        let mut requested = previous;
+        requested.super_resolution_flag = flag;
+        let result = self.super_resolution_call(&mut requested, true);
+        if result == CTL_RESULT_ERROR_INVALID_ARGUMENT {
+            return Err(LctrlError::Unsupported {
+                feature: "panel.super-resolution.write.rejected".to_string(),
+            });
+        }
+        if result != CTL_RESULT_SUCCESS {
+            return Err(LctrlError::ChannelUnavailable {
+                channel: format!(
+                    "ctlGetSetVideoProcessingFeature(set SUPER_RESOLUTION, flag 0x{flag:x}) failed (result 0x{result:08x})"
+                ),
+            });
+        }
+        let requested_text = format!("super-resolution flag 0x{flag:x}");
+        let observed = match self.read_super_resolution_payload() {
+            Ok(observed) if observed.super_resolution_flag == flag => return Ok(()),
+            Ok(observed) => observed.super_resolution_flag,
+            Err(error) => {
+                let mut restore = previous;
+                let _ = self.super_resolution_call(&mut restore, true);
+                return Err(LctrlError::VerifyMismatch {
+                    requested: requested_text,
+                    actual: format!("readback failed after the write: {error}"),
+                });
+            }
+        };
+        if observed == previous.super_resolution_flag {
+            return Err(LctrlError::VerifyMismatch {
+                requested: requested_text,
+                actual: format!(
+                    "the write was accepted but the flag is unchanged at 0x{observed:x}"
+                ),
+            });
+        }
+        let mut restore = previous;
+        let rollback = self.super_resolution_call(&mut restore, true);
+        Err(LctrlError::VerifyMismatch {
+            requested: requested_text,
+            actual: if rollback == CTL_RESULT_SUCCESS {
+                format!(
+                    "0x{observed:x} after the write; rolled back to 0x{:x}",
+                    previous.super_resolution_flag
+                )
+            } else {
+                format!(
+                    "0x{observed:x} after the write; rollback to 0x{:x} failed (result 0x{rollback:08x})",
+                    previous.super_resolution_flag
+                )
+            },
+        })
+    }
+}
+
 impl IntelCtlApi for IntelControlLib {
     fn primary_output(&self) -> Result<Option<*mut c_void>> {
         if self.primary_output.is_null() {
@@ -625,100 +853,25 @@ impl IntelCtlApi for IntelControlLib {
         let _guard = self.state.lock();
         // Get/set takes `ctl_video_processing_super_resolution_t` (92
         // bytes), not the 116-byte capability payload.
-        let mut config = CtlVideoProcessingSuperResolution {
-            size: std::mem::size_of::<CtlVideoProcessingSuperResolution>() as u32,
-            version: 0,
-            super_resolution_flag: 0,
-            super_resolution_max_in_enabled: false,
-            super_resolution_max_in_width: 0,
-            super_resolution_max_in_height: 0,
-            super_resolution_reboot_reset: false,
-            reserved_fields: [0; 15],
-            reserved_bytes: [0; 3],
-        };
-        let mut feature = CtlVideoProcessingFeatureGetSet {
-            size: std::mem::size_of::<CtlVideoProcessingFeatureGetSet>() as u32,
-            version: 0,
-            feature_type: CTL_VIDEO_PROCESSING_FEATURE_SUPER_RESOLUTION,
-            application_name: std::ptr::null(),
-            application_name_length: 0,
-            b_set: false,
-            value_type: CTL_PROPERTY_VALUE_TYPE_CUSTOM,
-            value: [0; 8],
-            custom_value_size: std::mem::size_of::<CtlVideoProcessingSuperResolution>() as i32,
-            p_custom_value: &mut config as *mut _ as *mut c_void,
-            reserved_fields: [0; 16],
-        };
-        let result = unsafe {
-            (self.handles.ctl_get_set_video_processing_feature)(self.primary_adapter, &mut feature)
-        };
-        if result == CTL_RESULT_ERROR_INVALID_ARGUMENT {
-            // The driver advertises the feature (the capability query lists
-            // it) but rejects this state query: the state stays unknown
-            // instead of being invented. The public header also warns that
-            // super-resolution needs activation by Intel, so a rejection is
-            // not proof that the hardware lacks the feature.
-            return Err(LctrlError::Unsupported {
-                feature: "panel.super-resolution.state-query.rejected".to_string(),
-            });
-        }
-        if result != CTL_RESULT_SUCCESS {
-            return Err(LctrlError::ChannelUnavailable {
-                channel: format!(
-                    "ctlGetSetVideoProcessingFeature(get SUPER_RESOLUTION) failed (result 0x{result:08x})"
-                ),
-            });
-        }
-        Ok(config.super_resolution_flag)
+        Ok(self
+            .read_super_resolution_payload()?
+            .super_resolution_flag)
     }
 
     fn super_resolution_capability(&self) -> Result<SuperResolutionCaps> {
         let _guard = self.state.lock();
-        // Capability queries use the 116-byte `..._info_t` payload.
-        let mut info = CtlVideoProcessingSuperResolutionInfo {
-            size: std::mem::size_of::<CtlVideoProcessingSuperResolutionInfo>() as u32,
-            version: 0,
-            super_resolution_flag: 0,
-            super_resolution_range_in_width: CtlPropertyInfoUint {
-                default_enable: false,
-                range_info: CtlPropertyRangeInfoUint {
-                    min_possible_value: 0,
-                    max_possible_value: 0,
-                    step_size: 0,
-                    default_value: 0,
-                },
-            },
-            super_resolution_range_in_height: CtlPropertyInfoUint {
-                default_enable: false,
-                range_info: CtlPropertyRangeInfoUint {
-                    min_possible_value: 0,
-                    max_possible_value: 0,
-                    step_size: 0,
-                    default_value: 0,
-                },
-            },
-            reserved_fields: [0; 16],
-        };
-        let mut details = CtlVideoProcessingFeatureDetails {
-            size: std::mem::size_of::<CtlVideoProcessingFeatureDetails>() as u32,
-            version: 0,
-            feature_type: CTL_VIDEO_PROCESSING_FEATURE_SUPER_RESOLUTION,
-            value_type: CTL_PROPERTY_VALUE_TYPE_CUSTOM,
-            value: CtlPropertyInfo {
-                enum_info: CtlPropertyInfoEnum {
-                    supported_types: 0,
-                    default_type: 0,
-                },
-            },
-            custom_value_size: std::mem::size_of::<CtlVideoProcessingSuperResolutionInfo>() as i32,
-            p_custom_value: &mut info as *mut _ as *mut c_void,
-            reserved_fields: [0; 16],
-        };
+        // The capability query is a two-pass enumeration, as in Intel's
+        // published Media sample and in the vendor's own super-resolution
+        // plug-in: a null `pFeatureDetails` returns the number of supported
+        // features, a non-null array returns their detail records. Passing a
+        // single synthesised detail record in one call is rejected by the
+        // target driver with INVALID_ARGUMENT, so the enumeration shape is
+        // part of the contract, not an optimisation.
         let mut caps = CtlVideoProcessingFeatureCaps {
             size: std::mem::size_of::<CtlVideoProcessingFeatureCaps>() as u32,
             version: 0,
-            num_supported_features: 1,
-            p_feature_details: &mut details,
+            num_supported_features: 0,
+            p_feature_details: std::ptr::null_mut(),
             reserved_fields: [0; 16],
         };
         let result = unsafe {
@@ -730,7 +883,75 @@ impl IntelCtlApi for IntelControlLib {
         if result != CTL_RESULT_SUCCESS {
             return Err(LctrlError::ChannelUnavailable {
                 channel: format!(
-                    "ctlGetSupportedVideoProcessingCapabilities(SUPER_RESOLUTION) failed (result 0x{result:08x})"
+                    "ctlGetSupportedVideoProcessingCapabilities(count) failed (result 0x{result:08x})"
+                ),
+            });
+        }
+        let count = caps.num_supported_features;
+        if count == 0 {
+            return Err(LctrlError::Unsupported {
+                feature: "panel.super-resolution.feature-not-advertised".to_string(),
+            });
+        }
+        if count > MAX_VIDEO_PROCESSING_FEATURES {
+            return Err(LctrlError::ChannelUnavailable {
+                channel: format!(
+                    "driver reported an implausible video-processing feature count {count}"
+                ),
+            });
+        }
+        let mut details: Vec<CtlVideoProcessingFeatureDetails> = (0..count)
+            .map(|_| empty_video_processing_details())
+            .collect();
+        caps.num_supported_features = count;
+        caps.p_feature_details = details.as_mut_ptr();
+        let result = unsafe {
+            (self.handles.ctl_get_supported_video_processing_capabilities)(
+                self.primary_adapter,
+                &mut caps,
+            )
+        };
+        if result != CTL_RESULT_SUCCESS {
+            return Err(LctrlError::ChannelUnavailable {
+                channel: format!(
+                    "ctlGetSupportedVideoProcessingCapabilities({count} features) failed (result 0x{result:08x})"
+                ),
+            });
+        }
+        let advertised = details
+            .iter()
+            .any(|detail| detail.feature_type == CTL_VIDEO_PROCESSING_FEATURE_SUPER_RESOLUTION);
+        if !advertised {
+            return Err(LctrlError::Unsupported {
+                feature: "panel.super-resolution.feature-not-advertised".to_string(),
+            });
+        }
+        // Third pass: the custom payload is only filled for the feature that
+        // was asked for, so the SR record is queried on its own.
+        let mut info = empty_super_resolution_info();
+        let mut requested = empty_video_processing_details();
+        requested.feature_type = CTL_VIDEO_PROCESSING_FEATURE_SUPER_RESOLUTION;
+        requested.value_type = CTL_PROPERTY_VALUE_TYPE_CUSTOM;
+        requested.custom_value_size =
+            std::mem::size_of::<CtlVideoProcessingSuperResolutionInfo>() as i32;
+        requested.p_custom_value = &mut info as *mut _ as *mut c_void;
+        let mut single = CtlVideoProcessingFeatureCaps {
+            size: std::mem::size_of::<CtlVideoProcessingFeatureCaps>() as u32,
+            version: 0,
+            num_supported_features: 1,
+            p_feature_details: &mut requested,
+            reserved_fields: [0; 16],
+        };
+        let result = unsafe {
+            (self.handles.ctl_get_supported_video_processing_capabilities)(
+                self.primary_adapter,
+                &mut single,
+            )
+        };
+        if result != CTL_RESULT_SUCCESS {
+            return Err(LctrlError::ChannelUnavailable {
+                channel: format!(
+                    "ctlGetSupportedVideoProcessingCapabilities(SUPER_RESOLUTION details) failed (result 0x{result:08x})"
                 ),
             });
         }
@@ -840,12 +1061,11 @@ impl IntelCtlApi for IntelControlLib {
 
     fn set_super_resolution_flag(&self, flag: u32) -> Result<()> {
         let _guard = self.state.lock();
-        // The state query for this feature is rejected by the driver, so the
-        // write contract is unproven: refuse instead of writing blind.
-        let _ = flag;
-        Err(LctrlError::Unsupported {
-            feature: "panel.super-resolution.write-unverified".to_string(),
-        })
+        // Every write is guarded by a successful state read: no previous
+        // value means no readback and no rollback target, so a driver that
+        // rejects the get (21VG) is refused the set as well. A machine whose
+        // driver answers the get gets a verified, reversible write.
+        self.write_super_resolution_flag(flag)
     }
 }
 
@@ -855,31 +1075,38 @@ impl IntelCtlApi for IntelControlLib {
 
 pub struct WindowsPanelFeatures<T: IntelCtlApi> {
     api: T,
-    #[allow(dead_code)]
-    last_eye_care: StdMutex<EyeCareLevel>,
+    gamma: Option<Box<dyn GammaRampApi>>,
 }
 
 impl<T: IntelCtlApi> WindowsPanelFeatures<T> {
     pub fn new(api: T) -> Self {
-        Self {
-            api,
-            last_eye_care: StdMutex::new(EyeCareLevel::Off),
-        }
+        Self { api, gamma: None }
+    }
+
+    /// Attach the desktop gamma-ramp transport. Without it the eye-care
+    /// channel stays closed (`panel.eye-care.gamma-ramp-detached`); the
+    /// IGCL-visible features are unaffected.
+    #[must_use]
+    pub fn with_gamma_ramp(mut self, gamma: Box<dyn GammaRampApi>) -> Self {
+        self.gamma = Some(gamma);
+        self
     }
 }
 
-/// Kelvin → per-channel gain (0..=1) using the Tanner-Helland approximation
-/// (inferred; see module docs). Returns the channel intensity in 0..=255
-/// normalized to 0..=1.
+/// Kelvin → per-channel gain (0..=1) using the Tanner-Helland black-body
+/// approximation, which is defined on hundreds of Kelvin (`t = K / 100`) and
+/// branches at 6600 K and 1900 K. Passing Kelvin straight into the
+/// logarithms clamps every channel to 1.0 and silently turns "mid" into a
+/// no-op, so the scale is part of the contract.
 fn kelvin_channel_gain(kelvin: u32, channel: usize) -> f64 {
-    let k = kelvin.clamp(1000, 40000) as f64;
+    let t = kelvin.clamp(1000, 40000) as f64 / 100.0;
     let value = match channel {
-        0 if k < 6600.0 => 255.0,
-        0 => 329.698_727_446 * (k - 60.0).powf(-0.133_204_759_2),
-        1 if k < 6600.0 => 99.470_802_586_1 * k.ln() - 161.119_568_166_1,
-        1 => 288.122_169_528_3 * (k - 60.0).powf(-0.075_514_849_2),
-        _ if k <= 4900.0 => 0.0,
-        _ if k < 6600.0 => 138.517_731_223_1 * (k - 10.0).ln() - 305.044_792_730_7,
+        0 if t <= 66.0 => 255.0,
+        0 => 329.698_727_446 * (t - 60.0).powf(-0.133_204_759_2),
+        1 if t <= 66.0 => 99.470_802_586_1 * t.ln() - 161.119_568_166_1,
+        1 => 288.122_169_528_3 * (t - 60.0).powf(-0.075_514_849_2),
+        _ if t <= 19.0 => 0.0,
+        _ if t < 66.0 => 138.517_731_223_1 * (t - 10.0).ln() - 305.044_792_730_7,
         _ => 255.0,
     };
     (value / 255.0).clamp(0.0, 1.0)
@@ -887,7 +1114,6 @@ fn kelvin_channel_gain(kelvin: u32, channel: usize) -> f64 {
 
 /// Builds the 256-sample RGB LUT: R block then G then B, sample i scaled by
 /// i/255 * channel gain.
-#[allow(dead_code)]
 pub fn eye_care_lut(level: EyeCareLevel) -> [f64; LUT_SAMPLES * 3] {
     let kelvin = match level {
         EyeCareLevel::Off | EyeCareLevel::Custom => return identity_lut(),
@@ -904,7 +1130,6 @@ pub fn eye_care_lut(level: EyeCareLevel) -> [f64; LUT_SAMPLES * 3] {
     lut
 }
 
-#[allow(dead_code)]
 pub fn identity_lut() -> [f64; LUT_SAMPLES * 3] {
     let mut lut = [0f64; LUT_SAMPLES * 3];
     for channel in 0..3 {
@@ -916,7 +1141,6 @@ pub fn identity_lut() -> [f64; LUT_SAMPLES * 3] {
 }
 
 /// Classifies an observed LUT against the known eye-care tables.
-#[allow(dead_code)]
 pub fn classify_lut(observed: &[f64; LUT_SAMPLES * 3]) -> Result<EyeCareLevel> {
     const EPSILON: f64 = 1.0 / 255.0;
     for (level, expected) in [
@@ -937,24 +1161,140 @@ pub fn classify_lut(observed: &[f64; LUT_SAMPLES * 3]) -> Result<EyeCareLevel> {
     })
 }
 
+/// One desktop gamma ramp: three 256-entry channels with 16-bit entries.
+pub type RampSamples = [u16; LUT_SAMPLES * 3];
+
+/// The gamma-ramp transport eye-care is built on.
+///
+/// The vendor implementations (Vantage `SmartInteractAddin` contract handler
+/// `EyeCareMode`, PCManager `LenovoMonitorManager.exe`) apply their colour
+/// temperature table with `GetDeviceGammaRamp`/`SetDeviceGammaRamp`, so the
+/// seam is a system API, not a Lenovo payload: no vendor binary or registry
+/// state is needed to drive or observe the effect
+/// (docs/evidence/re-panel-20261105.md §5).
+pub trait GammaRampApi: Send + Sync {
+    /// Current desktop ramp.
+    fn get(&self) -> Result<RampSamples>;
+    /// Apply a ramp to the desktop.
+    fn set(&self, ramp: &RampSamples) -> Result<()>;
+}
+
+/// Desktop gamma ramp through `user32!GetDC(NULL)` and the gdi32 gamma calls.
+pub struct NativeGammaRamp;
+
+impl GammaRampApi for NativeGammaRamp {
+    fn get(&self) -> Result<RampSamples> {
+        use windows_sys::Win32::Graphics::Gdi::{GetDC, ReleaseDC};
+        use windows_sys::Win32::UI::ColorSystem::GetDeviceGammaRamp;
+        let mut ramp = [0u16; LUT_SAMPLES * 3];
+        // SAFETY: GetDC(NULL) is the desktop DC; the buffer is the 3x256
+        // u16 array the API documents, and it is released before returning.
+        let error = unsafe {
+            let hdc = GetDC(std::ptr::null_mut());
+            if hdc.is_null() {
+                Some(std::io::Error::last_os_error())
+            } else {
+                let ok = GetDeviceGammaRamp(hdc, ramp.as_mut_ptr().cast());
+                let error = (ok == 0).then(std::io::Error::last_os_error);
+                ReleaseDC(std::ptr::null_mut(), hdc);
+                error
+            }
+        };
+        if let Some(error) = error {
+            return Err(LctrlError::ChannelUnavailable {
+                channel: format!("GetDeviceGammaRamp failed: {error}"),
+            });
+        }
+        Ok(ramp)
+    }
+
+    fn set(&self, ramp: &RampSamples) -> Result<()> {
+        use windows_sys::Win32::Graphics::Gdi::{GetDC, ReleaseDC};
+        use windows_sys::Win32::UI::ColorSystem::SetDeviceGammaRamp;
+        // SAFETY: same DC/buffer contract as `get`; the buffer is read-only
+        // for this call and the DC is released before returning.
+        let error = unsafe {
+            let hdc = GetDC(std::ptr::null_mut());
+            if hdc.is_null() {
+                Some(std::io::Error::last_os_error())
+            } else {
+                let ok = SetDeviceGammaRamp(hdc, ramp.as_ptr().cast());
+                let error = (ok == 0).then(std::io::Error::last_os_error);
+                ReleaseDC(std::ptr::null_mut(), hdc);
+                error
+            }
+        };
+        if let Some(error) = error {
+            return Err(LctrlError::ChannelUnavailable {
+                channel: format!("SetDeviceGammaRamp failed: {error}"),
+            });
+        }
+        Ok(())
+    }
+}
+
+fn ramp_to_lut(ramp: &RampSamples) -> [f64; LUT_SAMPLES * 3] {
+    std::array::from_fn(|index| f64::from(ramp[index]) / 65535.0)
+}
+
+fn ramp_from_lut(lut: &[f64; LUT_SAMPLES * 3]) -> RampSamples {
+    std::array::from_fn(|index| (lut[index].clamp(0.0, 1.0) * 65535.0).round() as u16)
+}
+
+/// Classifies a live ramp against the known levels. `None` means the ramp is
+/// not one of them (a calibrated profile, Night Light, or another vendor
+/// preset): unknown stays unknown instead of being snapped to a neighbour.
+fn classify_ramp(ramp: &RampSamples) -> Option<EyeCareLevel> {
+    classify_lut(&ramp_to_lut(ramp)).ok()
+}
+
 impl<T: IntelCtlApi> PanelFeaturesControl for WindowsPanelFeatures<T> {
     fn eye_care(&self) -> Result<Option<EyeCareLevel>> {
-        // The pixel-transformation block query is not reproducible against
-        // this driver: it writes outside the published structure and
-        // corrupts the caller's heap, so the channel stays closed rather than
-        // risking the process (docs/interfaces.md §15.1).
-        Err(LctrlError::Unsupported {
-            feature: "panel.eye-care.pixel-transformation-query-unsupported".to_string(),
-        })
+        let gamma = self.gamma.as_deref().ok_or_else(|| LctrlError::Unsupported {
+            feature: "panel.eye-care.gamma-ramp-detached".to_string(),
+        })?;
+        Ok(classify_ramp(&gamma.get()?))
     }
 
     fn set_eye_care(
         &self,
-        _level: EyeCareLevel,
-        _apply: ApplyMode,
+        level: EyeCareLevel,
+        apply: ApplyMode,
     ) -> Result<ChangeReport<Option<EyeCareLevel>>> {
-        Err(LctrlError::Unsupported {
-            feature: "panel.eye-care.pixel-transformation-query-unsupported".to_string(),
+        let gamma = self.gamma.as_deref().ok_or_else(|| LctrlError::Unsupported {
+            feature: "panel.eye-care.gamma-ramp-detached".to_string(),
+        })?;
+        // The raw ramp is captured, not just its classification: it is the
+        // rollback target even when it matches no known level.
+        let previous_ramp = gamma.get()?;
+        let previous = classify_ramp(&previous_ramp);
+        if apply == ApplyMode::DryRun {
+            return Ok(ChangeReport::dry_run(previous, Some(level)));
+        }
+        let target = ramp_from_lut(&eye_care_lut(level));
+        if target == previous_ramp {
+            return Ok(ChangeReport::committed(previous, Some(level), previous));
+        }
+        gamma.set(&target)?;
+        let observed = classify_ramp(&gamma.get()?);
+        if observed == Some(level) {
+            return Ok(ChangeReport::committed(previous, Some(level), Some(level)));
+        }
+        let observed_text = observed.map_or_else(
+            || "an unrecognised ramp".to_string(),
+            |observed| observed.to_string(),
+        );
+        // A ramp we did not intend is worse than none: put the captured ramp
+        // back before reporting.
+        let restored = gamma.set(&previous_ramp);
+        Err(LctrlError::VerifyMismatch {
+            requested: level.to_string(),
+            actual: match restored {
+                Ok(()) => format!("observed {observed_text} after the write; previous ramp restored"),
+                Err(error) => format!(
+                    "observed {observed_text} after the write; restoring the previous ramp failed: {error}"
+                ),
+            },
         })
     }
 

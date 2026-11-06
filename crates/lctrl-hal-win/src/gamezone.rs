@@ -112,9 +112,33 @@ where
         self.get_u32("GetCpuFrequency")
     }
 
-    /// `Is*` support probes all follow the same shape: zero means supported.
+    /// Read one `Is*` support probe's raw `Data` answer.
+    ///
+    /// Lenovo reports support through `Data`: `1` means the feature is
+    /// present, `0` means it is absent (`docs/01` §2.6, `docs/03` §5.4).
+    /// `ReturnValue` only says the provider executed the method, so a `False`
+    /// `ReturnValue` is a firmware rejection of the call, never "absent".
+    pub fn support_data(&self, probe: SupportProbe) -> Result<u32> {
+        let output = self.invoke(GAMEZONE_CLASS, probe.method(), WmiObject::new())?;
+        let return_value = match output.get("ReturnValue") {
+            Some(WmiValue::Bool(value)) => *value,
+            Some(value) => numeric(value, probe.method())? != 0,
+            None => true,
+        };
+        if !return_value {
+            return Err(LctrlError::FirmwareRejected {
+                detail: format!(
+                    "{GAMEZONE_CLASS}.{} answered ReturnValue=False",
+                    probe.method()
+                ),
+            });
+        }
+        first_u32(&output, probe.method())
+    }
+
+    /// `Is*` support probe: `Data = 1` means supported, `0` means absent.
     pub fn is_supported(&self, probe: SupportProbe) -> Result<bool> {
-        Ok(self.get_u32(probe.method())? == 0)
+        Ok(self.support_data(probe)? == 1)
     }
 
     pub fn set_fan_cooling(&self, data: u32) -> Result<()> {
@@ -224,6 +248,7 @@ pub enum SupportProbe {
     FanCooling,
     SmartFan,
     CpuOc,
+    GpuOc,
     IgpuMode,
     DisableWinKey,
     DisableTouchpad,
@@ -237,6 +262,7 @@ impl SupportProbe {
             Self::FanCooling => "IsSupportFanCooling",
             Self::SmartFan => "IsSupportSmartFan",
             Self::CpuOc => "IsSupportCpuOC",
+            Self::GpuOc => "IsSupportGpuOC",
             Self::IgpuMode => "IsSupportIGPUMode",
             Self::DisableWinKey => "IsSupportDisableWinKey",
             Self::DisableTouchpad => "IsSupportDisableTP",

@@ -44,8 +44,8 @@ fn main() {
 
     match driver.night_charge_probe() {
         Ok(raw) => println!(
-            "night_charge probe: 0x{raw:08x} -> supported={} (probe bit4 is not the live state; see status)",
-            raw & 1 != 0
+            "night_charge probe: 0x{raw:08x} -> supported={} (probe bit0+bit4 are the support signal; the live state comes from status)",
+            lctrl_core::NightChargeState::from_probe(raw).supported
         ),
         Err(error) => println!("night_charge probe: ERROR {error}"),
     }
@@ -58,11 +58,23 @@ fn main() {
         Err(error) => println!("night_charge status: ERROR {error}"),
     }
 
-    match driver.temporary_charge_status() {
-        Ok(raw) => println!(
-            "temporary_charge: 0x{raw:08x} -> {:?}",
-            lctrl_core::TemporaryChargeState::from_raw(raw)
-        ),
-        Err(error) => println!("temporary_charge: ERROR {error}"),
+    match driver.temporary_charge_probe() {
+        Ok(raw) => {
+            let state = lctrl_core::TemporaryChargeState::from_probe(raw);
+            println!(
+                "temporary_charge probe: 0x{raw:08x} -> supported={}",
+                state.supported
+            );
+            if state.supported {
+                match driver.temporary_charge_status() {
+                    Ok(status) => println!(
+                        "temporary_charge status: 0x{status:08x} -> {:?}",
+                        state.with_status(status)
+                    ),
+                    Err(error) => println!("temporary_charge status: ERROR {error}"),
+                }
+            }
+        }
+        Err(error) => println!("temporary_charge probe: ERROR {error}"),
     }
 }

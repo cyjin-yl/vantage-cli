@@ -34,4 +34,12 @@ pub trait UpdateControl: Send + Sync {
             feature: "update.check".into(),
         })
     }
+
+    /// Read the update history the machine's own update add-in recorded.
+    /// Read-only; backends without a local ledger stay honest.
+    fn update_history(&self) -> Result<lctrl_core::UpdateHistoryReport> {
+        Err(lctrl_core::LctrlError::Unsupported {
+            feature: "update.history".into(),
+        })
+    }
 }

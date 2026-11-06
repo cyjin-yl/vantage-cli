@@ -1,18 +1,33 @@
-use std::time::Duration;
-
 use lctrl_core::{
-    ApplyMode, Availability, ChangeReport, FanDescriptor, FanId, FanMode, FanTable, LctrlError,
-    Result, SensorId, TemperatureLocation, TemperatureSensor, TemperatureSensorMetadata,
-    TemperatureSource,
+    Availability, LctrlError, Result, TemperatureLocation, TemperatureSensor,
+    TemperatureSensorMetadata, TemperatureSource,
 };
-use lctrl_hal::{BatteryControl, DbdcControl, FanControl, TemperatureControl, poll_readback};
+#[cfg(windows)]
+use std::time::Duration;
+#[cfg(windows)]
+use lctrl_core::{
+    ApplyMode, ChangeReport, FanDescriptor, FanId, FanMode, FanTable, SensorId,
+};
 
-use crate::{GameZone, WmiObject, WmiTransport, WmiValue, wmi_contract::ROOT_WMI};
+use lctrl_hal::{BatteryControl, DbdcControl, TemperatureControl};
+#[cfg(windows)]
+use lctrl_hal::{FanControl, poll_readback};
+
+use crate::{WmiObject, WmiTransport, WmiValue, wmi_contract::ROOT_WMI};
+#[cfg(windows)]
+use crate::GameZone;
+// The PowerSlider projection is the Win32 registry reader, so both the reader
+// and the fan-mode fallback that consumes it exist only on Windows. The rest of
+// this module stays portable so the Linux CI host still typechecks it.
+#[cfg(windows)]
 use crate::{NativePerformanceRegistry, PerformanceRegistryReader};
 
 const BATTERY_SENSOR_ID: &str = "windows-battery-class/temperature";
 const THERMAL_ZONE_QUERY: &str =
     "SELECT InstanceName, CurrentTemperature FROM MSAcpi_ThermalZoneTemperature";
+const ESIF_PARTICIPANT_QUERY: &str =
+    "SELECT InstanceName, Temperature FROM EsifDeviceInformation";
+#[cfg(windows)]
 const FAN_INVENTORY_QUERY: &str =
     "SELECT NumOfFans, FanId, FanMinSpeed, FanMaxSpeed FROM LENOVO_FAN_TEST_DATA";
 const DBDC_QUERY: &str =
@@ -24,15 +39,41 @@ const DBDC_QUERY: &str =
 /// pack association. ACPI thermal
 /// zones retain their firmware instance identity and are never relabelled as
 /// CPU sensors: the public WMI class does not establish that physical mapping.
-pub struct WindowsThermal<W, B> {
+/// Intel ESIF / Dynamic Tuning participants (`root\WMI
+/// EsifDeviceInformation`) are reported under the provider's own instance name
+/// for the same reason: the class publishes no participant name, and its
+/// trip-point/power fields are limits, not measurements
+/// (docs/evidence/re-thermal-20261105.md).
+///
+/// The registry reader supplies the dispatcher's `ITS_FanMode` projection, which
+/// is only ever a fallback for the firmware fan-mode read.
+pub struct WindowsThermal<W, B, R> {
     wmi: W,
     battery: B,
+    registry: R,
 }
 
-impl<W, B> WindowsThermal<W, B> {
+#[cfg(windows)]
+impl<W, B> WindowsThermal<W, B, NativePerformanceRegistry> {
     #[must_use]
     pub const fn new(wmi: W, battery: B) -> Self {
-        Self { wmi, battery }
+        Self {
+            wmi,
+            battery,
+            registry: NativePerformanceRegistry,
+        }
+    }
+}
+
+impl<W, B, R> WindowsThermal<W, B, R> {
+    /// Construct with an explicit PowerSlider reader (scripted fakes in tests).
+    #[must_use]
+    pub const fn with_registry(wmi: W, battery: B, registry: R) -> Self {
+        Self {
+            wmi,
+            battery,
+            registry,
+        }
     }
 
     #[must_use]
@@ -44,12 +85,40 @@ impl<W, B> WindowsThermal<W, B> {
     pub const fn battery(&self) -> &B {
         &self.battery
     }
+
+    #[must_use]
+    pub const fn registry(&self) -> &R {
+        &self.registry
+    }
 }
 
-impl<W, B> TemperatureControl for WindowsThermal<W, B>
+#[cfg(windows)]
+impl<W, B, R> WindowsThermal<W, B, R>
 where
     W: WmiTransport,
     B: BatteryControl,
+{
+    /// Firmware fan-mode readback (`LENOVO_GAMEZONE_DATA.GetSmartFanMode`).
+    ///
+    /// This is the only read that can confirm a fan-mode write. It is absent on
+    /// firmware whose GAMEZONE provider rejects the fan getters
+    /// (`WBEM_E_INVALID_OBJECT`), e.g. ThinkBook 21VG.
+    fn firmware_fan_mode(&self) -> Result<FanMode> {
+        let raw = GameZone::new(&self.wmi).smart_fan_mode()?;
+        u16::try_from(raw)
+            .map(FanMode::from_raw)
+            .map_err(|_| LctrlError::ChannelUnavailable {
+                channel: format!("GetSmartFanMode returned {raw}, outside the u16 fan-mode domain"),
+            })
+    }
+}
+
+impl<W, B, R> TemperatureControl for WindowsThermal<W, B, R>
+where
+    W: WmiTransport,
+    B: BatteryControl,
+    // The trait requires `Send + Sync`; `R` is otherwise unused here.
+    R: Send + Sync,
 {
     fn temperature_sensors(&self) -> Result<Vec<TemperatureSensor>> {
         let mut sensors = Vec::new();
@@ -112,14 +181,55 @@ where
             });
         }
 
+        // Intel ESIF / Dynamic Tuning participants. This is the only channel on
+        // this SKU that returns a package-adjacent temperature: the GAMEZONE
+        // getters are absent from the firmware, the fan-table sensor
+        // enumeration is unsupported, and the ACPI class exposes a single
+        // unnamed zone (docs/evidence/re-thermal-20261105.md §1, §3).
+        let participants = match self.wmi.query(ROOT_WMI, ESIF_PARTICIPANT_QUERY) {
+            Ok(participants) => participants,
+            // Machines without Intel Dynamic Tuning have no such class. Other
+            // errors describe a present source that failed.
+            Err(LctrlError::Unsupported { .. }) => Vec::new(),
+            Err(error) => return Err(error),
+        };
+        for participant in &participants {
+            let instance_name = required_instance_name(participant)?;
+            let temperature = required_u32(participant, "Temperature")?;
+            // The provider reports whole degrees Celsius on this platform even
+            // though the class metadata declares 1/10 K: that declaration is
+            // boilerplate shared with the trip-point fields, and a
+            // tenths-of-Kelvin reading would put a live participant below the
+            // battery and board readings sampled in the same second
+            // (docs/evidence/re-thermal-20261105.md §3.4). Nothing is
+            // converted here.
+            //
+            // A reported 0 is the provider's "this participant has no
+            // temperature" value: those instances return 0 in every sample
+            // while their peers move (§3.5). It is not a reading, so the
+            // instance is omitted rather than published as a measured 0.0 °C.
+            if temperature == 0 {
+                continue;
+            }
+            sensors.push(TemperatureSensor {
+                metadata: TemperatureSensorMetadata {
+                    id: format!("esif/{instance_name}"),
+                    name: format!("Intel ESIF participant ({instance_name})"),
+                    source: TemperatureSource::WmiEsif,
+                    location: TemperatureLocation::Unknown,
+                    availability: Availability::Available,
+                },
+                value_c: Some(f64::from(temperature) as f32),
+            });
+        }
+
         sensors.sort_by(|left, right| left.metadata.id.cmp(&right.metadata.id));
         if sensors
             .windows(2)
             .any(|pair| pair[0].metadata.id == pair[1].metadata.id)
         {
             return Err(LctrlError::ChannelUnavailable {
-                channel: "MSAcpi_ThermalZoneTemperature returned duplicate InstanceName values"
-                    .into(),
+                channel: "temperature sources returned duplicate sensor ids".into(),
             });
         }
         if sensors.is_empty() {
@@ -140,45 +250,65 @@ where
     }
 }
 
-impl<W, B> FanControl for WindowsThermal<W, B>
+#[cfg(windows)]
+impl<W, B, R> FanControl for WindowsThermal<W, B, R>
 where
     W: WmiTransport,
     B: BatteryControl,
+    R: PerformanceRegistryReader,
 {
     fn fan_mode(&self) -> Result<FanMode> {
-        // Prefer the GAMEZONE WMI channel; on 21VG it returns an out-of-domain
-        // value, so fall back to the dispatcher's registry mirror of the same
-        // smart-fan tier (`ITS_FanMode` under PowerSlider).
-        let wmi_raw = GameZone::new(&self.wmi)
-            .smart_fan_mode()
-            .ok()
-            .and_then(|v| u16::try_from(v).ok());
-        let raw = match wmi_raw {
-            Some(v) => v,
-            None => {
-                let reg = NativePerformanceRegistry
-                    .read_dword("ITS_FanMode")
-                    .map_err(|_| LctrlError::ChannelUnavailable {
-                        channel: "GetSmartFanMode out of range and ITS_FanMode registry unreadable"
-                            .to_string(),
-                    })?;
-                u16::try_from(reg).map_err(|_| LctrlError::ChannelUnavailable {
-                    channel: format!("ITS_FanMode registry value {reg} outside u16"),
-                })?
-            }
-        };
-        Ok(FanMode::from_raw(raw))
+        // Firmware readback first. Where the GAMEZONE provider rejects it
+        // (`GetSmartFanMode` -> WBEM_E_INVALID_OBJECT on 21VG), report the
+        // dispatcher's PowerSlider value instead. That value is a write-only
+        // dispatcher projection - nothing in LNVDispatcherService reads it back
+        // into firmware (docs/evidence/re-fan-write-20261105.md §3) - so it is
+        // returned raw (`FanMode::from_raw`, unknown values stay `Unknown`) and
+        // never presented as a confirmed firmware mode.
+        if let Ok(mode) = self.firmware_fan_mode() {
+            return Ok(mode);
+        }
+        let reg = self
+            .registry
+            .read_dword("ITS_FanMode")
+            .map_err(|_| LctrlError::ChannelUnavailable {
+                channel: "GAMEZONE GetSmartFanMode rejected and ITS_FanMode registry unreadable"
+                    .to_string(),
+            })?;
+        u16::try_from(reg)
+            .map(FanMode::from_raw)
+            .map_err(|_| LctrlError::ChannelUnavailable {
+                channel: format!("ITS_FanMode registry value {reg} outside u16"),
+            })
     }
 
     fn set_fan_mode(&self, mode: FanMode, apply: ApplyMode) -> Result<ChangeReport<FanMode>> {
+        // Reject a mode with no firmware encoding before touching any channel.
         let raw = smart_fan_mode_raw(mode)?;
-        let previous = self.fan_mode()?;
         if apply == ApplyMode::DryRun {
-            return Ok(ChangeReport::dry_run(previous, mode));
+            return Ok(ChangeReport::dry_run(self.fan_mode()?, mode));
         }
+        // Never issue a write whose result cannot be read back. On 21VG the
+        // firmware acknowledges one `SetSmartFanMode` per caller process and
+        // rejects every later call regardless of value or VARIANT type, while
+        // every fan getter returns WBEM_E_INVALID_OBJECT; `ITS_FanMode` is a
+        // dispatcher projection that our write does not update. Writing there
+        // would report an effect that is unobservable and unvalidated
+        // (docs/evidence/re-fan-write-20261105.md §2, §5).
+        let firmware_previous =
+            self.firmware_fan_mode()
+                .map_err(|error| LctrlError::ChannelUnavailable {
+                    channel: format!(
+                        "perf.fan.mode.write requires a firmware fan-mode readback, \
+                         but GetSmartFanMode is unavailable ({error}); the GAMEZONE setter \
+                         acknowledges calls without validating the value and nothing reads \
+                         the result back (docs/evidence/re-fan-write-20261105.md)"
+                    ),
+                })?;
         GameZone::new(&self.wmi).set_smart_fan_mode(u32::from(raw))?;
-        let actual = poll_readback(&mode, 3, Duration::from_millis(200), || self.fan_mode())?;
-        Ok(ChangeReport::committed(previous, mode, actual))
+        let actual =
+            poll_readback(&mode, 3, Duration::from_millis(200), || self.firmware_fan_mode())?;
+        Ok(ChangeReport::committed(firmware_previous, mode, actual))
     }
 
     fn fans(&self) -> Result<Vec<FanDescriptor>> {
@@ -233,12 +363,18 @@ where
 /// Maps the semantic fan mode to the firmware `SetSmartFanMode` value.
 ///
 /// Placeholder inverse of [`FanMode::from_raw`] (standard=0, silent=1,
-/// performance=2, custom=3). Reverse engineering (interfaces.md §10.3)
-/// shows the vendor plugin operates on raw firmware encodings with 0x7A/0x80
+/// performance=2, custom=3). Reverse engineering (interfaces.md §10.3) shows
+/// the vendor plugin operates on raw firmware encodings with 0x7A/0x80
 /// threshold comparisons, so this mapping is unconfirmed and partially
-/// refuted; the reference machine's provider rejects every GAMEZONE call,
-/// so it cannot be validated there either. Treat the write path as
-/// unverified until a supporting machine confirms the wire values.
+/// refuted.
+///
+/// The 21VG provider exposes no fan-mode domain at all: `SetSmartFanMode`
+/// acknowledges one call per caller process and rejects every later call for
+/// every value tried (0, 1, 2, 3, 4, 5, 255) and every VARIANT type
+/// (docs/evidence/re-fan-write-20261105.md §2). This table therefore stays
+/// unverified, and `WindowsThermal::set_fan_mode` only reaches it on firmware
+/// that also answers `GetSmartFanMode`.
+#[cfg(windows)]
 fn smart_fan_mode_raw(mode: FanMode) -> Result<u16> {
     match mode {
         FanMode::Standard => Ok(0),
@@ -261,6 +397,7 @@ fn required_instance_name(object: &WmiObject) -> Result<&str> {
     }
 }
 
+#[cfg(windows)]
 fn required_array<'a>(object: &'a WmiObject, name: &str) -> Result<&'a [WmiValue]> {
     match object.get(name) {
         Some(WmiValue::Array(values)) => Ok(values),
@@ -310,10 +447,12 @@ fn invalid_wmi_value(name: &str, value: &WmiValue) -> LctrlError {
     }
 }
 
-impl<W, B> DbdcControl for WindowsThermal<W, B>
+impl<W, B, R> DbdcControl for WindowsThermal<W, B, R>
 where
     W: WmiTransport,
     B: BatteryControl,
+    // The trait requires `Send + Sync`; `R` is otherwise unused here.
+    R: Send + Sync,
 {
     fn dbdc_profile(&self) -> Result<lctrl_core::DbdcProfile> {
         let rows = self.wmi.query(ROOT_WMI, DBDC_QUERY)?;

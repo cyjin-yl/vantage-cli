@@ -60,9 +60,15 @@ pub fn command_layer(command: &crate::Command) -> lctrl_core::StateLayer {
             command: Some(BatteryCommand::Watch { .. }),
         } => StateLayer::Runtime,
         Command::Battery {
+            command: Some(BatteryCommand::Health),
+        } => StateLayer::Runtime,
+        Command::Battery {
             command: None | Some(BatteryCommand::Status | BatteryCommand::Adapter),
         } => StateLayer::Runtime,
         Command::Usb { .. } => StateLayer::Runtime, // registry selector validation uses explicit helpers for persistent flag
+        Command::Power {
+            command: Some(crate::PowerCommand::Ac | crate::PowerCommand::Draw),
+        } => StateLayer::Runtime,
         Command::Power {
             command: None | Some(_),
         } => StateLayer::OsPersistent,
@@ -102,6 +108,7 @@ pub fn command_layer(command: &crate::Command) -> lctrl_core::StateLayer {
             command: Some(PanelCommand::Rate { .. }),
         } => StateLayer::Runtime,
         Command::Panel { .. } => StateLayer::Runtime,
+        Command::Display { .. } => StateLayer::Runtime,
         Command::Privacy {
             command: Some(PrivacyCommand::Fingerprint { .. } | PrivacyCommand::Status),
         } => StateLayer::Composite,
@@ -119,6 +126,9 @@ pub fn command_layer(command: &crate::Command) -> lctrl_core::StateLayer {
                 ),
         } => StateLayer::BiosPersistent,
         Command::Bios { .. } => StateLayer::BiosPersistent,
+        // Firmware inventory reports the persisted BIOS/ESRT identity; it has
+        // no runtime state of its own.
+        Command::Firmware { .. } => StateLayer::BiosPersistent,
         Command::Magicbay {
             command:
                 Some(crate::MagicbayCommand::Lte {
@@ -136,6 +146,9 @@ pub fn command_layer(command: &crate::Command) -> lctrl_core::StateLayer {
         } => StateLayer::Runtime,
         Command::Osd { command: Some(_) } => StateLayer::OsPersistent,
         Command::Hotkey { command: None } => StateLayer::Runtime,
+        Command::Hotkey {
+            command: Some(crate::HotkeyCommand::Status),
+        } => StateLayer::Composite,
         Command::Hotkey { .. } => StateLayer::OsPersistent,
         Command::Update { .. } => StateLayer::LocalPersistent,
         Command::Snapshot {
@@ -151,10 +164,28 @@ pub fn command_layer(command: &crate::Command) -> lctrl_core::StateLayer {
         Command::Daemon { .. } => StateLayer::Runtime,
         Command::Scan { .. } => StateLayer::NotApplicable,
         Command::Wifi { .. } => StateLayer::NotApplicable,
+        Command::Bluetooth { .. } => StateLayer::NotApplicable,
+        // Processor identity and the derived clock are observations, not a
+        // layer's state, so the command shares the `info`/`doctor` shape.
+        Command::Cpu { .. } => StateLayer::NotApplicable,
+        // Drive identity and health are read from the device on each run and
+        // nothing is persisted, so no state layer owns them.
+        Command::Storage { .. } => StateLayer::NotApplicable,
+        Command::Radio { .. } => StateLayer::Runtime,
+        // A sensor report is taken from the device on each run and nothing is
+        // persisted or reconfigured, so no state layer owns it.
+        Command::Sensor { .. } => StateLayer::NotApplicable,
+        // The event log is a runtime observation of records the OS already
+        // holds; nothing about the query is persistent configuration.
+        Command::Events { .. } => StateLayer::Runtime,
+        Command::Security { .. } => StateLayer::NotApplicable,
         Command::Fix { .. } => StateLayer::LocalPersistent,
         Command::Scene { .. } => StateLayer::LocalPersistent,
         Command::Touchpad {
-            state: crate::TouchpadAction::Status | crate::TouchpadAction::Recover,
+            state:
+                crate::TouchpadAction::Status
+                | crate::TouchpadAction::Caps
+                | crate::TouchpadAction::Recover,
         } => StateLayer::Runtime,
         Command::Touchpad { .. } => StateLayer::PlatformDependent,
         Command::Info | Command::Doctor | Command::Capability | Command::Completions { .. } => {
@@ -205,9 +236,16 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
     Some(match command {
         Command::Info => CommandId::INFO,
         Command::Doctor => CommandId::DOCTOR,
+        Command::Events { .. } => CommandId::EVENTS_LOG,
+        Command::Cpu {
+            command: None | Some(crate::CpuCommand::Status),
+        } => CommandId::CPU_STATUS,
         Command::Battery {
             command: None | Some(BatteryCommand::Status),
         } => CommandId::BATTERY_STATUS,
+        Command::Battery {
+            command: Some(BatteryCommand::Health),
+        } => CommandId::BATTERY_HEALTH,
         Command::Battery {
             command: Some(BatteryCommand::Adapter),
         } => CommandId::BATTERY_ADAPTER,
@@ -252,6 +290,9 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
                     persistent: true, ..
                 }),
         } => CommandId::USB_CHARGE_ON_BATTERY,
+        Command::Usb {
+            command: Some(UsbCommand::Ports),
+        } => CommandId::USB_PORTS,
         Command::Usb { command: None } => return None,
         Command::Power { command: None } => CommandId::POWER_SCHEME_ACTIVE,
         Command::Power {
@@ -306,6 +347,12 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
         Command::Power {
             command: Some(crate::PowerCommand::SaverOnce),
         } => CommandId::POWER_SAVER_ONCE,
+        Command::Power {
+            command: Some(crate::PowerCommand::Ac),
+        } => CommandId::POWER_AC,
+        Command::Power {
+            command: Some(crate::PowerCommand::Draw),
+        } => CommandId::POWER_DRAW,
         Command::Perf {
             command:
                 None
@@ -371,6 +418,12 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
             command: Some(PerfCommand::Dbdc { .. }),
         } => CommandId::PERF_DBDC_GET,
         Command::Perf {
+            command: Some(PerfCommand::Policy),
+        } => CommandId::PERF_POLICY,
+        Command::Perf {
+            command: Some(PerfCommand::Gpu { .. }),
+        } => CommandId::PERF_GPU_STATUS,
+        Command::Perf {
             command: Some(PerfCommand::Top),
         } => CommandId::PERF_TOP,
         Command::Perf {
@@ -435,6 +488,9 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
             state: crate::TouchpadAction::Status,
         } => CommandId::TOUCHPAD_STATUS,
         Command::Touchpad {
+            state: crate::TouchpadAction::Caps,
+        } => CommandId::TOUCHPAD_CAPS,
+        Command::Touchpad {
             state: crate::TouchpadAction::Recover,
         } => CommandId::TOUCHPAD_RECOVER,
         Command::Touchpad { .. } => CommandId::TOUCHPAD,
@@ -451,6 +507,9 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
             command: Some(PanelCommand::Rate { .. }),
         } => CommandId::PANEL_RATE,
         Command::Panel {
+            command: Some(PanelCommand::Info),
+        } => CommandId::PANEL_INFO,
+        Command::Panel {
             command: Some(PanelCommand::Color { .. }),
         } => CommandId::PANEL_COLOR,
         Command::Panel {
@@ -463,6 +522,10 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
             command: Some(PanelCommand::EyeCare { .. }),
         } => CommandId::PANEL_EYE_CARE,
         Command::Panel { command: None } => return None,
+        Command::Display {
+            command: Some(crate::DisplayCommand::Status),
+        } => CommandId::DISPLAY_STATUS,
+        Command::Display { command: None } => return None,
         Command::Privacy {
             command: Some(PrivacyCommand::Cam { .. }),
         } => CommandId::PRIVACY_CAM,
@@ -513,6 +576,15 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
         Command::Audio {
             command: Some(AudioCommand::NoiseCancel { .. }),
         } => CommandId::AUDIO_NOISE_CANCEL,
+        Command::Audio {
+            command: Some(AudioCommand::Endpoints { .. }),
+        } => CommandId::AUDIO_ENDPOINTS,
+        Command::Audio {
+            command: Some(AudioCommand::Volume { .. }),
+        } => CommandId::AUDIO_VOLUME,
+        Command::Audio {
+            command: Some(AudioCommand::Mute { .. }),
+        } => CommandId::AUDIO_MUTE,
         Command::Audio { command: None } => return None,
         Command::Bios {
             command: None | Some(BiosCommand::List),
@@ -559,6 +631,8 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
         Command::Bios {
             command: Some(BiosCommand::Password { command: None }),
         } => return None,
+        Command::Firmware { .. } => CommandId::FIRMWARE_STATUS,
+        Command::Storage { .. } => CommandId::STORAGE_STATUS,
         Command::Magicbay {
             command: Some(MagicbayCommand::Detect),
         } => CommandId::MAGICBAY_DETECT,
@@ -614,6 +688,9 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
             command: Some(crate::HotkeyCommand::List),
         } => CommandId::HOTKEY_LIST,
         Command::Hotkey {
+            command: Some(crate::HotkeyCommand::Status),
+        } => CommandId::HOTKEY_STATUS,
+        Command::Hotkey {
             command: Some(crate::HotkeyCommand::Register { .. }),
         } => CommandId::HOTKEY_REGISTER,
         Command::Hotkey {
@@ -650,6 +727,9 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
                 }),
         } => CommandId::UPDATE_LOCAL_INSTALL,
         Command::Update {
+            command: Some(UpdateCommand::LocalInstall { .. }),
+        } => CommandId::UPDATE_LOCAL_PACKAGE,
+        Command::Update {
             command:
                 Some(UpdateCommand::LocalDriver {
                     command: LocalDriverCommand::Rollback { .. },
@@ -664,9 +744,38 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
         } => CommandId::SCAN_RUN,
         Command::Scan { command: None } => return None,
         Command::Wifi {
+            command: Some(WifiCommand::Status),
+        } => CommandId::WIFI_STATUS,
+        Command::Wifi {
             command: Some(WifiCommand::Security),
         } => CommandId::WIFI_SECURITY,
         Command::Wifi { .. } => return None,
+        Command::Bluetooth {
+            command: Some(crate::BluetoothCommand::List),
+        } => CommandId::BLUETOOTH_LIST,
+        Command::Bluetooth { .. } => return None,
+        Command::Radio {
+            command: Some(crate::RadioCommand::Status),
+        } => CommandId::RADIO_STATUS,
+        Command::Radio {
+            command: Some(crate::RadioCommand::Off { .. }),
+        } => CommandId::RADIO_OFF,
+        Command::Radio {
+            command: Some(crate::RadioCommand::On { .. }),
+        } => CommandId::RADIO_ON,
+        Command::Radio { .. } => return None,
+        // A bare `sensor` lists, so it maps to the listing verb.
+        Command::Sensor { command: None } => CommandId::SENSOR_LIST,
+        Command::Sensor {
+            command: Some(crate::SensorCommand::List),
+        } => CommandId::SENSOR_LIST,
+        Command::Sensor {
+            command: Some(crate::SensorCommand::Read { .. }),
+        } => CommandId::SENSOR_READ,
+        Command::Security {
+            command: Some(crate::SecurityCommand::Status),
+        } => CommandId::SECURITY_STATUS,
+        Command::Security { command: None } => return None,
         Command::Fix { command: None } => CommandId::FIX_RULES,
         Command::Fix {
             command: Some(FixCommand::Scan),
@@ -902,18 +1011,31 @@ fn role_channel(role: ServiceRole) -> Option<&'static str> {
         ServiceRole::Battery => Some("channel.battery"),
         ServiceRole::Bios => Some("channel.bios"),
         ServiceRole::Diagnostics => Some("channel.diagnostics"),
+        ServiceRole::Events => Some("channel.events"),
         ServiceRole::Fan => Some("channel.fan"),
         ServiceRole::Hotkey => Some("channel.hotkey"),
+        // The ACPI `KBLC` backlight channel is the keyboard transport on
+        // Windows, recorded from the same read-only probe as `kbd.backlight`;
+        // the Linux backend records `channel.keyboard` for the same sysfs
+        // channel. `kbd backlight` is live on both (re-kbd-backlight-20261105).
+        ServiceRole::Keyboard => Some("channel.keyboard"),
         ServiceRole::MagicBay => Some("channel.magicbay"),
+        ServiceRole::MobileBroadband => Some("channel.mobilebroadband"),
         ServiceRole::MachineFix => Some("channel.machinefix"),
         ServiceRole::Osd => Some("channel.osd"),
         ServiceRole::Panel => Some("channel.panel"),
         ServiceRole::PanelBrightness => Some("channel.panel-brightness"),
+        ServiceRole::PanelIdentity => Some("channel.panel-identity"),
         ServiceRole::Performance => Some("channel.performance"),
         ServiceRole::Power => Some("channel.power"),
         ServiceRole::Privacy => Some("channel.privacy-runtime"),
         ServiceRole::Process => Some("channel.process"),
         ServiceRole::ProcessorPower => Some("channel.processor-power"),
+        // WinRT radio manager: `radio status` is an enumeration of every
+        // selectable radio kind, recorded by the same read-only probe.
+        ServiceRole::Radio => Some("channel.radio"),
+        ServiceRole::Sensor => Some("channel.sensor"),
+        ServiceRole::Storage => Some("channel.storage"),
         ServiceRole::Audio => Some("channel.audio"),
         ServiceRole::ScenePolicy => Some("channel.scene"),
         ServiceRole::Sense => Some("channel.hpd-rpc"),
@@ -922,8 +1044,26 @@ fn role_channel(role: ServiceRole) -> Option<&'static str> {
         ServiceRole::Tuning => Some("channel.tuning"),
         ServiceRole::Update => Some("channel.update-local"),
         ServiceRole::Usb => Some("channel.usb"),
+        // The read-only USB port inventory probe records its row under the
+        // feature key `usb.ports` rather than a `channel.*` name
+        // (crates/lctrl-hal-win/src/usb_ports.rs, re-usb-ports-20261105 §7).
+        ServiceRole::UsbPorts => Some("usb.ports"),
         ServiceRole::Wifi => Some("channel.wifi"),
-        _ => None,
+        ServiceRole::Bluetooth => Some("channel.bluetooth"),
+        ServiceRole::Security => Some("channel.security"),
+        // No probe records a transport for these, so the role stays
+        // `Unexposed` instead of being assumed present. `Hal` is resolved by
+        // `role_present` before this lookup. The two MagicBay accessory planes
+        // have no recorded channel: the inventory probe is
+        // `channel.magicbay`/`magicbay.inventory`, and the camera/display
+        // control planes are absent on this SKU (re-magicbay-20261105 §3).
+        //
+        // This arm list is exhaustive on purpose: a new `ServiceRole` variant
+        // must decide its channel here rather than silently inheriting
+        // `Unexposed` (capability audit §6.2).
+        ServiceRole::Hal
+        | ServiceRole::MagicBayCamera
+        | ServiceRole::MagicBayDisplay => None,
     }
 }
 

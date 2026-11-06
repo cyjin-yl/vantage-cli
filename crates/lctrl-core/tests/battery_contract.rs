@@ -1,7 +1,8 @@
 use lctrl_core::{
     AdapterAuthentication, AdapterDetailValues, AdapterInfo, BatteryDate, BatteryHealth,
     BatteryTelemetry, ChargeMode, ChargeModeActual, ChargePrimitive, ChargeStatus, LctrlError,
-    decode_charge_mode, decode_gbmd_charge_mode, plan_charge_mode,
+    NightChargeState, TemporaryChargeMode, TemporaryChargeState, decode_charge_mode,
+    decode_gbmd_charge_mode, plan_charge_mode,
 };
 
 #[test]
@@ -546,4 +547,195 @@ fn adapter_types_serialize_and_display() {
     assert_eq!(json["authentication"], "unknown");
     assert_eq!(json["has_detail"], true);
     assert!(json.get("detail").is_none());
+}
+
+#[test]
+fn night_charge_support_needs_both_probe_bits() {
+    // Live 21VG probe word: bit0 set, bit4 set -> supported, state comes from
+    // the 0x11 status query (bit4).
+    assert!(NightChargeState::from_probe(0x11).supported);
+    // bit4 without bit0, or bit0 without bit4, is not the vendor's support
+    // signal (`DoesSupportNightChargeMode` returns `(raw >> 4) & 1` only after
+    // `raw & 1` is set).
+    assert!(!NightChargeState::from_probe(0x10).supported);
+    assert!(!NightChargeState::from_probe(0x01).supported);
+    assert!(!NightChargeState::from_probe(0x00).supported);
+    let probe = NightChargeState::from_probe(0x11);
+    assert!(!probe.enabled);
+
+    assert!(NightChargeState::enabled_from_status(0x10));
+    assert!(!NightChargeState::enabled_from_status(0x01));
+    assert!(!NightChargeState::enabled_from_status(0x00));
+}
+
+#[test]
+fn temporary_charge_decode_uses_validity_bit_and_mode_field() {
+    // Probe word 3 (live): bit0 set and bit1 set -> supported/active.
+    assert!(TemporaryChargeState::from_probe(3).supported);
+    assert!(TemporaryChargeState::from_probe(0x13).supported);
+    // Probe word 1 has no temporary path bit -> not supported.
+    assert!(!TemporaryChargeState::from_probe(1).supported);
+    assert!(!TemporaryChargeState::from_probe(0).supported);
+    let unsupported = TemporaryChargeState::from_probe(1);
+    assert!(!unsupported.valid);
+    assert_eq!(unsupported.mode, None);
+
+    let permanent = TemporaryChargeState::from_probe(3).with_status(0x01);
+    assert!(permanent.valid);
+    assert_eq!(permanent.mode, Some(TemporaryChargeMode::Permanent));
+    assert!(!permanent.is_temporary());
+    assert_eq!(permanent.raw, 0x01);
+
+    let plug_in = TemporaryChargeState::from_probe(3).with_status(0x11);
+    assert!(plug_in.valid);
+    assert_eq!(plug_in.mode, Some(TemporaryChargeMode::PlugIn));
+    assert!(plug_in.is_temporary());
+
+    let dynamic = TemporaryChargeState::from_probe(3).with_status(0x21);
+    assert_eq!(dynamic.mode, Some(TemporaryChargeMode::DynamicLifeSpan));
+    assert!(dynamic.is_temporary());
+
+    // bit0 clear: the vendor word carries no mode (native returns None).
+    let invalid = TemporaryChargeState::from_probe(3).with_status(0x04);
+    assert!(!invalid.valid);
+    assert_eq!(invalid.mode, None);
+    assert!(!invalid.is_temporary());
+
+    // Valid bit but an out-of-enum mode value is preserved as "no mode"
+    // instead of being mapped onto a real mode.
+    let unknown = TemporaryChargeState::from_probe(3).with_status(0x31);
+    assert!(unknown.valid);
+    assert_eq!(unknown.mode, None);
+}
+
+#[test]
+fn temporary_charge_mode_matches_contract_values_and_names() {
+    assert_eq!(TemporaryChargeMode::Permanent.contract_value(), 1);
+    assert_eq!(TemporaryChargeMode::PlugIn.contract_value(), 2);
+    assert_eq!(TemporaryChargeMode::DynamicLifeSpan.contract_value(), 4);
+    assert_eq!(TemporaryChargeMode::Permanent.to_string(), "permanent");
+    assert_eq!(TemporaryChargeMode::PlugIn.to_string(), "plug-in");
+    assert_eq!(
+        TemporaryChargeMode::DynamicLifeSpan.to_string(),
+        "dynamic-lifespan"
+    );
+    assert_eq!(
+        serde_json::to_string(&TemporaryChargeMode::PlugIn).unwrap(),
+        r#""plug_in""#
+    );
+    let state = TemporaryChargeState::from_probe(3).with_status(0x11);
+    let json = serde_json::to_value(state).unwrap();
+    assert_eq!(json["supported"], true);
+    assert_eq!(json["valid"], true);
+    assert_eq!(json["mode"], "plug_in");
+}
+
+const WEAR_FIELDS: lctrl_core::BatteryFieldProvenance = lctrl_core::BatteryFieldProvenance {
+    design_capacity: "root\\WMI:BatteryStaticData.DesignedCapacity",
+    full_charge_capacity: "root\\WMI:BatteryFullChargedCapacity.FullChargedCapacity",
+    cycle_count: "root\\WMI:BatteryCycleCount.CycleCount",
+};
+
+#[test]
+fn wear_percent_is_derived_only_from_absolute_capacities() {
+    let report = lctrl_core::BatteryWearReport::from_capacities(
+        "root_wmi_battery_classes",
+        WEAR_FIELDS,
+        Some(99_900),
+        Some(93_810),
+        Some(233),
+        Vec::new(),
+    );
+    // floor on both percentages: they need not sum to 100.
+    assert_eq!(report.capacity_ratio_percent, Some(93));
+    assert_eq!(report.wear_percent, Some(6));
+    assert_eq!(report.design_capacity_mwh, Some(99_900));
+    assert_eq!(report.full_charge_capacity_mwh, Some(93_810));
+    assert_eq!(report.cycle_count, Some(233));
+    assert!(report.issues.is_empty());
+    assert!(report.has_observation());
+    let json = serde_json::to_value(&report).unwrap();
+    assert_eq!(
+        json["fields"]["design_capacity"],
+        "root\\WMI:BatteryStaticData.DesignedCapacity"
+    );
+    assert_eq!(json["wear_percent"], 6);
+}
+
+#[test]
+fn absent_or_zero_design_capacity_refuses_wear_without_dividing() {
+    for design in [None, Some(0)] {
+        let report = lctrl_core::BatteryWearReport::from_capacities(
+            "root_wmi_battery_classes",
+            WEAR_FIELDS,
+            design,
+            Some(93_810),
+            Some(233),
+            Vec::new(),
+        );
+        assert_eq!(report.design_capacity_mwh, None, "design {design:?}");
+        assert_eq!(report.capacity_ratio_percent, None, "design {design:?}");
+        assert_eq!(report.wear_percent, None, "design {design:?}");
+        // The observation itself is preserved, only the ratio is refused.
+        assert_eq!(report.full_charge_capacity_mwh, Some(93_810));
+        assert_eq!(report.cycle_count, Some(233));
+        assert!(
+            report
+                .issues
+                .iter()
+                .any(|issue| issue.detail.contains("design capacity")),
+            "design {design:?} must name the missing design capacity"
+        );
+    }
+}
+
+#[test]
+fn zero_full_charge_capacity_is_unsupported_not_a_measurement() {
+    let report = lctrl_core::BatteryWearReport::from_capacities(
+        "root_wmi_battery_classes",
+        WEAR_FIELDS,
+        Some(99_900),
+        Some(0),
+        None,
+        Vec::new(),
+    );
+    assert_eq!(report.full_charge_capacity_mwh, None);
+    assert_eq!(report.capacity_ratio_percent, None);
+    assert_eq!(report.wear_percent, None);
+    assert!(report
+        .issues
+        .iter()
+        .any(|issue| issue.detail.contains("full-charge capacity")));
+}
+
+#[test]
+fn full_charge_above_design_keeps_the_ratio_and_refuses_wear() {
+    let report = lctrl_core::BatteryWearReport::from_capacities(
+        "root_wmi_battery_classes",
+        WEAR_FIELDS,
+        Some(50_000),
+        Some(52_000),
+        Some(1),
+        Vec::new(),
+    );
+    assert_eq!(report.capacity_ratio_percent, Some(104));
+    assert_eq!(report.wear_percent, None);
+    assert!(report
+        .issues
+        .iter()
+        .any(|issue| issue.detail.contains("exceeds design capacity")));
+}
+
+#[test]
+fn a_report_without_any_fact_is_not_an_observation() {
+    let report = lctrl_core::BatteryWearReport::from_capacities(
+        "root_wmi_battery_classes",
+        WEAR_FIELDS,
+        None,
+        None,
+        None,
+        Vec::new(),
+    );
+    assert!(!report.has_observation());
+    assert_eq!(report.issues.len(), 2);
 }

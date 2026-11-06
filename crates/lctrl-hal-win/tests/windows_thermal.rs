@@ -8,7 +8,22 @@ use lctrl_core::{
     SensorId, TemperatureLocation, TemperatureSource,
 };
 use lctrl_hal::{BatteryControl, DbdcControl, FanControl, TemperatureControl};
-use lctrl_hal_win::{WindowsThermal, WmiObject, WmiTransport, WmiValue};
+use lctrl_hal_win::{PerformanceRegistryReader, WindowsThermal, WmiObject, WmiTransport, WmiValue};
+
+/// Scripted PowerSlider reader: `None` models a machine without the dispatcher
+/// key, `Some(value)` the `ITS_FanMode` projection.
+struct FakeRegistry(Option<u32>);
+
+impl PerformanceRegistryReader for FakeRegistry {
+    fn read_dword(&self, value: &str) -> Result<u32> {
+        match self.0 {
+            Some(raw) if value == "ITS_FanMode" => Ok(raw),
+            _ => Err(LctrlError::ChannelUnavailable {
+                channel: format!("{value} is not present"),
+            }),
+        }
+    }
+}
 
 #[derive(Clone, Copy)]
 enum BatteryReply {
@@ -124,6 +139,7 @@ struct Query {
 struct FakeWmi {
     thermal: WmiReply,
     fans: WmiReply,
+    esif: WmiReply,
     gamezone: WmiReply,
     dbdc: WmiReply,
     invoke_replies: Vec<(String, WmiObject)>,
@@ -136,12 +152,18 @@ impl FakeWmi {
         Self {
             thermal,
             fans,
+            esif: WmiReply::Unsupported,
             gamezone: WmiReply::Unsupported,
             dbdc: WmiReply::Unsupported,
             invoke_replies: Vec::new(),
             invocations: parking_lot::Mutex::new(Vec::new()),
             queries: parking_lot::Mutex::new(Vec::new()),
         }
+    }
+
+    fn with_esif(mut self, esif: WmiReply) -> Self {
+        self.esif = esif;
+        self
     }
 
     fn with_gamezone(mut self, gamezone: WmiReply) -> Self {
@@ -172,6 +194,8 @@ impl WmiTransport for FakeWmi {
         });
         if wql.contains("MSAcpi_ThermalZoneTemperature") {
             self.thermal.get()
+        } else if wql.contains("EsifDeviceInformation") {
+            self.esif.get()
         } else if wql.contains("LENOVO_FAN_TEST_DATA") {
             self.fans.get()
         } else if wql.contains("LENOVO_GAMEZONE_DATA") {
@@ -214,6 +238,13 @@ fn thermal_zone(instance_name: &str, deci_kelvin: u32) -> WmiObject {
     object(&[
         ("InstanceName", WmiValue::String(instance_name.to_owned())),
         ("CurrentTemperature", WmiValue::U32(deci_kelvin)),
+    ])
+}
+
+fn esif_participant(instance_name: &str, temperature: u32) -> WmiObject {
+    object(&[
+        ("InstanceName", WmiValue::String(instance_name.to_owned())),
+        ("Temperature", WmiValue::U32(temperature)),
     ])
 }
 
@@ -412,6 +443,134 @@ fn acpi_query_failures_other_than_absence_are_preserved() {
     ));
 }
 
+// Live 21VG shape: every `EsifDeviceInformation` instance shares one device
+// path and differs only in its trailing index; the class publishes no
+// participant name (docs/evidence/re-thermal-20261105.md §3).
+const ESIF_INSTANCE_0: &str = r"PCI\VEN_8086&DEV_B01D&SUBSYS_380617AA&REV_04\3&11583659&0&20_0";
+const ESIF_INSTANCE_3: &str = r"PCI\VEN_8086&DEV_B01D&SUBSYS_380617AA&REV_04\3&11583659&0&20_3";
+
+#[test]
+fn esif_participants_keep_the_provider_instance_identity_and_celsius_value() {
+    let wmi = FakeWmi::empty().with_esif(WmiReply::Objects(vec![
+        esif_participant(ESIF_INSTANCE_3, 0),
+        esif_participant(ESIF_INSTANCE_0, 66),
+    ]));
+    let controller = WindowsThermal::new(wmi, FakeBattery::unavailable());
+
+    let sensors = controller.temperature_sensors().unwrap();
+
+    let active = sensors
+        .iter()
+        .find(|sensor| sensor.metadata.id == format!("esif/{ESIF_INSTANCE_0}"))
+        .expect("esif participant sensor");
+    assert_eq!(active.metadata.source, TemperatureSource::WmiEsif);
+    assert_eq!(active.metadata.location, TemperatureLocation::Unknown);
+    assert_eq!(active.metadata.availability, Availability::Available);
+    assert!(active.metadata.name.contains(ESIF_INSTANCE_0));
+    // The provider reports whole degrees Celsius here; nothing is converted and
+    // no CPU/GPU label is attached.
+    assert_celsius(active.value_c, 66.0);
+    assert!(!active.metadata.name.contains("CPU"));
+    assert!(!active.metadata.name.contains("GPU"));
+}
+
+#[test]
+fn esif_zero_temperature_is_omitted_instead_of_reported_as_zero_degrees() {
+    let wmi = FakeWmi::empty().with_esif(WmiReply::Objects(vec![
+        esif_participant(ESIF_INSTANCE_0, 66),
+        esif_participant(ESIF_INSTANCE_3, 0),
+    ]));
+    let controller = WindowsThermal::new(wmi, FakeBattery::unavailable());
+
+    let sensors = controller.temperature_sensors().unwrap();
+
+    assert_eq!(sensors.len(), 1);
+    assert_eq!(sensors[0].metadata.id, format!("esif/{ESIF_INSTANCE_0}"));
+    assert_celsius(sensors[0].value_c, 66.0);
+    assert!(
+        sensors
+            .iter()
+            .all(|sensor| sensor.metadata.id != format!("esif/{ESIF_INSTANCE_3}")),
+        "a participant that reports 0 must not be published as a 0 degree reading"
+    );
+}
+
+#[test]
+fn only_zero_valued_esif_participants_is_not_a_temperature_source() {
+    let controller = WindowsThermal::new(
+        FakeWmi::empty().with_esif(WmiReply::Objects(vec![
+            esif_participant(ESIF_INSTANCE_0, 0),
+            esif_participant(ESIF_INSTANCE_3, 0),
+        ])),
+        FakeBattery::unavailable(),
+    );
+
+    assert!(matches!(
+        controller.temperature_sensors(),
+        Err(LctrlError::Unsupported { feature }) if feature == "perf.temp"
+    ));
+}
+
+#[test]
+fn absent_esif_class_does_not_hide_the_acpi_zone() {
+    let instance = r"ACPI\ThermalZone\TZ00_0";
+    let controller = WindowsThermal::new(
+        FakeWmi::new(
+            WmiReply::Objects(vec![thermal_zone(instance, 3152)]),
+            WmiReply::Objects(Vec::new()),
+        ),
+        FakeBattery::unavailable(),
+    );
+
+    let sensors = controller.temperature_sensors().unwrap();
+
+    assert_eq!(sensors.len(), 1);
+    assert_eq!(sensors[0].metadata.id, format!("acpi/{instance}"));
+}
+
+#[test]
+fn esif_query_failures_other_than_absence_are_preserved() {
+    let controller = WindowsThermal::new(
+        FakeWmi::empty().with_esif(WmiReply::PermissionDenied),
+        FakeBattery::telemetry(Some(3017)),
+    );
+
+    assert!(matches!(
+        controller.temperature_sensors(),
+        Err(LctrlError::PermissionDenied { .. })
+    ));
+}
+
+#[test]
+fn esif_without_a_temperature_property_is_a_malformed_reply() {
+    let row = object(&[("InstanceName", WmiValue::String(ESIF_INSTANCE_0.into()))]);
+    let controller = WindowsThermal::new(
+        FakeWmi::empty().with_esif(WmiReply::Objects(vec![row])),
+        FakeBattery::unavailable(),
+    );
+
+    assert!(matches!(
+        controller.temperature_sensors(),
+        Err(LctrlError::ChannelUnavailable { channel }) if channel.contains("Temperature")
+    ));
+}
+
+#[test]
+fn duplicate_esif_instance_names_are_rejected() {
+    let controller = WindowsThermal::new(
+        FakeWmi::empty().with_esif(WmiReply::Objects(vec![
+            esif_participant(ESIF_INSTANCE_0, 66),
+            esif_participant(ESIF_INSTANCE_0, 67),
+        ])),
+        FakeBattery::unavailable(),
+    );
+
+    assert!(matches!(
+        controller.temperature_sensors(),
+        Err(LctrlError::ChannelUnavailable { channel }) if channel.contains("duplicate sensor ids")
+    ));
+}
+
 #[test]
 fn fan_inventory_uses_the_real_id_and_rpm_bounds() {
     let wmi = FakeWmi::new(
@@ -451,11 +610,17 @@ fn fan_inventory_rejects_array_length_mismatches_instead_of_truncating() {
 
 #[test]
 fn fan_mode_table_and_writes_remain_unsupported_without_real_channels() {
-    let controller = WindowsThermal::new(FakeWmi::empty(), FakeBattery::unavailable());
+    let controller = WindowsThermal::with_registry(
+        FakeWmi::empty(),
+        FakeBattery::unavailable(),
+        FakeRegistry(None),
+    );
 
+    // Neither the firmware getter nor the dispatcher projection exists, so the
+    // read reports the missing channel instead of a fabricated mode.
     assert!(matches!(
         controller.fan_mode(),
-        Err(LctrlError::Unsupported { .. })
+        Err(LctrlError::ChannelUnavailable { .. })
     ));
     assert!(matches!(
         controller.fan_table(FanId::new(1), SensorId::new(0)),
@@ -464,9 +629,47 @@ fn fan_mode_table_and_writes_remain_unsupported_without_real_channels() {
     for apply in [ApplyMode::DryRun, ApplyMode::Commit] {
         assert!(matches!(
             controller.set_fan_mode(FanMode::Standard, apply),
-            Err(LctrlError::Unsupported { .. })
+            Err(LctrlError::ChannelUnavailable { .. })
         ));
     }
+}
+
+#[test]
+fn fan_mode_reads_the_dispatcher_projection_as_a_limited_value() {
+    let controller = WindowsThermal::with_registry(
+        FakeWmi::empty(),
+        FakeBattery::unavailable(),
+        FakeRegistry(Some(4)),
+    );
+
+    assert_eq!(controller.fan_mode().unwrap(), FanMode::Unknown(4));
+}
+
+#[test]
+fn set_fan_mode_refuses_the_write_when_the_firmware_readback_is_unavailable() {
+    // The setter answers, but nothing can read the result back: the write must
+    // never be issued (docs/evidence/re-fan-write-20261105.md §5).
+    let wmi = FakeWmi::empty()
+        .with_gamezone(WmiReply::Objects(vec![gamezone_instance()]))
+        .with_invoke_reply(
+            "SetSmartFanMode",
+            object(&[("ReturnValue", WmiValue::U32(0))]),
+        );
+    let controller =
+        WindowsThermal::with_registry(wmi, FakeBattery::unavailable(), FakeRegistry(Some(4)));
+
+    let error = controller
+        .set_fan_mode(FanMode::Performance, ApplyMode::Commit)
+        .unwrap_err();
+    assert!(
+        matches!(error, LctrlError::ChannelUnavailable { .. }),
+        "expected the readback requirement, got {error:?}"
+    );
+    let invocations = controller.wmi().invocations.lock();
+    assert!(
+        !invocations.contains(&"LENOVO_GAMEZONE_DATA.SetSmartFanMode".to_string()),
+        "no write may be sent without a readback channel, got {invocations:?}"
+    );
 }
 
 fn gamezone_instance() -> WmiObject {

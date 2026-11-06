@@ -14,11 +14,26 @@ const ERROR_OPERATION_ABORTED: u32 = 995;
 const ERROR_IO_DEVICE: u32 = 1117;
 
 const WBEM_E_NOT_FOUND: i32 = 0x8004_1002_u32 as i32;
-const WBEM_E_NOT_SUPPORTED: i32 = 0x8004_1001_u32 as i32;
+/// `WBEM_E_NOT_SUPPORTED` — the firmware does not implement the method on this
+/// SKU. Measured on the target (2026-11-06) together with the provider's own
+/// "Not supported" text; `LENOVO_LIGHTING_DATA`/`_METHOD`, `LENOVO_FAN_METHOD`
+/// and `LENOVO_PANEL_METHOD` all answer it.
+///
+/// `0x80041001` is `WBEM_E_FAILED` (generic failure, unrelated to absence) and
+/// MUST stay outside the `Unsupported` arm — classifying it as absence would
+/// turn a real provider failure into a silently "unsupported" feature.
+const WBEM_E_NOT_SUPPORTED: i32 = 0x8004_100C_u32 as i32;
 const WBEM_E_ACCESS_DENIED: i32 = 0x8004_1003_u32 as i32;
 const WBEM_E_INVALID_PARAMETER: i32 = 0x8004_1008_u32 as i32;
 const WBEM_E_INVALID_OBJECT: i32 = 0x8004_100f_u32 as i32;
 const WBEM_E_INVALID_CLASS: i32 = 0x8004_1010_u32 as i32;
+/// `WBEM_E_INVALID_METHOD_PARAMETERS` — an ACPI-WMI method invoked without the
+/// instance it belongs to (proven live 2026-11-06 on
+/// `LENOVO_LIGHTING_METHOD.Get_Lighting_Current_Status` and
+/// `LENOVO_GAMEZONE_DATA.GetKeyboardLight`). Never a firmware verdict on its
+/// own, but it is the fixed answer of an unimplemented family when the caller
+/// has only the class object.
+const WBEM_E_INVALID_METHOD_PARAMETERS: i32 = 0x8004_102F_u32 as i32;
 
 /// Converts a Win32 `GetLastError` value from an EnergyDrv or WMI channel
 /// into the cross-platform error contract.
@@ -57,12 +72,19 @@ pub fn map_win_error(gle: u32, context: &str) -> LctrlError {
 /// on the target firmware it is the observable result of the unimplemented
 /// GAMEZONE method family, which must be negatively capability-cached rather
 /// than retried through another invocation shape.
+///
+/// `WBEM_E_NOT_SUPPORTED` (`0x8004100C`) is the code this firmware actually
+/// returns for a method it does not implement; `WBEM_E_INVALID_OBJECT` is its
+/// per-method rejection on a live instance. Neither may be reported as an I/O
+/// error, because `WindowsKeyboardSources::channel_absent` and `active_instance`
+/// key on `Unsupported` to fall back to a working channel.
 #[must_use]
 pub fn map_wmi_hresult(hresult: i32, context: &str) -> LctrlError {
     match hresult {
         WBEM_E_NOT_SUPPORTED
         | WBEM_E_NOT_FOUND
         | WBEM_E_INVALID_PARAMETER
+        | WBEM_E_INVALID_METHOD_PARAMETERS
         | WBEM_E_INVALID_OBJECT
         | WBEM_E_INVALID_CLASS => LctrlError::Unsupported {
             feature: context.into(),

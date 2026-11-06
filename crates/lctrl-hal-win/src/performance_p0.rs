@@ -24,6 +24,15 @@ pub trait PerformanceRegistryReader: Send + Sync {
             feature: format!("PowerSlider registry write {value:?}"),
         })
     }
+
+    /// Read a `REG_SZ` PowerSlider value. Only the dispatcher's curve tables
+    /// are strings; the default refuses so a DWORD-only fixture cannot claim a
+    /// table it never published.
+    fn read_string(&self, value: &str) -> Result<String> {
+        Err(LctrlError::Unsupported {
+            feature: format!("PowerSlider registry string {value:?}"),
+        })
+    }
 }
 
 /// Windows performance control.

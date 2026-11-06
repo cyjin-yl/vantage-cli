@@ -42,11 +42,19 @@ fn distinct_identical_pid_accessories_remain_separate() {
 
 #[test]
 fn parses_early_lte_hud_and_acpi_display_ids() {
+    // 0x62A5 is the shipped Tiko id (`LenovoMagiCenterDetector.exe`
+    // 2.0.2.1 literal `PID_62A5`); 0x62B5 matches nothing Lenovo ships.
+    assert_eq!(
+        parse_magicbay_instance_id(r"USB\VID_17EF&PID_62A5\X")
+            .unwrap()
+            .kind,
+        MagicBayKind::TikoLte
+    );
     assert_eq!(
         parse_magicbay_instance_id(r"USB\VID_17EF&PID_62B5\X")
             .unwrap()
             .kind,
-        MagicBayKind::TikoLte
+        MagicBayKind::Unknown
     );
     assert_eq!(
         parse_magicbay_instance_id(r"USB\VID_17EF&PID_1117\X")

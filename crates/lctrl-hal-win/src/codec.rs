@@ -15,8 +15,9 @@ pub const IOCTL_GAPD: u32 = 0x8310_215c;
 /// Night-charge mode (`PowerBattery.dll` `CChargingMode`, RE-proven;
 /// 4-byte DWORD selectors).
 pub const IOCTL_NIGHT_CHARGE: u32 = 0x8310_2150;
-/// Temporary charge-mode probe (`PowerBattery.dll`, support `0x13`,
-/// status `0x11`; docs/interfaces.md §11).
+/// Temporary charge mode (`PowerBattery.dll` `CChargingMode`, BTMC, 4-byte
+/// DWORD selectors; docs/interfaces.md §11.4 and
+/// docs/evidence/re-battery-adv-20261105.md).
 pub const IOCTL_TEMP_CHARGE: u32 = 0x8310_2148;
 /// EM Spec version (`PowerBattery.dll` `GetEmSpecVersion`, ACPI `BSIF`;
 /// docs/02 §9). Read-only. The vendor request payload is
@@ -136,7 +137,11 @@ impl NightChargeSelector {
 pub struct TempChargeSelector(u32);
 
 impl TempChargeSelector {
+    /// `DoesSupportTemporaryMode` (RVA `0xa250`): supported iff the reply has
+    /// bit0 set and any of bits 1..2 set. There is no writer on this channel.
     pub const SUPPORT_PROBE: Self = Self(0x13);
+    /// `GetTemporaryMode` (RVA `0xa3d0`): bit0 = validity, mode lives in
+    /// `(reply >> 4) & 0x07ff_ffff`.
     pub const STATUS: Self = Self(0x11);
 
     #[must_use]

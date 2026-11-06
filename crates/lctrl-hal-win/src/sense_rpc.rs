@@ -119,34 +119,10 @@ impl HpdRpc for NativeHpdRpc {
         self.with_session(|session| {
             let capability = session.capability()?;
             let values = session.settings()?;
-            let has = |bit: u64| capability & bit != 0;
-            // This is the managed client's nullable projection. Capacity
-            // (output 1) is a separate support value, not the op-5 bitset.
-            Ok(SenseState {
-                source: Some("hpd-rpc"),
-                advertised: Some(capability),
-                lock_on_leave: has(0x0010).then_some(values[5] != 0),
-                leave_distance: has(0x0080)
-                    .then(|| SenseDistance::from_raw(values[8]))
-                    .flatten(),
-                leave_wait: has(0x0020)
-                    .then(|| SenseWait::from_raw(values[6]))
-                    .flatten(),
-                wake_on_approach: has(0x0002).then_some(values[2] != 0),
-                approach_distance: has(0x0004)
-                    .then(|| SenseDistance::from_raw(values[3]))
-                    .flatten(),
-                pause_video: has(0x0200).then_some(values[10] != 0),
-                approach_auto_adjust: has(0x0008).then_some(values[4] != 0),
-                camera_assist: has(0x0040).then_some(values[7] != 0),
-                leave_auto_adjust: has(0x0100).then_some(values[9] != 0),
-                // These two legacy settings are not fields of this RPC.
-                privacy_alert: None,
-                attention_tracking: None,
-                capability: Some(values[0]),
-                sensor_type: has(0x0001).then_some(values[1]),
-                facial_feature_registered: has(0x0400).then_some(values[11] != 0),
-            })
+            // Op 4 is a diagnostic read, separate from the settings snapshot.
+            // A failure here must not discard the primary presence/approach/
+            // video data: report the version as absent and keep the error.
+            Ok(project_state(capability, session.version(), &values))
         })
     }
 
@@ -160,6 +136,52 @@ impl HpdRpc for NativeHpdRpc {
                 feature: format!("HPD RPC has no recovered setter for {feature:?}"),
             })?;
         self.with_session(|session| session.set_value(op, value))
+    }
+}
+
+/// Project one live `GetCapability` + `GetAllSetting` snapshot into the
+/// normalized state. `version` is the optional op-4 result: absence is
+/// reported with its error, never synthesized and never allowed to discard
+/// the presence/approach/video values that the other reads returned.
+///
+/// This is the managed client's nullable projection. Capacity (output 1) is
+/// a separate support value, not the op-5 bitset.
+fn project_state(
+    capability: u64,
+    version: Result<u32>,
+    values: &[u32; SETTINGS_SCALARS],
+) -> SenseState {
+    let (interface_version, interface_version_error) = match version {
+        Ok(version) => (Some(version), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    let has = |bit: u64| capability & bit != 0;
+    SenseState {
+        source: Some("hpd-rpc"),
+        advertised: Some(capability),
+        lock_on_leave: has(0x0010).then_some(values[5] != 0),
+        leave_distance: has(0x0080)
+            .then(|| SenseDistance::from_raw(values[8]))
+            .flatten(),
+        leave_wait: has(0x0020)
+            .then(|| SenseWait::from_raw(values[6]))
+            .flatten(),
+        wake_on_approach: has(0x0002).then_some(values[2] != 0),
+        approach_distance: has(0x0004)
+            .then(|| SenseDistance::from_raw(values[3]))
+            .flatten(),
+        pause_video: has(0x0200).then_some(values[10] != 0),
+        approach_auto_adjust: has(0x0008).then_some(values[4] != 0),
+        camera_assist: has(0x0040).then_some(values[7] != 0),
+        leave_auto_adjust: has(0x0100).then_some(values[9] != 0),
+        // These two legacy settings are not fields of this RPC.
+        privacy_alert: None,
+        attention_tracking: None,
+        capability: Some(values[0]),
+        sensor_type: has(0x0001).then_some(values[1]),
+        facial_feature_registered: has(0x0400).then_some(values[11] != 0),
+        interface_version,
+        interface_version_error,
     }
 }
 
@@ -578,5 +600,50 @@ fn rpc_guarded(operation: &str, call: impl FnOnce()) -> Result<()> {
         Err(LctrlError::ChannelUnavailable {
             channel: format!("HPD RPC {operation} raised exception 0x{code:08x}"),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{project_state, SETTINGS_SCALARS};
+    use lctrl_core::LctrlError;
+
+    fn values() -> [u32; SETTINGS_SCALARS] {
+        let mut values = [0u32; SETTINGS_SCALARS];
+        values[2] = 1; // ApproachEnabled
+        values[5] = 1; // PresenceLeaveEnabled
+        values[10] = 1; // VideoAutoPauseResumeEnabled
+        values
+    }
+
+    #[test]
+    fn op4_version_is_surfaced_without_changing_settings() {
+        let state = project_state(0x7ff, Ok(2), &values());
+        assert_eq!(state.interface_version, Some(2));
+        assert_eq!(state.interface_version_error, None);
+        assert_eq!(state.source, Some("hpd-rpc"));
+        assert_eq!(state.wake_on_approach, Some(true));
+        assert_eq!(state.lock_on_leave, Some(true));
+        assert_eq!(state.pause_video, Some(true));
+    }
+
+    #[test]
+    fn op4_failure_keeps_the_settings_snapshot_and_reports_the_error() {
+        let error = LctrlError::ChannelUnavailable {
+            channel: "op4 synthetic failure".into(),
+        };
+        let state = project_state(0x7ff, Err(error), &values());
+        assert_eq!(state.interface_version, None);
+        let reported = state
+            .interface_version_error
+            .as_deref()
+            .expect("the op4 error must be surfaced");
+        assert!(reported.contains("op4 synthetic failure"));
+        // The presence/approach/video datum is the primary read and survives.
+        assert_eq!(state.source, Some("hpd-rpc"));
+        assert_eq!(state.advertised, Some(0x7ff));
+        assert_eq!(state.wake_on_approach, Some(true));
+        assert_eq!(state.lock_on_leave, Some(true));
+        assert_eq!(state.pause_video, Some(true));
     }
 }

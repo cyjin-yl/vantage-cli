@@ -11,8 +11,8 @@ use lctrl_hal::{OsdControl, ScenePolicyControl};
 use parking_lot::Mutex;
 use windows_sys::Win32::{
     Foundation::{
-        CloseHandle, ERROR_PIPE_CONNECTED, GENERIC_READ, GENERIC_WRITE, HANDLE,
-        INVALID_HANDLE_VALUE, LocalFree,
+        CloseHandle, ERROR_FILE_NOT_FOUND, ERROR_PIPE_BUSY, ERROR_PIPE_CONNECTED, GENERIC_READ,
+        GENERIC_WRITE, HANDLE, INVALID_HANDLE_VALUE, LocalFree,
     },
     Security::{
         Authorization::{ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1},
@@ -30,13 +30,67 @@ use windows_sys::Win32::{
 
 use crate::{
     DaemonEvent, DaemonRequest, DaemonResponse, DaemonStatus, MAX_EVENTS, PROTOCOL_VERSION,
-    protocol_error, started_at_unix_ms,
+    StatusProbe, VERSION, protocol_error, started_at_unix_ms,
 };
 
 const BUFFER_SIZE: u32 = 64 * 1024;
+/// A probe must answer quickly; a busy pipe stays a fault instead of a wait.
+const PROBE_WAIT_MS: u32 = 100;
 
 pub fn default_endpoint() -> String {
     std::env::var("VANTAGE_PIPE").unwrap_or_else(|_| r"\\.\pipe\vantage.sock".into())
+}
+
+/// The endpoint a status probe or request would use, rendered for humans.
+#[must_use]
+pub fn endpoint_text() -> String {
+    default_endpoint()
+}
+
+/// One status exchange that keeps "no daemon" and "broken endpoint" apart.
+#[must_use]
+pub fn probe() -> StatusProbe {
+    let endpoint = default_endpoint();
+    let wide_endpoint = wide(&endpoint);
+    let available = unsafe { WaitNamedPipeW(wide_endpoint.as_ptr(), PROBE_WAIT_MS) };
+    if available == 0 {
+        let error = std::io::Error::last_os_error();
+        let code = error.raw_os_error().map(|code| code as u32);
+        if code == Some(ERROR_FILE_NOT_FOUND) {
+            return StatusProbe::Absent {
+                detail: format!("named pipe {endpoint}: {error}"),
+            };
+        }
+        let reason = if code == Some(ERROR_PIPE_BUSY) {
+            "every named-pipe instance is busy"
+        } else {
+            "the named pipe could not be opened"
+        };
+        return StatusProbe::Fault {
+            detail: format!("named pipe {endpoint}: {reason}: {error}"),
+        };
+    }
+    match request(&DaemonRequest::Status) {
+        Ok(response) if response.ok => match response.data {
+            Some(data) => match serde_json::from_value::<DaemonStatus>(data) {
+                Ok(status) => StatusProbe::Running(status),
+                Err(error) => StatusProbe::Fault {
+                    detail: format!("invalid status response: {error}"),
+                },
+            },
+            None => StatusProbe::Fault {
+                detail: "status response carried no payload".into(),
+            },
+        },
+        Ok(response) => StatusProbe::Fault {
+            detail: response
+                .error
+                .unwrap_or_else(|| "daemon rejected the status request".into()),
+        },
+        Err(error) => StatusProbe::Fault {
+            detail: error.to_string(),
+        },
+    }
 }
 
 pub fn run(events: Receiver<DaemonEvent>) -> Result<()> {
@@ -201,6 +255,7 @@ fn handle_client(
     };
     let status = || DaemonStatus {
         protocol_version: PROTOCOL_VERSION,
+        version: VERSION.to_string(),
         pid: std::process::id(),
         started_at_unix_ms,
         subscribers: subscribers.lock().len(),

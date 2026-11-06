@@ -22,6 +22,18 @@ pub trait DisplayApi: Send + Sync {
     fn compatible_modes(&self, target: &PanelTarget) -> Result<Vec<PanelMode>>;
     fn test_mode(&self, mode: &PanelMode) -> Result<()>;
     fn apply_mode(&self, mode: &PanelMode) -> Result<()>;
+
+    /// Raw `DISPLAYCONFIG_PATH_TARGET_INFO::outputTechnology` of this path, which
+    /// distinguishes an embedded panel from a cable-attached sink and from a
+    /// synthetic (indirect, miracast, tunnelled) output. `Ok(None)` when the
+    /// implementation cannot report it; callers then know only the internal
+    /// flag and must not classify the path as a physical external display.
+    fn target_connection(
+        &self,
+        _target: &PanelTarget,
+    ) -> Result<Option<lctrl_core::DisplayConnection>> {
+        Ok(None)
+    }
 }
 
 #[derive(Debug)]
@@ -457,6 +469,32 @@ mod native {
                 ));
             }
             Ok(targets)
+        }
+
+        fn target_connection(
+            &self,
+            target: &PanelTarget,
+        ) -> Result<Option<lctrl_core::DisplayConnection>> {
+            let paths = active_paths()?;
+            for path in paths {
+                if path.flags & DISPLAYCONFIG_PATH_ACTIVE == 0
+                    || path.targetInfo.targetAvailable == 0
+                {
+                    continue;
+                }
+                if adapter_id(path.sourceInfo.adapterId) != target.adapter
+                    || path.sourceInfo.id != target.source_id
+                    || path.targetInfo.id != target.target_id
+                {
+                    continue;
+                }
+                return Ok(Some(lctrl_core::DisplayConnection::from_output_technology(
+                    path.targetInfo.outputTechnology as u32,
+                )));
+            }
+            // The path disappeared between the enumeration and this read; the
+            // caller keeps the internal flag only.
+            Ok(None)
         }
 
         fn current_mode(&self, target: &PanelTarget) -> Result<PanelMode> {

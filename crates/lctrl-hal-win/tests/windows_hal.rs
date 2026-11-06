@@ -2,9 +2,12 @@
 // Windows-only integration test: the HAL only exposes this API on Windows.
 use parking_lot::Mutex;
 
-use lctrl_core::{Availability, Platform};
+use lctrl_core::{Availability, CapabilitySet, LctrlError, Platform};
 use lctrl_hal::Hal;
-use lctrl_hal_win::{IoctlTransport, WindowsHal, WmiObject, WmiTransport, WmiValue};
+use lctrl_hal_win::{
+    IoctlTransport, PerformanceRegistryReader, WindowsHal, WmiObject, WmiTransport, WmiValue,
+    record_fan_capabilities,
+};
 
 #[derive(Default)]
 struct FakeWmi {
@@ -134,12 +137,28 @@ fn capability_probe_requires_battery_detail_for_battery_telemetry() {
     );
 }
 
-#[test]
-fn capability_probe_marks_fan_mode_unavailable_when_gamezone_is_not_exposed() {
-    let wmi = FakeWmi::default();
-    let hal = WindowsHal::with_electrical(wmi, FakeIoctl::default(), AbsentElectrical);
+/// Scripted `ITS_FanMode` reader: `None` models a machine without the
+/// dispatcher PowerSlider key.
+struct FakeRegistry(Option<u32>);
 
-    let capabilities = hal.capabilities().unwrap();
+impl PerformanceRegistryReader for FakeRegistry {
+    fn read_dword(&self, value: &str) -> lctrl_core::Result<u32> {
+        match self.0 {
+            Some(raw) if value == "ITS_FanMode" => Ok(raw),
+            _ => Err(LctrlError::ChannelUnavailable {
+                channel: format!("{value} is not present"),
+            }),
+        }
+    }
+}
+
+#[test]
+fn fan_capabilities_separate_the_firmware_read_from_the_dispatcher_projection() {
+    // No firmware fan getter, no dispatcher projection: both the read and the
+    // write are unavailable and the reason names the firmware call.
+    let wmi = FakeWmi::default();
+    let mut capabilities = CapabilitySet::new(Platform::Windows);
+    record_fan_capabilities(&mut capabilities, &wmi, &FakeRegistry(None)).unwrap();
 
     let fan_mode = capabilities.get("perf.fan.mode").unwrap();
     assert_eq!(fan_mode.availability, Availability::Unavailable);
@@ -151,14 +170,57 @@ fn capability_probe_marks_fan_mode_unavailable_when_gamezone_is_not_exposed() {
         "expected the GAMEZONE rejection detail, got {:?}",
         fan_mode.detail
     );
-    // The capability probe is read-only: it queries the GAMEZONE class but
-    // must never invoke a WMI method.
+    let fan_write = capabilities.get("perf.fan.mode.write").unwrap();
+    assert_eq!(fan_write.availability, Availability::Unavailable);
     assert!(
-        hal.wmi()
-            .queries
+        fan_write
+            .detail
+            .as_deref()
+            .is_some_and(|detail| detail.contains("GetSmartFanMode")),
+        "expected the readback requirement in the write detail, got {:?}",
+        fan_write.detail
+    );
+    // The capability probe is read-only: it queries the GAMEZONE class but
+    // must never invoke a WMI method (`FakeWmi::invoke_instance` is
+    // `unreachable!`).
+    assert!(
+        wmi.queries
             .lock()
             .iter()
             .any(|query| query.contains("LENOVO_GAMEZONE_DATA"))
+    );
+}
+
+#[test]
+fn dispatcher_fan_projection_is_limited_and_never_enables_the_write() {
+    let mut capabilities = CapabilitySet::new(Platform::Windows);
+    record_fan_capabilities(
+        &mut capabilities,
+        &FakeWmi::default(),
+        &FakeRegistry(Some(4)),
+    )
+    .unwrap();
+
+    let fan_mode = capabilities.get("perf.fan.mode").unwrap();
+    assert_eq!(fan_mode.availability, Availability::Limited);
+    assert!(
+        fan_mode
+            .detail
+            .as_deref()
+            .is_some_and(|detail| detail.contains("ITS_FanMode=4")),
+        "expected the projection value in the detail, got {:?}",
+        fan_mode.detail
+    );
+    assert_eq!(
+        capabilities
+            .get("perf.fan.mode.write")
+            .unwrap()
+            .availability,
+        Availability::Unavailable
+    );
+    assert_eq!(
+        capabilities.get("channel.fan").unwrap().availability,
+        Availability::Available
     );
 }
 

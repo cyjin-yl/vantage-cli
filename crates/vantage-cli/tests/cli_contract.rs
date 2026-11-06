@@ -5,19 +5,22 @@ use std::time::Duration;
 use parking_lot::Mutex;
 
 use lctrl_core::{
-    AdapterInfo, ApplyMode, Availability, CapabilitySet, ChangeReport, ChargeMode,
-    ChargeModeActual, DeviceState, DolbyProfile, DolbyState, HardwareInfo, LctrlError, Platform,
-    SenseDistance, SenseState,
+    AdapterInfo, ApplyMode, Availability, BiosInventory, CapabilitySet, ChangeReport, ChargeMode,
+    ChargeModeActual, DeviceState, DolbyProfile, DolbyState, HardwareInfo, LctrlError,
+    MagicBayDevice, MagicBayKind, MagicBayLteInterface, MagicBayLteMediaState,
+    MagicBayLteOperational, MagicBayLteStatus, MotherboardInventory, Platform, ProductInventory,
+    SenseDistance, SenseState, SystemIdentity,
 };
 use lctrl_hal::{
-    AudioControl, BatteryControl, BiosControl, ControlConflictDetection, DbdcControl, Hal,
-    PanelBrightnessControl, PerformanceControl, PowerControl, PrivacyControl, SenseControl,
-    SenseFeature, TemperatureControl, UsbControl,
+    AudioControl, BatteryControl, BiosControl, ControlConflictDetection, DbdcControl,
+    GpuOcControl, Hal, MobileBroadbandControl, PanelBrightnessControl, PerformanceControl,
+    PowerControl, PrivacyControl, SenseControl, SenseFeature, TemperatureControl, UsbControl,
 };
 use serde_json::json;
 use vantage_cli::{
-    Cli, Command, CommandResult, CommandServices, PerfCommand, StreamKind, StreamSpec, TempCommand,
-    TuneCommand, execute, execute_with_services, render_error, sample_stream, stream_spec,
+    Cli, Command, CommandResult, CommandServices, KbdCommand, PerfCommand, PrivacyCamAction,
+    PrivacyCommand, StreamKind, StreamSpec, TempCommand, TuneCommand, execute,
+    execute_with_services, render_error, sample_stream, stream_spec,
 };
 
 struct FakeHal {
@@ -105,6 +108,122 @@ fn info_human_output_contains_platform_and_hardware_values() {
     assert!(output.human.contains("battery.status"));
 }
 
+struct IdentityHal {
+    identity: SystemIdentity,
+}
+
+impl Hal for IdentityHal {
+    fn platform(&self) -> Platform {
+        Platform::Windows
+    }
+
+    fn hardware_info(&self) -> lctrl_core::Result<HardwareInfo> {
+        Ok(HardwareInfo {
+            product_name: Some("21VG".into()),
+            family: Some("ThinkBook 14 G8+ IPH".into()),
+            bios_version: Some("SWCN22WW".into()),
+        })
+    }
+
+    fn capabilities(&self) -> lctrl_core::Result<CapabilitySet> {
+        Ok(CapabilitySet::new(Platform::Windows))
+    }
+
+    fn system_identity(&self) -> lctrl_core::Result<SystemIdentity> {
+        Ok(self.identity.clone())
+    }
+}
+
+impl IdentityHal {
+    fn target() -> Self {
+        Self {
+            identity: SystemIdentity {
+                product: ProductInventory {
+                    name: Some("21VG".into()),
+                    version: Some("ThinkBook 14 G8+ IPH".into()),
+                    identifying_number: Some("PRODUCT-SERIAL".into()),
+                    model: Some("21VG".into()),
+                    family: Some("ThinkBook 14 G8+ IPH".into()),
+                    ..ProductInventory::default()
+                },
+                motherboard: MotherboardInventory {
+                    product: Some("LNVNB161216".into()),
+                    version: Some("SDK0T76577 WIN".into()),
+                    ..MotherboardInventory::default()
+                },
+                bios: BiosInventory {
+                    smbios_bios_version: Some("SWCN22WW".into()),
+                    release_date: Some("20260715000000.000000+000".into()),
+                    embedded_controller_major_version: Some(1),
+                    embedded_controller_minor_version: Some(22),
+                    ..BiosInventory::default()
+                },
+            },
+        }
+    }
+}
+
+#[test]
+fn info_reports_identity_modules_next_to_unchanged_hardware_keys() {
+    let cli = Cli::try_parse_from(["vantage", "--json", "info"]).expect("parse info");
+    let output = execute(cli, &IdentityHal::target()).expect("info succeeds");
+
+    // The pre-existing keys keep their values and shape.
+    assert_eq!(output.json["platform"], "windows");
+    assert_eq!(output.json["hardware"]["product_name"], "21VG");
+    assert_eq!(output.json["hardware"]["family"], "ThinkBook 14 G8+ IPH");
+    assert_eq!(output.json["hardware"]["bios_version"], "SWCN22WW");
+
+    assert_eq!(output.json["identity"]["product"]["name"], "21VG");
+    assert_eq!(output.json["identity"]["product"]["model"], "21VG");
+    assert_eq!(
+        output.json["identity"]["product"]["version"],
+        "ThinkBook 14 G8+ IPH"
+    );
+    assert_eq!(
+        output.json["identity"]["product"]["identifying_number"],
+        "PRODUCT-SERIAL"
+    );
+    assert_eq!(output.json["identity"]["motherboard"]["product"], "LNVNB161216");
+    assert_eq!(
+        output.json["identity"]["bios"]["smbios_bios_version"],
+        "SWCN22WW"
+    );
+    assert_eq!(
+        output.json["identity"]["bios"]["embedded_controller_major_version"],
+        1
+    );
+    assert_eq!(
+        output.json["identity"]["bios"]["embedded_controller_minor_version"],
+        22
+    );
+}
+
+#[test]
+fn info_human_output_lists_identity_values_and_omits_an_absent_identity() {
+    let cli = Cli::try_parse_from(["vantage", "info"]).expect("parse info");
+    let output = execute(cli, &IdentityHal::target()).expect("info succeeds");
+
+    assert!(output.human.contains("  model (mtm): 21VG"));
+    assert!(output.human.contains("  product version: ThinkBook 14 G8+ IPH"));
+    assert!(output.human.contains("  serial: PRODUCT-SERIAL"));
+    assert!(output.human.contains("  baseboard: LNVNB161216"));
+    assert!(output.human.contains("  baseboard version: SDK0T76577 WIN"));
+    assert!(
+        output
+            .human
+            .contains("  bios release date: 20260715000000.000000+000")
+    );
+    assert!(output.human.contains("  ec firmware: 1.22"));
+    assert!(output.human.contains("features:"));
+
+    // A HAL without an identity source reports no identity block and no JSON key.
+    let cli = Cli::try_parse_from(["vantage", "--json", "info"]).expect("parse info");
+    let output = execute(cli, &FakeHal::new("ThinkBook 14+ 2026")).expect("info succeeds");
+    assert!(!output.human.contains("identity:"));
+    assert!(output.json.get("identity").is_none());
+}
+
 #[test]
 fn json_error_is_exactly_the_core_error_report() {
     let error = LctrlError::Unsupported {
@@ -122,6 +241,7 @@ fn representative_command_paths_parse() {
     let cases: &[&[&str]] = &[
         &["vantage", "info"],
         &["vantage", "battery", "status"],
+        &["vantage", "battery", "health"],
         &["vantage", "battery", "adapter"],
         &["vantage", "battery", "charge-mode", "rapid"],
         &["vantage", "battery", "thresholds", "40", "80"],
@@ -147,8 +267,15 @@ fn representative_command_paths_parse() {
         &["vantage", "perf", "top"],
         &["vantage", "tune", "profile", "list"],
         &["vantage", "kbd", "backlight", "2", "--effect", "breath"],
+        &["vantage", "kbd", "backlight", "off"],
+        &["vantage", "kbd", "backlight", "low"],
+        &["vantage", "kbd", "backlight", "high"],
+        &["vantage", "kbd", "backlight", "auto"],
         &["vantage", "kbd", "fnlock", "on"],
         &["vantage", "touchpad", "off"],
+        &["vantage", "touchpad", "disable"],
+        &["vantage", "touchpad", "enable"],
+        &["vantage", "touchpad", "recover"],
         &["vantage", "panel", "rate", "120"],
         &["vantage", "privacy", "cam", "off", "--runtime"],
         &["vantage", "sense", "lock-on-leave", "on", "--distance", "2"],
@@ -156,6 +283,7 @@ fn representative_command_paths_parse() {
         &["vantage", "bios", "get", "SecureBoot"],
         &["vantage", "magicbay", "lte", "status"],
         &["vantage", "osd", "enable"],
+        &["vantage", "security", "status"],
         &["vantage", "daemon", "status"],
         &["vantage", "completions", "bash"],
     ];
@@ -164,6 +292,25 @@ fn representative_command_paths_parse() {
         Cli::try_parse_from(*args).unwrap_or_else(|error| {
             panic!("failed to parse {args:?}: {error}");
         });
+    }
+}
+
+#[test]
+fn backlight_levels_accept_state_names_and_raw_levels() {
+    for (argument, level) in [("off", 0), ("low", 1), ("high", 2), ("auto", 3), ("2", 2)] {
+        let cli = Cli::try_parse_from(["vantage", "kbd", "backlight", argument]).expect("parse");
+        match cli.command {
+            Command::Kbd {
+                command: Some(KbdCommand::Backlight { level: parsed, .. }),
+            } => assert_eq!(parsed, level, "argument {argument:?}"),
+            other => panic!("unexpected command for {argument:?}: {other:?}"),
+        }
+    }
+    for argument in ["bright", "300", "-1", ""] {
+        assert!(
+            Cli::try_parse_from(["vantage", "kbd", "backlight", argument]).is_err(),
+            "argument {argument:?} must be rejected by the parser"
+        );
     }
 }
 
@@ -335,6 +482,70 @@ fn perf_dbdc_get_without_service_is_structured_unsupported() {
 
     let error = execute_with_services(cli, CommandServices::new(&hal))
         .expect_err("missing dbdc service must not succeed");
+
+    assert!(matches!(error, LctrlError::Unsupported { .. }));
+}
+
+struct FixedGpuOc {
+    status: lctrl_core::GpuOcStatus,
+}
+
+impl GpuOcControl for FixedGpuOc {
+    fn gpu_oc_status(&self) -> lctrl_core::Result<lctrl_core::GpuOcStatus> {
+        Ok(self.status.clone())
+    }
+}
+
+#[test]
+fn perf_gpu_status_reports_the_probe_and_the_missing_parameter_block() {
+    let cli = Cli::try_parse_from(["vantage", "--json", "perf", "gpu", "status"])
+        .expect("parse perf gpu status");
+    let hal = FakeHal::new("unused");
+    let gpu_oc = FixedGpuOc {
+        status: lctrl_core::GpuOcStatus {
+            supported: false,
+            probe: lctrl_core::GpuOcSupportProbe {
+                method: "LENOVO_GAMEZONE_DATA.IsSupportGpuOC".into(),
+                return_value: true,
+                data: 0,
+            },
+            parameter: None,
+            parameter_error: Some(
+                "feature is unsupported: ROOT\\WMI query: SELECT * FROM LENOVO_GAMEZONE_GPU_OC_DATA"
+                    .into(),
+            ),
+        },
+    };
+
+    let output = execute_with_services(cli, CommandServices::new(&hal).with_gpu_oc(&gpu_oc))
+        .expect("gpu status succeeds");
+
+    assert!(!output.json["supported"].as_bool().unwrap());
+    assert_eq!(output.json["probe"]["data"], 0);
+    assert_eq!(
+        output.json["probe"]["method"],
+        "LENOVO_GAMEZONE_DATA.IsSupportGpuOC"
+    );
+    assert!(output.json["parameter"].is_null());
+    assert!(
+        output.json["parameter_error"]
+            .as_str()
+            .unwrap()
+            .contains("LENOVO_GAMEZONE_GPU_OC_DATA")
+    );
+    let text = &output.human;
+    assert!(text.contains("not supported by the firmware"));
+    assert!(text.contains("OC parameter block: unavailable"));
+    assert!(text.contains("write: unsupported"));
+}
+
+#[test]
+fn perf_gpu_without_service_is_structured_unsupported() {
+    let cli = Cli::try_parse_from(["vantage", "perf", "gpu"]).expect("parse perf gpu");
+    let hal = FakeHal::new("unused");
+
+    let error = execute_with_services(cli, CommandServices::new(&hal))
+        .expect_err("missing gpu OC service must not succeed");
 
     assert!(matches!(error, LctrlError::Unsupported { .. }));
 }
@@ -740,9 +951,12 @@ fn unsupported_commands_do_not_call_or_mutate_hal() {
 
 #[test]
 fn unsupported_error_uses_core_exit_code_mapping() {
-    let cli = Cli::try_parse_from(["vantage", "tune"]).expect("parse tune");
+    // A bare parent command is a usage error (InvalidArgument), so the core
+    // mapping is pinned with a command that is still a genuine Unsupported
+    // verdict rather than a missing subcommand.
+    let cli = Cli::try_parse_from(["vantage", "tune", "turbo", "on"]).expect("parse tune turbo");
     let result = execute(cli, &FakeHal::new("unused"));
-    let error = result.expect_err("tune is not implemented");
+    let error = result.expect_err("tune turbo is not implemented");
 
     assert_eq!(
         error.exit_code(),
@@ -756,6 +970,7 @@ fn unsupported_error_uses_core_exit_code_mapping() {
 struct FakeBattery {
     adapter_calls: AtomicUsize,
     charge_writes: AtomicUsize,
+    wear_calls: AtomicUsize,
 }
 
 impl FakeBattery {
@@ -763,13 +978,54 @@ impl FakeBattery {
         Self {
             adapter_calls: AtomicUsize::new(0),
             charge_writes: AtomicUsize::new(0),
+            wear_calls: AtomicUsize::new(0),
         }
     }
 }
 
 impl BatteryControl for FakeBattery {
     fn battery_telemetry(&self, _index: u32) -> lctrl_core::Result<lctrl_core::BatteryTelemetry> {
-        unreachable!()
+        Ok(lctrl_core::BatteryTelemetry {
+            design_capacity_mwh: Some(99_900),
+            full_charge_capacity_mwh: Some(93_810),
+            remaining_capacity_mwh: None,
+            voltage_mv: None,
+            current_ma: None,
+            temperature_deci_kelvin: None,
+            manufacture_date: None,
+            first_used_date: None,
+            design_voltage_mv: None,
+            remaining_percent: None,
+            life_percent: Some(93),
+            charge_status: None,
+            health: Some(lctrl_core::BatteryHealth::Green),
+            remaining_time_min: None,
+            charge_completion_time_min: None,
+            wattage_w: None,
+            cycle_count: None,
+            manufacturer: None,
+            model_name: None,
+            firmware_version: None,
+            serial_number: None,
+            chemistry: None,
+            source_issues: Vec::new(),
+        })
+    }
+
+    fn battery_wear(&self) -> lctrl_core::Result<lctrl_core::BatteryWearReport> {
+        self.wear_calls.fetch_add(1, Ordering::SeqCst);
+        Ok(lctrl_core::BatteryWearReport::from_capacities(
+            "fake_capacity_channel",
+            lctrl_core::BatteryFieldProvenance {
+                design_capacity: "fake:BatteryStaticData.DesignedCapacity",
+                full_charge_capacity: "fake:BatteryFullChargedCapacity.FullChargedCapacity",
+                cycle_count: "fake:BatteryCycleCount.CycleCount",
+            },
+            Some(99_900),
+            Some(93_810),
+            Some(233),
+            Vec::new(),
+        ))
     }
 
     fn adapter_info(&self) -> lctrl_core::Result<AdapterInfo> {
@@ -987,6 +1243,107 @@ fn touchpad_status_is_read_only_even_with_a_vendor_controller_running() {
 }
 
 #[test]
+fn touchpad_enable_and_disable_aliases_drive_the_requested_state() {
+    struct RecordingTouchpad {
+        writes: Mutex<Vec<(DeviceState, ApplyMode)>>,
+    }
+    impl lctrl_hal::TouchpadControl for RecordingTouchpad {
+        fn touchpad_state(&self) -> lctrl_core::Result<DeviceState> {
+            Ok(DeviceState::Disabled)
+        }
+        fn set_touchpad(
+            &self,
+            state: DeviceState,
+            apply: ApplyMode,
+        ) -> lctrl_core::Result<ChangeReport<DeviceState>> {
+            self.writes.lock().push((state, apply));
+            Ok(ChangeReport::committed(DeviceState::Disabled, state, state))
+        }
+    }
+    let hal = FakeHal::new("unused");
+    let touchpad = RecordingTouchpad {
+        writes: Mutex::new(Vec::new()),
+    };
+    for (verb, expected) in [("enable", DeviceState::Enabled), ("disable", DeviceState::Disabled)] {
+        let cli = Cli::try_parse_from(["vantage", "--json", "--yes", "touchpad", verb]).unwrap();
+        let output = execute_with_services(
+            cli,
+            CommandServices::new(&hal)
+                .with_touchpad(&touchpad)
+                .with_conflict_detection(&FakeConflicts),
+        )
+        .unwrap();
+        assert_eq!(output.json["requested"], json!(expected), "{verb}");
+        assert_eq!(output.json["mode"], json!("commit"), "{verb}");
+    }
+    assert_eq!(
+        *touchpad.writes.lock(),
+        vec![
+            (DeviceState::Enabled, ApplyMode::Commit),
+            (DeviceState::Disabled, ApplyMode::Commit),
+        ]
+    );
+}
+
+#[test]
+fn touchpad_recover_reports_the_chosen_strategy() {
+    struct CyclingTouchpad;
+    impl lctrl_hal::TouchpadControl for CyclingTouchpad {
+        fn touchpad_state(&self) -> lctrl_core::Result<DeviceState> {
+            Ok(DeviceState::Enabled)
+        }
+        fn set_touchpad(
+            &self,
+            _: DeviceState,
+            _: ApplyMode,
+        ) -> lctrl_core::Result<ChangeReport<DeviceState>> {
+            panic!("recover must not take the plain touchpad switch path")
+        }
+        fn recover_touchpad(
+            &self,
+            apply: ApplyMode,
+        ) -> lctrl_core::Result<lctrl_core::TouchpadRecoveryReport> {
+            assert_eq!(apply, ApplyMode::Commit);
+            Ok(lctrl_core::TouchpadRecoveryReport {
+                mode: apply,
+                strategy: lctrl_core::TouchpadRecoveryStrategy::CycleInputLeaves,
+                leaves: vec![
+                    lctrl_core::TouchpadRecoveryLeaf {
+                        role: "digitizer",
+                        previous: DeviceState::Enabled,
+                        requested: DeviceState::Enabled,
+                        actual: Some(DeviceState::Enabled),
+                    },
+                    lctrl_core::TouchpadRecoveryLeaf {
+                        role: "mouse",
+                        previous: DeviceState::Enabled,
+                        requested: DeviceState::Enabled,
+                        actual: Some(DeviceState::Enabled),
+                    },
+                ],
+            })
+        }
+    }
+    let hal = FakeHal::new("unused");
+    let cli = Cli::try_parse_from(["vantage", "--json", "--yes", "touchpad", "recover"]).unwrap();
+    let output = execute_with_services(
+        cli,
+        CommandServices::new(&hal)
+            .with_touchpad(&CyclingTouchpad)
+            .with_conflict_detection(&FakeConflicts),
+    )
+    .unwrap();
+    assert_eq!(output.json["strategy"], json!("cycle_input_leaves"));
+    assert_eq!(output.json["mode"], json!("commit"));
+    assert!(output.human.contains("restarted"), "{}", output.human);
+    assert!(
+        output.human.contains("not press or haptic function"),
+        "PnP readback must not be reported as functional proof: {}",
+        output.human
+    );
+}
+
+#[test]
 fn conflicting_vendor_controller_blocks_write_without_explicit_override() {
     let cli = Cli::try_parse_from(["vantage", "battery", "charge-mode", "rapid"]).unwrap();
     let hal = FakeHal::new("unused");
@@ -1029,6 +1386,51 @@ fn battery_adapter_stays_unsupported_without_service() {
     assert!(matches!(
         execute(cli, &hal),
         Err(LctrlError::Unsupported { feature }) if feature == "battery.adapter"
+    ));
+    assert_eq!(hal.info_calls.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn battery_health_reports_wear_with_per_field_provenance() {
+    let cli = Cli::try_parse_from(["vantage", "--json", "battery", "health"]).unwrap();
+    let hal = FakeHal::new("unused");
+    let battery = FakeBattery::new();
+
+    let output = execute_with_services(cli, CommandServices::new(&hal).with_battery(&battery))
+        .expect("health succeeds with service");
+
+    assert_eq!(battery.wear_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        output.json["capacity_wear"]["design_capacity_mwh"],
+        99_900
+    );
+    assert_eq!(
+        output.json["capacity_wear"]["full_charge_capacity_mwh"],
+        93_810
+    );
+    assert_eq!(output.json["capacity_wear"]["cycle_count"], 233);
+    assert_eq!(output.json["capacity_wear"]["capacity_ratio_percent"], 93);
+    assert_eq!(output.json["capacity_wear"]["wear_percent"], 6);
+    assert_eq!(
+        output.json["capacity_wear"]["fields"]["design_capacity"],
+        "fake:BatteryStaticData.DesignedCapacity"
+    );
+    assert_eq!(
+        output.json["capacity_wear"]["fields"]["cycle_count"],
+        "fake:BatteryCycleCount.CycleCount"
+    );
+    assert_eq!(output.json["source_association"], "unverified");
+    assert_eq!(hal.info_calls.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn battery_health_stays_unsupported_without_service() {
+    let cli = Cli::try_parse_from(["vantage", "battery", "health"]).unwrap();
+    let hal = FakeHal::new("unused");
+
+    assert!(matches!(
+        execute(cli, &hal),
+        Err(LctrlError::Unsupported { feature }) if feature == "battery.health"
     ));
     assert_eq!(hal.info_calls.load(Ordering::SeqCst), 0);
 }
@@ -1427,6 +1829,245 @@ fn privacy_runtime_dispatches_to_runtime_service() {
         execute_with_services(cli, CommandServices::new(&hal).with_privacy(&FakePrivacy)).unwrap();
 
     assert_eq!(output.json["actual"], "disabled");
+}
+
+#[test]
+fn camera_status_reports_both_layers_without_mutating() {
+    let cli = Cli::try_parse_from(["vantage", "privacy", "cam", "status"]).unwrap();
+    let hal = FakeHal::new("unused");
+    let bios = FakeBios::new();
+
+    let output = execute_with_services(
+        cli,
+        CommandServices::new(&hal)
+            .with_privacy(&FakePrivacy)
+            .with_bios(&bios),
+    )
+    .expect("camera status");
+
+    assert_eq!(output.json["runtime"], "enabled");
+    assert_eq!(output.json["persistent"]["value"], "Enable");
+    // This fake implements no per-devnode read, and the status command reports
+    // that instead of inventing devnodes.
+    assert_eq!(output.json["devices_error"]["kind"], "unsupported");
+    assert!(
+        output.json["devices"]
+            .as_array()
+            .is_some_and(|devices| devices.is_empty())
+    );
+    // The occlusion channel stays closed: no WinRT session is opened here.
+    assert_eq!(output.json["occlusion"]["supported"], false);
+    assert!(output.json["occlusion"]["reason"].is_string());
+    assert!(bios.staged.lock().is_empty());
+    assert_eq!(bios.saves.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn camera_alias_accepts_enable_and_disable_spellings() {
+    let cli =
+        Cli::try_parse_from(["vantage", "privacy", "camera", "disable", "--runtime"]).unwrap();
+
+    assert!(matches!(
+        cli.command,
+        Command::Privacy {
+            command: Some(PrivacyCommand::Cam {
+                action: PrivacyCamAction::Off,
+                runtime: true,
+                persistent: false,
+            }),
+        }
+    ));
+}
+
+/// A privacy service that answers the consent-store read and refuses every
+/// device question: `privacy cam inuse` must not read the PnP group, open a
+/// device, or write one.
+struct FakeCameraConsent;
+
+impl PrivacyControl for FakeCameraConsent {
+    fn camera_state(&self) -> lctrl_core::Result<DeviceState> {
+        unreachable!("camera inuse must not read the PnP camera group")
+    }
+
+    fn set_camera(
+        &self,
+        _state: DeviceState,
+        _apply: ApplyMode,
+    ) -> lctrl_core::Result<ChangeReport<DeviceState>> {
+        unreachable!("camera inuse must not write a camera devnode")
+    }
+
+    fn microphone_state(&self) -> lctrl_core::Result<DeviceState> {
+        unreachable!("camera inuse must not read the microphone")
+    }
+
+    fn set_microphone(
+        &self,
+        _state: DeviceState,
+        _apply: ApplyMode,
+    ) -> lctrl_core::Result<ChangeReport<DeviceState>> {
+        unreachable!("camera inuse must not write the microphone")
+    }
+
+    fn camera_consent(&self) -> lctrl_core::Result<lctrl_core::CameraConsentReport> {
+        use lctrl_core::{
+            CameraConsent, CameraConsentEntry, CameraConsentReport, CameraConsentScope,
+            CameraConsentScopeReport, CameraPrivacyPolicy,
+        };
+
+        Ok(CameraConsentReport::new(
+            vec![
+                CameraConsentScopeReport {
+                    scope: CameraConsentScope::CurrentUser,
+                    present: true,
+                    consent: Some(CameraConsent::Allow),
+                    consent_raw: None,
+                    last_set: None,
+                    entries: Vec::new(),
+                    notes: Vec::new(),
+                },
+                CameraConsentScopeReport {
+                    scope: CameraConsentScope::CurrentUserNonPackaged,
+                    present: true,
+                    // A record may carry use stamps and no consent text; the
+                    // container's `Allow` is not inherited into it.
+                    consent: None,
+                    consent_raw: None,
+                    last_set: None,
+                    entries: vec![CameraConsentEntry::new(
+                        CameraConsentScope::CurrentUserNonPackaged,
+                        "C:#Program Files#Google#Chrome#Application#chrome.exe",
+                        None,
+                        None,
+                        Some(20),
+                        Some(10),
+                    )],
+                    notes: Vec::new(),
+                },
+                CameraConsentScopeReport {
+                    scope: CameraConsentScope::Machine,
+                    present: true,
+                    consent: Some(CameraConsent::Deny),
+                    consent_raw: None,
+                    last_set: None,
+                    entries: Vec::new(),
+                    notes: Vec::new(),
+                },
+            ],
+            CameraPrivacyPolicy::default(),
+        ))
+    }
+}
+
+#[test]
+fn camera_inuse_reports_each_consent_store_separately_without_mutation() {
+    let cli = Cli::try_parse_from(["vantage", "privacy", "camera", "inuse"]).unwrap();
+    assert!(matches!(
+        cli.command,
+        Command::Privacy {
+            command: Some(PrivacyCommand::Cam {
+                action: PrivacyCamAction::InUse,
+                runtime: false,
+                persistent: false,
+            }),
+        }
+    ));
+    let hal = FakeHal::new("unused");
+
+    let output = execute_with_services(
+        cli,
+        CommandServices::new(&hal).with_privacy(&FakeCameraConsent),
+    )
+    .expect("camera inuse");
+
+    // The caveat is part of the answer, in JSON and in the terminal text.
+    assert_eq!(
+        output.json["as_recorded"],
+        "as recorded by CapabilityAccessManager; last-use stamps are not proof that a camera is streaming"
+    );
+    assert_eq!(
+        output.json["in_use_rule"],
+        "LastUsedTimeStart > LastUsedTimeStop, both non-zero"
+    );
+
+    let scopes = output.json["scopes"].as_array().expect("scopes array");
+    assert_eq!(scopes.len(), 3);
+    // A machine `Deny` and a user `Allow` stay separate answers.
+    assert_eq!(scopes[0]["scope"], "current_user");
+    assert_eq!(scopes[0]["consent"], "allow");
+    assert_eq!(scopes[1]["scope"], "current_user_non_packaged");
+    assert!(scopes[1]["consent"].is_null());
+    assert_eq!(scopes[2]["scope"], "machine");
+    assert_eq!(scopes[2]["consent"], "deny");
+
+    // The encoded `#` name decodes to the executable path it stores.
+    assert_eq!(
+        scopes[1]["entries"][0]["key"],
+        "C:#Program Files#Google#Chrome#Application#chrome.exe"
+    );
+    assert_eq!(
+        scopes[1]["entries"][0]["path"],
+        "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+    );
+    assert_eq!(scopes[1]["entries"][0]["in_use"], true);
+
+    // The policy key is absent here, and absence is not reported as consent.
+    assert_eq!(output.json["policy"]["present"], false);
+    assert!(output.json["policy"]["let_apps_access_camera"].is_null());
+
+    assert!(
+        output
+            .human
+            .contains("as recorded by CapabilityAccessManager")
+    );
+    assert!(output.human.contains("in-use rule: LastUsedTimeStart"));
+    assert!(output.human.contains("not a live stream"));
+    assert!(output.human.contains("this is not an allow"));
+}
+
+#[test]
+fn camera_inuse_accepts_the_hyphenated_spelling() {
+    let cli = Cli::try_parse_from(["vantage", "privacy", "cam", "in-use"]).unwrap();
+
+    assert!(matches!(
+        cli.command,
+        Command::Privacy {
+            command: Some(PrivacyCommand::Cam {
+                action: PrivacyCamAction::InUse,
+                ..
+            }),
+        }
+    ));
+}
+
+#[test]
+fn camera_inuse_rejects_a_layer_flag_without_reading_anything() {
+    let cli = Cli::try_parse_from(["vantage", "privacy", "cam", "inuse", "--runtime"]).unwrap();
+    let hal = FakeHal::new("unused");
+
+    // `FakeCameraConsent` panics if the service is asked anything at all, so a
+    // rejected flag proves the read never started.
+    let error = execute_with_services(
+        cli,
+        CommandServices::new(&hal).with_privacy(&FakeCameraConsent),
+    )
+    .expect_err("inuse must reject a layer flag");
+
+    assert!(matches!(error, LctrlError::InvalidArgument { .. }));
+}
+
+#[test]
+fn camera_inuse_without_the_channel_is_unsupported_not_empty_success() {
+    let cli = Cli::try_parse_from(["vantage", "privacy", "cam", "inuse"]).unwrap();
+    let hal = FakeHal::new("unused");
+
+    let error = execute_with_services(cli, CommandServices::new(&hal).with_privacy(&FakePrivacy))
+        .expect_err("a backend without the consent store must not report an empty success");
+
+    assert!(matches!(
+        error,
+        LctrlError::Unsupported { feature } if feature == "privacy.cam.inuse"
+    ));
 }
 
 #[test]
@@ -2363,7 +3004,7 @@ fn apply_sense_feature_to(state: &mut SenseState, feature: SenseFeature) {
 
 impl SenseControl for FakeSense {
     fn sense_state(&self) -> lctrl_core::Result<SenseState> {
-        Ok(*self.state.lock())
+        Ok(self.state.lock().clone())
     }
 
     fn set_sense_feature(
@@ -2371,8 +3012,8 @@ impl SenseControl for FakeSense {
         feature: SenseFeature,
         apply: ApplyMode,
     ) -> lctrl_core::Result<ChangeReport<SenseState>> {
-        let previous = *self.state.lock();
-        let mut requested = previous;
+        let previous = self.state.lock().clone();
+        let mut requested = previous.clone();
         apply_sense_feature_to(&mut requested, feature);
         if apply == ApplyMode::DryRun {
             return Ok(ChangeReport::dry_run(previous, requested));
@@ -2387,12 +3028,16 @@ impl SenseControl for FakeSense {
         };
         if let Some((_, applied, error)) = scripted {
             if applied {
-                *self.state.lock() = requested;
+                *self.state.lock() = requested.clone();
             }
             return Err(error);
         }
-        *self.state.lock() = requested;
-        Ok(ChangeReport::committed(previous, requested, requested))
+        *self.state.lock() = requested.clone();
+        Ok(ChangeReport::committed(
+            previous,
+            requested.clone(),
+            requested,
+        ))
     }
 }
 
@@ -2483,7 +3128,7 @@ fn sense_auto_restore_uses_the_multi_feature_initial_baseline() {
     let output = execute_with_services(cli, CommandServices::new(&hal).with_sense(&sense))
         .expect("lock-on-leave command succeeds");
 
-    let state = *sense.state.lock();
+    let state = sense.state.lock().clone();
     assert_eq!(
         state.lock_on_leave,
         Some(false),
@@ -2538,7 +3183,7 @@ fn sense_auto_restore_runs_after_a_readback_failure_and_preserves_the_error() {
         matches!(error, LctrlError::VerifyMismatch { .. }),
         "the primary failure is preserved, got {error:?}"
     );
-    let state = *sense.state.lock();
+    let state = sense.state.lock().clone();
     assert_eq!(
         state.lock_on_leave,
         Some(false),
@@ -2663,4 +3308,364 @@ fn sense_auto_restore_stays_dry_in_a_dry_run() {
     execute_with_services(cli, CommandServices::new(&hal).with_sense(&sense))
         .expect("dry run succeeds");
     assert_eq!(sense.writes.load(Ordering::SeqCst), 0);
+}
+
+struct FixedBroadband(MagicBayLteStatus);
+
+impl MobileBroadbandControl for FixedBroadband {
+    fn lte_status(&self) -> lctrl_core::Result<MagicBayLteStatus> {
+        Ok(self.0.clone())
+    }
+}
+
+fn lte_status_fixture() -> MagicBayLteStatus {
+    MagicBayLteStatus {
+        modules: vec![MagicBayDevice {
+            path: r"USB\VID_17EF&PID_7005\SERIAL".into(),
+            bus: "usb".into(),
+            vid: Some(0x17ef),
+            pid: Some(0x7005),
+            kind: MagicBayKind::Lte2,
+            interfaces: vec!["mbim".into()],
+            attached: true,
+        }],
+        interfaces: vec![MagicBayLteInterface {
+            interface_index: 57,
+            if_type: 243,
+            description: "Generic Mobile Broadband Adapter".into(),
+            media_state: MagicBayLteMediaState::Connected,
+            operational: MagicBayLteOperational::Up,
+            ipv4: vec!["10.42.7.9".into()],
+            ipv6: Vec::new(),
+        }],
+        data_session: true,
+    }
+}
+
+#[test]
+fn magicbay_lte_status_reports_module_interface_and_session() {
+    let hal = FakeHal::new("21VG");
+    let cli = Cli::try_parse_from(["vantage", "--json", "magicbay", "lte", "status"]).unwrap();
+    let output = execute_with_services(
+        cli,
+        CommandServices::new(&hal).with_mobile_broadband(&FixedBroadband(lte_status_fixture())),
+    )
+    .expect("lte status succeeds");
+
+    assert_eq!(output.json["data_session"], json!(true));
+    assert_eq!(output.json["modules"][0]["kind"], json!("lte2"));
+    assert_eq!(output.json["interfaces"][0]["interface_index"], json!(57));
+    assert_eq!(output.json["interfaces"][0]["media_state"], json!("connected"));
+    assert_eq!(output.json["interfaces"][0]["operational"], json!("up"));
+    assert_eq!(
+        output.human,
+        "1 MagicBay LTE module(s), 1 WWAN interface(s), data session up\n"
+    );
+}
+
+#[test]
+fn magicbay_lte_status_without_a_service_is_unsupported() {
+    let hal = FakeHal::new("21VG");
+    let cli = Cli::try_parse_from(["vantage", "magicbay", "lte", "status"]).unwrap();
+    let error = execute_with_services(cli, CommandServices::new(&hal))
+        .expect_err("no Mobile Broadband service is attached");
+    assert!(
+        matches!(error, LctrlError::Unsupported { ref feature } if feature.contains("magicbay.lte")),
+        "unexpected error {error}"
+    );
+}
+
+#[test]
+fn magicbay_lte_status_keeps_the_accessory_absence_error() {
+    struct Absent;
+
+    impl MobileBroadbandControl for Absent {
+        fn lte_status(&self) -> lctrl_core::Result<MagicBayLteStatus> {
+            Err(LctrlError::ChannelUnavailable {
+                channel: "magicbay.lte: no MagicBay LTE accessory is enumerated".into(),
+            })
+        }
+    }
+
+    let hal = FakeHal::new("21VG");
+    let cli = Cli::try_parse_from(["vantage", "magicbay", "lte", "status"]).unwrap();
+    let error =
+        execute_with_services(cli, CommandServices::new(&hal).with_mobile_broadband(&Absent))
+            .expect_err("absent accessory is an error, never an empty success");
+    assert!(
+        matches!(error, LctrlError::ChannelUnavailable { ref channel } if channel.contains("no MagicBay LTE accessory")),
+        "unexpected error {error}"
+    );
+}
+
+#[test]
+fn magicbay_modem_session_control_stays_unsupported_with_the_recovered_reason() {
+    let hal = FakeHal::new("21VG");
+    for args in [
+        &["vantage", "magicbay", "lte", "connect"][..],
+        &["vantage", "magicbay", "lte", "disconnect"][..],
+        &["vantage", "magicbay", "lte", "apn", "ctnet"][..],
+    ] {
+        let cli = Cli::try_parse_from(args).unwrap();
+        let error = execute_with_services(
+            cli,
+            CommandServices::new(&hal).with_mobile_broadband(&FixedBroadband(lte_status_fixture())),
+        )
+        .expect_err("modem session control has no bindable API");
+        let text = error.to_string();
+        assert!(text.contains("mbnapi.dll"), "{args:?}: {text}");
+        assert!(text.contains("re-magicbay-20261105.md"), "{args:?}: {text}");
+    }
+}
+
+struct FakeFirmware {
+    status: lctrl_core::FirmwareStatus,
+}
+
+impl lctrl_hal::FirmwareControl for FakeFirmware {
+    fn firmware_status(&self) -> lctrl_core::Result<lctrl_core::FirmwareStatus> {
+        Ok(self.status.clone())
+    }
+}
+
+fn firmware_status_fixture() -> lctrl_core::FirmwareStatus {
+    lctrl_core::FirmwareStatus {
+        identity: lctrl_core::FirmwareIdentity {
+            firmware_type: lctrl_core::FirmwareType::Uefi,
+            vendor: Some("LENOVO".into()),
+            version: Some("SWCN22WW".into()),
+            release_date: Some("07/15/2026 08:00:00".into()),
+            bios_release_major: Some(1),
+            bios_release_minor: Some(22),
+            ec_firmware_major: Some(1),
+            ec_firmware_minor: Some(22),
+            smbios_major: Some(3),
+            smbios_minor: Some(8),
+            version_strings: vec!["LENOVO - 1".into(), "INSYDE Corp. - 71250022".into()],
+        },
+        resources: vec![
+            lctrl_core::FirmwareResource {
+                instance_id: "UEFI\\RES_{8163650E-C940-3926-0703-FCF1F743D4E2}\\0".into(),
+                firmware_class: "{8163650E-C940-3926-0703-FCF1F743D4E2}".into(),
+                current_version: Some(0x7125_0022),
+                stored_version: Some(0x7125_0022),
+                description: Some("System Firmware".into()),
+                status: Some("OK".into()),
+                hardware_ids: Vec::new(),
+                compatible_ids: Vec::new(),
+                issues: Vec::new(),
+            },
+            lctrl_core::FirmwareResource {
+                instance_id: "UEFI\\RES_{64EC2CA6-4AE3-4A6E-B542-27A7E0AA0BA6}\\0".into(),
+                firmware_class: "{64EC2CA6-4AE3-4A6E-B542-27A7E0AA0BA6}".into(),
+                current_version: None,
+                stored_version: None,
+                description: Some("Device Firmware".into()),
+                status: Some("OK".into()),
+                hardware_ids: Vec::new(),
+                compatible_ids: Vec::new(),
+                issues: Vec::new(),
+            },
+        ],
+        attempts: vec![
+            lctrl_core::FirmwareAttempt {
+                firmware_class: "{499371BF-8950-4B3C-81B6-2C97525241D7}".into(),
+                version: Some(0x0D03_3710),
+                last_attempt_version: Some(0x0D03_3710),
+                last_attempt_status: Some(0),
+                last_attempt_outcome: Some("success"),
+                phase: Some(2),
+                filename: Some("TB14G8+_TFforcepad_FW0D033710_260720.bin".into()),
+                catalog: Some("oem57.cat".into()),
+            },
+            lctrl_core::FirmwareAttempt {
+                firmware_class: "{01F69777-46DB-46D0-9947-83BAC67B7EF1}".into(),
+                version: Some(0x1011),
+                last_attempt_version: None,
+                last_attempt_status: Some(0x1000),
+                last_attempt_outcome: None,
+                phase: None,
+                filename: None,
+                catalog: None,
+            },
+        ],
+        issues: Vec::new(),
+    }
+}
+
+#[test]
+fn firmware_status_reports_identity_resources_and_attempts() {
+    let hal = FakeHal::new("21VG");
+    let cli = Cli::try_parse_from(["vantage", "firmware", "status"]).unwrap();
+    let output = execute_with_services(
+        cli,
+        CommandServices::new(&hal).with_firmware(&FakeFirmware {
+            status: firmware_status_fixture(),
+        }),
+    )
+    .expect("firmware status");
+    assert!(output.human.contains("UEFI firmware: LENOVO SWCN22WW"), "{}", output.human);
+    assert!(output.human.contains("BIOS release: 1.22"), "{}", output.human);
+    assert!(output.human.contains("ESRT entries: 2"), "{}", output.human);
+    assert!(
+        output.human.contains("{8163650E-C940-3926-0703-FCF1F743D4E2}"),
+        "{}",
+        output.human
+    );
+    assert!(
+        output.human.contains("1898250274 (0x71250022)"),
+        "{}",
+        output.human
+    );
+    // An entry with no readable revision keeps a visible absence.
+    assert!(output.human.contains("version absent"), "{}", output.human);
+    assert!(output.human.contains("status 0 (success)"), "{}", output.human);
+    assert!(output.human.contains("catalog: oem57.cat"), "{}", output.human);
+
+    assert_eq!(output.json["resources"][0]["current_version"], json!(0x7125_0022));
+    assert!(output.json["resources"][1]["current_version"].is_null());
+    assert_eq!(output.json["attempts"][0]["last_attempt_outcome"], json!("success"));
+}
+
+#[test]
+fn firmware_status_prints_an_unknown_attempt_status_as_its_raw_number() {
+    let hal = FakeHal::new("21VG");
+    let cli = Cli::try_parse_from(["vantage", "firmware", "status"]).unwrap();
+    let output = execute_with_services(
+        cli,
+        CommandServices::new(&hal).with_firmware(&FakeFirmware {
+            status: firmware_status_fixture(),
+        }),
+    )
+    .expect("firmware status");
+    assert!(output.human.contains("status 4096 (unnamed)"), "{}", output.human);
+    assert!(!output.human.contains("status 4096 (success)"));
+    assert!(output.json["attempts"][1]["last_attempt_outcome"].is_null());
+    assert_eq!(output.json["attempts"][1]["last_attempt_status"], json!(0x1000));
+}
+
+#[test]
+fn firmware_status_without_a_channel_is_unsupported() {
+    let hal = FakeHal::new("21VG");
+    let cli = Cli::try_parse_from(["vantage", "firmware", "status"]).unwrap();
+    let error = execute_with_services(cli, CommandServices::new(&hal))
+        .expect_err("no firmware inventory service is attached");
+    assert!(
+        matches!(
+            error,
+            LctrlError::Unsupported { ref feature } if feature.starts_with("firmware.status")
+        ),
+        "unexpected error {error}"
+    );
+}
+
+struct FakeUsbPorts {
+    inventory: lctrl_core::UsbPortInventory,
+}
+
+impl lctrl_hal::UsbPortInventoryControl for FakeUsbPorts {
+    fn usb_port_inventory(&self) -> lctrl_core::Result<lctrl_core::UsbPortInventory> {
+        Ok(self.inventory.clone())
+    }
+}
+
+#[test]
+fn usb_ports_prints_the_port_tree_and_keeps_unknown_speeds_raw() {
+    let hal = FakeHal::new("21VG");
+    let inventory = lctrl_core::UsbPortInventory {
+        controllers: vec![lctrl_core::UsbController {
+            instance_id: "PCI\\VEN_8086&DEV_E47D&REV_01".into(),
+            description: "Intel(R) USB 3.20 eXtensible Host Controller".into(),
+            driver: Some("USBXHCI".into()),
+            kind: lctrl_core::UsbControllerKind::Xhci,
+            hubs: vec![lctrl_core::UsbHub {
+                instance_id: "USB\\ROOT_HUB30\\4&196F3462&0&0".into(),
+                port_count: 12,
+                bus_powered: false,
+                ports: vec![
+                    lctrl_core::UsbPort {
+                        number: 4,
+                        connection: lctrl_core::UsbPortConnection::Connected,
+                        speed: Some(lctrl_core::UsbPortSpeed::Unknown(9)),
+                        device: Some(lctrl_core::UsbPortDevice {
+                            instance_id: Some("USB\\VID_27C6&PID_659A\\UID".into()),
+                            description: Some("Goodix USB2.0 MISC".into()),
+                            vendor_id: 0x27c6,
+                            product_id: 0x659a,
+                            usb_revision: "2.00".into(),
+                            is_hub: false,
+                            max_power_ma: Some(100),
+                        }),
+                        power_delivery: None,
+                    },
+                    lctrl_core::UsbPort {
+                        number: 6,
+                        connection: lctrl_core::UsbPortConnection::Empty,
+                        speed: None,
+                        device: None,
+                        power_delivery: None,
+                    },
+                ],
+            }],
+            ports_unavailable: None,
+        }],
+        power_delivery: lctrl_core::PowerDeliveryReport {
+            pd_controller: Some(lctrl_core::UsbPdController {
+                instance_id: "ACPI\\USBC000\\0".into(),
+                driver: Some("UcmUcsiAcpiClient".into()),
+                firmware_version: Some("1.2".into()),
+            }),
+            usb4_host_routers: vec!["PCI\\VEN_8086&DEV_E434".into()],
+            per_port_unavailable: Some("no user-mode connector interface".into()),
+        },
+    };
+    let cli = Cli::try_parse_from(["vantage", "usb", "ports"]).unwrap();
+    let output = execute_with_services(
+        cli,
+        CommandServices::new(&hal).with_usb_ports(&FakeUsbPorts { inventory }),
+    )
+    .expect("usb ports");
+    assert!(
+        output
+            .human
+            .contains("port 4: connected, speed unknown (raw 9)"),
+        "{}",
+        output.human
+    );
+    assert!(output.human.contains("declares 100 mA"), "{}", output.human);
+    assert!(output.human.contains("    port 6: empty"), "{}", output.human);
+    assert!(output.human.contains("firmware 1.2"), "{}", output.human);
+    assert!(
+        output.human.contains("per-port power: unavailable"),
+        "{}",
+        output.human
+    );
+    assert_eq!(
+        output.json["controllers"][0]["hubs"][0]["port_count"],
+        json!(12)
+    );
+    assert_eq!(
+        output.json["controllers"][0]["hubs"][0]["ports"][0]["speed"]["unknown"],
+        json!(9)
+    );
+    assert!(
+        output.json["controllers"][0]["hubs"][0]["ports"][0]["power_delivery"].is_null(),
+        "a port with no reported PD contract must serialise as null"
+    );
+    assert_eq!(
+        output.json["power_delivery"]["usb4_host_routers"][0],
+        json!("PCI\\VEN_8086&DEV_E434")
+    );
+}
+
+#[test]
+fn usb_ports_without_a_service_is_structured_unsupported() {
+    let hal = FakeHal::new("21VG");
+    let cli = Cli::try_parse_from(["vantage", "usb", "ports"]).unwrap();
+    let error = execute_with_services(cli, CommandServices::new(&hal))
+        .expect_err("no USB port inventory service is attached");
+    assert!(
+        matches!(error, LctrlError::Unsupported { ref feature } if feature == "usb.ports"),
+        "unexpected error {error}"
+    );
 }

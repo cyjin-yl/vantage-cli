@@ -19,6 +19,9 @@ pub const MAX_LOCAL_UPDATE_IGNORES: usize = 256;
 pub const MAX_LOCAL_UPDATE_POLICY_BYTES: u64 = 1024 * 1024;
 pub const MAX_LOCAL_UPDATE_PACKAGE_FILES: usize = 256;
 pub const MAX_LOCAL_UPDATE_DEVICES: usize = 4096;
+/// One package `install.ps1` is a few tens of KiB; the bound keeps a hostile
+/// or corrupt package directory from being read whole.
+pub const MAX_LOCAL_PACKAGE_SCRIPT_BYTES: u64 = 1024 * 1024;
 pub const MAX_WINDOWS_DEVICE_ID_UTF16: usize = 200;
 pub const FIRMWARE_DEVICE_CLASS_GUID: &str = "{f2e7dd72-6468-4e36-b6f1-6488f42c1b52}";
 
@@ -313,6 +316,67 @@ pub struct DriverRollbackReport {
     /// identity. A dry-run therefore never claims that a restore point exists.
     pub backup_identity_verified: bool,
     pub reboot_required: Option<bool>,
+}
+
+/// Explicit, user-triggered installation of an update package the Lenovo UDC
+/// service already downloaded. The directory is the package payload directory
+/// (`...\Udc\Download\<package_id>\<version>\temp`); the package's own signed
+/// `install.ps1` is the installer contract. No catalogue fetch, network
+/// request, firmware flash, automatic install, or reboot.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LocalPackageInstallRequest {
+    package_dir: PathBuf,
+}
+
+impl LocalPackageInstallRequest {
+    pub fn new(package_dir: impl Into<PathBuf>) -> Result<Self> {
+        let request = Self {
+            package_dir: package_dir.into(),
+        };
+        validate_local_directory(&request.package_dir, "package")?;
+        Ok(request)
+    }
+
+    #[must_use]
+    pub fn package_dir(&self) -> &Path {
+        &self.package_dir
+    }
+}
+
+/// The payload file a package script hash-pins, and the hash it declares.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct LocalPackagePayload {
+    pub file: String,
+    pub sha256: String,
+}
+
+/// What `update local-install` did, or would do in a dry-run.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct LocalPackageInstallReport {
+    pub mode: ApplyMode,
+    /// Identity from the synced UDC catalogue entry the directory belongs to.
+    pub package_id: String,
+    pub package_name: String,
+    pub package_version: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub package_type: Option<String>,
+    /// Absolute path of the package's own installer script.
+    pub script: String,
+    /// Present only when the script declares a hash-pinned payload and that
+    /// payload is present and matches. A script without the declaration (for
+    /// example one that validates its payloads itself) reports `None` rather
+    /// than a fabricated hash.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payload: Option<LocalPackagePayload>,
+    /// Signer subject of the script's Authenticode signature. The signature
+    /// must be valid and issued to Lenovo before anything runs.
+    pub signer: String,
+    /// Installer exit code. `None` during a dry-run.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exit_code: Option<i32>,
+    /// Installer log the package script wrote, when it was found.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub log: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -730,6 +794,34 @@ pub fn validate_device_instance_id(device_instance_id: &str) -> Result<()> {
 /// canonicalize the path and require a regular file, so resolved UNC/reparse
 /// targets are rejected as well.
 pub fn validate_local_path(path: &Path, expected_extension: &str) -> Result<()> {
+    validate_local_path_shape(path)?;
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| invalid("local update path has no valid file extension"))?;
+    if !extension.eq_ignore_ascii_case(expected_extension) {
+        return Err(invalid(format!(
+            "local update path must have the .{expected_extension} extension"
+        )));
+    }
+    if path.file_name().is_none() {
+        return Err(invalid("local update path must name a file"));
+    }
+    Ok(())
+}
+
+/// The same admission rules as [`validate_local_path`] for a directory: the
+/// package payload directory is local, absolute, and traversal-free, but it
+/// has no extension to check.
+pub fn validate_local_directory(path: &Path, label: &str) -> Result<()> {
+    validate_local_path_shape(path)?;
+    if path.file_name().is_none() {
+        return Err(invalid(format!("local {label} path must name a directory")));
+    }
+    Ok(())
+}
+
+fn validate_local_path_shape(path: &Path) -> Result<()> {
     if path.as_os_str().is_empty() || !path.is_absolute() {
         return Err(invalid("local update paths must be absolute"));
     }
@@ -759,23 +851,27 @@ pub fn validate_local_path(path: &Path, expected_extension: &str) -> Result<()> 
             return Err(invalid("remote update endpoints are not admitted"));
         }
     }
-    let extension = path
-        .extension()
-        .and_then(|value| value.to_str())
-        .ok_or_else(|| invalid("local update path has no valid file extension"))?;
-    if !extension.eq_ignore_ascii_case(expected_extension) {
-        return Err(invalid(format!(
-            "local update path must have the .{expected_extension} extension"
-        )));
-    }
-    if path.file_name().is_none() {
-        return Err(invalid("local update path must name a file"));
-    }
     Ok(())
 }
 
 pub fn is_firmware_class(class_guid: &str) -> bool {
     class_guid.eq_ignore_ascii_case(FIRMWARE_DEVICE_CLASS_GUID)
+}
+
+/// Firmware flashing is outside this tool's charter, so a package the synced
+/// UDC catalogue describes as BIOS/UEFI/firmware is refused before its
+/// installer runs. The catalogue's own `package_type` is authoritative; the
+/// package name is checked as a second signal for entries that leave the type
+/// generic.
+#[must_use]
+pub fn is_firmware_update(package_type: Option<&str>, package_name: &str) -> bool {
+    let kind = package_type.unwrap_or_default().trim().to_ascii_lowercase();
+    let firmware_kind = matches!(kind.as_str(), "bios" | "uefi" | "firmware")
+        || kind.contains("firmware")
+        || kind.contains("bios")
+        || kind.contains("uefi");
+    let name = package_name.to_ascii_lowercase();
+    firmware_kind || name.contains("firmware") || name.contains("bios") || name.contains("uefi")
 }
 
 fn require_text(value: &str, maximum_utf16: usize, label: &str) -> Result<()> {

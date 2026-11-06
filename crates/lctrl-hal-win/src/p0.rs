@@ -205,9 +205,14 @@ where
     }
 
     fn temporary_charge(&self) -> Result<lctrl_core::TemporaryChargeState> {
-        Ok(lctrl_core::TemporaryChargeState::from_raw(
-            EnergyDriver::new(&self.ioctl).temporary_charge_status()?,
-        ))
+        let driver = EnergyDriver::new(&self.ioctl);
+        let state = lctrl_core::TemporaryChargeState::from_probe(driver.temporary_charge_probe()?);
+        // The native getter returns "no mode" without a status query when the
+        // probe reports no temporary-mode support.
+        if !state.supported {
+            return Ok(state);
+        }
+        Ok(state.with_status(driver.temporary_charge_status()?))
     }
 
     fn set_charge_mode(

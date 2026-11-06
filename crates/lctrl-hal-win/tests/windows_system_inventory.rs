@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use lctrl_core::{
     BiosInventory, CpuInventory, DiskInventory, FirmwareInventory, GpuInventory, InventoryDiff,
-    InventoryField, InventoryModuleDiff, InventorySnapshot, MemoryModuleInventory,
+    InventoryField, InventoryModuleDiff, InventorySnapshot, LctrlError, MemoryModuleInventory,
     MotherboardInventory, NetworkAdapterInventory, OperatingSystemInventory, ProductInventory,
 };
 use lctrl_hal_win::{WindowsInventory, WmiObject, WmiTransport, WmiValue};
@@ -67,6 +67,48 @@ impl WmiTransport for FakeWmi {
         _input: &WmiObject,
     ) -> lctrl_core::Result<WmiObject> {
         unreachable!("read-only inventory must not invoke CIM methods")
+    }
+}
+
+/// Serves the identity classes and fails every other class, so an identity
+/// capture that leaves its bounded query set is an error rather than a
+/// silently empty module.
+struct IdentityOnlyWmi {
+    replies: BTreeMap<String, Vec<WmiObject>>,
+}
+
+impl IdentityOnlyWmi {
+    fn new(replies: impl IntoIterator<Item = (&'static str, Vec<WmiObject>)>) -> Self {
+        Self {
+            replies: replies
+                .into_iter()
+                .map(|(class, objects)| (class.to_owned(), objects))
+                .collect(),
+        }
+    }
+}
+
+impl WmiTransport for IdentityOnlyWmi {
+    fn query(&self, _namespace: &str, wql: &str) -> lctrl_core::Result<Vec<WmiObject>> {
+        let (_, tail) = wql.split_once(" FROM ").expect("identity SELECT query");
+        let class = tail.split_whitespace().next().expect("CIM class");
+        self.replies
+            .get(class)
+            .cloned()
+            .ok_or_else(|| LctrlError::ChannelUnavailable {
+                channel: format!("identity capture queried {class}"),
+            })
+    }
+
+    fn invoke_instance(
+        &self,
+        _namespace: &str,
+        _class: &str,
+        _object_path: &str,
+        _method: &str,
+        _input: &WmiObject,
+    ) -> lctrl_core::Result<WmiObject> {
+        unreachable!("read-only identity capture must not invoke CIM methods")
     }
 }
 
@@ -619,4 +661,109 @@ fn exact_matches_are_paired_before_duplicate_fallback_identities() {
     assert!(diff.memory_modules.changed.is_empty());
     assert!(diff.memory_modules.added.is_empty());
     assert_eq!(diff.memory_modules.removed, vec![first]);
+}
+
+#[test]
+fn identity_capture_reads_only_product_baseboard_and_bios() {
+    let wmi = IdentityOnlyWmi::new([
+        (
+            "Win32_ComputerSystemProduct",
+            vec![object(&[
+                ("Name", text("21VG")),
+                ("Vendor", text("LENOVO")),
+                ("Version", text("ThinkBook 14 G8+ IPH")),
+                ("IdentifyingNumber", text("PRODUCT-SERIAL")),
+                ("UUID", text("00112233-4455-6677-8899-AABBCCDDEEFF")),
+            ])],
+        ),
+        (
+            "Win32_ComputerSystem",
+            vec![object(&[
+                ("Manufacturer", text("LENOVO")),
+                ("Model", text("21VG")),
+                ("SystemFamily", text("ThinkBook 14 G8+ IPH")),
+            ])],
+        ),
+        (
+            "Win32_BaseBoard",
+            vec![object(&[
+                ("Manufacturer", text("LENOVO")),
+                ("Product", text("LNVNB161216")),
+                ("SerialNumber", text("BOARD-SERIAL")),
+                ("Version", text("SDK0T76577 WIN")),
+            ])],
+        ),
+        (
+            "Win32_BIOS",
+            vec![object(&[
+                ("Manufacturer", text("LENOVO")),
+                ("Name", text("SWCN22WW")),
+                ("Version", text("LENOVO - 1")),
+                ("SMBIOSBIOSVersion", text("SWCN22WW")),
+                ("ReleaseDate", text("20260715000000.000000+000")),
+                ("SerialNumber", text("PRODUCT-SERIAL")),
+                ("Status", text("OK")),
+                ("SMBIOSMajorVersion", WmiValue::U16(3)),
+                ("SMBIOSMinorVersion", WmiValue::U16(8)),
+                ("EmbeddedControllerMajorVersion", WmiValue::U8(1)),
+                ("EmbeddedControllerMinorVersion", WmiValue::U8(22)),
+            ])],
+        ),
+    ]);
+
+    let identity = WindowsInventory::new(wmi).capture_identity().unwrap();
+
+    // The MTM is the SMBIOS product name, the marketing name is the product
+    // version, and the baseboard id is neither of them.
+    assert_eq!(identity.product.name.as_deref(), Some("21VG"));
+    assert_eq!(identity.product.model.as_deref(), Some("21VG"));
+    assert_eq!(
+        identity.product.version.as_deref(),
+        Some("ThinkBook 14 G8+ IPH")
+    );
+    assert_eq!(
+        identity.product.identifying_number.as_deref(),
+        Some("PRODUCT-SERIAL")
+    );
+    assert_eq!(identity.motherboard.product.as_deref(), Some("LNVNB161216"));
+    assert_eq!(
+        identity.motherboard.version.as_deref(),
+        Some("SDK0T76577 WIN")
+    );
+    // `Win32_BIOS.Version` ("LENOVO - 1") is kept as delivered but is not the
+    // reported firmware version.
+    assert_eq!(identity.bios.version.as_deref(), Some("LENOVO - 1"));
+    assert_eq!(identity.bios.smbios_bios_version.as_deref(), Some("SWCN22WW"));
+    assert_eq!(
+        identity.bios.release_date.as_deref(),
+        Some("20260715000000.000000+000")
+    );
+    assert_eq!(identity.bios.embedded_controller_version().as_deref(), Some("1.22"));
+    assert!(!identity.is_empty());
+}
+
+#[test]
+fn identity_capture_without_provider_records_stays_empty() {
+    let identity = WindowsInventory::new(FakeWmi::default())
+        .capture_identity()
+        .unwrap();
+
+    assert!(identity.is_empty());
+    assert_eq!(identity.bios.embedded_controller_version(), None);
+}
+
+#[test]
+fn embedded_controller_version_requires_both_provider_fields() {
+    let major_only = BiosInventory {
+        embedded_controller_major_version: Some(1),
+        ..BiosInventory::default()
+    };
+    assert_eq!(major_only.embedded_controller_version(), None);
+
+    let complete = BiosInventory {
+        embedded_controller_major_version: Some(1),
+        embedded_controller_minor_version: Some(22),
+        ..BiosInventory::default()
+    };
+    assert_eq!(complete.embedded_controller_version().as_deref(), Some("1.22"));
 }

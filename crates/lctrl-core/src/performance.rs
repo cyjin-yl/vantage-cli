@@ -147,6 +147,289 @@ pub struct ItsPowerSlider {
     pub fan_mode: Option<u32>,
 }
 
+/// Decoded read-only view of the dispatcher's `Policy_*` `PowerSlider` values.
+///
+/// Every field is `None` when the value is absent from the key. The packing
+/// and clamping rules are reimplementations of the exact code in
+/// `LNVDispatcherService.exe` (see `docs/evidence/re-its-policy-20261105.md`);
+/// a value the binary does not decode stays raw instead of being named, and a
+/// value that does not decode cleanly is reported through [`ItsPolicy::issues`]
+/// rather than being dropped or shortened.
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize)]
+pub struct ItsPolicy {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plx_set_mode: Option<ItsPlxSetMode>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fan_speed_address: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ap_min_std_fan: Option<ItsApMinStdFan>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub turbo_value: Option<ItsTurboValue>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub turbo_time: Option<ItsTurboTime>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub epp_turbo: Option<ItsEppTurbo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub power_bucket: Option<ItsSlotTable>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cppc: Option<ItsSlotTable>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cfqc: Option<ItsSlotTable>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cfqc1: Option<ItsSlotTable>,
+    /// Values that could not be decoded, with the raw source kept verbatim.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub issues: Vec<ItsPolicyIssue>,
+}
+
+/// One `Policy_*` value the decode refused to interpret.
+///
+/// `raw` carries the value exactly as published (the `REG_SZ` text for a
+/// table) so nothing is lost when the decode cannot be trusted; it is `None`
+/// when the value itself could not be read.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct ItsPolicyIssue {
+    pub value: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub raw: Option<String>,
+    pub detail: String,
+}
+
+impl ItsPolicyIssue {
+    /// A value was read but does not match the packing the dispatcher implies.
+    #[must_use]
+    pub fn unparsed(value: &str, raw: impl Into<String>, detail: impl Into<String>) -> Self {
+        Self {
+            value: value.to_owned(),
+            raw: Some(raw.into()),
+            detail: detail.into(),
+        }
+    }
+
+    /// A value could not be read at all.
+    #[must_use]
+    pub fn unreadable(value: &str, detail: impl Into<String>) -> Self {
+        Self {
+            value: value.to_owned(),
+            raw: None,
+            detail: detail.into(),
+        }
+    }
+}
+
+/// `Policy_PLxSetMode`: one 32-bit value carrying two 16-bit lanes.
+///
+/// The lane is selected by AC line state: the dispatcher reads
+/// `GetSystemPowerStatus`'s `ACLineStatus` byte and takes the low half on AC,
+/// the high half on DC. Each lane picks which write procedure applies the PLx
+/// limits; the member names inside the vendor union are not published by the
+/// binary, so the lanes stay `ac`/`dc` with the raw value beside them.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+pub struct ItsPlxSetMode {
+    pub raw: u32,
+    /// Low 16 bits of the value — the lane the dispatcher uses on AC.
+    pub ac: u16,
+    /// High 16 bits of the value — the lane the dispatcher uses on DC.
+    pub dc: u16,
+}
+
+impl ItsPlxSetMode {
+    #[must_use]
+    pub const fn from_raw(raw: u32) -> Self {
+        Self {
+            raw,
+            ac: (raw & 0xffff) as u16,
+            dc: (raw >> 16) as u16,
+        }
+    }
+}
+
+/// `Policy_APMinSTDFan` (enable) plus its `_GPU`/`_CPU` thresholds.
+///
+/// The dispatcher reads each threshold as a `REG_DWORD`, keeps values up to
+/// 100 and replaces anything larger with 50; a failed read of the enable value
+/// skips both thresholds, so `enable` is what makes the record present.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+pub struct ItsApMinStdFan {
+    /// Low byte of the `Policy_APMinSTDFan` DWORD; the binary only tests it.
+    pub enable: bool,
+    pub gpu_threshold_pct: u8,
+    pub cpu_threshold_pct: u8,
+}
+
+impl ItsApMinStdFan {
+    /// Highest threshold the dispatcher accepts (`cmp $0x64`).
+    pub const MAX_THRESHOLD_PCT: u32 = 100;
+    /// Value substituted when a stored threshold is above the maximum.
+    pub const DEFAULT_THRESHOLD_PCT: u32 = 50;
+
+    /// Apply the dispatcher's own clamp to one stored threshold.
+    #[must_use]
+    pub const fn clamp_threshold(raw: u32) -> u8 {
+        if raw <= Self::MAX_THRESHOLD_PCT {
+            raw as u8
+        } else {
+            Self::DEFAULT_THRESHOLD_PCT as u8
+        }
+    }
+
+    #[must_use]
+    pub const fn from_raws(enable: u32, gpu: u32, cpu: u32) -> Self {
+        Self {
+            enable: enable & 0xff != 0,
+            gpu_threshold_pct: Self::clamp_threshold(gpu),
+            cpu_threshold_pct: Self::clamp_threshold(cpu),
+        }
+    }
+}
+
+/// `Policy_TurboValue`: the turbo EPP value.
+///
+/// The dispatcher compares the value against `0xff` and logs
+/// `_Policy_TurboValue_Union.TurboValue == uDefaultEPP` when it matches, so
+/// `0xff` means "use the default EPP" rather than a usable EPP step. The
+/// dispatcher seeds the field with 10 before reading the registry.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+pub struct ItsTurboValue {
+    pub raw: u32,
+    /// `true` when the value is the `uDefaultEPP` sentinel (`0xff`).
+    pub default_epp: bool,
+}
+
+impl ItsTurboValue {
+    pub const DEFAULT_EPP: u32 = 0xff;
+    /// Value the dispatcher writes into the field before reading the registry.
+    pub const SEED: u32 = 10;
+
+    #[must_use]
+    pub const fn from_raw(raw: u32) -> Self {
+        Self {
+            raw,
+            default_epp: raw == Self::DEFAULT_EPP,
+        }
+    }
+}
+
+/// `Policy_TurboTime`: four packed bytes (`_Policy_TurboParam_UnionValue`).
+///
+/// The dispatcher seeds the field with bytes `{3, 3, 3, 5}` before reading.
+/// Only two lanes are consumed by the binary: `turbo_time` is compared against
+/// `Policy_EPPTurbo` bits 16..24 (the larger of the two wins) and `byte0` feeds
+/// a maximum tracker. `byte1`/`byte3` have no reader, so they stay raw.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+pub struct ItsTurboTime {
+    pub raw: u32,
+    pub byte0: u8,
+    pub byte1: u8,
+    /// Turbo time; the dispatcher uses `max(this, Policy_EPPTurbo bits 16..24)`.
+    pub turbo_time: u8,
+    pub byte3: u8,
+}
+
+impl ItsTurboTime {
+    #[must_use]
+    pub const fn from_raw(raw: u32) -> Self {
+        Self {
+            raw,
+            byte0: (raw & 0xff) as u8,
+            byte1: ((raw >> 8) & 0xff) as u8,
+            turbo_time: ((raw >> 16) & 0xff) as u8,
+            byte3: ((raw >> 24) & 0xff) as u8,
+        }
+    }
+}
+
+/// `Policy_EPPTurbo`: packed turbo/EPP fields.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+pub struct ItsEppTurbo {
+    pub raw: u32,
+    /// Bits 24..28; the dispatcher compares this nibble against 5 and 1.
+    pub mode_nibble: u8,
+    /// Bits 16..24; the same quantity as [`ItsTurboTime::turbo_time`].
+    pub turbo_time: u8,
+    /// Bit 28; when set the dispatcher logs "not turbo to APM".
+    pub not_turbo_to_apm: bool,
+}
+
+impl ItsEppTurbo {
+    #[must_use]
+    pub const fn from_raw(raw: u32) -> Self {
+        Self {
+            raw,
+            mode_nibble: ((raw >> 24) & 0xf) as u8,
+            turbo_time: ((raw >> 16) & 0xff) as u8,
+            not_turbo_to_apm: (raw >> 28) & 1 != 0,
+        }
+    }
+}
+
+/// One dispatcher curve table read from a `REG_SZ` value such as
+/// `0:15;10:30;25:45;`.
+///
+/// The dispatcher does not index by the number before the colon: its reader
+/// scans the string for decimal numbers and stores them in order into a fixed
+/// array, so the `x:y;` text flattens to `[x0, y0, x1, y1, …]`. The tables are
+/// opaque firmware curves — this type reports the slots and pairs verbatim and
+/// assigns no physical meaning to a position.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct ItsSlotTable {
+    /// The value exactly as published.
+    pub source: String,
+    /// Number of slots the dispatcher's array holds for this value.
+    pub capacity: usize,
+    pub slots: Vec<u32>,
+}
+
+impl ItsSlotTable {
+    /// Flatten `source` into exactly `capacity` slots.
+    ///
+    /// A value whose number count differs from what the dispatcher's reader
+    /// can hold is refused (with the counts in the message) instead of being
+    /// truncated or padded into a shorter table.
+    pub fn parse(source: &str, capacity: usize) -> std::result::Result<Self, String> {
+        let slots = decimal_fields(source);
+        if slots.len() != capacity {
+            return Err(format!(
+                "expected {capacity} slot value(s), value holds {}",
+                slots.len()
+            ));
+        }
+        Ok(Self {
+            source: source.to_owned(),
+            capacity,
+            slots,
+        })
+    }
+
+    /// The `(x, y)` pairs the number run encodes.
+    #[must_use]
+    pub fn pairs(&self) -> Vec<(u32, u32)> {
+        self.slots
+            .chunks_exact(2)
+            .map(|pair| (pair[0], pair[1]))
+            .collect()
+    }
+}
+
+/// Decimal runs in `source`, saturating at `u32::MAX` so an oversized value
+/// cannot wrap into a plausible number.
+fn decimal_fields(source: &str) -> Vec<u32> {
+    let mut values = Vec::new();
+    let mut current: Option<u64> = None;
+    for byte in source.bytes() {
+        if byte.is_ascii_digit() {
+            let next = current.unwrap_or(0) * 10 + u64::from(byte - b'0');
+            current = Some(next.min(u64::from(u32::MAX)));
+        } else if let Some(value) = current.take() {
+            values.push(value as u32);
+        }
+    }
+    if let Some(value) = current {
+        values.push(value as u32);
+    }
+    values
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize)]
 pub struct FanId(u32);
 
@@ -367,6 +650,12 @@ pub enum TemperatureLocation {
 pub enum TemperatureSource {
     WmiGamezone,
     WmiFanMetadata,
+    /// Intel ESIF / Dynamic Tuning participant readback
+    /// (`root\WMI EsifDeviceInformation`). The class publishes one
+    /// `Temperature` per participant instance and no participant name, so the
+    /// sensor identity is the provider instance name and the physical location
+    /// stays unknown (docs/evidence/re-thermal-20261105.md).
+    WmiEsif,
     WindowsBatteryClass,
     Acpi,
     Sysfs,
@@ -415,4 +704,57 @@ impl DbdcProfile {
             && self.ros_power_mw.len() == self.counts as usize
             && self.threshold_pct.len() == self.counts as usize
     }
+}
+
+/// GPU overclock support reported by `LENOVO_GAMEZONE_DATA.IsSupportGpuOC`
+/// (docs/01 §2.6, docs/03 §5.4).
+///
+/// Lenovo's `Is*` probes answer through `Data`: `1` means the feature exists,
+/// `0` means it does not (`ReturnValue` only reports that the provider ran).
+/// Recovered and confirmed on 21VG: `ReturnValue=True, Data=0`, with no
+/// instance of either OC parameter class, see
+/// `evidence/re-gpu-oc-20261105.md`.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct GpuOcStatus {
+    /// True only when the firmware answers `Data = 1`.
+    pub supported: bool,
+    /// The probe answer exactly as returned, so a caller can audit the decode.
+    pub probe: GpuOcSupportProbe,
+    /// OC parameter block, present only when the firmware instantiates
+    /// `LENOVO_GAMEZONE_GPU_OC_DATA`.
+    pub parameter: Option<GpuOcParameter>,
+    /// Why the parameter block is absent (the provider verdict verbatim).
+    pub parameter_error: Option<String>,
+}
+
+/// One `Is*` support probe call.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct GpuOcSupportProbe {
+    /// Fully qualified method name, e.g. `LENOVO_GAMEZONE_DATA.IsSupportGpuOC`.
+    pub method: String,
+    /// The WMI `ReturnValue`: the provider executed the method.
+    pub return_value: bool,
+    /// The WMI `Data` answer: `1` supported, `0` absent.
+    pub data: u32,
+}
+
+/// One `LENOVO_GAMEZONE_GPU_OC_DATA` row, property names verbatim.
+///
+/// The class declares these properties and nothing here assigns a unit or a
+/// physical meaning to them: the vendor consumer feeds the same numbers to
+/// NVAPI clock offsets, which is not established for the WMI field. Values are
+/// reported as the firmware publishes them.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct GpuOcParameter {
+    pub capability: u32,
+    pub clock_id: u32,
+    pub default_value: u32,
+    pub interval: u32,
+    pub no_oc_order_id: u32,
+    pub oc_max_offset: u32,
+    pub oc_min_offset: u32,
+    pub oc_offset_freq: u32,
+    pub oc_offset_scale: u32,
+    pub oc_order_id: u32,
+    pub pstate_id: u32,
 }

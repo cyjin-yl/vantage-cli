@@ -123,7 +123,23 @@ where
         Ok(())
     }
 
-    /// Temporary charge-mode status word (docs/02 §5 bit contract).
+    /// Temporary charge-mode support probe (`0x83102148`/`0x13`).
+    ///
+    /// `CChargingMode::DoesSupportTemporaryMode` (RVA `0xa250`) treats the
+    /// feature as present/active only when the reply has bit0 set and any of
+    /// bits 1..2 set; the native getter returns "no mode" without a status
+    /// query otherwise.
+    pub fn temporary_charge_probe(&self) -> Result<u32> {
+        let output = self.transport.call(
+            IOCTL_TEMP_CHARGE,
+            &TempChargeSelector::SUPPORT_PROBE.encode(),
+            4,
+        )?;
+        TempChargeSelector::decode_word(&output)
+    }
+
+    /// Temporary charge-mode status word (`0x83102148`/`0x11`). Bit0 is the
+    /// validity flag; the mode is `(reply >> 4) & 0x07ff_ffff`.
     pub fn temporary_charge_status(&self) -> Result<u32> {
         let output =
             self.transport

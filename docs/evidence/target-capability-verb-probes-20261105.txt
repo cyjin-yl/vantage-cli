@@ -1,0 +1,361 @@
+# Live verb probes — tb14p-ezra (21VG), 2026-11-06
+# binary: C:\Users\ezra\vantage-target\debug\vantage.exe 1.0.0, built 2026-11-05 14:23
+# NOTE: this binary predates several rows added on 2026-11-05/06; see the audit doc §1.
+
+$ vantage --json info
+{"features":{"audio.dolby":{"availability":"available"},"audio.noise-cancel":{"availability":"available"},"battery.adapter":{"availability":"available"},"battery.charge_mode":{"availability":"available"},"battery.info":{"availability":"available"},"battery.night-charge":{"availability":"available"},"battery.status":{"availability":"available"},"battery.temporary-mode":{"availability":"available"},"battery.thresholds":{"availability":"unavailable","detail":"target firmware has no verified arbitrary-threshold write channel"},"bios":{"availability":"available"},"bios.defaults":{"availability":"available"},"bios.discard":{"availability":"available"},"bios.password.status":{"availability":"available"},"bios.password.verify":{"availability":"available"},"bios.staging.contract":{"availability":"available"},"channel.audio":{"availability":"available"},"channel.battery":{"availability":"available"},"channel.bios":{"availability":"available","detail":"Lenovo_BiosSetting readable; staging-buffer writes contract-verified"},"channel.diagnostics":{"availability":"available"},"channel.dolby":{"availability":"available"},"channel.elevoc":{"availability":"available"},"channel.energy_driver":{"availability":"available"},"channel.fan":{"availability":"available"},"channel.hotkey":{"availability":"available","detail":"RegisterHotKey path; registration is session-gated at command time"},"channel.hpd-rpc":{"availability":"available"},"channel.machinefix":{"availability":"available","detail":"local
+…[truncated by evidence collector]
+
+$ vantage --json doctor
+{"checks":[{"channel":"hal.hardware_info","detail":"read succeeded","operational":true},{"channel":"hal.capabilities","detail":"read succeeded","operational":true},{"channel":"control.conflicts","detail":"competing controller(s): LenovoMagiCenterDetector.exe, LenovoPcManagerService.exe, LenovoVantage-(GenericMessagingAddin).exe, LenovoVantage-(GenericTelemetryAddin).exe, LenovoVantage-(LenovoMachineFixSystemAddin).exe, LenovoVantage-(LenovoServiceBridgeAddin).exe, LenovoVantage-(SmartDisplayAddin).exe, LenovoVantage-(SmartInteractAddin).exe, LenovoVantage-(SmartScenarioAddin).exe, LenovoVantage-(VantageCoreAddin).exe, LenovoVantageService.exe","operational":false},{"channel":"battery.device","detail":"read succeeded","operational":true},{"channel":"battery.os","detail":"read succeeded","operational":true},{"channel":"battery.electrical","detail":"read succeeded","operational":true},{"channel":"battery.system_power","detail":"read succeeded","operational":true},{"channel":"bios.settings","detail":"read succeeded","operational":true},{"channel":"diagnostics.inventory","detail":"read succeeded","operational":true},{"channel":"fan.mode","detail":"read succeeded","operational":true},{"channel":"keyboard.backlight","detail":"ROOT\\WMI query: WMI HRESULT 0x8004100C","operational":false},{"channel":"touchpad.state","detail":"read succeeded","operational":true},{"channel":"panel.refresh","detail":"read succeeded","operational":true},{"channel":"perf.temp","detail":"read succeeded","op
+…[truncated by evidence collector]
+
+$ vantage --json battery status
+{"adapter":{"ac_connected":null,"authentication":"inbox","connector_type":null,"has_detail":false,"status":null,"wattage_w":null},"adapter_error":null,"charge_mode":"rapid","charge_mode_error":null,"device_error":null,"device_telemetry":{"charge_completion_time_min":null,"charge_status":null,"chemistry":"Lion","current_ma":null,"cycle_count":null,"design_capacity_mwh":99900,"design_voltage_mv":15600,"firmware_version":null,"first_used_date":null,"full_charge_capacity_mwh":93060,"health":null,"life_percent":null,"manufacture_date":null,"manufacturer":"Sunwoda","model_name":null,"remaining_capacity_mwh":73990,"remaining_percent":null,"remaining_time_min":null,"serial_number":"W1LX5CN0294","source_issues":[],"temperature_deci_kelvin":null,"voltage_mv":null,"wattage_w":null},"electrical":{"power_state":1,"rate_mw":0,"source_issues":[],"temperature_deci_kelvin":null,"voltage_mv":16830},"electrical_error":null,"os_battery":{"capacity_ratio_percent":93,"charging":false,"critical":false,"cycle_count":233,"design_capacity_mwh":99900,"discharging":false,"estimated_runtime_min":null,"full_charge_capacity_mwh":93060,"power_online":true,"remaining_capacity_mwh":73990,"remaining_percent":79,"source_issues":[],"voltage_mv":16828},"os_error":null,"source_association":"unverified","system_power":{"ac_line_status":true,"battery_flag":1,"battery_full_life_time":null,"battery_life_percent":80,"battery_life_time":null},"system_power_error":null}
+EXIT=0 
+
+$ vantage --json battery health
+{"error":{"kind":"invalid_argument","message":"invalid argument: error: unrecognized subcommand 'health'\n\n  tip: some similar subcommands exist: 'watch', 'help'\n\nUsage: vantage.exe battery [OPTIONS] [COMMAND]\n\nFor more information, try '--help'.\n","detail":"error: unrecognized subcommand 'health'\n\n  tip: some similar subcommands exist: 'watch', 'help'\n\nUsage: vantage.exe battery [OPTIONS] [COMMAND]\n\nFor more information, try '--help'.\n"}}
+EXIT=2 
+
+$ vantage --json battery adapter
+{"source_association":"unverified","system_power":{"ac_line_status":true,"battery_flag":1,"battery_full_life_time":null,"battery_life_percent":80,"battery_life_time":null},"system_power_error":null,"vendor_adapter":{"ac_connected":null,"authentication":"inbox","connector_type":null,"has_detail":false,"status":null,"wattage_w":null},"vendor_adapter_error":null}
+EXIT=0 
+
+$ vantage --json battery temporary-mode
+{"dynamic_lifespan":false,"permanent":true,"plug_in":false,"raw":1}
+EXIT=0 
+
+$ vantage --json power
+{"error":{"kind":"unsupported","message":"feature is unsupported: power: a power subcommand is required","feature":"power: a power subcommand is required"}}
+EXIT=3 
+
+$ vantage --json power scheme list
+[{"active":true,"id":"381b4222-f694-41f0-9685-ff5bb260df2e","name":"平衡"}]
+EXIT=0 
+
+$ vantage --json perf fan status
+{"fans":[{"id":1,"max_rpm":5100,"min_rpm":2100}],"mode":{"unknown":4},"mode_error":null}
+EXIT=0 
+
+$ vantage --json perf temp
+[{"metadata":{"availability":"available","id":"acpi/ACPI\\ThermalZone\\TZ00_0","location":"unknown","name":"ACPI thermal zone (ACPI\\ThermalZone\\TZ00_0)","source":"acpi"},"value_c":46.04999923706055},{"metadata":{"availability":"unavailable","id":"windows-battery-class/temperature","location":"battery","name":"Windows battery class temperature (unassociated)","source":"windows_battery_class"},"value_c":null}]
+EXIT=0 
+
+$ vantage --json perf dbdc get
+{"counts":3,"current_limit_ma":[7500,5000,4500],"ros_power_mw":[0,0,0],"threshold_pct":[100,40,20]}
+EXIT=0 
+
+$ vantage --json perf policy
+{"error":{"kind":"invalid_argument","message":"invalid argument: error: unrecognized subcommand 'policy'\n\nUsage: vantage.exe perf [OPTIONS] [COMMAND]\n\nFor more information, try '--help'.\n","detail":"error: unrecognized subcommand 'policy'\n\nUsage: vantage.exe perf [OPTIONS] [COMMAND]\n\nFor more information, try '--help'.\n"}}
+EXIT=2 
+
+$ vantage --json perf gpu status
+{"error":{"kind":"invalid_argument","message":"invalid argument: error: unrecognized subcommand 'gpu'\n\nUsage: vantage.exe perf [OPTIONS] [COMMAND]\n\nFor more information, try '--help'.\n","detail":"error: unrecognized subcommand 'gpu'\n\nUsage: vantage.exe perf [OPTIONS] [COMMAND]\n\nFor more information, try '--help'.\n"}}
+EXIT=2 
+
+$ vantage --json perf top
+{"processes":[{"identity":{"creation_time_100ns":134382029814831614,"pid":9024},"image_name":"WmiPrvSE.exe","image_path":"C:\\Windows\\System32\\wbem\\WmiPrvSE.exe","interval_cpu_time_100ns":1562500,"interval_wall_time_100ns":1727456,"total_cpu_time_100ns":350785000000,"working_set_bytes":61554688},{"identity":{"creation_time_100ns":134383783197785970,"pid":78588},"image_name":"powershell.exe","image_path":"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe","interval_cpu_time_100ns":1406250,"interval_wall_time_100ns":1727456,"total_cpu_time_100ns":515937500,"working_set_bytes":89346048},{"identity":{"creation_time_100ns":134382029872145987,"pid":15636},"image_name":"svchost.exe","image_path":"C:\\Windows\\System32\\svchost.exe","interval_cpu_time_100ns":1250000,"interval_wall_time_100ns":1727456,"total_cpu_time_100ns":11450625000,"working_set_bytes":138047488},{"identity":{"creation_time_100ns":134382029793269252,"pid":2240},"image_name":"dwm.exe","image_path":"C:\\Windows\\System32\\dwm.exe","interval_cpu_time_100ns":937500,"interval_wall_time_100ns":1727456,"total_cpu_time_100ns":399067968750,"working_set_bytes":426287104},{"identity":{"creation_time_100ns":134383783770383374,"pid":76180},"image_name":"powershell.exe","image_path":"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe","interval_cpu_time_100ns":937500,"interval_wall_time_100ns":1727456,"total_cpu_time_100ns":6562500,"working_set_bytes":106434560},{"identity":{"creation_time_100ns":1343
+…[truncated by evidence collector]
+
+$ vantage --json tune profile list
+[{"constraints":{"battery_only":null,"fan_rpm_max":null,"min_dwell_s":null,"temp_max_c":null},"description":null,"fallback":{"max_reapply":null,"on_conflict":null,"on_temp_exceed":{"Profile":"silent-library"}},"goal":{"background":null,"backlight":null,"charge_mode":"conservation","dgpu":"igp-priority","ec_mode":"power_save","epp":"balance_power","fan_mode":"smart","panel_hz":{"Hz":60},"pl1_w":12,"pl2_w":20,"tau_s":28,"turbo":true},"name":"long-battery","origin":"builtin","priority":50,"triggers":["OnBattery",{"BatteryBelow":{"percent":30}}]},{"constraints":{"battery_only":null,"fan_rpm_max":null,"min_dwell_s":null,"temp_max_c":80},"description":null,"fallback":{"max_reapply":null,"on_conflict":null,"on_temp_exceed":"RestoreFactory"},"goal":{"background":{"priority":"low","workset_trim":true},"backlight":1,"charge_mode":"conservation","dgpu":null,"ec_mode":"power_save","epp":"balance_power","fan_mode":"smart","panel_hz":{"Hz":60},"pl1_w":9,"pl2_w":15,"tau_s":28,"turbo":false},"name":"silent-library","origin":"builtin","priority":60,"triggers":[{"TimeRange":{"from_minutes":480,"to_minutes":1320}}]},{"constraints":{"battery_only":null,"fan_rpm_max":null,"min_dwell_s":null,"temp_max_c":null},"description":null,"fallback":{"max_reapply":null,"on_conflict":null,"on_temp_exceed":null},"goal":{"background":null,"backlight":null,"charge_mode":null,"dgpu":null,"ec_mode":"smart","epp":"balance_performance","fan_mode":"smart","panel_hz":"Adaptive","pl1_w":null,"pl2_w":null,"tau_s":null,
+…[truncated by evidence collector]
+
+$ vantage --json tune telemetry
+{"battery_electrical":[{"power_state":1,"rate_mw":0,"source_issues":[],"temperature_deci_kelvin":null,"voltage_mv":16828},null],"device_battery":[{"charge_completion_time_min":null,"charge_status":null,"chemistry":"Lion","current_ma":null,"cycle_count":null,"design_capacity_mwh":99900,"design_voltage_mv":15600,"firmware_version":null,"first_used_date":null,"full_charge_capacity_mwh":93060,"health":null,"life_percent":null,"manufacture_date":null,"manufacturer":"Sunwoda","model_name":null,"remaining_capacity_mwh":73990,"remaining_percent":null,"remaining_time_min":null,"serial_number":"W1LX5CN0294","source_issues":[],"temperature_deci_kelvin":null,"voltage_mv":null,"wattage_w":null},null],"epp":[127,null],"os_battery":[{"capacity_ratio_percent":93,"charging":false,"critical":false,"cycle_count":233,"design_capacity_mwh":99900,"discharging":false,"estimated_runtime_min":null,"full_charge_capacity_mwh":93060,"power_online":true,"remaining_capacity_mwh":73990,"remaining_percent":79,"source_issues":[],"voltage_mv":16827},null],"performance":[{"active":"performance","automatic":true,"capabilities":{"raw":0},"its":{"automatic_mode_setting":7,"current_setting":3,"current_setting_v":3,"fan_mode":4,"fn_capability":4122,"hw_capability":16},"requested":"performance","version":"v3"},null],"pl1_uw":[null,{"error":{"feature":"tune.pl1","kind":"unsupported","message":"feature is unsupported: tune.pl1"}}],"pl2_uw":[null,{"error":{"feature":"tune.pl2","kind":"unsupported","message":"feature is
+…[truncated by evidence collector]
+
+$ vantage --json panel brightness
+{"current_percent":100,"supported_levels":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100]}
+EXIT=0 
+
+$ vantage --json privacy status
+{"bios":[{"name":"IntegratedCamera","selections":[],"value":"Enable"},{"name":"Microphone","selections":[],"value":"Enable"},{"name":"FingerprintReader","selections":[],"value":"Enable"}],"runtime_camera":"enabled","runtime_microphone":"enabled"}
+EXIT=0 
+
+$ vantage --json privacy cam status
+{"error":{"kind":"invalid_argument","message":"invalid argument: error: invalid value 'status' for '<STATE>'\n  [possible values: on, off]\n\nFor more information, try '--help'.\n","detail":"error: invalid value 'status' for '<STATE>'\n  [possible values: on, off]\n\nFor more information, try '--help'.\n"}}
+EXIT=2 
+
+$ vantage --json sense status
+{"advertised":2047,"approach_auto_adjust":true,"approach_distance":"near","camera_assist":true,"capability":1,"facial_feature_registered":true,"leave_auto_adjust":true,"leave_distance":"near","leave_wait":"short","lock_on_leave":true,"pause_video":false,"privacy_alert":true,"sensor_type":2,"source":"hpd-rpc","wake_on_approach":true}
+EXIT=0 
+
+$ vantage --json bios list
+[{"name":"WakeOnLan","selections":["Disabled","AC Only","AC and Battery"],"value":"Disabled"},{"name":"MacAddressPassThrough","selections":["Enable","Disable"],"value":"Disable"},{"name":"WakeOnLanFromDock","selections":["Enable","Disable"],"value":"Disable"},{"name":"LenovoCloudServices","selections":["Enable","Disable"],"value":"Disable"},{"name":"ReinstallWindowsFromCloud","selections":["Enable","Disable"],"value":"Disable"},{"name":"WirelessLAN","selections":["Enable","Disable"],"value":"Enable"},{"name":"Intel(R)VirtualizationTechnology","selections":["Enable","Disable"],"value":"Enable"},{"name":"Intel(R)VT-dFeature","selections":["Enable","Disable"],"value":"Enable"},{"name":"SecureRollbackPrevention","selections":["Enable","Disable"],"value":"Enable"},{"name":"HotkeyMode","selections":["Enable","Disable"],"value":"Disable"},{"name":"FoolProofFnCtrl","selections":["Enable","Disable"],"value":"Enable"},{"name":"AlwaysOnUSB","selections":["Enable","Disable"],"value":"Enable"},{"name":"ChargeInBatteryMode","selections":["Enable","Disable"],"value":"Enable"},{"name":"FlipToStart","selections":["Enable","Disable"],"value":"Enable"},{"name":"BiosSelfHealing","selections":["Enable","Disable"],"value":"Enable"},{"name":"SetStrongPassword","selections":["Enable","Disable"],"value":"Disable"},{"name":"EnhancedWindowsBiometricSecurity","selections":["Enable","Disable"],"value":"Enable"},{"name":"IntelPlatformTrustTechnology","selections":["Enable","Disable"],"value":"Enable"},{"n
+…[truncated by evidence collector]
+
+$ vantage --json bios password status
+{"max_length":128,"min_length":1,"password_mode":1,"password_state":0,"supervisor_set":false,"supported_encodings":1,"supported_keyboard":1}
+EXIT=0 
+
+$ vantage --json magicbay detect
+{"acpi_devices":[],"devices":[]}
+EXIT=0 
+
+$ vantage --json magicbay lte status
+{"error":{"kind":"unsupported","message":"feature is unsupported: magicbay.lte: standard MBIM/UVC/DRM control is not attached","feature":"magicbay.lte: standard MBIM/UVC/DRM control is not attached"}}
+EXIT=3 
+
+$ vantage --json magicbay cam
+{"error":{"kind":"unsupported","message":"feature is unsupported: magicbay.cam: standard MBIM/UVC/DRM control is not attached","feature":"magicbay.cam: standard MBIM/UVC/DRM control is not attached"}}
+EXIT=3 
+
+$ vantage --json magicbay display
+{"error":{"kind":"unsupported","message":"feature is unsupported: magicbay.display: standard MBIM/UVC/DRM control is not attached","feature":"magicbay.display: standard MBIM/UVC/DRM control is not attached"}}
+EXIT=3 
+
+$ vantage --json hotkey list
+{"registered":[]}
+EXIT=0 
+
+$ vantage --json hotkey status
+{"error":{"kind":"invalid_argument","message":"invalid argument: error: unrecognized subcommand 'status'\n\nUsage: vantage.exe hotkey [OPTIONS] [COMMAND]\n\nFor more information, try '--help'.\n","detail":"error: unrecognized subcommand 'status'\n\nUsage: vantage.exe hotkey [OPTIONS] [COMMAND]\n\nFor more information, try '--help'.\n"}}
+EXIT=2 
+
+$ vantage --json update check
+{"last_sync":"2026-10-05T20:02:25+08:00","packages":[{"download_url":"https://api.cnno1.uds.lenovo.com/core/application-management/lcp/apis/v1/apps/6a97f4d2f47a14e5fc33adb5/download","file_hash":"36a0b068a6fc5056fe4d5f980a003f560e2f453125b53745ccceb5aada85cf22","handler":"","name":"Lenovo MagiCenter","package_type":"app","size_bytes":372035368,"update_type":"critical","version":"2.0.5.501"},{"download_url":"https://api.cnno1.uds.lenovo.com/core/application-management/lcp/apis/v1/apps/6ab4eafec5421a2f6c7726a4/download","file_hash":"a29c99bad09ebe05d48d6c4f5b7c549686364d38850e314ef843a899ba506d29","handler":"","name":"Lenovo Smart Meeting","package_type":"app","size_bytes":645367201,"update_type":"critical","version":"4.2.0.0908"},{"download_url":"https://api.cnno1.uds.lenovo.com/core/application-management/lcp/apis/v1/apps/6abb913e3deb9a38af1df689/download","file_hash":"0bfe7a161d69308fdcce5c5d2fb3a33f8744810078d52378ef01015736c0adad","handler":"default","manifest_url":"https://api.cnno1.uds.lenovo.com/core/application-management/lcp/apis/v1/apps/6abb913e3deb9a38af1df689/manifest","name":"lip-plugin","package_type":"system-image","size_bytes":14047235,"update_type":"normal","version":"1.3.0.6"}],"stale":false}
+EXIT=0 
+
+$ vantage --json update history
+{"error":{"kind":"unsupported","message":"feature is unsupported: update.history.without-catalog","feature":"update.history.without-catalog"}}
+EXIT=3 
+
+$ vantage --json scan list
+["battery","thermal","storage","memory","firmware","network"]
+EXIT=0 
+
+$ vantage --json scan run
+[{"detail":"Win32_Battery Status, BatteryStatus and EstimatedChargeRemaining evaluated; charge percentage has no invented health threshold; proprietary deep battery tests are unavailable","kind":"battery","measurements":[{"name":"Status","value":"OK"},{"name":"BatteryStatus","value":2},{"name":"EstimatedChargeRemaining","unit":"percent","value":79}],"outcome":"passed","source":"WMI ROOT\\CIMV2 Win32_Battery"},{"detail":"MSAcpi_ThermalZoneTemperature CurrentTemperature compared with the source CriticalTripPoint (tenths Kelvin converted to degC); no thermal stress test was run","kind":"thermal","measurements":[{"name":"CurrentTemperature","unit":"degC","value":46.05000000000001}],"outcome":"passed","source":"WMI ROOT\\WMI MSAcpi_ThermalZoneTemperature","threshold":{"comparison":"at_or_above","name":"CriticalTripPoint","unit":"degC","value":105.05000000000001}},{"detail":"Win32_DiskDrive Status evaluated; SMART diagnostics are unavailable and were not claimed or run; inventory presence alone is not health","kind":"storage","measurements":[{"name":"Model","value":"UMIS UPJYJ1TBMNV1QWY"},{"name":"Size","unit":"bytes","value":1024203640320},{"name":"Status","value":"OK"}],"outcome":"warning","reason":{"deep_test_unavailable":{"test":"SMART"}},"source":"WMI ROOT\\CIMV2 Win32_DiskDrive"},{"detail":"Win32_PhysicalMemory Status evaluated; destructive memory stress is unavailable and was not run; capacity/inventory alone is not health","kind":"memory","measurements":[{"name":"Capacity[0
+…[truncated by evidence collector]
+
+$ vantage --json wifi security
+{"interfaces":[{"connection_state":"connected","description":"Intel(R) Wi-Fi 7 BE213 160MHz","interface_name":"WLAN","live_network":{"assessment":{"finding":"safe","reason":"wpa2_ccmp"},"authentication":"WPA2-Enterprise","bssid":null,"channel":36,"cipher":"CCMP","profile_name":"BUAA-Mobile","signal_percent":78,"ssid":"BUAA-Mobile"},"observed_at_unix_ms":1793904782800,"state":"connected"}],"saved_profiles":[{"assessment":{"finding":"safe","reason":"wpa2_ccmp"},"authentication":"WPA2-Enterprise","cipher":"CCMP","interface_name":"WLAN","name":"BUAA-Mobile","profile_type":"All User Profile"},{"assessment":{"finding":"safe","reason":"wpa2_ccmp"},"authentication":"WPA2-Personal","cipher":"CCMP","interface_name":"WLAN","name":"ezra-budget","profile_type":"All User Profile"},{"assessment":{"finding":"safe","reason":"wpa2_ccmp"},"authentication":"WPA2-Personal","cipher":"CCMP","interface_name":"WLAN","name":"ezra","profile_type":"All User Profile"},{"assessment":{"finding":"safe","reason":"wpa2_ccmp"},"authentication":"WPA2-Personal","cipher":"CCMP","interface_name":"WLAN","name":"ezra-onsite","profile_type":"All User Profile"},{"assessment":{"finding":"safe","reason":"wpa2_ccmp"},"authentication":"WPA2-Personal","cipher":"CCMP","interface_name":"WLAN","name":"AGI Bar","profile_type":"All User Profile"},{"assessment":{"finding":"safe","reason":"wpa2_ccmp"},"authentication":"WPA2-Personal","cipher":"CCMP","interface_name":"WLAN","name":"407-3","profile_type":"All User Profile"},{"asses
+…[truncated by evidence collector]
+
+$ vantage --json fix rules
+{"error":{"kind":"invalid_argument","message":"invalid argument: error: unrecognized subcommand 'rules'\n\nUsage: vantage.exe fix [OPTIONS] [COMMAND]\n\nFor more information, try '--help'.\n","detail":"error: unrecognized subcommand 'rules'\n\nUsage: vantage.exe fix [OPTIONS] [COMMAND]\n\nFor more information, try '--help'.\n"}}
+EXIT=2 
+
+$ vantage --json fix scan
+[{"issue":{"detail":"Detects service wuauserv in the stopped state; the repair starts it and reads back the running state. Rollback stops it again.","id":"service.stopped.wuauserv","title":"Windows Update Agent is stopped"},"observed":"service wuauserv state = 1 (4 = running, 1 = stopped)","present":true},{"issue":{"detail":"Detects service SysMain in the stopped state; the repair starts it and reads back the running state. Rollback stops it again.","id":"service.stopped.SysMain","title":"Superfetch (SysMain) is stopped"},"observed":"service SysMain state = 4 (4 = running, 1 = stopped)","present":false}]
+EXIT=0 
+
+$ vantage --json scene list
+{"rules":[{"action":{"kind":"set_performance_mode","mode":"performance"},"event_class":"LENOVO_GAMEZONE_START_EVENT","id":"scene.gamezone.performance","rollback":{"kind":"set_performance_mode","mode":"balanced"},"title":"Game Zone → Performance"},{"action":{"kind":"set_fan_mode","mode":"performance"},"event_class":"LENOVO_GAMEZONE_SMART_FAN_MODE_EVENT","id":"scene.gamezone.fan.fullspeed","rollback":{"kind":"set_fan_mode","mode":"standard"},"title":"Game Zone → Full-speed fan"},{"action":{"kind":"set_performance_mode","mode":"quiet"},"event_class":"LENOVO_AI_SCENARIO_TYPE_EVENT","id":"scene.aidemo.power.silent","rollback":{"kind":"set_performance_mode","mode":"balanced"},"title":"AI Demo → Silent power"},{"action":{"hz":120,"kind":"set_panel_refresh"},"event_class":"LENOVO_GAMEZONE_START_EVENT","id":"scene.panel.high-refresh","rollback":{"hz":60,"kind":"set_panel_refresh"},"title":"High-refresh panel scene"}]}
+EXIT=0 
+
+$ vantage --json touchpad status
+{"actual":"enabled"}
+EXIT=0 
+
+$ vantage --json daemon status
+{"error":{"kind":"channel_unavailable","message":"channel is unavailable: vantage daemon IPC: 系统找不到指定的文件。 (os error 2)","channel":"vantage daemon IPC: 系统找不到指定的文件。 (os error 2)"}}
+EXIT=4 
+
+$ vantage --json snapshot diff
+{"baseline":{"backlight":null,"charge_mode":"rapid","epp":127,"errors":{"backlight":"ROOT\\WMI query: WMI HRESULT 0x8004100C","fan_mode":"feature is unsupported: LENOVO_GAMEZONE_DATA.GetSmartFanMode","performance_mode":"channel is unavailable: PowerSlider registry value [67, 85, 82, 82, 69, 78, 84, 95, 83, 69, 84, 84, 73, 78, 71, 0]","pl1_uw":"feature is unsupported: tune.pl1","pl2_uw":"feature is unsupported: tune.pl2","tau_us":"feature is unsupported: tune.tau"},"fan_mode":null,"hardware":{"bios_version":"SWCN22WW","family":"ThinkBook 14 G8+ IPH","product_name":"21VG"},"performance_mode":null,"pl1_uw":null,"pl2_uw":null,"platform":"windows","power_scheme":"381b4222-f694-41f0-9685-ff5bb260df2e","runtime_camera":"enabled","tau_us":null,"touchpad":"enabled","version":1},"changed":["performance_mode","fan_mode","errors"],"current":{"backlight":null,"charge_mode":"rapid","epp":127,"errors":{"backlight":"ROOT\\WMI query: WMI HRESULT 0x8004100C","pl1_uw":"feature is unsupported: tune.pl1","pl2_uw":"feature is unsupported: tune.pl2","tau_us":"feature is unsupported: tune.tau"},"fan_mode":"unknown (4)","hardware":{"bios_version":"SWCN22WW","family":"ThinkBook 14 G8+ IPH","product_name":"21VG"},"performance_mode":"performance","pl1_uw":null,"pl2_uw":null,"platform":"windows","power_scheme":"381b4222-f694-41f0-9685-ff5bb260df2e","runtime_camera":"enabled","tau_us":null,"touchpad":"enabled","version":1},"equal":false}
+EXIT=0 
+
+$ vantage --json perf temp (bare)
+[{"metadata":{"availability":"available","id":"acpi/ACPI\\ThermalZone\\TZ00_0","location":"unknown","name":"ACPI thermal zone (ACPI\\ThermalZone\\TZ00_0)","source":"acpi"},"value_c":46.04999923706055},{"metadata":{"availability":"unavailable","id":"windows-battery-class/temperature","location":"battery","name":"Windows battery class temperature (unassociated)","source":"windows_battery_class"},"value_c":null}]
+EXIT=0 
+
+$ vantage --json battery (bare)
+{"adapter":{"ac_connected":null,"authentication":"inbox","connector_type":null,"has_detail":false,"status":null,"wattage_w":null},"adapter_error":null,"charge_mode":"rapid","charge_mode_error":null,"device_error":null,"device_telemetry":{"charge_completion_time_min":null,"charge_status":null,"chemistry":"Lion","current_ma":null,"cycle_count":null,"design_capacity_mwh":99900,"design_voltage_mv":15600,"firmware_version":null,"first_used_date":null,"full_charge_capacity_mwh":93060,"health":null,"life_percent":null,"manufacture_date":null,"manufacturer":"Sunwoda","model_name":null,"remaining_capacity_mwh":73990,"remaining_percent":null,"remaining_time_min":null,"serial_number":"W1LX5CN0294","source_issues":[],"temperature_deci_kelvin":null,"voltage_mv":null,"wattage_w":null},"electrical":{"power_state":1,"rate_mw":0,"source_issues":[],"temperature_deci_kelvin":null,"voltage_mv":16828},"electrical_error":null,"os_battery":{"capacity_ratio_percent":93,"charging":false,"critical":false,"cycle_count":233,"design_capacity_mwh":99900,"discharging":false,"estimated_runtime_min":null,"full_charge_capacity_mwh":93060,"power_online":true,"remaining_capacity_mwh":73990,"remaining_percent":79,"source_issues":[],"voltage_mv":16828},"os_error":null,"source_association":"unverified","system_power":{"ac_line_status":true,"battery_flag":1,"battery_full_life_time":null,"battery_life_percent":80,"battery_life_time":null},"system_power_error":null}
+EXIT=0 
+
+$ vantage --json wifi history
+{"entries":[],"policy":{"capacity":32,"persistence":"memory_only","retain_ssid":false}}
+EXIT=0 
+
+$ [direct channel probe] batt.txt
+﻿=== battery static data ===
+BatteryStaticData ERR 常规故障 
+
+
+InstanceName        : ACPI\PNP0C0A\1_0
+FullChargedCapacity : 93060
+
+$ [direct channel probe] fan.txt
+﻿=== fan ITS ===
+ITS_FanMode=4 ITS_CurrentSetting=3 ITS_AutomaticModeSetting=7
+
+$ [direct channel probe] gpu.txt
+﻿=== GAMEZONE GPU OC ===
+IsSupportGpuOC ERR Method invocation failed because [System.Management.ManagementClass] does not contain a method named 'IsSupportGpuOC'.
+GetGPUPower ERR Method invocation failed because [System.Management.ManagementClass] does not contain a method named 'GetGPUPower'.
+
+$ [direct channel probe] kbd.txt
+﻿=== kbd lighting / fn package ===
+LENOVO_LIGHTING_DATA class OK
+
+
+Name      : LenovoFnAndFunctionKeys
+Status    : Running
+StartType : Automatic
+
+$ [direct channel probe] policy.txt
+﻿=== PowerSlider policy ===
+
+
+Enable                    : 1
+Policy_ACDC               : 0
+Policy_Override           : 3
+Policy_DisablePLx         : 1
+Policy_FNSyncPowerMode    : 1
+Policy_ModernITS          : 1
+Policy_NotifyBIOS         : 1
+Policy_SWOEMV             : 3
+Policy_DisablePPMCtrl     : 0
+Policy_NamedPipe          : 1
+ITS_CurrentSetting        : 3
+ITS_SE_AutoModeCapability : 5
+ITS_SE_CurrentScenario    : 0
+Policy_PLxSetMode         : 65537
+BSMTConSpaceOFF           : 0
+Policy_Send2ServOption    : 1
+Policy_TurboTime          : 134744072
+AIGC_Priority             : 2
+ITS_60nits                : 40
+ITS_AutomaticModeSetting  : 7
+ITS_CurrentSettingV       : 3
+ITS_FanMode               : 4
+ITS_FN_Capability         : 4122
+ITS_HW_Capability         : 16
+ITS_SE_Scenario_0         : 0
+ITS_SE_Scenario_1         : 0
+ITS_SE_Scenario_2         : 0
+ITS_SE_Scenario_3         : 0
+ITS_SE_Scenario_4         : 0
+ITS_SE_Scenario_5         : 0
+ITS_SE_Scenario_6         : 0
+ITS_SE_VantageSetting     : 1
+ITS_UserNits              : 100
+Policy_ACDCTag            : 1
+Policy_AIEngine           : 0
+Policy_BenchWA            : 33346
+Policy_BSMSetBright       : 0
+Policy_CFQC               : 0:20;0:20;0:25;0:25;0:25;0:35;0:35;0:50;
+Policy_CFQC1              : 0:20;0:25;0:25;0:25;0:25;0:45;0:60;0:60;
+Policy_CPPC               : 50:80;50:72;50:72;40:60;40:50;40:50;30:50;30:50
+Policy_DGPUAPI            : 1
+Policy_DisableDCTurbo     : 1
+Policy_DispatcherFunc     : 86037777
+Policy_DynamicPLx         : 12
+Policy_EnableFunc         : 1049920
+Policy_EnableSAGV         : 1
+Policy_EPPTurbo           : 352472927
+Policy_GPUOCStatus        : 0
+Policy_Mouse              : 1
+Policy_NotRuninAC         : 16777473
+Policy_PerformanceFunc    : 257
+Policy_PowerBucket        : 0:15;10:30;25:45;38:50;40:70;60:80;70:100;
+Policy_SEWork             : 0
+Policy_SMBOption          : 65793
+Policy_Special_ZwFile     : 1
+Policy_ThermalMode        : 0
+Policy_TurboValue         : 20
+PowerSlider               : 1
+Version                   : 8193
+Project_Version           : 109
+ITS_SE_HWCapability       : 48
+PSPath                    : Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\LenovoProcessManagement\Performance\PowerSlider
+PSParentPath              : Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\LenovoProcessManagement\Performance
+PSChildName               : PowerSlider
+PSDrive                   : HKLM
+PSProvider                : Microsoft.PowerShell.Core\Registry
+
+
+
+
+AIGC_Priority
+BSMTConSpaceOFF
+Enable
+ITS_60nits
+ITS_AutomaticModeSetting
+ITS_CurrentSetting
+ITS_CurrentSettingV
+ITS_FanMode
+ITS_FN_Capability
+ITS_HW_Capability
+ITS_SE_AutoModeCapability
+ITS_SE_CurrentScenario
+ITS_SE_HWCapability
+ITS_SE_Scenario_0
+ITS_SE_Scenario_1
+ITS_SE_Scenario_2
+ITS_SE_Scenario_3
+ITS_SE_Scenario_4
+ITS_SE_Scenario_5
+ITS_SE_Scenario_6
+ITS_SE_VantageSetting
+ITS_UserNits
+Policy_ACDC
+Policy_ACDCTag
+Policy_AIEngine
+Policy_BenchWA
+Policy_BSMSetBright
+Policy_CFQC
+Policy_CFQC1
+Policy_CPPC
+Policy_DGPUAPI
+Policy_DisableDCTurbo
+Policy_DisablePLx
+Policy_DisablePPMCtrl
+Policy_DispatcherFunc
+Policy_DynamicPLx
+Policy_EnableFunc
+Policy_EnableSAGV
+Policy_EPPTurbo
+Policy_FNSyncPowerMode
+Policy_GPUOCStatus
+Policy_ModernITS
+Policy_Mouse
+Policy_NamedPipe
+Policy_NotifyBIOS
+Policy_NotRuninAC
+Policy_Override
+Policy_PerformanceFunc
+Policy_PLxSetMode
+Policy_PowerBucket
+Policy_Send2ServOption
+Policy_SEWork
+Policy_SMBOption
+Policy_Special_ZwFile
+Policy_SWOEMV
+Policy_ThermalMode
+Policy_TurboTime
+Policy_TurboValue
+PowerSlider
+Project_Version
+Version
+
+$ [direct channel probe] radio.txt
+﻿=== radio ===
+MbnInterface ERR 无效类 
+
+
+Name                       : WLAN
+InterfaceDescription       : Intel(R) Wi-Fi 7 BE213 160MHz
+InterfaceOperationalStatus : 1
+
+Name                       : WLAN 4
+InterfaceDescription       : Intel(R) Wi-Fi 7 BE213 160MHz
+InterfaceOperationalStatus : 6
+
+Name                       : WLAN 5
+InterfaceDescription       : Intel(R) Wi-Fi 7 BE213 160MHz
+InterfaceOperationalStatus : 6
+
+Name                       : 蓝牙网络连接 2
+InterfaceDescription       : Bluetooth Device (Personal Area Network) #2
+InterfaceOperationalStatus : 2
+
+$ [direct channel probe] update.txt
+﻿=== update ledgers ===
+EXISTS C:\ProgramData\Lenovo\Vantage\AddinData\LenovoSystemUpdateAddin\session\editable_update_history.db size=12288
+EXISTS C:\ProgramData\Lenovo\Vantage\AddinData\LenovoSystemUpdateAddin\session\update_history.db size=12288
+UDC key present
+

@@ -127,7 +127,14 @@ impl SenseWait {
 /// independent store has never persisted the value; absence is never
 /// synthesized as false. RPC booleans are 0/1; the legacy registry/pipe
 /// camera/video convention is 1=enable/2=disable. Both are normalized here.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize)]
+///
+/// This is a **snapshot**, not a token: it is `Clone` but deliberately not
+/// `Copy`. `interface_version_error` carries the live op-4 failure detail as
+/// an owned string (an optional diagnostic read must not invalidate the
+/// presence/approach/video snapshot), and buying `Copy` back would mean
+/// discarding that detail. Pass it by reference or clone at an explicit
+/// boundary instead of reintroducing `Copy`.
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize)]
 pub struct SenseState {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lock_on_leave: Option<bool>,
@@ -177,6 +184,24 @@ pub struct SenseState {
     /// value was unexpected.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub advertised: Option<u64>,
+    /// HPD interface version from wire op 4 (`GetVersion`) when the snapshot
+    /// came from the live RPC channel.
+    ///
+    /// This is real read data, not the driver file version: the 21VG server
+    /// returns the constant `2`, and the vendor client uses it to choose the
+    /// V1 (`< 2`) or V2 settings getter and the `VideoAutoPauseResume`
+    /// version (`< 1` = V0). The registry store cannot supply it, so it is
+    /// absent there rather than synthesized.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interface_version: Option<u32>,
+    /// Why `interface_version` is absent on an otherwise live RPC read.
+    ///
+    /// Op 4 is an optional diagnostic read: its failure must not discard the
+    /// presence/approach/video settings that ops 5 and 6 returned. The
+    /// primary snapshot stays valid and the version stays absent, with the
+    /// error retained here instead of being swallowed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interface_version_error: Option<String>,
 }
 
 impl std::fmt::Display for SenseState {
@@ -199,6 +224,11 @@ impl std::fmt::Display for SenseState {
             self.leave_auto_adjust
                 .map_or("unknown", |v| if v { "on" } else { "off" }),
         )?;
+        if let Some(version) = self.interface_version {
+            write!(f, " hpd-version={version}")?;
+        } else if self.interface_version_error.is_some() {
+            write!(f, " hpd-version=unavailable")?;
+        }
         if let Some(source) = self.source {
             write!(f, " source={source}")?;
         }

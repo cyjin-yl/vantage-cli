@@ -467,3 +467,69 @@ pub struct UpdateCheckReport {
     /// Packages whose applicability filter matches this machine.
     pub packages: Vec<CatalogPackage>,
 }
+
+/// Which of the machine's own update ledgers a [`UpdateHistoryReport`] came
+/// from. Both are the Lenovo System Update add-in's local SQLite state; the
+/// install-event ledger records what was installed, the status ledger records
+/// the outcome of catalogue reconciliation per package.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UpdateHistoryLedger {
+    /// `editable_update_history.db`: one row per recorded install, with the
+    /// install time, reboot class and payload CRC the add-in wrote.
+    InstallEvents,
+    /// `update_history.db`: one row per evaluated package (status/version
+    /// only, no install timestamp).
+    PackageStatus,
+}
+
+/// One recorded update entry from the machine's own update ledger.
+///
+/// Named `Record` rather than `Entry` because `lctrl_core::UpdateHistoryEntry`
+/// is already the CLI-owned local policy history record.
+///
+/// Fields are whatever the ledger actually stores: absent columns stay
+/// `None` rather than being replaced with a guessed value, and the install
+/// time is only reported when the ledger carries a real timestamp.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct UpdateHistoryRecord {
+    /// Ledger package identifier (GUID for UDC packages, catalogue id for the
+    /// legacy TVSU packages).
+    pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    pub status: String,
+    /// UTC install time as RFC 3339. The install-event ledger stores .NET
+    /// `DateTime` ticks (100 ns since 0001-01-01); the status ledger leaves it
+    /// empty, in which case this stays `None`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub installed_at: Option<String>,
+    /// Package release date as the ledger stores it (`YYYY-MM-DD`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub released_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub severity: Option<String>,
+    /// Reboot class the ledger recorded for the install (e.g.
+    /// `NoRebootRequired`, `RebootDelayed`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reboot: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size_bytes: Option<u64>,
+    /// SHA-256 the ledger recorded for the installed payload.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub crc: Option<String>,
+}
+
+/// The installed-update history this machine recorded, read from its own
+/// ledger. Read-only: nothing here writes, reorders, or prunes the ledger.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct UpdateHistoryReport {
+    pub ledger: UpdateHistoryLedger,
+    /// Absolute path of the ledger that produced `entries`.
+    pub source: String,
+    /// Newest install first for the install-event ledger; by package name for
+    /// the status ledger, which has no timestamps to sort on.
+    pub entries: Vec<UpdateHistoryRecord>,
+}

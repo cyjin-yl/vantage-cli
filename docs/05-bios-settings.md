@@ -211,6 +211,20 @@ LENOVO_GAMEZONE_DATA.IsBIOSSupportOC / SetBIOSOC / GetBIOSOCMode       — BIOS 
 - **`Lenovo_BiosSetting` 每实例对应一个 BIOS 项**：`CurrentSetting` 是一行 `Name,Value` 文本，Empty 表示该项留空（本机 ISET_5/7/8/9/10 为空）。
 - 方法类（Set/Save/Discard/LoadDefault/GetSelections/SetFunctionRequest/SetBiosPassword）在采集中同样呈现为多个实例，但**官方组件一律取第一个实例**（`GetInstanceName` 返回 `SELECT * FROM <Class>` 的首行 `InstanceName`），把项名放在 `parameter`/`Item` 参数里。实现者照此办理即可（以 `SELECT * FROM Lenovo_SetBiosSetting` 首实例为调用目标）。
 
+**Provider 身份（2026-11-05 复核，`docs/evidence/re-bios-config-20261105.md`）**
+
+- 提供者是 **Microsoft WMI-ACPI mapper**：类限定符 `provider=WMIProv`、
+  `GUID={51F5230E-9677-46cd-A1CF-C0B23EE34DB7}`，实例挂在 ACPI 设备
+  `ACPI\PNP0C14\ISET` 上；`wbem\wmiprov.dll` 负责转发到 ACPI 控制方法。
+- 本机**不存在** `root\Lenovo` 命名空间、`LenovoBiosConfig`/`Lenovo_BiosConfig`
+  类、`LenovoBiosConfig` 字符串或任何联想 WMI provider 注册。社区/工具里出现的
+  `LenovoBiosWmiInterface` 是 `Lenovo.Vantage.ConfigService.dll` 的内部接口名，
+  不是 WMI 类；真正消费这些类的组件是
+  `LenovoProductivitySystemAddin.dll` 的 `WmiAgent`。
+- `LENOVO_REPORT_DIRECT_BIOS_DATA`（`Name`/`Min_Value`/`Max_Value`/`Step`/
+  `Option_name[]`/`Option_value[]`/`Setup_ID`/`DependOnID` 等）在本机**0 实例**，
+  不能作为具名设置读取的后端。
+
 ### 2.2 方法调用协议（CIM）
 
 官方调用骨架（官方组件行为，逐字节可对照）：
@@ -309,6 +323,13 @@ ret    = outPar.GetPropertyValue("return").ToString()     # "Success" | 错误�
 3. （可选增强）对每个 name 调 Lenovo_GetBiosSelections.GetBiosSelections(name)
    得到该项目的合法值列表, 一并展示
 ```
+
+> 实现（2026-11-05）：`vantage bios get <name>` 与 `bios list` 现在返回同一种
+> `BiosItem`——`name`/`value` 来自 `CurrentSetting` 镜像，`selections` 来自
+> `Lenovo_GetBiosSelections`。单次读取此前只填 `name`/`value`，`selections`
+> 恒为空，与 `list` 及 CLI 契约测试的 `FakeBios` 不一致；见
+> `docs/evidence/re-bios-config-20261105.md` §5。`GetBiosSelections` 失败的项
+> 与 `list` 一样保留为可读项（空值域），不升级为整体失败。
 
 健壮性细节（官方组件行为）：
 

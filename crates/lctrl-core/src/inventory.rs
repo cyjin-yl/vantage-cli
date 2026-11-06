@@ -52,6 +52,24 @@ pub struct BiosInventory {
     pub embedded_controller_minor_version: Option<u8>,
 }
 
+impl BiosInventory {
+    /// Embedded-controller firmware version as `major.minor`.
+    ///
+    /// Both fields come from the SMBIOS Type 0 embedded-controller firmware
+    /// revision; the value is only reported when the provider exposes both, so
+    /// a half-read revision is never rendered as a version.
+    #[must_use]
+    pub fn embedded_controller_version(&self) -> Option<String> {
+        match (
+            self.embedded_controller_major_version,
+            self.embedded_controller_minor_version,
+        ) {
+            (Some(major), Some(minor)) => Some(format!("{major}.{minor}")),
+            _ => None,
+        }
+    }
+}
+
 /// Processor identity and fixed topology read from `Win32_Processor`.
 #[derive(Clone, Debug, Default, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct CpuInventory {
@@ -148,6 +166,35 @@ pub struct InventorySnapshot {
     pub disks: Vec<DiskInventory>,
     pub network_adapters: Vec<NetworkAdapterInventory>,
     pub firmware: Vec<FirmwareInventory>,
+}
+
+/// The bounded identity subset that `vantage info` reports.
+///
+/// These are the same [`InventorySnapshot`] modules, restricted to the three
+/// that carry model, serial, and firmware identity. Each value keeps the
+/// provider property names it came from, so a reader can tell the machine type
+/// model (SMBIOS Product Name: `product.name`, mirrored by
+/// `product.model` from `Win32_ComputerSystem.Model`) from the marketing
+/// product version (`product.version` from `Win32_ComputerSystemProduct.Version`)
+/// and from the baseboard's internal product id (`motherboard.product`).
+///
+/// An absent provider module yields an all-`None` record rather than a
+/// synthesized value; [`SystemIdentity::is_empty`] reports that case.
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize)]
+pub struct SystemIdentity {
+    pub product: ProductInventory,
+    pub motherboard: MotherboardInventory,
+    pub bios: BiosInventory,
+}
+
+impl SystemIdentity {
+    /// Whether every identity module is absent.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.product == ProductInventory::default()
+            && self.motherboard == MotherboardInventory::default()
+            && self.bios == BiosInventory::default()
+    }
 }
 
 /// A stable, typed field identifier used by inventory comparisons.

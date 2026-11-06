@@ -12,6 +12,7 @@ use windows_sys::Win32::{
 use crate::{
     IOCTL_BATTERY_CONFIG, IOCTL_BATTERY_DETAIL, IOCTL_EM_SPEC_VERSION, IOCTL_GAPD, IOCTL_GBMD,
     IOCTL_GENERIC_GET, IOCTL_NIGHT_CHARGE, IOCTL_TEMP_CHARGE, IOCTL_USB_CHARGER, IoctlTransport,
+    kbd_backlight::{IOCTL_VPC_KBLC, kblc_argument_writes},
     map_win_error,
 };
 
@@ -97,6 +98,23 @@ fn validate_request(code: u32, input: &[u8]) -> Result<bool> {
             }),
             _ => Err(LctrlError::InvalidArgument {
                 detail: "EnergyDrv USB charger requires exactly one input byte".into(),
+            }),
+        },
+        IOCTL_VPC_KBLC => match <[u8; 4]>::try_from(input) {
+            // The ACPI `KBLC` method multiplexes query/get/set through the low
+            // nibble of its single 32-bit argument; only `set` needs write
+            // access to the device (docs/evidence/re-kbd-backlight-20261105.md).
+            Ok(bytes) => {
+                let argument = u32::from_le_bytes(bytes);
+                match kblc_argument_writes(argument) {
+                    Some(write) => Ok(write),
+                    None => Err(LctrlError::Unsupported {
+                        feature: format!("EnergyDrv VPC KBLC argument 0x{argument:08x}"),
+                    }),
+                }
+            }
+            Err(_) => Err(LctrlError::InvalidArgument {
+                detail: "EnergyDrv VPC KBLC requires exactly one 32-bit argument".into(),
             }),
         },
         _ => Err(LctrlError::Unsupported {

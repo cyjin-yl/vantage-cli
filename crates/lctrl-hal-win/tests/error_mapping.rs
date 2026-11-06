@@ -62,7 +62,33 @@ fn missing_wmi_class_marks_feature_unsupported() {
 
 #[test]
 fn wmi_not_supported_marks_feature_unsupported() {
-    let error = map_wmi_hresult(0x8004_1001_u32 as i32, "kbd.backlight.method");
+    let error = map_wmi_hresult(0x8004_100C_u32 as i32, "kbd.backlight.method");
+
+    assert_error_kind(&error, 3, "unsupported");
+}
+
+/// `0x80041001` is `WBEM_E_FAILED`, a generic provider failure. It is not a
+/// firmware verdict, so it must not be swallowed as "feature absent" — that
+/// would hide a real failure behind a capability downgrade.
+#[test]
+fn wmi_generic_failure_is_not_absence() {
+    let error = map_wmi_hresult(0x8004_1001_u32 as i32, "battery.static_data");
+
+    assert_error_kind(&error, 1, "io");
+    let json = serde_json::to_value(error.report()).unwrap();
+    assert!(
+        json["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("0x80041001")
+    );
+}
+
+/// A class-level ACPI-WMI invoke (`GetKeyboardLight` without its instance)
+/// answers `WBEM_E_INVALID_METHOD_PARAMETERS`; measured live on the target.
+#[test]
+fn wmi_invalid_method_parameters_is_unsupported() {
+    let error = map_wmi_hresult(0x8004_102F_u32 as i32, "keyboard.light");
 
     assert_error_kind(&error, 3, "unsupported");
 }

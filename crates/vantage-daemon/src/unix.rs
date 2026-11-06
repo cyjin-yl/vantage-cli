@@ -13,7 +13,7 @@ use lctrl_core::{LctrlError, Result};
 
 use crate::{
     DaemonEvent, DaemonRequest, DaemonResponse, DaemonStatus, MAX_EVENTS, PROTOCOL_VERSION,
-    protocol_error, started_at_unix_ms,
+    StatusProbe, VERSION, protocol_error, started_at_unix_ms,
 };
 
 pub fn default_endpoint() -> PathBuf {
@@ -23,6 +23,66 @@ pub fn default_endpoint() -> PathBuf {
             std::env::var_os("XDG_RUNTIME_DIR").map(|root| PathBuf::from(root).join("vantage.sock"))
         })
         .unwrap_or_else(|| PathBuf::from("/run/vantage.sock"))
+}
+
+/// The endpoint a status probe or request would use, rendered for humans.
+#[must_use]
+pub fn endpoint_text() -> String {
+    default_endpoint().display().to_string()
+}
+
+/// One status exchange that keeps "no daemon" and "broken endpoint" apart.
+#[must_use]
+pub fn probe() -> StatusProbe {
+    probe_at(&default_endpoint())
+}
+
+/// [`probe`] against an explicit socket path, for tests and alternate roots.
+#[must_use]
+pub fn probe_at(endpoint: &Path) -> StatusProbe {
+    let stream = match UnixStream::connect(endpoint) {
+        Ok(stream) => stream,
+        Err(error) if is_absence(&error) => {
+            return StatusProbe::Absent {
+                detail: format!("connect {}: {error}", endpoint.display()),
+            };
+        }
+        Err(error) => {
+            return StatusProbe::Fault {
+                detail: format!("connect {}: {error}", endpoint.display()),
+            };
+        }
+    };
+    match exchange(stream, &DaemonRequest::Status) {
+        Ok(response) if response.ok => match response.data {
+            Some(data) => match serde_json::from_value::<DaemonStatus>(data) {
+                Ok(status) => StatusProbe::Running(status),
+                Err(error) => StatusProbe::Fault {
+                    detail: format!("invalid status response: {error}"),
+                },
+            },
+            None => StatusProbe::Fault {
+                detail: "status response carried no payload".into(),
+            },
+        },
+        Ok(response) => StatusProbe::Fault {
+            detail: response
+                .error
+                .unwrap_or_else(|| "daemon rejected the status request".into()),
+        },
+        Err(error) => StatusProbe::Fault {
+            detail: error.to_string(),
+        },
+    }
+}
+
+/// A socket file that does not exist or a socket without a listener means the
+/// daemon is simply not running; any other connect failure is a real fault.
+fn is_absence(error: &std::io::Error) -> bool {
+    matches!(
+        error.kind(),
+        std::io::ErrorKind::NotFound | std::io::ErrorKind::ConnectionRefused
+    )
 }
 
 pub fn run(events: Receiver<DaemonEvent>) -> Result<()> {
@@ -87,6 +147,7 @@ pub fn run_at(endpoint: &Path, events: Receiver<DaemonEvent>) -> Result<()> {
             };
             let status = || DaemonStatus {
                 protocol_version: PROTOCOL_VERSION,
+                version: VERSION.to_string(),
                 pid: std::process::id(),
                 started_at_unix_ms,
                 subscribers: subscribers.len(),
@@ -129,8 +190,12 @@ pub fn request(request: &DaemonRequest) -> Result<DaemonResponse> {
 }
 
 pub fn request_at(endpoint: &Path, request: &DaemonRequest) -> Result<DaemonResponse> {
-    let mut stream = UnixStream::connect(endpoint)
+    let stream = UnixStream::connect(endpoint)
         .map_err(|error| protocol_error(format!("connect {}: {error}", endpoint.display())))?;
+    exchange(stream, request)
+}
+
+fn exchange(mut stream: UnixStream, request: &DaemonRequest) -> Result<DaemonResponse> {
     verify_peer(&stream)?;
     write_line(&mut stream, request)?;
     let mut response = String::new();

@@ -13,8 +13,11 @@ pub struct CommandId(&'static str);
 impl CommandId {
     pub const INFO: Self = Self("info");
     pub const DOCTOR: Self = Self("doctor");
+    pub const CPU_STATUS: Self = Self("cpu.status");
+    pub const EVENTS_LOG: Self = Self("events.log");
 
     pub const BATTERY_STATUS: Self = Self("battery.status");
+    pub const BATTERY_HEALTH: Self = Self("battery.health");
     pub const BATTERY_ADAPTER: Self = Self("battery.adapter");
     pub const BATTERY_CHARGE_MODE: Self = Self("battery.charge-mode");
     pub const BATTERY_THRESHOLDS: Self = Self("battery.thresholds");
@@ -25,6 +28,7 @@ impl CommandId {
 
     pub const USB_ALWAYS_ON: Self = Self("usb.always-on");
     pub const USB_CHARGE_ON_BATTERY: Self = Self("usb.charge-on-battery");
+    pub const USB_PORTS: Self = Self("usb.ports");
 
     pub const POWER_SCHEME_ACTIVE: Self = Self("power.scheme");
     pub const POWER_SCHEME_LIST: Self = Self("power.scheme.list");
@@ -33,6 +37,8 @@ impl CommandId {
     pub const POWER_SCHEME_APPLY: Self = Self("power.scheme.apply");
     pub const POWER_SCHEME_SET: Self = Self("power.scheme.set");
     pub const POWER_SAVER_ONCE: Self = Self("power.saver-once");
+    pub const POWER_AC: Self = Self("power.ac");
+    pub const POWER_DRAW: Self = Self("power.draw");
 
     pub const PERF_MODE: Self = Self("perf.mode");
     pub const PERF_FAN_STATUS: Self = Self("perf.fan.status");
@@ -47,6 +53,8 @@ impl CommandId {
     pub const PERF_PL1: Self = Self("perf.pl1");
     pub const PERF_PL2: Self = Self("perf.pl2");
     pub const PERF_DBDC_GET: Self = Self("perf.dbdc.get");
+    pub const PERF_GPU_STATUS: Self = Self("perf.gpu.status");
+    pub const PERF_POLICY: Self = Self("perf.policy");
     pub const PERF_TOP: Self = Self("perf.top");
     pub const PERF_BOOST: Self = Self("perf.boost");
     pub const PERF_THROTTLE: Self = Self("perf.throttle");
@@ -68,14 +76,18 @@ impl CommandId {
     pub const TOUCHPAD: Self = Self("touchpad");
     pub const TOUCHPAD_STATUS: Self = Self("touchpad.status");
     pub const TOUCHPAD_RECOVER: Self = Self("touchpad.recover");
+    pub const TOUCHPAD_CAPS: Self = Self("touchpad.caps");
 
     pub const PANEL_RATE: Self = Self("panel.rate");
+    pub const PANEL_INFO: Self = Self("panel.info");
     pub const PANEL_BRIGHTNESS_STATUS: Self = Self("panel.brightness.status");
     pub const PANEL_BRIGHTNESS_SET: Self = Self("panel.brightness.set");
     pub const PANEL_COLOR: Self = Self("panel.color");
     pub const PANEL_SUPER_RESOLUTION: Self = Self("panel.super-resolution");
     pub const PANEL_OVERDRIVE: Self = Self("panel.overdrive");
     pub const PANEL_EYE_CARE: Self = Self("panel.eye-care");
+
+    pub const DISPLAY_STATUS: Self = Self("display.status");
 
     pub const PRIVACY_CAM: Self = Self("privacy.cam");
     pub const PRIVACY_MIC: Self = Self("privacy.mic");
@@ -95,6 +107,9 @@ impl CommandId {
 
     pub const AUDIO_DOLBY: Self = Self("audio.dolby");
     pub const AUDIO_NOISE_CANCEL: Self = Self("audio.noise-cancel");
+    pub const AUDIO_ENDPOINTS: Self = Self("audio.endpoints");
+    pub const AUDIO_VOLUME: Self = Self("audio.volume");
+    pub const AUDIO_MUTE: Self = Self("audio.mute");
 
     pub const BIOS_LIST: Self = Self("bios.list");
     pub const BIOS_GET: Self = Self("bios.get");
@@ -106,6 +121,8 @@ impl CommandId {
     pub const BIOS_PASSWORD_SET: Self = Self("bios.password.set");
     pub const BIOS_PASSWORD_CLEAR: Self = Self("bios.password.clear");
     pub const BIOS_PASSWORD_VERIFY: Self = Self("bios.password.verify");
+
+    pub const FIRMWARE_STATUS: Self = Self("firmware.status");
 
     pub const MAGICBAY_DETECT: Self = Self("magicbay.detect");
     pub const MAGICBAY_LTE_STATUS: Self = Self("magicbay.lte.status");
@@ -122,12 +139,14 @@ impl CommandId {
     pub const OSD_SHOW: Self = Self("osd.show");
 
     pub const HOTKEY_LIST: Self = Self("hotkey.list");
+    pub const HOTKEY_STATUS: Self = Self("hotkey.status");
     pub const HOTKEY_REGISTER: Self = Self("hotkey.register");
     pub const HOTKEY_TRIGGER: Self = Self("hotkey.trigger");
     pub const HOTKEY_UNREGISTER: Self = Self("hotkey.unregister");
 
     pub const UPDATE_CHECK: Self = Self("update.check");
     pub const UPDATE_LOCAL_INSTALL: Self = Self("update.local.install");
+    pub const UPDATE_LOCAL_PACKAGE: Self = Self("update.local.package");
     pub const UPDATE_LOCAL_ROLLBACK: Self = Self("update.local.rollback");
     pub const UPDATE_LOCAL_HISTORY: Self = Self("update.local.history");
     pub const UPDATE_LOCAL_IGNORE: Self = Self("update.local.ignore");
@@ -143,6 +162,15 @@ impl CommandId {
     pub const SCAN_RUN: Self = Self("scan.run");
 
     pub const WIFI_SECURITY: Self = Self("wifi.security");
+    pub const WIFI_STATUS: Self = Self("wifi.status");
+
+    pub const BLUETOOTH_LIST: Self = Self("bluetooth.list");
+
+    pub const SECURITY_STATUS: Self = Self("security.status");
+
+    pub const RADIO_STATUS: Self = Self("radio.status");
+    pub const RADIO_OFF: Self = Self("radio.off");
+    pub const RADIO_ON: Self = Self("radio.on");
 
     pub const FIX_RULES: Self = Self("fix.rules");
     pub const FIX_SCAN: Self = Self("fix.scan");
@@ -157,6 +185,11 @@ impl CommandId {
     pub const SNAPSHOT_DIFF: Self = Self("snapshot.diff");
     pub const SNAPSHOT_RESTORE: Self = Self("snapshot.restore");
 
+    pub const STORAGE_STATUS: Self = Self("storage.status");
+
+    pub const SENSOR_LIST: Self = Self("sensor.list");
+    pub const SENSOR_READ: Self = Self("sensor.read");
+
     pub const DAEMON_START: Self = Self("daemon.start");
     pub const DAEMON_STOP: Self = Self("daemon.stop");
     pub const DAEMON_STATUS: Self = Self("daemon.status");
@@ -168,7 +201,10 @@ impl CommandId {
     pub const ALL: &'static [Self] = &[
         Self::INFO,
         Self::DOCTOR,
+        Self::CPU_STATUS,
+        Self::EVENTS_LOG,
         Self::BATTERY_STATUS,
+        Self::BATTERY_HEALTH,
         Self::BATTERY_ADAPTER,
         Self::BATTERY_CHARGE_MODE,
         Self::BATTERY_THRESHOLDS,
@@ -178,6 +214,7 @@ impl CommandId {
         Self::BATTERY_WATCH,
         Self::USB_ALWAYS_ON,
         Self::USB_CHARGE_ON_BATTERY,
+        Self::USB_PORTS,
         Self::POWER_SCHEME_ACTIVE,
         Self::POWER_SCHEME_LIST,
         Self::POWER_SCHEME_GET,
@@ -185,6 +222,8 @@ impl CommandId {
         Self::POWER_SCHEME_APPLY,
         Self::POWER_SCHEME_SET,
         Self::POWER_SAVER_ONCE,
+        Self::POWER_AC,
+        Self::POWER_DRAW,
         Self::PERF_MODE,
         Self::PERF_FAN_STATUS,
         Self::PERF_FAN_AUTO,
@@ -198,6 +237,8 @@ impl CommandId {
         Self::PERF_PL1,
         Self::PERF_PL2,
         Self::PERF_DBDC_GET,
+        Self::PERF_GPU_STATUS,
+        Self::PERF_POLICY,
         Self::PERF_TOP,
         Self::PERF_BOOST,
         Self::PERF_THROTTLE,
@@ -217,13 +258,16 @@ impl CommandId {
         Self::TOUCHPAD,
         Self::TOUCHPAD_STATUS,
         Self::TOUCHPAD_RECOVER,
+        Self::TOUCHPAD_CAPS,
         Self::PANEL_RATE,
+        Self::PANEL_INFO,
         Self::PANEL_BRIGHTNESS_STATUS,
         Self::PANEL_BRIGHTNESS_SET,
         Self::PANEL_COLOR,
         Self::PANEL_SUPER_RESOLUTION,
         Self::PANEL_OVERDRIVE,
         Self::PANEL_EYE_CARE,
+        Self::DISPLAY_STATUS,
         Self::PRIVACY_CAM,
         Self::PRIVACY_MIC,
         Self::PRIVACY_FINGERPRINT,
@@ -240,6 +284,9 @@ impl CommandId {
         Self::SENSE_KBD_LIGHT_AUTO,
         Self::AUDIO_DOLBY,
         Self::AUDIO_NOISE_CANCEL,
+        Self::AUDIO_ENDPOINTS,
+        Self::AUDIO_VOLUME,
+        Self::AUDIO_MUTE,
         Self::BIOS_LIST,
         Self::BIOS_GET,
         Self::BIOS_SET,
@@ -250,6 +297,7 @@ impl CommandId {
         Self::BIOS_PASSWORD_SET,
         Self::BIOS_PASSWORD_CLEAR,
         Self::BIOS_PASSWORD_VERIFY,
+        Self::FIRMWARE_STATUS,
         Self::MAGICBAY_DETECT,
         Self::MAGICBAY_LTE_STATUS,
         Self::MAGICBAY_LTE_CONNECT,
@@ -263,11 +311,13 @@ impl CommandId {
         Self::OSD_TEST,
         Self::OSD_SHOW,
         Self::HOTKEY_LIST,
+        Self::HOTKEY_STATUS,
         Self::HOTKEY_REGISTER,
         Self::HOTKEY_TRIGGER,
         Self::HOTKEY_UNREGISTER,
         Self::UPDATE_CHECK,
         Self::UPDATE_LOCAL_INSTALL,
+        Self::UPDATE_LOCAL_PACKAGE,
         Self::UPDATE_LOCAL_ROLLBACK,
         Self::UPDATE_LOCAL_HISTORY,
         Self::UPDATE_LOCAL_IGNORE,
@@ -280,6 +330,13 @@ impl CommandId {
         Self::UPDATE_SCHEDULE,
         Self::SCAN_LIST,
         Self::SCAN_RUN,
+        Self::WIFI_SECURITY,
+        Self::WIFI_STATUS,
+        Self::BLUETOOTH_LIST,
+        Self::SECURITY_STATUS,
+        Self::RADIO_STATUS,
+        Self::RADIO_OFF,
+        Self::RADIO_ON,
         Self::FIX_RULES,
         Self::FIX_SCAN,
         Self::FIX_RUN,
@@ -290,6 +347,9 @@ impl CommandId {
         Self::SNAPSHOT_CAPTURE,
         Self::SNAPSHOT_DIFF,
         Self::SNAPSHOT_RESTORE,
+        Self::STORAGE_STATUS,
+        Self::SENSOR_LIST,
+        Self::SENSOR_READ,
         Self::DAEMON_START,
         Self::DAEMON_STOP,
         Self::DAEMON_STATUS,
@@ -478,14 +538,27 @@ pub enum Dependency {
     Win32WinTrust,
     Win32DisplayApi,
     Win32DeviceManagement,
+    Win32FirmwareEnvironment,
     Win32MobileBroadband,
     Win32MediaFoundation,
     Win32ProcessApi,
     Win32TaskScheduler,
     WindowsWmiEvents,
+    Win32EventLog,
     Win32DeviceNotifications,
     WindowsHpd,
     WindowsAudio,
+    /// WinRT `Windows.Devices.Radios` over the operating system radio-management plane
+    /// (`WlanRadioManager`/`WwanRadioManager`/`BthRadioManager`), plus the WLAN API's per-PHY
+    /// radio-state opcode.
+    WindowsRadioManagement,
+    /// Query-only `wlanapi.dll` interface/association/BSS reads.
+    Win32WlanApi,
+    /// `bluetoothapis.dll` radio and device enumeration (no inquiry, no pairing).
+    Win32BluetoothApi,
+    /// `SensorsApi.dll` read-only sensor enumeration and data reports
+    /// (`CLSID_SensorManager`, `IID_ISensorManager`).
+    Win32SensorApi,
     LenovoFirmwareWmi,
     LenovoVendorWmi,
     EnergyDriver,
@@ -543,14 +616,20 @@ impl Dependency {
             | Self::Win32WinTrust
             | Self::Win32DisplayApi
             | Self::Win32DeviceManagement
+            | Self::Win32FirmwareEnvironment
             | Self::Win32MobileBroadband
             | Self::Win32MediaFoundation
             | Self::Win32ProcessApi
             | Self::Win32TaskScheduler
             | Self::WindowsWmiEvents
+            | Self::Win32EventLog
             | Self::Win32DeviceNotifications
             | Self::WindowsHpd
             | Self::WindowsAudio
+            | Self::WindowsRadioManagement
+            | Self::Win32WlanApi
+            | Self::Win32BluetoothApi
+            | Self::Win32SensorApi
             | Self::LenovoFirmwareWmi
             | Self::LenovoVendorWmi
             | Self::EnergyDriver
@@ -601,14 +680,26 @@ impl Dependency {
             Self::Win32WinTrust => "Windows WinTrust signature verification",
             Self::Win32DisplayApi => "Windows display configuration/GDI",
             Self::Win32DeviceManagement => "Windows device installation and property APIs",
+            Self::Win32FirmwareEnvironment => {
+                "UEFI firmware environment variables (GetFirmwareEnvironmentVariable*)"
+            }
             Self::Win32MobileBroadband => "Windows Mobile Broadband (MBN/MBIM)",
             Self::Win32MediaFoundation => "Windows Media Foundation/UVC",
             Self::Win32ProcessApi => "Windows process and job APIs",
             Self::Win32TaskScheduler => "Windows Task Scheduler",
             Self::WindowsWmiEvents => "Windows WMI event subscription",
+            Self::Win32EventLog => "Windows event log (wevtapi)",
             Self::Win32DeviceNotifications => "Windows device-change notifications",
             Self::WindowsHpd => "Windows Human Presence Detection COM",
             Self::WindowsAudio => "Windows audio/kernel-streaming APIs",
+            Self::WindowsRadioManagement => {
+                "Windows radio management (WinRT Windows.Devices.Radios + WLAN API radio state)"
+            }
+            Self::Win32WlanApi => "Windows WLAN API (wlanapi: interfaces, association, BSS list)",
+            Self::Win32BluetoothApi => "Windows Bluetooth API (bluetoothapis device enumeration)",
+            Self::Win32SensorApi => {
+                "Windows Sensor API (SensorsApi: sensor collection and data reports)"
+            }
             Self::LenovoFirmwareWmi => "Lenovo ACPI firmware through root\\WMI",
             Self::LenovoVendorWmi => "Lenovo vendor WMI data classes (root\\WMI)",
             Self::EnergyDriver => "AcpiVpc.sys / \\\\.\\EnergyDrv",

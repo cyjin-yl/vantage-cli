@@ -6,13 +6,16 @@
 //! Disabling a device node removes its runtime PnP function from the bus; the
 //! selected instance ID is retained so the same device can be enabled again.
 
-use std::time::Duration;
+use std::{thread, time::Duration};
 
-use lctrl_core::{ApplyMode, ChangeReport, DeviceState, LctrlError, Result};
+use lctrl_core::{ApplyMode, ChangeReport, DeviceState, LctrlError, PrivacyDeviceState, Result};
 use lctrl_hal::{PrivacyControl, TouchpadControl, poll_readback};
 
 const READBACK_ATTEMPTS: usize = 10;
 const READBACK_DELAY: Duration = Duration::from_millis(50);
+/// A restarted HID collection re-enumerates before it reports a state again,
+/// so recovery polls for longer than a plain transition does.
+const RECOVERY_READBACK_ATTEMPTS: usize = 40;
 const MAX_TOUCHPAD_INPUT_LEAVES: usize = 16;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -426,11 +429,52 @@ where
         select_touchpad_group(&mouse, &hid)
     }
 
+    /// The admitted touchpad input leaves with their independently read
+    /// states. Unlike [`Self::state`] this does not collapse the group, so a
+    /// split group — the state recovery exists for — is reported as observed
+    /// instead of being refused.
+    pub fn touchpad_leaves(&self) -> Result<(Vec<RuntimeDevice>, Vec<DeviceState>)> {
+        let group = self.touchpad_group()?;
+        if group.len() < 2 {
+            return Err(LctrlError::ChannelUnavailable {
+                channel: "touchpad recovery cannot verify a mouse input collection".into(),
+            });
+        }
+        let states = self.group_states(RuntimeDeviceKind::Touchpad, &group)?;
+        Ok((group, states))
+    }
+
     /// One privacy state for the whole camera group. A group that is split
     /// between enabled and disabled devnodes has no single answer and refuses.
     pub fn camera_group_state(&self) -> Result<DeviceState> {
         let group = self.camera_group()?;
         self.group_state(RuntimeDeviceKind::Camera, &group)
+    }
+
+    /// The admitted camera devnodes with their independently read states.
+    /// Unlike [`Self::camera_group_state`] this does not collapse the group, so
+    /// a split group — and a devnode whose PnP status is neither started nor
+    /// disabled — is attributed to the instance instead of failing the read.
+    pub fn camera_devices(&self) -> Result<Vec<PrivacyDeviceState>> {
+        let group = self.camera_group()?;
+        let mut devices = Vec::with_capacity(group.len());
+        for device in group {
+            let mut node = PrivacyDeviceState {
+                instance_id: device.instance_id.clone(),
+                description: device
+                    .friendly_name
+                    .clone()
+                    .or_else(|| device.description.clone()),
+                state: None,
+                error: None,
+            };
+            match self.api.status(&device.instance_id)?.state(RuntimeDeviceKind::Camera) {
+                Ok(state) => node.state = Some(state),
+                Err(error) => node.error = Some(error.to_string()),
+            }
+            devices.push(node);
+        }
+        Ok(devices)
     }
 
     fn group_state(&self, kind: RuntimeDeviceKind, group: &[RuntimeDevice]) -> Result<DeviceState> {
@@ -591,6 +635,59 @@ where
         self.set(RuntimeDeviceKind::Microphone, state, apply)
     }
 
+    /// Restart one admitted input collection.
+    ///
+    /// The disable goes through the same runtime-only path as `touchpad off`
+    /// (no persistent flag), so a failed cycle can never leave the pad
+    /// disabled across a reboot. The restart is only counted when the disabled
+    /// state was actually observed: a silently ignored disable would otherwise
+    /// be reported as a completed restart.
+    fn cycle_input_leaf(&self, index: usize, device: &RuntimeDevice, failures: &mut Vec<String>) {
+        if let Err(error) = self
+            .api
+            .set_state(&device.instance_id, DeviceState::Disabled)
+        {
+            failures.push(format!("leaf {index} restart disable failed: {error}"));
+            return;
+        }
+        if let Err(error) = self.poll_input_leaf_state(device, DeviceState::Disabled) {
+            failures.push(format!("leaf {index} restart was not observed: {error}"));
+        }
+        if let Err(error) = self
+            .api
+            .set_state(&device.instance_id, DeviceState::Enabled)
+        {
+            failures.push(format!("leaf {index} restart enable failed: {error}"));
+        }
+    }
+
+    /// Bounded state poll for a leaf that may be re-enumerating.
+    ///
+    /// Unlike [`poll_readback`], a read error is treated as "not observed yet"
+    /// rather than as the result, because a devnode that is restarting
+    /// legitimately stops answering queries for a moment.
+    fn poll_input_leaf_state(
+        &self,
+        device: &RuntimeDevice,
+        requested: DeviceState,
+    ) -> Result<DeviceState> {
+        let mut observed = String::from("no read completed");
+        for attempt in 0..RECOVERY_READBACK_ATTEMPTS {
+            if attempt > 0 {
+                thread::sleep(READBACK_DELAY);
+            }
+            match self.selected_state(RuntimeDeviceKind::Touchpad, device) {
+                Ok(state) if state == requested => return Ok(state),
+                Ok(state) => observed = state.to_string(),
+                Err(error) => observed = error.to_string(),
+            }
+        }
+        Err(LctrlError::VerifyMismatch {
+            requested: requested.to_string(),
+            actual: observed,
+        })
+    }
+
     fn selected_state(
         &self,
         kind: RuntimeDeviceKind,
@@ -661,6 +758,17 @@ where
         self.camera_group_state()
     }
 
+    fn camera_devices(&self) -> Result<Vec<PrivacyDeviceState>> {
+        WindowsRuntimeDevices::camera_devices(self)
+    }
+
+    /// The consent-store read is independent of the PnP camera group on
+    /// purpose: it must answer while the devnodes are disabled, which is the
+    /// state `privacy cam off --runtime` creates.
+    fn camera_consent(&self) -> Result<lctrl_core::CameraConsentReport> {
+        crate::camera_consent::read_camera_consent()
+    }
+
     fn set_camera(
         &self,
         state: DeviceState,
@@ -699,13 +807,16 @@ where
     }
 
     fn recover_touchpad(&self, apply: ApplyMode) -> Result<lctrl_core::TouchpadRecoveryReport> {
-        let group = self.touchpad_group()?;
-        if group.len() < 2 {
-            return Err(LctrlError::ChannelUnavailable {
-                channel: "touchpad recovery cannot verify a mouse input collection".into(),
-            });
-        }
-        let states = self.group_states(RuntimeDeviceKind::Touchpad, &group)?;
+        let (group, states) = self.touchpad_leaves()?;
+        // A split group has a known repair: enable what an interrupted
+        // transition left disabled. A group whose leaves are all enabled while
+        // the pad does not serve input can only be repaired by restarting the
+        // input collections themselves.
+        let strategy = if states.iter().any(|state| *state == DeviceState::Disabled) {
+            lctrl_core::TouchpadRecoveryStrategy::EnableDisabledLeaves
+        } else {
+            lctrl_core::TouchpadRecoveryStrategy::CycleInputLeaves
+        };
         let mut leaves: Vec<_> = states
             .iter()
             .enumerate()
@@ -719,31 +830,44 @@ where
         if apply == ApplyMode::DryRun {
             return Ok(lctrl_core::TouchpadRecoveryReport {
                 mode: apply,
+                strategy,
                 leaves,
             });
         }
         let mut failures = Vec::new();
         for (index, (device, previous)) in group.iter().zip(&states).enumerate() {
-            let result = if *previous == DeviceState::Disabled {
-                self.api
-                    .set_state(&device.instance_id, DeviceState::Enabled)
-            } else {
-                Ok(())
-            };
-            if let Err(error) = result {
-                failures.push(format!("leaf {index} enable failed: {error}"));
+            match strategy {
+                lctrl_core::TouchpadRecoveryStrategy::EnableDisabledLeaves => {
+                    if *previous == DeviceState::Disabled {
+                        if let Err(error) = self
+                            .api
+                            .set_state(&device.instance_id, DeviceState::Enabled)
+                        {
+                            failures.push(format!("leaf {index} enable failed: {error}"));
+                        }
+                    }
+                }
+                lctrl_core::TouchpadRecoveryStrategy::CycleInputLeaves => {
+                    self.cycle_input_leaf(index, device, &mut failures);
+                }
             }
         }
         for (index, device) in group.iter().enumerate() {
-            match poll_readback(
-                &DeviceState::Enabled,
-                READBACK_ATTEMPTS,
-                READBACK_DELAY,
-                || self.selected_state(RuntimeDeviceKind::Touchpad, device),
-            ) {
+            match self.poll_input_leaf_state(device, DeviceState::Enabled) {
                 Ok(actual) => leaves[index].actual = Some(actual),
-                Err(error) => {
-                    failures.push(format!("leaf {index} independent readback failed: {error}"))
+                Err(first) => {
+                    // Recovery must never leave an input leaf disabled: retry
+                    // the enable once and re-read before reporting the failure.
+                    let retry = self
+                        .api
+                        .set_state(&device.instance_id, DeviceState::Enabled)
+                        .and_then(|()| self.poll_input_leaf_state(device, DeviceState::Enabled));
+                    match retry {
+                        Ok(actual) => leaves[index].actual = Some(actual),
+                        Err(second) => failures.push(format!(
+                            "leaf {index} independent readback failed: {first}; enable retry failed: {second}"
+                        )),
+                    }
                 }
             }
         }
@@ -757,8 +881,17 @@ where
         }
         Ok(lctrl_core::TouchpadRecoveryReport {
             mode: apply,
+            strategy,
             leaves,
         })
+    }
+
+    fn touchpad_caps(&self) -> Result<lctrl_core::TouchpadCapabilities> {
+        // The capability descriptor belongs to the admitted digitizer
+        // collection; the input-leaf group a switch reads does not carry the
+        // declared contacts, surface ranges or button type.
+        let device = self.selected_device(RuntimeDeviceKind::Touchpad)?;
+        crate::read_touchpad_capabilities(&device.instance_id)
     }
 }
 

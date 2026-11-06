@@ -26,7 +26,19 @@
 
 ## `Lenovo_BatteryInformation`
 
-(空类 / 仅作占位)
+**不是空类,但也没有容量字段**:`Get-WmiObject -Namespace root/WMI -List` 的属性表只有
+`{Active, CurrentSetting, InstanceName}`;实机 6 个实例 `ACPI\PNP0C14\WBAT_0..5` 的
+`CurrentSetting` 是身份字符串(`BAT0 BatMaker,…` / `BAT0 HwId,…` / `BAT0 MfgDate,…` 及 `BAT1` 组),
+`Active` 恒为 True。**设计容量、满充容量与循环数不在这个类里**——它们只在 `root\WMI` 的
+电池类链 `BatteryStaticData` / `BatteryFullChargedCapacity` / `BatteryCycleCount` 上
+(`Win32_Battery` 的 `DesignCapacity`/`FullChargeCapacity` 本机为 NULL),见
+[evidence/re-battery-health-20261105.md](evidence/re-battery-health-20261105.md)。
+
+> 充电模式/夜间充电/临时模式**没有** WMI 方法类:65 个类中与充电相关的只有只读事件
+> `LENOVO_GAMEZONE_POWER_CHARGE_MODE_EVENT` 和本空类;`root\Lenovo` 命名空间不存在。
+> 写路径是 `PowerBattery.dll` 的 EnergyDrv IOCTL(见
+> [interfaces.md §11](interfaces.md) 与
+> [evidence/re-battery-adv-20261105.md](evidence/re-battery-adv-20261105.md))。
 
 ## `Lenovo_BIOSElement`
 

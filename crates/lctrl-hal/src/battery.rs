@@ -1,6 +1,7 @@
 use lctrl_core::{
     AdapterInfo, ApplyMode, BatteryElectricalObservation, BatteryTelemetry, ChangeReport,
-    ChargeMode, ChargeModeActual, LctrlError, OsBatterySnapshot, Result, SystemPowerStatus,
+    BatteryWearReport, ChargeMode, ChargeModeActual, LctrlError, OsBatterySnapshot, Result,
+    SystemPowerStatus,
 };
 
 pub trait BatteryElectricalSource: Send + Sync {
@@ -20,6 +21,12 @@ pub trait BatteryControl: Send + Sync {
     fn battery_electrical(&self) -> Result<BatteryElectricalObservation> {
         Err(LctrlError::Unsupported {
             feature: "battery.electrical-observation".into(),
+        })
+    }
+    /// Wear and cycle facts from the capacity channel that owns them.
+    fn battery_wear(&self) -> Result<BatteryWearReport> {
+        Err(LctrlError::Unsupported {
+            feature: "battery.health".into(),
         })
     }
     /// Aggregate system power is not a per-pack observation.
@@ -67,6 +74,10 @@ impl<T: BatteryControl + ?Sized> BatteryControl for &T {
 
     fn battery_electrical(&self) -> Result<BatteryElectricalObservation> {
         (**self).battery_electrical()
+    }
+
+    fn battery_wear(&self) -> Result<BatteryWearReport> {
+        (**self).battery_wear()
     }
 
     fn system_power_status(&self) -> Result<SystemPowerStatus> {

@@ -1,165 +1,20 @@
-use lctrl_core::{MagicBayDevice, MagicBayKind, identify_magicbay};
+//! Windows MagicBay detect path.
+//!
+//! The accessory identity table, the device-id parser and the record
+//! coalescing are shared with the platform-independent core; this module only
+//! adds the SetupAPI enumeration that produces the records.
 
-#[must_use]
-pub fn parse_magicbay_instance_id(instance_id: &str) -> Option<MagicBayDevice> {
-    let upper = instance_id.to_ascii_uppercase();
-    if let Some(vid_at) = upper.find("VID_17EF&PID_") {
-        let pid_at = vid_at + "VID_17EF&PID_".len();
-        let pid_text = upper.get(pid_at..pid_at + 4)?;
-        let pid = u16::from_str_radix(pid_text, 16).ok()?;
-        let kind = identify_magicbay(0x17ef, pid).map_or(MagicBayKind::Unknown, |known| known.kind);
-        return Some(MagicBayDevice {
-            path: instance_id.into(),
-            bus: "usb".into(),
-            vid: Some(0x17ef),
-            pid: Some(pid),
-            kind,
-            interfaces: if pid == 0x7005 && upper.contains("MI_00") {
-                vec!["mbim".into()]
-            } else {
-                Vec::new()
-            },
-            attached: true,
-        });
-    }
-    let (kind, interface) = if upper.contains("QCOM2488") {
-        (MagicBayKind::DisplayBridge, "display")
-    } else if upper.contains("QCOM24B7") {
-        (MagicBayKind::UsbRoleSwitch, "usb_role_switch")
-    } else {
-        return None;
-    };
-    Some(MagicBayDevice {
-        path: instance_id.into(),
-        bus: "acpi".into(),
-        vid: None,
-        pid: None,
-        kind,
-        interfaces: vec![interface.into()],
-        attached: true,
-    })
-}
-
-/// Merge SetupAPI's composite-parent and interface records into one accessory.
-#[must_use]
-pub fn coalesce_magicbay_devices(mut devices: Vec<MagicBayDevice>) -> Vec<MagicBayDevice> {
-    devices.sort_by(|left, right| {
-        is_usb_interface_instance(&left.path)
-            .cmp(&is_usb_interface_instance(&right.path))
-            .then_with(|| left.path.cmp(&right.path))
-    });
-    let mut merged: Vec<MagicBayDevice> = Vec::with_capacity(devices.len());
-    for device in devices {
-        let device_is_interface = is_usb_interface_instance(&device.path);
-        if device.bus == "usb" {
-            if let Some(existing) = merged.iter_mut().find(|existing| {
-                existing.bus == "usb"
-                    && existing.vid == device.vid
-                    && existing.pid == device.pid
-                    && existing.kind == device.kind
-                    && is_usb_merge_pair(existing, &device, device_is_interface)
-            }) {
-                merge_usb_interfaces(existing, &device);
-                continue;
-            }
-        }
-        merged.push(device);
-    }
-    let mut used = vec![false; merged.len()];
-    let mut associated = Vec::with_capacity(merged.len());
-    for index in 0..merged.len() {
-        if used[index] {
-            continue;
-        }
-        if !is_usb_interface_instance(&merged[index].path) && merged[index].bus == "usb" {
-            let candidates: Vec<usize> = (0..merged.len())
-                .filter(|candidate| {
-                    !used[*candidate]
-                        && is_usb_interface_instance(&merged[*candidate].path)
-                        && merged[*candidate].bus == "usb"
-                        && merged[*candidate].vid == merged[index].vid
-                        && merged[*candidate].pid == merged[index].pid
-                        && merged[*candidate].kind == merged[index].kind
-                })
-                .collect();
-            let parent_count = (0..merged.len())
-                .filter(|parent| {
-                    !used[*parent]
-                        && !is_usb_interface_instance(&merged[*parent].path)
-                        && merged[*parent].bus == "usb"
-                        && merged[*parent].vid == merged[index].vid
-                        && merged[*parent].pid == merged[index].pid
-                        && merged[*parent].kind == merged[index].kind
-                })
-                .count();
-            if parent_count == 1 && candidates.len() == 1 {
-                let mut parent = merged[index].clone();
-                merge_usb_interfaces(&mut parent, &merged[candidates[0]]);
-                used[index] = true;
-                used[candidates[0]] = true;
-                associated.push(parent);
-                continue;
-            }
-        }
-        used[index] = true;
-        associated.push(merged[index].clone());
-    }
-    associated.sort_by(|left, right| left.path.cmp(&right.path));
-    associated
-}
-
-fn merge_usb_interfaces(existing: &mut MagicBayDevice, candidate: &MagicBayDevice) {
-    if is_usb_interface_instance(&existing.path) && !is_usb_interface_instance(&candidate.path) {
-        existing.path = candidate.path.clone();
-    }
-    for interface in &candidate.interfaces {
-        if !existing.interfaces.contains(interface) {
-            existing.interfaces.push(interface.clone());
-        }
-    }
-    existing.attached |= candidate.attached;
-}
-
-fn is_usb_merge_pair(
-    existing: &MagicBayDevice,
-    candidate: &MagicBayDevice,
-    candidate_is_interface: bool,
-) -> bool {
-    let existing_is_interface = is_usb_interface_instance(&existing.path);
-    let same_instance = match (
-        usb_instance_key(&existing.path),
-        usb_instance_key(&candidate.path),
-    ) {
-        (Some(existing), Some(candidate)) => existing == candidate,
-        _ => false,
-    };
-    same_instance
-        && (existing_is_interface || candidate_is_interface || existing.path == candidate.path)
-}
-
-fn usb_instance_key(path: &str) -> Option<String> {
-    let upper = path.to_ascii_uppercase();
-    let mut segments = upper.split('\\');
-    let bus = segments.next()?;
-    let hardware_id = segments.next()?.split("&MI_").next().unwrap_or_default();
-    let instance = segments.next()?.split('&').next().unwrap_or_default();
-    if hardware_id.is_empty() || instance.is_empty() {
-        return None;
-    }
-    Some(format!("{bus}\\{hardware_id}\\{instance}"))
-}
-
-fn is_usb_interface_instance(path: &str) -> bool {
-    path.as_bytes()
-        .windows(4)
-        .any(|window| window.eq_ignore_ascii_case(b"&MI_"))
-}
+pub use lctrl_core::{
+    coalesce_magicbay_devices, parse_magicbay_device_id as parse_magicbay_instance_id,
+};
 
 #[cfg(windows)]
 mod native {
     use std::{mem, ptr};
 
-    use lctrl_core::{LctrlError, MagicBayDevice, MagicBayInventory, Result};
+    use lctrl_core::{
+        LctrlError, MagicBayDevice, MagicBayInventory, Result, merge_magicbay_interfaces,
+    };
     use lctrl_hal::MagicBayControl;
     use windows_sys::{
         Win32::{
@@ -176,7 +31,7 @@ mod native {
         core::GUID,
     };
 
-    use super::{coalesce_magicbay_devices, merge_usb_interfaces, parse_magicbay_instance_id};
+    use super::{coalesce_magicbay_devices, parse_magicbay_instance_id};
     use crate::map_win_error;
 
     const ERROR_NO_MORE_ITEMS: u32 = 259;
@@ -236,7 +91,7 @@ mod native {
                         && existing.pid == device.pid
                         && existing.kind == device.kind
                 }) {
-                    merge_usb_interfaces(existing, &device);
+                    merge_magicbay_interfaces(existing, &device);
                     continue;
                 }
             }

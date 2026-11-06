@@ -91,7 +91,7 @@ Linux 后端的**大多数节点默认 `root:root 0644` 或 `root:root 0444`**,
 | 充电阈值 (Storage / Normal) | `IOCTL_ENERGYDRV_STORAGE_OPEN/CLOSE` | `sysfs-platform-ideapad-laptop/conservation_mode` | 5.13 | §3.1 |
 | 快充 (Express / Rapid) | `IOCTL_ENERGYDRV_EXPRESS_OPEN/CLOSE` | `sysfs-platform-ideapad-laptop/fast_charge`(6.12+) | 6.12 (合入主线待确认) | §3.2 |
 | 电池基本信息 | WMI `BATTERY_INFORMATION` | `/sys/class/power_supply/BAT0/*` | 2.6 | §3.3 |
-| 电池设计/剩余/循环 | WMI `Lenovo_BatteryInformation` | `power_supply` sysfs + SMBus(无循环数) | 2.6 | §3.3 |
+| 电池设计/满充/剩余/循环 | `root\WMI` 电池类链:`BatteryStaticData.DesignedCapacity` / `BatteryFullChargedCapacity` / `BatteryStatus` / `BatteryCycleCount`(`Lenovo_BatteryInformation` 只有身份字符串,`Win32_Battery` 两容量为 NULL;见 02 §7.4) | `power_supply` sysfs `energy_*`(无则 `charge_*` + 电压换算) 与 `cycle_count` | 2.6 | §3.3 |
 | 电池养护 80% | WMI + EC 命令 | 部分 需 acpi_call | — | §3.4 |
 | 性能模式 Intelligent/Cool/Performance/Geek | `ControlService(SERVICE_CONTROL_SET_*)` → `LenovoProcessManagement` | `intel_pstate/energy_performance_preference` + `thermald` 策略 | 5.8 (EPP) | §5 |
 | 风扇模式 (Quiet/Balanced/Max) | `LENOVO_GAMEZONE_DATA.SetFanCooling` | `hwmon/fan_mode` (6.13+) 或 `acpi_call` | 6.13 (fan_mode) | §5.2 |

@@ -13,8 +13,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{LazyLock, Mutex};
 
 use crate::wide::wide;
+use crate::NativeFnOsd;
 use lctrl_core::Result;
-use lctrl_hal::{OsdControl, OsdOutcome};
+use lctrl_hal::{FnOsdChange, FnOsdStatus, OsdControl, OsdOutcome};
 use windows_sys::Win32::{
     Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM},
     Graphics::Gdi::{
@@ -70,13 +71,15 @@ static CURRENT: LazyLock<Mutex<Option<StoredHwnd>>> = LazyLock::new(|| Mutex::ne
 static VISIBLE: AtomicBool = AtomicBool::new(false);
 static OSD_TEXT: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
-/// A transient GDI on-screen overlay.
+/// A transient GDI on-screen overlay, plus the Fn OSD preference channel.
 #[derive(Default)]
-pub struct NativeOsd;
+pub struct NativeOsd {
+    fn_osd: NativeFnOsd,
+}
 
 impl NativeOsd {
     pub fn new() -> Self {
-        Self
+        Self::default()
     }
 }
 
@@ -125,6 +128,14 @@ impl OsdControl for NativeOsd {
 
     fn visible(&self) -> bool {
         VISIBLE.load(Ordering::Acquire)
+    }
+
+    fn fn_osd(&self) -> Result<FnOsdStatus> {
+        self.fn_osd.status()
+    }
+
+    fn set_fn_osd(&self, enabled: bool, dry_run: bool) -> Result<FnOsdChange> {
+        self.fn_osd.set(enabled, dry_run)
     }
 }
 

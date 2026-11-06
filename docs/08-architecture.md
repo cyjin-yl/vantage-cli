@@ -20,51 +20,65 @@
 ```
 vantage
 ├── info                                   # 机型/固件/通道能力矩阵(§5 探测结果)
+├── doctor                                 # 只读通道探测与可行动问题报告
+├── capability                             # 本机每条命令的观察状态矩阵(权威支持表来源)
+├── cpu status                             # 只读:机型身份、固件标称频率、派生当前频率与处理器功率策略
 ├── battery
-│   ├── status [--json]                    # 02 §7 + §8(信息+适配器+模式回读)
+│   ├── status                             # 02 §7(电量+模式回读)
+│   ├── health                             # 02 §7.4 设计/满充容量、磨损、循环计数(只读)
+│   ├── adapter                            # 02 §8
 │   ├── charge-mode {normal|conservation|rapid}      # 02 §3
 │   ├── thresholds <start%> <stop%>                  # 02 §4.2
 │   ├── extreme-life {on|off}                        # 02 §4.4；完整常驻策略未准入,非一次性 saver
 │   ├── night-charge {on|off}                        # 02 §5
 │   ├── temporary-mode                                 # 02 §5
-│   ├── adapter [--json]                             # 02 §8
-│   └── watch                                          # 02 §11 事件流
+│   └── watch [--interval S]                           # 02 §11 事件流(默认 1 s,最小 1 s)
 ├── usb
 │   ├── always-on {on|off} [--persistent]            # 02 §6
-│   └── charge-on-battery {on|off} [--persistent]    # 02 §6
+│   ├── charge-on-battery {on|off} [--persistent]    # 02 §6
+│   └── ports                                        # 只读:控制器/集线器/端口,及端口实际报告的速率与供电
 ├── power
-│   ├── scheme {list|get|apply NAME}                 # 02 §10
+│   ├── scheme {list|get NAME [--subgroup GUID --setting GUID]|apply NAME}   # 02 §10
 │   ├── scheme set <SUBGROUP> <SETTING> {ac|dc} <V>  # 02 §10
-│   └── saver-once                                   # 02 §4.3
+│   ├── saver-once                                   # 02 §4.3
+│   ├── ac                                           # 只读:线路状态、适配器身份与功率
+│   └── draw                                         # 只读:电池包瞬时功率与来源
 ├── perf
-│   ├── mode {auto|cool|performance|geek}            # 03 §2(ITS/Dispatcher)
+│   ├── mode {auto|cool|performance|geek}            # 03 §2(ITS/Dispatcher);值别名 balanced→auto、quiet→cool
 │   ├── fan {status|auto|manual|fullspeed|smart}     # 03 §3
 │   ├── fan curve <json|file>                        # 03 §3(Fan_Set_Table)
-│   ├── temp [--json]                                # 03 §4
+│   ├── temp [read <id> | watch --interval S]        # 03 §4;裸 temp 列出全部传感器
+│   ├── pl1 <W> / pl2 <W>                            # 03 §5.2 功耗墙(写路径按依赖裁定门控)
+│   ├── dbdc get                                     # 03 §5.3 电池直放限流表(只读)
+│   ├── policy                                       # 03 §2 Dispatcher `Policy_*` PowerSlider 解码(只读)
+│   ├── gpu status                                   # 03 §5.4 GPU 超频能力与参数块(只读)
 │   ├── boost <PID>... / throttle <PID>...           # 03 §6 进程级
 │   └── top                                          # 03 §6 进程功耗视图
 ├── tune
-│   ├── profile {list|show|apply NAME [--dry-run]}   # 07 §5
+│   ├── profile {list|show NAME|apply NAME [--dry-run]}   # 07 §5
 │   ├── pl1 W [--pl2 W] [--tau S]                    # 07 §3.1
 │   ├── epp {performance|balance-performance|balance-power|power|0-255}
 │   ├── turbo {on|off}                               # 07 §3.2
 │   ├── restore                                      # 07 §7
-│   ├── telemetry [--json] [--interval S]            # 07 §4
-│   └── watch                                        # 07 §6 触发/回退事件
+│   ├── telemetry [--interval S]                     # 07 §4;不带 --interval 为单次采样
+│   └── watch [--interval S]                         # 07 §6 触发/回退事件(默认 1 s)
 ├── kbd
-│   ├── backlight <0..3> [--effect static|breath]    # 04 §2
+│   ├── backlight {off|low|high|auto|0..3} [--effect static|breath]   # 04 §2
 │   ├── fnlock {on|off}                              # 04 §1.2
 │   ├── fn-ctrl-swap {on|off}                        # 04 §1.1
 │   └── winlock {on|off}                             # 04 §1.3
-├── touchpad {on|off}                                # 04 §1.4
+├── touchpad {on|off|status|recover|caps}              # 04 §1.4;值别名 enable/disable;caps 只读 HID 能力描述符
 ├── panel
+│   ├── info                                         # 只读:内屏身份(EDID 解码:厂商/型号/序列/制造日期/原生分辨率/物理尺寸/连接类型)
+│   ├── brightness [0..100] [--expect-current N]     # 04 §3.0;--expect-current 要求同时给目标值
 │   ├── rate {60|120|auto}                           # 04 §3.1
 │   ├── color {srgb|dci-p3|adobe|custom|movie}       # 04 §3.2
 │   ├── super-resolution {on|off}                    # 04 §3.4
 │   ├── overdrive {on|off}                           # 04 §3.3
 │   └── eye-care {off|mid|high}                      # 04 §3.5
+├── display status                                   # 只读:当前模式、逐显示器缩放、HDR/广色域;`displays`(调用会话桌面)与 `monitors`(机器级驱动/EDID)两域分开报告,不合并
 ├── privacy
-│   ├── cam {on|off} [--runtime|--persistent]        # 04 §4
+│   ├── cam {on|off|status} [--runtime|--persistent] # 04 §4;子命令别名 camera,值别名 enable/disable
 │   ├── mic {on|off} [--runtime|--persistent]
 │   ├── fingerprint {on|off}
 │   └── status                                       # 双层状态(运行时+BIOS)
@@ -73,25 +87,58 @@ vantage
 │   ├── lock-on-leave {on|off} [--distance N] [--wait S]
 │   ├── wake-on-approach {on|off} [--distance N]
 │   ├── pause-video {on|off}
+│   ├── camera-assist {on|off}
+│   ├── approach-auto-adjust {on|off}
+│   ├── leave-auto-adjust {on|off}
 │   ├── attention-tracking {on|off} [--dim] [--ac-only]
-│   └── kbd-light-auto {on|off}
+│   ├── kbd-light-auto {on|off}
+│   └── reset                                        # op7 ResetAllSetting(破坏性;配合 --auto-restore 复原)
+├── sensor {list|read <target>}                      # 只读:本机实例化的传感器清单(身份/状态/上报时间/新鲜度)与单次读数;不可用传感器单列,不填 0
 ├── audio
 │   ├── dolby {off|movie|music|voice|game|personalize|dynamic}   # 04 §6.1
-│   └── noise-cancel {off|single|shared|spatial|voice-id|farfield} # 04 §6.2
+│   ├── noise-cancel {off|single|shared|spatial|voice-id} # 04 §6.2(无 farfield 模式)
+│   ├── endpoints [--all]                            # OS 音频端点清单(MMDevice)
+│   ├── volume [0..100] [--device ID]                # 端点主音量,省略值即读取
+│   └── mute [on|off] [--device ID]                  # 端点静音,省略值即读取
 ├── bios
-│   ├── list [--json]                                # 05(枚举 BiosSelections)
-│   ├── get <NAME> / set <NAME> <VALUE>              # 05
-│   ├── save / discard / defaults                    # 05
-│   └── password {set|clear|verify}                  # 05 §3
+│   ├── list                                         # 05(枚举 BiosSelections)
+│   ├── get <NAME> / set <NAME> <VALUE> [--save]     # 05;提交走 `set --save`
+│   ├── save / discard / defaults [--password C]       # 05;`save` 本身拒绝(全局暂存缓冲,见 05 §6)
+│   └── password {status|set|clear|verify}             # 05 §3;status/verify 只读可用,写入不支持
+├── firmware status                                  # 只读:固件身份、ESRT 条目与最近一次尝试
 ├── magicbay
 │   ├── detect                                       # 06 §3
 │   ├── lte {status|connect|disconnect|apn ...}      # 06 §4
 │   ├── cam / display                                # 06 §5/§6
 │   └── watch                                        # 06 §3 热插拔事件
-├── osd {enable|disable|test}                        # 04 §7 daemon OSD
+├── osd {enable|disable|test|show <行…>}             # 04 §7:enable/disable = 联想 Fn OSD 偏好(服务控制码 146/147,148/149 + 注册表读回);test/show = 替代 overlay;裸 `osd` 等同 `osd test`
+├── hotkey {list|status|register [id] [vk]|trigger [id]|unregister [id]}   # 04 §7 全局热键;裸 `hotkey` 等同 `hotkey list`
+├── update
+│   ├── check [--severity critical|recommended|driver|optional]   # 11
+│   ├── local-driver {apply <INF> <HWID> [--dry-run]|rollback <实例ID> + 身份/恢复开关 [--dry-run]}   # 11
+│   ├── local-install <PACKAGE>                      # 11(UDC 已下载包自带签名 install.ps1;拒绝固件包)
+│   ├── download <PKG>... / install <PKG>... [--reboot]   # 11(需已认证清单,当前如实拒绝)
+│   ├── history / ignore <ID> / rollback <ID>        # 11
+│   └── schedule {daily|weekly|off}                  # 11
+├── scan {list|run <item>...}                        # 11;裸 `scan` 无派发,必须带子命令
+├── snapshot {capture|diff|restore}                  # 11
+├── wifi {status|security|history|clear-history}     # 11(status=当前关联:SSID/BSSID/信号/频段/信道/协商安全,不触发扫描;history 为本进程内存历史)
+├── bluetooth list                                   # 只读:本机已知设备(配对/记住/已连接)的地址、类别、状态与最近使用;不发起发现
+├── radio {status|off <wifi|bluetooth|wwan> [--force]|on <wifi|bluetooth|wwan>}   # 无线开关,写后回读;承载当前会话的射频默认拒绝
+├── security status                                  # 只读:Secure Boot / TPM / BitLocker 三路状态,各自标注来源;不读密钥、不改固件变量
+├── storage status                                   # 只读:物理盘清单与各自实际应答的身份/健康字段
+├── events [--limit N]                               # 只读:本机事件台账尾部(默认条数由 HAL 常量决定)
+├── fix {scan|run <issue>|track}                     # MachineFix 透明规则集;裸 `fix` 等同规则集清单;dry-run 用全局 `--dry-run`
+├── scene {list|test <event> [--rule ID]|track}      # 自动场景策略;裸 `scene` 等同规则集清单;dry-run 用全局 `--dry-run`
 ├── daemon {start|stop|status|install}               # §4(可选常驻)
-└── completions <shell>                              # 自描述
+└── completions {bash|elvish|fish|powershell|zsh}    # 自描述
 ```
+
+全局开关对全部子命令生效(`--json`、`--dry-run`、`--yes`、`--auto-restore`),`-h`/`--help`
+由 clap 提供,`-V`/`--version` 只在根命令。闭包边界(裸调用)有例外:`battery`→`status`、
+`bios`→`list`、`fix`/`scene`→规则集清单、`osd`→`test`、`hotkey`→`list`;而
+`sense`/`audio`/`snapshot`/`wifi` 要求显式子命令,`scan`/`daemon` 的裸调用如实拒绝。
+本树与代码声明的双向校对见 `docs/evidence/doc-truth-20261105.md`。
 
 命令命名与优先级对应 charter §4.4:P0 = battery/perf/kbd/panel.rate/bios;P1 = tune/privacy/
 sense/usb/magicbay.lte;P2 = 其余。

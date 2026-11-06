@@ -756,11 +756,19 @@ fn touchpad_recovery_enables_only_disabled_input_leaves_after_a_split() {
         "a split group has no single state"
     );
     let preview = controller.recover_touchpad(ApplyMode::DryRun).unwrap();
+    assert_eq!(
+        preview.strategy,
+        lctrl_core::TouchpadRecoveryStrategy::EnableDisabledLeaves
+    );
     assert_eq!(preview.leaves[0].previous, DeviceState::Disabled);
     assert_eq!(preview.leaves[1].previous, DeviceState::Enabled);
     assert!(preview.leaves.iter().all(|leaf| leaf.actual.is_none()));
     assert!(api.writes.lock().is_empty());
     let result = controller.recover_touchpad(ApplyMode::Commit).unwrap();
+    assert_eq!(
+        result.strategy,
+        lctrl_core::TouchpadRecoveryStrategy::EnableDisabledLeaves
+    );
     assert!(
         result
             .leaves
@@ -773,6 +781,74 @@ fn touchpad_recovery_enables_only_disabled_input_leaves_after_a_split() {
     );
     assert_eq!(api.states.lock()["ACPI\\PAD\\0"], DeviceState::Enabled);
     assert_eq!(api.states.lock()["HID\\OTHER-MOUSE"], DeviceState::Enabled);
+}
+
+#[test]
+fn touchpad_recovery_cycles_every_input_leaf_when_all_are_enabled() {
+    let api = touchpad_topology();
+    let controller = WindowsRuntimeDevices::new(&api);
+
+    let preview = controller.recover_touchpad(ApplyMode::DryRun).unwrap();
+    assert_eq!(
+        preview.strategy,
+        lctrl_core::TouchpadRecoveryStrategy::CycleInputLeaves
+    );
+    assert!(
+        preview
+            .leaves
+            .iter()
+            .all(|leaf| leaf.previous == DeviceState::Enabled && leaf.actual.is_none())
+    );
+    assert!(api.writes.lock().is_empty(), "a dry run must not write");
+
+    let result = controller.recover_touchpad(ApplyMode::Commit).unwrap();
+    assert_eq!(
+        result.strategy,
+        lctrl_core::TouchpadRecoveryStrategy::CycleInputLeaves
+    );
+    assert!(
+        result
+            .leaves
+            .iter()
+            .all(|leaf| leaf.actual == Some(DeviceState::Enabled))
+    );
+    assert_eq!(
+        *api.writes.lock(),
+        vec![
+            ("HID\\PAD&COL02".into(), DeviceState::Disabled),
+            ("HID\\PAD&COL02".into(), DeviceState::Enabled),
+            ("HID\\PAD&COL01".into(), DeviceState::Disabled),
+            ("HID\\PAD&COL01".into(), DeviceState::Enabled),
+        ],
+        "each admitted input leaf is restarted exactly once"
+    );
+    for untouched in ["ACPI\\PAD\\0", "HID\\PAD&COL03", "HID\\PAD&COL04", "HID\\OTHER-MOUSE"] {
+        assert_eq!(
+            api.states.lock()[untouched],
+            DeviceState::Enabled,
+            "{untouched} must not be targeted by recovery"
+        );
+    }
+}
+
+#[test]
+fn touchpad_recovery_cycle_failure_restores_the_leaf_and_reports() {
+    let api = touchpad_topology().with_failure(2, FakeError::Rejected("injected enable failure"));
+    let error = WindowsRuntimeDevices::new(&api)
+        .recover_touchpad(ApplyMode::Commit)
+        .unwrap_err();
+    assert!(
+        matches!(
+            error,
+            LctrlError::FirmwareRejected { ref detail }
+                if detail.contains("leaf 0 restart enable failed")
+        ),
+        "unexpected error: {error:?}"
+    );
+    // The verification pass retries the enable: a failed cycle must never
+    // leave an input collection disabled.
+    assert_eq!(api.states.lock()["HID\\PAD&COL02"], DeviceState::Enabled);
+    assert_eq!(api.states.lock()["HID\\PAD&COL01"], DeviceState::Enabled);
 }
 
 #[test]
@@ -791,8 +867,16 @@ fn touchpad_recovery_continues_after_effectful_failure_and_retry_is_safe() {
     assert_eq!(api.states.lock()["HID\\PAD&COL02"], DeviceState::Enabled);
     assert_eq!(api.states.lock()["HID\\PAD&COL01"], DeviceState::Enabled);
     let writes = api.writes.lock().len();
-    controller.recover_touchpad(ApplyMode::Commit).unwrap();
-    assert_eq!(api.writes.lock().len(), writes);
+    let retry = controller.recover_touchpad(ApplyMode::Commit).unwrap();
+    // Both leaves report enabled now, so the retry restarts them instead of
+    // repeating an enable-only repair.
+    assert_eq!(
+        retry.strategy,
+        lctrl_core::TouchpadRecoveryStrategy::CycleInputLeaves
+    );
+    assert_eq!(api.writes.lock().len(), writes + 4);
+    assert_eq!(api.states.lock()["HID\\PAD&COL02"], DeviceState::Enabled);
+    assert_eq!(api.states.lock()["HID\\PAD&COL01"], DeviceState::Enabled);
 }
 
 #[test]
@@ -944,6 +1028,30 @@ fn camera_group_split_state_is_not_reported_as_one_answer() {
         controller.camera_group_state(),
         Err(LctrlError::ChannelUnavailable { .. })
     ));
+}
+
+#[test]
+fn camera_devices_attributes_a_split_group_per_devnode() {
+    let controller = WindowsRuntimeDevices::new(pair_api(&[
+        ("USB\\CAM&MI_00", DeviceState::Enabled),
+        ("USB\\CAM&MI_02", DeviceState::Disabled),
+    ]));
+
+    let devices = controller
+        .camera_devices()
+        .expect("per-devnode camera status");
+
+    assert_eq!(devices.len(), 2, "both collections stay observable");
+    assert_eq!(devices[0].instance_id, "USB\\CAM&MI_00");
+    assert_eq!(devices[0].state, Some(DeviceState::Enabled));
+    assert!(devices[0].error.is_none());
+    assert_eq!(devices[1].instance_id, "USB\\CAM&MI_02");
+    assert_eq!(devices[1].state, Some(DeviceState::Disabled));
+    assert_eq!(
+        devices[1].description.as_deref(),
+        Some("Integrated IR Camera")
+    );
+    assert!(controller.api().writes.lock().is_empty());
 }
 
 #[test]

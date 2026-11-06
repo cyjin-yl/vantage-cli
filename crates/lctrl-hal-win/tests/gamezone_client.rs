@@ -104,7 +104,20 @@ fn setter_rejects_nonzero_return_value() {
 }
 
 #[test]
-fn support_probe_uses_zero_for_supported() {
+fn support_probe_reads_data_one_as_supported() {
+    let fake = FakeWmi::default();
+    fake.output
+        .lock()
+        .unwrap()
+        .insert("Data".into(), WmiValue::U32(1));
+    let zone = GameZone::new(&fake);
+
+    assert!(zone.is_supported(SupportProbe::FanCooling).unwrap());
+    assert_eq!(fake.calls.lock().unwrap()[0].1, "IsSupportFanCooling");
+}
+
+#[test]
+fn support_probe_reads_data_zero_as_absent() {
     let fake = FakeWmi::default();
     fake.output
         .lock()
@@ -112,8 +125,26 @@ fn support_probe_uses_zero_for_supported() {
         .insert("Data".into(), WmiValue::U32(0));
     let zone = GameZone::new(&fake);
 
-    assert!(zone.is_supported(SupportProbe::FanCooling).unwrap());
-    assert_eq!(fake.calls.lock().unwrap()[0].1, "IsSupportFanCooling");
+    assert!(!zone.is_supported(SupportProbe::GpuOc).unwrap());
+    assert_eq!(zone.support_data(SupportProbe::GpuOc).unwrap(), 0);
+    assert_eq!(fake.calls.lock().unwrap()[0].1, "IsSupportGpuOC");
+}
+
+#[test]
+fn support_probe_rejects_false_return_value() {
+    let fake = FakeWmi::default();
+    {
+        let mut output = fake.output.lock().unwrap();
+        output.insert("ReturnValue".into(), WmiValue::Bool(false));
+        output.insert("Data".into(), WmiValue::U32(0));
+    }
+    let zone = GameZone::new(&fake);
+
+    let error = zone.support_data(SupportProbe::GpuOc).unwrap_err();
+    assert!(
+        matches!(&error, LctrlError::FirmwareRejected { .. }),
+        "a failed provider call is not a 'not supported' answer: {error:?}"
+    );
 }
 
 #[test]

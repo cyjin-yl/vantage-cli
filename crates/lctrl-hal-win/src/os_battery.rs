@@ -229,6 +229,30 @@ impl<W: WmiTransport, P: SystemPowerStatusReader> OsBatteryChannel for WindowsOs
                 .and_then(|(full, design)| {
                     u16::try_from(u64::from(full) * 100 / u64::from(design)).ok()
                 });
+        // `BatteryCycleCount.CycleCount` follows BATTERY_INFORMATION: zero is
+        // the documented "no cycle counter" value, so a reported zero is
+        // withheld instead of being published as a measured zero-cycle pack.
+        let cycle_count = cycle
+            .and_then(|row| u32_field(row, "CycleCount"))
+            .and_then(|value| {
+                if value == 0 {
+                    issue(
+                        &mut issues,
+                        "BatteryCycleCount",
+                        "CycleCount is zero, the documented unsupported value; cycle count unavailable",
+                    );
+                    return None;
+                }
+                let reported = u16::try_from(value);
+                if reported.is_err() {
+                    issue(
+                        &mut issues,
+                        "BatteryCycleCount",
+                        "CycleCount exceeds the reported u16 range; cycle count unavailable",
+                    );
+                }
+                reported.ok()
+            });
         Ok(OsBatterySnapshot {
             remaining_capacity_mwh: remaining,
             full_charge_capacity_mwh: full_capacity,
@@ -238,9 +262,7 @@ impl<W: WmiTransport, P: SystemPowerStatusReader> OsBatteryChannel for WindowsOs
                 .and_then(|value| u16::try_from(value).ok()),
             remaining_percent: percent,
             capacity_ratio_percent,
-            cycle_count: cycle
-                .and_then(|row| u32_field(row, "CycleCount"))
-                .and_then(|value| u16::try_from(value).ok()),
+            cycle_count,
             estimated_runtime_min: runtime
                 .and_then(|row| u32_field(row, "EstimatedRuntime"))
                 .filter(|value| *value != u32::MAX)

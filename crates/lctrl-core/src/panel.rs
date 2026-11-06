@@ -327,8 +327,11 @@ pub enum RefreshMode {
     Unknown(u16),
 }
 
-/// Eye-care (low blue light) level applied through a 1D pixel-transformation
-/// LUT. `Custom` reports a LUT that matches no known preset.
+/// Eye-care (low blue light) level. On Windows the vendor mechanisms are a
+/// 1D pixel-transformation LUT (Intel IGCL) and the desktop gamma ramp
+/// (`SetDeviceGammaRamp`, used by Vantage `EyeCareMode` and PCManager's
+/// monitor manager); the level names are shared, the transport is not.
+/// `Custom` reports a ramp/LUT that matches no known preset.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EyeCareLevel {

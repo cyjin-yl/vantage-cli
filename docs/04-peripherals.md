@@ -9,17 +9,19 @@
 
 | 功能 | 通道 | CLI |
 |---|---|---|
-| 键盘背光档位/灯效 | WMI `LENOVO_LIGHTING_METHOD` | `kbd backlight {0..3} [--effect]` |
+| 键盘背光档位/灯效 | ACPI `KBLC`(VPC2004,经 `\\.\EnergyDrv`);RGB 机型回退 WMI `LENOVO_LIGHTING_METHOD` | `kbd backlight {off\|low\|high\|auto}`(原始档位 `0..3` 仍接受) |
 | Fn/Ctrl 互换 | BIOS `FoolProofFnCtrl` | `kbd fn-ctrl-swap {on|off}` |
 | F1-F12 主功能 | BIOS `HotkeyMode` + `F1-F12AsPrimaryFunction` | `kbd fnlock {on|off}` |
 | Win 键锁定 | WMI `LENOVO_GAMEZONE_DATA.SetWinKeyStatus` | `kbd winlock {on|off}` |
-| 触控板开关 | GAMEZONE WMI;21VG 使用 Windows PnP 输入叶节点 | `touchpad {status|on|off|recover}` |
+| 触控板开关/能力 | GAMEZONE WMI;21VG 使用 Windows PnP 输入叶节点 + HID 能力描述符 | `touchpad {status\|caps\|on\|off\|recover}`（`enable`/`disable` 为 `on`/`off` 的别名） |
 | 面板刷新率 | WMI `LENOVO_INTERNAL_PANEL_REFRESH_RATE_DATA` + ChangeDisplaySettingsEx | `panel rate {60|120|auto}` |
+| 面板身份(EDID) | `root\wmi` `WmiMonitorConnectionParams` 选中内置屏 + `HKLM\SYSTEM\CurrentControlSet\Enum\DISPLAY\...\Device Parameters\EDID` | `panel info` |
 | 内置屏亮度 | Windows 公开 WMI 亮度及连接类 | `panel brightness [0..100]` |
 | 面板色彩/显示模式 | WMI `LENOVO_PANEL_METHOD` | `panel color MODE` |
 | 超分辨率(SR) | 注册表 + SmartEngine | `panel super-resolution {on|off}` |
 | Display OverDrive | BiosOD.dll → 注册表/WMI | `panel overdrive {on|off}` |
-| 摄像头开关 | BIOS `IntegratedCamera` / PrivacyGuard | `privacy cam {on|off}` |
+| 摄像头开关 | BIOS `IntegratedCamera`;运行时为 PnP devnode 启停(`CM_Enable/Disable_DevNode`) | `privacy cam {status|on|off}`(`enable`/`disable` 为别名) |
+| 摄像头使用/同意记录(只读) | 注册表 `CapabilityAccessManager\ConsentStore\webcam`(HKCU/HKLM)+ 策略 `Policies\…\AppPrivacy` | `privacy camera inuse`(`in-use` 为别名) |
 | 麦克风开关 | BIOS `Microphone` | `privacy mic {on|off}` |
 | 指纹使能 | BIOS `FingerprintReader` | `privacy fingerprint {on|off}` |
 | 人机感应(亮屏/锁屏/距离) | SmartSense RPC + `LENOVO_SETTING_*` 命令 | `sense {lock-on-leave,wake-on-approach,...}` |
@@ -81,11 +83,30 @@
 - dry-run 不写设备;已处于请求状态时不重启输入节点。提交逐节点回读,
   失败时恢复所有可能已发生变化的尝试节点,包括返回错误但可能已经生效的那一次调用。
 - `touchpad status` 只读输入叶聚合状态；叶状态分裂或不可读时返回错误，不伪装成单一状态。
-- `touchpad recover` 用于崩溃后 digitizer/mouse 输入叶状态分裂：先读取全部叶并要求
-  至少一个 mouse 叶（输入叶总数上限 16，超限拒绝），只启用当前禁用的输入叶，逐叶
-  独立回读，不触碰控制器或其他设备。单节点报错时仍尝试其余禁用叶，保留错误并非零
-  退出；可再次执行。`--dry-run touchpad recover` 只输出各叶前值和目标，不写设备。
-  新路径的目标机真实恢复效果尚未验收。
+- `touchpad caps` 只读精确式触控板顶层集合（`HID_DEVICE_UP:000D_U:0005`）的 HID
+  preparsed data：集合声明的同时接触点数、设备能力 feature report 中的
+  Contact Count Maximum（`0x000D/0x0055`）与 Button Type（`0x000D/0x0059`）、
+  X/Y 的逻辑/物理量程及 unit/exponent、逐接触点声明的 Tip/Confidence/Pressure、
+  Haptics 强度与按键压力阈值。该集合只能在 `FILE_READ_ATTRIBUTES` + 共享
+  `READ|WRITE` 下打开（`GENERIC_READ` 在本机返回共享冲突 32）；打开失败即报
+  `ChannelUnavailable`，不回退到更宽的访问掩码。非 `0x000D/0x0005` 顶层集合
+  （配置集合 `0x000D/0x000E`、厂商集合 `0xFF00/0x0001`）一律拒绝解码。
+  输出中的毫米尺寸由声明的物理量程换算并标注为 derived；Contact Count Maximum
+  与 Button Type 为设备声明值，不构成按压/震动功能保证。详见
+  `evidence/re-touchpad-caps-20261105.md`。
+- `touchpad recover` 先读取全部输入叶并要求至少一个 mouse 叶（输入叶总数上限 16，
+  超限拒绝），再按观察到的叶状态选择策略（`strategy` 字段如实回报，不由调用方指定）：
+  (a) `enable_disabled_leaves` — 崩溃后 digitizer/mouse 叶状态分裂时，只启用当前禁用的
+  输入叶；(b) `cycle_input_leaves` — 全部叶已启用但触控板无输入响应时，对每个输入叶执行
+  `CM_Disable_DevNode`→`CM_Enable_DevNode` 重启（禁用始终为运行时语义，不置持久标志），
+  并先确认禁用已实际生效再启用。两条策略都以逐叶独立回读结尾（恢复窗口长于普通切换），
+  回读失败的叶会再显式启用一次并重读，绝不留在禁用状态；最终失败为非零退出并列出叶，
+  可再次执行。全程不触碰 ACPI 控制器、configuration 集合或 vendor-defined 集合。
+  `--dry-run touchpad recover` 只输出策略与各叶前值/目标，不写设备。
+  对健康触控板执行 `recover` 会重启其两个输入集合，这是该命令的语义。
+  PnP 回读只证明节点已枚举为启用，不证明按压/震动功能；厂商 firmware-tunnel 集合
+  （Col04）按上述边界不参与重启，因此 MCU 级挂死可能仍需整机断电重启 [推断]。
+  详见 `evidence/re-touchpad-20261105.md`。新路径的目标机真实恢复效果尚未验收。
 - 禁用 ACPI 控制器会令 HID 子节点消失,使下一次 CLI 无法重新发现触控板。
   若旧版本留下该状态,用已确认的原控制器完整 instance ID 执行
   `pnputil /enable-device "<instance-id>"`,再检查控制器及各子节点状态;不要扫描或批量启用其他设备。
@@ -103,7 +124,29 @@ bit0=Fn/Ctrl swap,bit1=F1-F12 primary,bit2=Win 锁,bit3=触控板禁用,bit4+=�
 
 ## 2. 键盘背光
 
-### 2.1 首选通道:`LENOVO_LIGHTING_METHOD`(实例 `ACPI\PNP0C14\LLT_0` 族)
+### 2.0 首选通道:ACPI `KBLC`(VPC2004,`\\.\EnergyDrv` IOCTL `0x83102144`)
+
+21VG 及同类 IdeaPad/ThinkBook 的键盘背光由虚拟电源控制器设备的 `KBLC` 方法控制,
+`AcpiVpc.sys` 把 4 字节参数与 4 字节结果透传给用户态。参数编码(与 Linux
+`ideapad-laptop` 的 `KBD_BL_*` 常量一致):
+
+```
+0x1                                  查询键盘组 → KBGC|1(5=三态,7=三态+auto)
+(group << 4) | 0x2                   读状态     → KBGS|1,状态 = (ret >> 1) & 7
+(state << 16) | (group << 4) | 0x3   写状态     → 不带状态字,必须回读
+```
+
+`group = (query & ~1) >> 1`(三态=2,三态+auto=3);状态 `0`=关、`1`=低、`2`=高、
+`3`=自动(环境光)。组不匹配时固件回 **0**,因此 0 只能当"无状态",不能当"关"。
+`kbd backlight` 的 `off|low|high|auto` 即 `0|1|2|3`;`auto` 只在查询返回 `7`
+的机型上被接受,其余机型由 `level exceeds max` 拒绝。
+
+**21VG 实机只读测量(2026-11-05)**:`KBLC(0x1)=0x7`、`KBLC(0x32)=0x1`、
+`KBLC(0x22)=0x0`;两字节回读与主契约一致,写路径尚未执行。取证与驱动偏移见
+[interfaces.md §11.8](interfaces.md#118-键盘背光acpi-kblcvpc2004) 和
+[re-kbd-backlight-20261105.md](evidence/re-kbd-backlight-20261105.md)。
+
+### 2.1 回退通道:`LENOVO_LIGHTING_METHOD`(实例 `ACPI\PNP0C14\LLT_0` 族)
 
 ```
 读: Get_Lighting_Current_Status(Lighting_ID: UInt8,
@@ -118,8 +161,8 @@ bit0=Fn/Ctrl swap,bit1=F1-F12 primary,bit2=Win 锁,bit3=触控板禁用,bit4+=�
 
 **目标机实测(2026-10-30)**:TB14P-EZRA 上 `LENOVO_LIGHTING_DATA` 与
 `LENOVO_LIGHTING_METHOD` 实例枚举均返回 WMI HRESULT 0x8004100C(Not
-supported),能力矩阵为 `kbd.backlight=unsupported`,未尝试任何写入;该机型
-无此 WMI 背光通道。GAMEZONE 复合通道同样未在目标机验证,不作为替代。
+supported),该机型无此 WMI 背光通道;`kbd.backlight` 的可用性因此改由
+§2.0 的 `KBLC` 探测决定。GAMEZONE 复合通道同样未在目标机验证,不作为替代。
 
 档位:`0`=关,`1..State_Type_Num-1`=逐级亮度(ThinkBook 单色背光为 3 档)。
 灯效 `Current_State_Type`:0=静态,1=呼吸,2=波浪,3=反应,4=闪烁(单色机型仅 0 有效)。
@@ -171,6 +214,11 @@ Windows 全局命名互斥量只串行化合作的本程序写入，不能阻止
 其他模式或不同路径保留并报告未验证。检查和写入不是原子操作,不能据此保证消除
 外部控制者竞争或证明进程崩溃恢复。`auto` 当前只是选择固件默认的固定模式,不是
 已验收的动态 AC/会话自适应策略。
+
+`--auto-restore` 只回放**观测到的前一固定刷新率**:固件刷新 `Mode`(自适应 VRR)
+没有写入通道,任何请求都无法把自适应策略恢复回去;`auto` 解析为固件默认频率而
+不是观测值,因此不能用作恢复目标(2026-11-05 实机缺陷与修正见
+`evidence/re-panel-refresh-20261105.md` §4)。
 
 目标机在交互控制台对 120→60 Hz 执行真实程序 dry-run,退出 0;独立显示 API 观察
 同一内置路径的活动及注册表模式在前后保持不变。该观察不证明物理刷新率切换或
@@ -236,6 +284,13 @@ Panel_Get/Set_Game_Aid_* (FPS/Sight_Mode/Timer/Countdown)
   SRMapping:0/1/3/4→2(开),2→1(关)。
 - 与场景引擎联动(DispatcherConfig.xml V2001)。**Windows 厂商特性**,实现边界标注为可选。
 
+**2026-11-05 实机复核(21VG,只读)**:原版链路是 `SmartDisplayAddin →
+x64\SESuperResolutionPlugin64.dll → IntelControlLib.dll`(IGCL),场景值为
+`set_sr {"F2001":{"F2001":0|1}}`。IGCL 契约:能力枚举两趟(`pFeatureDetails=NULL` 取数量 →
+传数组 → 单特性取 116B 负载),get/set 为 120B `ctl_video_processing_feature_getset_t` 配
+92B payload(flag@+8:1=关、2=开)。本机驱动对枚举与状态查询均回 `0x4000000b`,故保持
+Unsupported;实现与验收见 `docs/evidence/re-panel-20261105.md` §4。
+
 ### 3.5 护眼(低蓝光)
 
 - 路径一:BIOS 项 `LowBlueLight,Enable`(若 BiosSelections 枚举存在)。
@@ -246,6 +301,42 @@ Panel_Get/Set_Game_Aid_* (FPS/Sight_Mode/Timer/Countdown)
 - SmartInteractAddin 的 `EyeCareMode` 属同族封装。
 - **实现建议**:路径一/二为 Lenovo 平台通用;路径三仅在安装了 PCManager 服务时可用,
   本工具应以路径一/二为主、路径三为兼容回退。
+
+**2026-11-05 实机复核(21VG,只读)**:路径一不存在(53 条 `Lenovo_BiosSetting` 无
+`LowBlueLight`);路径二不存在(`LENOVO_PANEL_METHOD.Panel_Set_Display_Mode` 回 `不支持`);
+路径三存在,但承载者不是 SCM 自定义消息,而是 `LenovoMonitorManager.exe`(x86,`-pcmgr
+Eye_Protection_Mode` / `-seteyeprotected`;支持位来自 `WrapPlugin.dll!IsSupportColorTemperature`,
+状态 `HKCU\SOFTWARE\Lenovo\PcManager\Configs\EyeCareFlag`,实测 `0`)。Vantage 侧为
+`SmartInteractAddin` 契约 `EyeCareMode`(`EyeModeState`/`ColorTemperature`/`SetEyeMode` +
+`UpdateEachMonitorGammaTemp`)。两者机制相同:系统 `GetDeviceGammaRamp`/`SetDeviceGammaRamp`
+施加色温曲线,所以 lctrl-hal-win 用同一系统 API 实现(`GammaRampApi`/`NativeGammaRamp`),
+不依赖联想组件。档位 Kelvin 仍是仓库推断值;证据与验收步骤见
+`docs/evidence/re-panel-20261105.md` §5。
+
+### 3.6 面板身份(EDID,只读)
+
+`panel info` 报出内置屏自身 EDID 解码出的身份:三字母厂商码、产品码(与厂商码拼成
+PnP 显示器 ID,如 `LEN8AD7`)、`0xFC` 名称描述符、`0xFE` 文本描述符、序列号(`0`
+表示未使用,不当作序列号 0)、制造年/周(周 `0` 为未指定,`0xFF` 为型号年)、EDID
+版本、首选 DTD 的原生分辨率与刷新率、物理尺寸(`cm` 字节换算成 `mm`)、数字输入的
+每主色位深与接口码、`0xFD` 范围限制。解码由本仓库实现(`lctrl-core::decode_panel_edid`),
+不依赖厂商 DLL。
+
+选屏与取字节分两步,且都必须唯一:先查 `root\wmi` `WmiMonitorConnectionParams`,取
+`VideoOutputTechnology == D3DKMDT_VOT_INTERNAL`(`0x80000000`)的唯一实例;再按其
+`InstanceName` 去掉尾部显示序号(`_0`)后,从
+`HKLM\SYSTEM\CurrentControlSet\Enum\<instance>\Device Parameters\EDID` 读 `REG_BINARY`。
+零个或多个内置实例一律拒绝,不挑一个凑答案;候选实例的 PnP 类名(3 字母 + 4 位十六
+进制)若与 EDID 解出的厂商码/产品码不一致,同样拒绝。
+
+EDID 校验是硬性要求:长度非 128 整数倍、任一 128 字节块校验和不为 0、基块魔数不符、
+或基块声明的扩展块数与实际字节数不符,都整体拒绝而不做部分解码。内置屏与外接屏
+记录共存、已拔出的显示器仍保留记录,所以"读第一条 `DISPLAY` 记录"是错误做法。
+
+连接类型只报 EDID 与操作系统能证明的部分:数字接口码 `0x05`(DisplayPort)且被 OS
+判为内置即 `edp`;外接 `DisplayPort`/`HDMI`/`DVI` 按接口码报;EDID 没有 LVDS 编码,
+所以内置屏若接口码为 0(EDID 1.3 式数字字节),报 `unspecified` 并保留原始接口码,
+不猜 LVDS。证据与实机回执见 `docs/evidence/re-panel-edid-20261105.md`。
 
 ---
 
@@ -282,6 +373,30 @@ USB 摄像头接口由 OK 变为 Error(禁用);恢复后回到 OK。`privacy sta
 runtime_camera=enabled、BIOS 三项均为 Enable。运行时麦克风布线未接入;
 SmartSense 与 Dolby/降噪为保留的官方厂商通道(见 §5/§6 边界)。回执见
 `evidence/target-input-privacy-sensing-20261030.json`。
+
+**补充(2026-11-05)**:`privacy cam status` 只读地同时报告三层:聚合运行时状态、
+每个 devnode 的独立状态(拆分组或启动失败的 devnode 按实例归因,不再整体拒绝)、
+BIOS `IntegratedCamera` 持久项。`privacy camera enable|disable` 与 `on|off` 等价。
+遮蔽(occlusion)通道保持关闭并如实报告 `supported:false`:
+`Windows.Media.Devices.CameraOcclusionInfo` 只能从已初始化的 WinRT
+`MediaCapture` 会话的 `VideoDeviceController` 取得——读取即打开摄像头、devnode
+禁用时不可读;微软明确要求在流式期间才使用该值,且不得当作绝对隐私指示——而本机
+recon 未发现物理快门硬件。契约与未跑验收见
+`evidence/re-privacy-cam-impl-20261105.md`。
+
+**补充(2026-11-06)**:`privacy camera inuse`(别名 `in-use`)只读地报告 Windows
+Capability Access Manager 对摄像头**记录了**什么,不回答"现在是否在采集":
+四个容器 `HKCU`、`HKCU\…\webcam\NonPackaged`、`HKLM`、`HKLM\…\NonPackaged`
+各自独立报告(机器级 `Deny` 不与用户级 `Allow` 合并),每条应用记录给出
+`Value`(`Allow`/`Deny`/`PromptOnFirstUse`,其他文本原样保留)、`LastSetTime`
+与 `LastUsedTimeStart`/`LastUsedTimeStop`(FILETIME,同时给出原始 ticks 与 UTC),
+`NonPackaged` 的 `#` 编码路径解码为真实路径(无法解码的键原样保留,不丢弃)。
+`in_use` 的规则显式写在输出里:**两个时间戳都非零且 Start > Stop**;这是记录到的时间戳
+对,不是直播证据,输出同时带 `as recorded by CapabilityAccessManager` 标注。
+策略 `HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy` 独立成字段:本机不存在
+该键,因此报 `present:false`,而不是推断成"允许"或"用户控制"。整条路径只做
+`KEY_READ`,不打开设备、不调用 `MediaCapture`、不写同意存储。契约、实机只读探测
+与未跑验收见 `evidence/re-camera-inuse-20261106.md`。
 
 ### 4.3 指纹/人脸凭据
 
@@ -404,6 +519,22 @@ Personalize=4,Dynamic=5,Off=6。
 事件源:`LENOVO_UTILITY_EVENT`(PressTypeDataVal: UInt32)— 按键事件;
 OSD 时序:接收事件 → 执行动作 → OSD 显示 0.8s + 淡出 0.3s → 通知 UI 同步。
 
+### 7.1 Fn OSD 开关(`vantage osd enable|disable`)
+
+Fn OSD(CapsLk/NumLk 指示)的持久偏好不属于 WMI 类,而是 `LenovoFnAndFunctionKeys`
+服务键下的两个 DWORD,且**唯一的厂商写入口是用户自定义服务控制码**
+(`ControlService`,不是直接写注册表):
+
+| 指示 | 开 | 关 | 服务写入的值 |
+|---|---|---|---|
+| CapsLk OSD | `146`(0x92) | `147`(0x93) | `VantageToast\ShowCapslkOSD`(并同步 `ControlShowOSD\ShowCapsNumlkOSD`) |
+| NumLk OSD | `148`(0x94) | `149`(0x95) | `VantageToast\ShowNumlkOSD` |
+
+读回 = 读上述 DWORD(`1` = 显示);厂商自己也是在控制码之后按 10×200ms 轮询该值确认。
+NumLk 额外受 `Capbility\SupportNumlkKey=1` 约束,为 `0` 的机型(21VG)如实报
+`not_supported` 且**不发送** 148/149。`144`/`145` 属于 Vantage toast(`NeverPopToast`),
+不是 Fn OSD,不在本命令范围。取证见 `evidence/re-osd-20261105.md`。
+
 ---
 
 ## 8. 错误与边界
@@ -434,3 +565,24 @@ OSD 时序:接收事件 → 执行动作 → OSD 显示 0.8s + 淡出 0.3s → �
 | Fn 热键服务结构与 OSD 时序 | `官方组件接口说明`(INF + 组件字符串资源) |
 | PrivacyGuard 底层路径:UTILITY_DATA 实例调用约定 + datatype 支持表 | **实机探测** `目标机实机接口探测记录`;featuretype↔隐私位映射仍 [推断] §4.2 |
 | 护眼档位与 Display_Mode 复用 | [推断] §3.5 |
+
+## 10. USB 端口清单(`usb ports`,只读)
+
+不复用 §11(interfaces.md)的 EnergyDrv 充电开关:那是"给外设供电的开关位",没有端口/速率/PD
+信息。端口清单走 SetupAPI + USB 集线器 IOCTL,实机 21VG 复核(完整字节证据见
+`docs/evidence/re-usb-ports-20261105.md`)。
+
+| 层 | 通道 | 实机结果 |
+|---|---|---|
+| 集线器发现 | `GUID_DEVINTERFACE_USB_HUB` 设备接口 | 2 个:`USB\ROOT_HUB30\4&32F967F1&0&0`(5 口)、`USB\ROOT_HUB30\4&196F3462&0&0`(12 口) |
+| 集线器形态 | `IOCTL_USB_GET_NODE_INFORMATION` | `bNumberOfPorts` 5/12,`wHubCharacteristics` 0x0000,`HubIsBusPowered`=0 |
+| 端口状态/速率 | `IOCTL_USB_GET_NODE_CONNECTION_INFORMATION_EX` | 端口 4/5/8 有设备,其余 14 口 `ConnectionStatus`=0;速率字节按 `USB_DEVICE_SPEED`(0 Low/1 Full/2 High/3 SuperSpeed)解码,越界值原样输出 |
+| 端口→设备 | `IOCTL_USB_GET_NODE_CONNECTION_DRIVERKEY_NAME` 与集线器子 devnode 的 `DEVPKEY_Device_Driver` 精确对齐 | Goodix `27c6:659a`(Full)、相机 `174f:182b`(High)、接收器 `046d:c542`(Full) |
+| 设备申报功率 | `IOCTL_USB_GET_DESCRIPTOR_FROM_NODE_CONNECTION`(配置描述符) | 100 mA / 500 mA / 50 mA(`bMaxPower` 按 `bcdUSB` 选 2 mA 或 8 mA 单位) |
+| USB4 | `Usb4HostRouter`(PCI `E434`)+ `USB4\ROOT_DEVICE_ROUTER` | 只报"存在";该栈无用户态端口枚举,端口列为不可用 |
+| PD / BC1.2 | UCSI `ACPI\USBC000`(`UcmUcsiAcpiClient`,fw 1.2) | **不可读**:UCM 类 GUID 下 0 个设备接口,且全命名空间无 UCM/USB4/Type-C 连接器 WMI 类 → 每个端口 `power_delivery` 为空,并给出该原因 |
+
+明确不做的事:`Win32_PortConnector`(SMBIOS Type 9)在本机是模板行(Keyboard/Mouse/USB/CRT/COM1),
+不能作为端口来源;端口颜色/宣传参数推 PD 瓦数同样禁止;`..._INFORMATION_EX_V2` 在本机对所有
+输入长度返回 Win32 错误 87,因此不据此声明 SuperSpeedPlus/USB4 速率。命令为只读
+(`StateLayer::Runtime`,`read_only`),打开集线器句柄时 desired access=0。

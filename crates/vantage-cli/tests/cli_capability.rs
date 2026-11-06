@@ -118,6 +118,11 @@ fn cli_aliases_map_to_expected_registry_rows() {
             StateLayer::Runtime,
         ),
         (
+            &["vantage", "perf", "gpu"],
+            lctrl_core::CommandId::PERF_GPU_STATUS,
+            StateLayer::Runtime,
+        ),
+        (
             &["vantage", "bios"],
             lctrl_core::CommandId::BIOS_LIST,
             StateLayer::BiosPersistent,
@@ -146,15 +151,17 @@ fn cli_aliases_map_to_expected_registry_rows() {
 }
 
 #[test]
-fn unknown_hardware_is_unsupported_without_service() {
+fn lte_status_without_the_service_is_unsupported_at_dispatch() {
     let hal = FakeHal::new();
     let cli = Cli::try_parse_from(["vantage", "--json", "magicbay", "lte", "status"]).unwrap();
     let result = execute_with_services(cli, CommandServices::new(&hal).with_magicbay(&MagicBay));
-    let error = result.expect_err("magicbay LTE should be unsupported");
+    let error = result.expect_err("lte status needs the Mobile Broadband service");
     assert!(
         matches!(error, lctrl_core::LctrlError::Unsupported { ref feature } if feature.contains("magicbay.lte")),
         "unexpected error {error}"
     );
+    // The registry row is implemented, but an unprobed channel stays
+    // unverified: capability metadata never proves the service is attached.
     let observed = vantage_cli::evaluate_commands(&hal).unwrap();
     let row = observed
         .iter()
@@ -162,7 +169,57 @@ fn unknown_hardware_is_unsupported_without_service() {
             row.command.as_str() == "magicbay.lte.status" && row.layer == StateLayer::Runtime
         })
         .unwrap();
-    assert_eq!(row.status, ObservedStatus::Unsupported);
+    assert_eq!(row.status, ObservedStatus::Unverified);
+    assert!(row.service_roles.contains(&"mobile_broadband"));
+}
+
+#[test]
+fn probed_lte_channel_plus_attached_accessory_is_available() {
+    let hal = FakeHal::new();
+    let mut capabilities = hal.capabilities().unwrap();
+    capabilities
+        .record("channel.mobilebroadband", Availability::Available, None)
+        .unwrap();
+    capabilities
+        .record("magicbay.lte", Availability::Available, None)
+        .unwrap();
+    let rows = vantage_cli::evaluate_commands_with_hardware(
+        &hal,
+        &capabilities,
+        lctrl_hal::HardwareObservation {
+            magicbay: lctrl_core::HardwarePresence::Present,
+        },
+    );
+    let row = rows
+        .iter()
+        .find(|row| {
+            row.command.as_str() == "magicbay.lte.status" && row.layer == StateLayer::Runtime
+        })
+        .unwrap();
+    assert_eq!(row.status, ObservedStatus::Available);
+}
+
+#[test]
+fn unprobed_lte_channel_is_never_reported_available() {
+    let hal = FakeHal::new();
+    let mut capabilities = hal.capabilities().unwrap();
+    capabilities
+        .record("magicbay.lte", Availability::Available, None)
+        .unwrap();
+    let rows = vantage_cli::evaluate_commands_with_hardware(
+        &hal,
+        &capabilities,
+        lctrl_hal::HardwareObservation {
+            magicbay: lctrl_core::HardwarePresence::Present,
+        },
+    );
+    let row = rows
+        .iter()
+        .find(|row| {
+            row.command.as_str() == "magicbay.lte.status" && row.layer == StateLayer::Runtime
+        })
+        .unwrap();
+    assert_eq!(row.status, ObservedStatus::Unverified);
 }
 
 struct MagicBay;
@@ -337,6 +394,20 @@ fn mutations_have_required_readback_and_unsupported_have_honest_axes() {
     assert_eq!(thresholds.status, ObservedStatus::Unsupported);
     assert_eq!(thresholds.axes.readback, lctrl_core::Readback::Unverified);
     assert_eq!(thresholds.axes.rollback, lctrl_core::Rollback::Unavailable);
+}
+
+#[test]
+fn panel_info_selects_the_read_only_identity_row() {
+    let cli = Cli::try_parse_from(["vantage", "panel", "info"]).unwrap();
+    let selector = command_selector(&cli.command).unwrap();
+    assert_eq!(selector.command, lctrl_core::CommandId::PANEL_INFO);
+    let rows = vantage_cli::evaluate_commands(&FakeHal::new()).unwrap();
+    let observed = rows
+        .iter()
+        .find(|row| row.command == lctrl_core::CommandId::PANEL_INFO)
+        .unwrap();
+    assert!(!observed.axes.write);
+    assert!(observed.axes.read);
 }
 
 #[test]

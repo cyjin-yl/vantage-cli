@@ -1,6 +1,6 @@
 use lctrl_core::{
-    ApplyMode, ChangeReport, FanDescriptor, FanId, FanMode, FanTable, PerformanceMode,
-    PerformanceState, Result, SensorId,
+    ApplyMode, ChangeReport, FanDescriptor, FanId, FanMode, FanTable, ItsPolicy,
+    PerformanceMode, PerformanceState, Result, SensorId,
 };
 
 pub trait PerformanceControl: Send + Sync {
@@ -10,6 +10,15 @@ pub trait PerformanceControl: Send + Sync {
         mode: PerformanceMode,
         apply: ApplyMode,
     ) -> Result<ChangeReport<PerformanceMode>>;
+}
+
+/// Read-only decode of the dispatcher's `Policy_*` `PowerSlider` values.
+///
+/// Nothing on this surface writes: the values it reports are the vendor's own
+/// published policy, decoded where the dispatcher's binary proves the packing
+/// and left raw where it does not.
+pub trait ItsPolicyControl: Send + Sync {
+    fn its_policy(&self) -> Result<ItsPolicy>;
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -50,4 +59,15 @@ pub trait TemperatureControl: Send + Sync {
 /// semantics are not verified on the target.
 pub trait DbdcControl: Send + Sync {
     fn dbdc_profile(&self) -> Result<lctrl_core::DbdcProfile>;
+}
+
+/// Read-only GPU overclock status (`LENOVO_GAMEZONE_DATA.IsSupportGpuOC` plus
+/// the `LENOVO_GAMEZONE_GPU_OC_DATA` parameter block).
+///
+/// There is no write counterpart: the vendor OC writers are NVAPI
+/// `NvAPI_GPU_SetPstates20` and Intel's OC SDK, neither of which is a Lenovo
+/// WMI verb, and no reversible write with readback is documented on this
+/// interface (`evidence/re-gpu-oc-20261105.md`).
+pub trait GpuOcControl: Send + Sync {
+    fn gpu_oc_status(&self) -> Result<lctrl_core::GpuOcStatus>;
 }

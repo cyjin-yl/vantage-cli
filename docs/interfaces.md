@@ -372,11 +372,26 @@ consumer/生产 CLI 已有受限模式状态与恢复观察，见
 
 ### 11.3 夜间充电(`0x83102150`,4B 选择子)
 
-`0x13` 支持探测(响应 bit0=支持);`0x11` 状态(bit4=开);写 `0x80000012`=开、`0x12`=关。**实机更正(2026-11-01)**:同机探测回 `0x11` 而状态回 `0x01`——探测响应 bit4 并非当前状态(此前[推断]有误);权威状态只取 `0x11` 查询。实机状态:支持,当前关。写响应按 4B 读取(内容不解释),写后以 `0x11` 轮询验证(与 GBMD 同轮询界)。
+精确函数(导出名表 → RVA,2026-11-05 复核):
+
+| 函数 | RVA | 输入 | 解码 |
+|---|---|---|---|
+| `DoesSupportNightChargeMode` | `0xa5c0` | `0x13` | 支持 = `(raw&1)!=0 && ((raw>>4)&1)!=0` |
+| `GetNightChargeMode` | `0xa770` | 先 `0xa5c0`;支持才发 `0x11` | 探测失败返回 0;`0x11` 的 bit4=开 → `1=On` / `2=Off` |
+| `SetNightChargeMode` | `0xa930` | `0x80000012`=On,`0x12`=Off(参数 1/2,其余非法) | 4B 输入 + 4B 输出;写后 `Sleep(50ms)` 轮询 `GetNightChargeMode` 至多 10 次 |
+
+**实机**:探测 `0x11`(bit0+bit4 → 支持)、状态 `0x01`(bit4=0 → 关)。探测的 bit4 属于支持信号,不是当前状态(状态只取 `0x11`)。
 
 ### 11.4 临时充电模式(`0x83102148`,4B 选择子)
 
-`0x13` 支持探测、`0x11` 状态读。位语义沿用历史组件契约(docs/02 §5):bit0=Permanent, bit1=PlugIn, bit2=DynamicLifeSpan;PlugIn/DynamicLifeSpan 置位即临时模式。本机未发现写方(写选择子按夜间充电同型试探无对应代码路径)——只读探测。
+| 函数 | RVA | 输入 | 解码 |
+|---|---|---|---|
+| `DoesSupportTemporaryMode` | `0xa250` | `0x13` | 支持 = `(raw&1)!=0 && (raw&6)!=0`;否则 0(不读状态) |
+| `GetTemporaryMode` | `0xa3d0` | 先 `0xa250`;支持才发 `0x11` | `(raw&1)==0` → `None(0)`;否则 `v=(raw>>4)&0x07ffffff`:`0→Permanent(1)`、`1→PlugIn(2)`、`2→DynamicLifeSpan(4)`、其他→`None` |
+
+因此响应字**不是**位掩码:bit0 是有效位、模式在 bit4..26;旧记录“bit0/1/2 位掩码”只对 `0x01/0x02/0x04` 三种回包偶然一致。整个镜像没有写方(导出表无 `SetTemporaryMode`),保持只读。实机:`0x13→3`(支持/活动)、`0x11→1`(有效,Permanent)。
+
+> 另有未被引用的 4 查询块 RVA `0x60a0/0x6230/0x63e0/0x6590`(选择子 `0x23/0x21/0x31/0x41`,结构填充 `0x6050` 在本镜像无调用方)——不属于 `GetTemporaryMode` 路径,不据此改变读回形态。
 
 ### 11.5 DBDC(`LENOVO_REPORT_DBDC_DATA`,WMI 只读)
 
@@ -384,11 +399,11 @@ Counts/CurrentLimit[](mA)/ROS_Power[](mW)/Threshold[](%),实机 3 档 [7500,5000
 
 ## 11.4 / 11.6 修正与阈值写入路径结论
 
-**11.4 修正**:PowerBattery.dll 的 temporary-mode 只读选择子为 0x23/0x21/0x31/0x41;§11.4 原记的 0x13/0x11 实为读回 3/1(实机)。客户端未发现对应写入调用,但不能证明固件没有其他写口;写选择子尚未恢复,保持未准入。
+**11.4 更正(2026-11-05)**:上一条“只读选择子为 0x23/0x21/0x31/0x41”应限定为**未被引用**的辅助块(RVA `0x60a0/0x6230/0x63e0/0x6590`,结构填充 `0x6050` 无调用方)。导出函数 `GetTemporaryMode`(RVA `0xa3d0`)与 `DoesSupportTemporaryMode`(RVA `0xa250`)实际使用 `0x11`/`0x13`,实机读回 `1`/`3`;因此 §11.4 的 `0x13`/`0x11` 是正确的,真正需要更正的是**解码方式**(bit0=有效位、模式在 bit4..26)。写方仍不存在,保持只读。
 
 **11.6 自定义充电阈值**:已确认 BatterySetting.exe → WrapPlugin.dll → ThinkPowerPlugin.dll → PWRMGRV/PWMIF32V 的 ThinkPad 路径,其读回为注册表。21VG 上观察到 PWMIF32V.DLL 缺席、PWRMGRV 键空、所测 MHQI 方法返回 win32=2;因此此已知路径不可用,但这些负向结果不能证明不存在任何其他写入通道。当前命令保持 Unsupported。
 
-**驱动 IOCTL→ACPI 全映射**(AcpiVpc.sys 15.11.30.14,驱动仅透传 4 字节选择子,写门控全在固件):0x20e8 SALS/HALS、0x20f8 GBMD、0x211c/0x2138 ITHC、0x2120 GBID、**0x212c SMTF(可写透传,语义未恢复,探测返回 0xFFFF→门禁)**、0x2130/0x2134 MHQI 读、0x2144/58/5c KBL*、**0x2148 BTMC**、0x214c BSIF、0x2150/0x2154 BNMC。
+**驱动 IOCTL→ACPI 全映射**(AcpiVpc.sys 15.11.30.14,驱动仅透传 4 字节选择子,写门控全在固件):0x20e8 SALS/HALS、0x20f8 GBMD、0x211c/0x2138 ITHC、0x2120 GBID、**0x212c SMTF(可写透传,语义未恢复,探测返回 0xFFFF→门禁)**、0x2130/0x2134 MHQI 读、**0x2144 KBLC / 0x2154 KBLR / 0x2158 KBLA**(键盘背光,见 §11.8;0x215c 是 GAPD 适配器识别,不属于该族)、**0x2148 BTMC**、0x214c BSIF、0x2150 BNMC。
 
 ### 11.7 极限续航（AiTurbo：完整运行态策略仍未替代）
 
@@ -411,6 +426,40 @@ Windows 签名或新客户端复用；原 DLL/服务/驱动均不作为准入运
 公开 Windows API 足以表达单次方案/Job/EcoQoS 操作，不足以把一个通用节流循环宣称为
 完整开关。真实单个设置 UI 的写入映射、完整守护及独立原生效果/恢复验收仍是前置条件，
 当前 `battery extreme-life` 保持 Unsupported；不宣称 60% 停充或已经增加续航。
+
+### 11.8 键盘背光(ACPI `KBLC`,VPC2004)
+
+21VG 的键盘背光**不在** WMI 面:`LENOVO_LIGHTING_DATA`/`LENOVO_LIGHTING_METHOD`
+回 `不支持`,`LENOVO_GAMEZONE_DATA` 的 `Get/SetKeyboardLight` 回 `无效的对象`
+(§10.4)。可用通道是 ACPI 虚拟电源控制器设备 `ACPI\VPC2004\0` 上的 `KBLC` 方法,
+经 `AcpiVpc.sys` 15.11.30.14 的厂商 IOCTL 透传。
+
+**传输契约**(驱动反汇编,镜像 VA):
+- 分发 `0x140011bda`:`cmp ecx,0x83102144` → 处理器 `0x140001fa4`。
+- 处理器构造 12 字节 `IOCTL_ACPI_EVAL_METHOD_EX`(`0x32C004`)输入
+  `{sig 0x49696541, "KBLC"(0x434c424b), arg u32}`(0x140002016/0x140002029),
+  并按 ACPI 输出缓冲校验回包:长度 ≥ 0x14、签名 `0x426f6541`、`Length != 0`、
+  `Type == 0`(整数),再把 +0x10 处的 u32 拷回用户态(0x1400020a2…0x1400020cb)。
+- 因此用户态契约是 **4 字节入 / 4 字节出**;输入长度 <4 或输出 <4 返回
+  `0xc0000023`。同族另有 `0x83102154`→`KBLR`、`0x83102158`→`KBLA`,语义未恢复,
+  本实现不使用。
+
+**方法参数**(VPC2004 `KBLC`,与 Linux `ideapad-laptop` 的 `KBD_BL_*` 常量一致):
+
+| 参数 | 语义 | 返回 |
+|---|---|---|
+| `0x1` | 查询键盘组/配置 | `KBGC \| 1`;`5`=三态,`7`=三态+auto |
+| `(group << 4) \| 0x2` | 读当前状态 | `KBGS \| 1`;状态 = `(ret >> 1) & 7` |
+| `(state << 16) \| (group << 4) \| 0x3` | 写状态 | 不带状态字,须用上式回读 |
+
+`group = (query & ~1) >> 1`:三态机 group 2(状态 0/1/2 = 关/低/高),三态+auto
+group 3(另加状态 3 = 环境光自动)。组选择子不匹配时固件返回 **0**(不是状态字),
+所以 0 只能解释成"无状态",不能当成"关"。
+
+**21VG 实机只读测量(2026-11-05)**:`KBLC(0x1)=0x7`、`KBLC(0x32)=0x1`(状态 0)、
+`KBLC(0x22)=0x0`(组不匹配)。即该机型为四态键盘,C 侧能力行 `kbd.backlight`
+据此判为 Available。所有写入(含状态 3 = auto)都以 GET 回读校验,不匹配则回滚原状态并重验;
+完整取证见 [re-kbd-backlight-20261105.md](evidence/re-kbd-backlight-20261105.md)。
 
 ## 12. Dolby 音频控制接口(DAX RPC)
 
@@ -441,12 +490,12 @@ out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Se
 - `DolbyClient_Initialize` 的 bool 返回不是就绪信号(实机探针返回 false,后续所有 RPC 均成功),调用但不判其值。纯 Rust 通道无此导出,等价地不判任何“就绪”返回值。
 - 实机只读探针(ezra/管理员,非 Vantage 进程):`Initialize=0 GetDolbyEnabled=0 GetActiveProfile=5 GetCurrentMode=-1 IsSpatialAudioSupported=1 GetSpatialAudioStatus=2 GetSKU=1` —— Dolby 关、预设索引 5、空间音频支持。证明第三方进程可独立绑定该端点(非 SYSTEM 专属)。
 - 预设索引表(打包名字表顺序,中置信):0=movie,1=music,2=game,3=voice,4=personalize,5=dynamic;服务器校验范围 [0,5]。`Off` 不是预设索引,走 `SetDolbyEnabled(0)`。
-- 服务前置:`DolbyDAXAPI` 须 Running;标准用户(未提权)RPC ACL 未验证 —— 写操作经现有提权路径。
+- 服务前置:`DolbyDAXAPI` 须 Running;标准用户(未提权)RPC ACL 未验证 —— 写操作经现有提权路径。服务二进制由 `dax3_swc_aposvc` 驱动包提供(`C:\Windows\System32\DriverStore\FileRepository\dax3_swc_aposvc.inf_amd64_8c3a31e30ef1e162\DAX3API.exe`,2026-11-05 SHA-256 `4D098667FCB95572B49216F96A1AE3F7F6F2807B50FAA6D15BB3CDE459BC97D8`),**不在** WindowsApps 的 Vantage 载荷内;那里只有客户端 `DolbyRpcClient.dll`(当前 `DolbyRpcClient.dll` 为 10.2608.62.0,SHA-256 `3DA7AC8A…FAB4B7A1`)。
 
 ### 12.3 实现落点
 
 - `lctrl-hal-win/src/dolby.rs`:`NativeDolbyRpc`(纯 Rust rpcrt4 NDR 客户端)+ `WindowsDolbyAudio<R: DolbyRpc>`(dry-run/commit + 读回轮询,`poll_readback` 10×50ms)。trait 接缝 `DolbyRpc` 与 `vantage-cli` 表面未变。
-- `vantage/src/main.rs` Windows 组合根:audio 服务当前**不挂载**。2026-11-03 真机上该通道在 NDR 封送器内触发访问冲突(0xC0000005)并使整个 CLI 启动即崩溃,因此在描述符差异定位前一律摘除,`audio dolby` 如实报 Unsupported(见 `docs/evidence/native-acceptance-20261103.md`)。同机的 Elevoc 通道(§14)不受影响。
+- `vantage/src/main.rs` Windows 组合根:**已挂载** `WindowsDolbyAudio::new(NativeDolbyRpc::load())`(`:431-437`、`:476-479`)。2026-11-03 的启动崩溃根因已闭合:不是 NDR 描述表,而是 VEH 守卫的 `CONTEXT` 缓冲区缺少 16 字节对齐,`RtlCaptureContext` 的 `fxsave` 在守卫内先崩,`_Call` 从未执行;修正后同一台机器上 `audio dolby movie --yes --auto-restore` 真实提交并恢复(见 `docs/evidence/dax-hpd-rpc-reattach-20261103.md`)。§13 的 HPD 通道同因修复后一并挂载。
 - 第二通道 `ncalrpc:[FusionRpcEndpoint]`(DolbyFusionRpcClient.dll,Atmos/Fusion 附加项)未接入,列为后续。
 
 ### 12.4 rpcrt4 通道契约(取代 DLL 绑定)
@@ -479,7 +528,9 @@ out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Se
 
 **异常处理**:rpcrt4 用 SEH 异常上报传输失败。Rust 无 SEH,故每次调用包在 vectored handler + `RtlCaptureContext`/`RtlRestoreContext` 守卫内,把 RPC 状态异常转成 `ChannelUnavailable` 错误;非 RPC 异常(真实故障)不吞。
 
-**实机只读实证**(2026-11-01,ezra/管理员,非 Vantage 进程,纯 Rust 通道):`connect=ok GetDolbyEnabled(op5)=0 GetActiveProfile(op7)=5 IsSpatialAudioSupported(op2)=1 GetSKU(op37)=1` —— 与 12.2 节对照基线逐值一致;`vantage audio dolby dynamic --dry-run` 输出 `previous enabled=false profile=Dynamic`。写路径(opnum 6/8)未在实机验证,仍走既有写入门禁。
+**实机只读实证**(2026-11-01,ezra/管理员,非 Vantage 进程,纯 Rust 通道):`connect=ok GetDolbyEnabled(op5)=0 GetActiveProfile(op7)=5 IsSpatialAudioSupported(op2)=1 GetSKU(op37)=1` —— 与 12.2 节对照基线逐值一致;`vantage audio dolby dynamic --dry-run` 输出 `previous enabled=false profile=Dynamic`。
+
+**写路径实测**:opnum 6/8 已于 2026-11-01 与 2026-11-03 在真机成功提交并由独立厂商侧读回确认(`enabled false→true`、`profile dynamic→game`,恢复回 `false`/`dynamic`),见 `docs/evidence/dax-hpd-rpc-reattach-20261103.md` 与 `docs/C-acceptance.md` 的 #26 / `audio dolby` 验收行(722、749)。两处 Set 动词的当前版本证据(客户端 thunk 的 `nProcNum` 6/8、`DAX3API.exe` 的服务端格式串 5–8 记录、`ElevocControlService` 的 `SetMode` 信封)记录在 `docs/evidence/re-audio-write-20261105.md`。写操作仍走既有 `--yes` 写入门禁与 `poll_readback` 读回;读回成功只证明设置持久化,不证明物理音效。
 
 ## 13. SmartSense 人体感知设置接口(HPD RPC + 独立注册表读回)
 
@@ -642,6 +693,8 @@ addin 侧的 VantageService contract 调度契约(`CommandNameGet/SetAutoKBDBack
 
 纯 Rust 客户端在 TB14P-EZRA 实机跑通 Initialize→Login→GetCurrentMode 全链路:`vantage audio noise-cancel shared --dry-run` → **previous mic mode=Shared, speaker=off, voice-id=enrolled**(`--json`:`{"mic_mode":"shared","voice_id_enrolled":true}`),与厂商 DLL 基线一致(同机 P/Invoke `GetCurrentMode` = 1 = shared);读操作后实机复核 HKCU F4006 `noise_micro_mode=1`/`noise_speaker_mode=0` 未变。C35 记录了引入生成描述符之后的只读结果;它不证明所有请求均不会产生服务端副作用。
 
+写路径(`SetEffectMode` → `SetMode{link:"uplink"}`)已在真机提交并恢复:`vantage audio noise-cancel shared` 成功、`off` 恢复为 `GetCurrentMode=0` 基线(见 `docs/C-acceptance.md` 第 723/750/859 行)。2026-11-05 对当前版本 SDK(1.3.1.97)与服务端(`ElevocService`,接口 v4.0、单一 opnum 0)的静态复核显示 `SetMode` 信封键序与 `SetAlgType` 前置请求逐字一致,记录在 `docs/evidence/re-audio-write-20261105.md`。读回只证明模式持久化,不证明降噪物理效果。
+
 **应用键结论(2026-11-01 目标机只读探针)**:历史探针中,`user:""` 和省略字段均返回同一份令牌列表且 `GetMode` 正常;一次非白名单值使服务端处理函数 fault,跳过交换也导致后续查询 fault。当前实现不再携带原应用键,发送 `user:""`;此结论仅限已观察服务版本与测试值,不等于证明服务端对任意值均不校验。
 
 **根因(已闭合)**:`RPC_CLIENT_INTERFACE::Flags`。厂商 ifspec 的取值是 `0x06000000`,该位型会把 rpcrt4 引到 NDR64-capable 分发路径;该路径需要厂商 DLL 自己 .rdata 里的 NDR64 格式表,而本客户端只携带 NDR32(v2.0)解释器表,于是 `NdrClientCall3` 在类型格式解释器里抛 `RPC_S_INTERNAL_ERROR (0x6e6)`(异常面由 VEH 兜住转 `ChannelUnavailable`,不崩溃)。把 `Flags` 改为 **0**(单一 NDR v2.0 语法)后同一套表、同一段 JSON、同一调用序列即成功;协商到的传输语法仍是 NDR32 v2.0,线上字节不变。12 变体 metadata sweep 实测:仅 `Flags=0` 是必要条件,`DispatchTable=NULL`、`InterpreterInfo` 取 `&ProxyInfo` 或 NULL、`nCount` 取 1 或 2 均不影响成功。
@@ -650,9 +703,9 @@ addin 侧的 VantageService contract 调度契约(`CommandNameGet/SetAutoKBDBack
 
 ## 15. 面板图像特性接口(Intel IGCL)
 
-**护眼(尚未完成 ABI 对齐与验收)**:曾发现应用的 `SetColorTemperature` 走 `IntelControlLib.dll` 的 `ctlPixelTransformationSetConfig`。当前 Rust 绑定和此前探针的结构体布局与 Intel 公开定义不一致,因此读写行为及硬件适用性均未证实。代码中的 Mid=5000K、High=4000K 是近似推测,不证明与原版等价;不得将该通道视作已实现或进行硬件写入。
+**护眼(gamma ramp 支路已实现,验收待交互会话)**:真正的 owner 有两个——Vantage `SmartInteractAddin` 的 `EyeCareMode` 契约(`EyeModeState`/`ColorTemperature`/`SetEyeMode`,配 `UpdateEachMonitorGammaTemp` 逐显示器生效)和电脑管家 `LenovoMonitorManager.exe`(`-pcmgr Eye_Protection_Mode`、`-seteyeprotected`,支持位来自联想 `WrapPlugin.dll` 的 `IsSupportColorTemperature`,状态 `HKCU\SOFTWARE\Lenovo\PcManager\Configs\EyeCareFlag`)。两者都用系统 `GetDeviceGammaRamp`/`SetDeviceGammaRamp` 施加色温曲线,不是联想私有滤镜。因此实现走同一系统 API(`lctrl-hal-win` 的 `GammaRampApi`/`NativeGammaRamp`),不依赖任何联想组件:读 = 分类当前 ramp,不匹配任何档位即 `unknown`;写 = 捕获旧 ramp、dry-run 优先、写后回读、不一致回滚旧 ramp。IGCL 像素变换块在本机为 0 块,该支路不存在。Mid=5000K / High=4000K 仍是**仓库推断**(Tanner-Helland 近似),未从厂商预设表逐字节提取,不得声称与原版等价;`kelvin_channel_gain` 已改为按百开尔文取对数(此前直接用开尔文并把 blue 分支设在 4900K,导致 mid 恒等、high 全灭蓝)。能力行保持 Unsupported:gamma 写入需要交互会话,SSH 网络登录无法验收。见 `docs/evidence/re-panel-20261105.md` §5。
 
-**超分(尚未完成 ABI 对齐与验收)**:已找到 `ctlGetSetVideoProcessingFeature` 和 SUPER_RESOLUTION 接口,但当前自定义结构布局和查询参数尚未被目标驱动接受;不应把 dry-run 中的 unknown 状态视为有效读回或写入成功。Linux 无已验证的标准 DRM 等价实现。
+**超分(诚实 Unsupported,驱动拒绝)**:原版链路已恢复为 `SmartDisplayAddin → x64\SESuperResolutionPlugin64.dll → IntelControlLib.dll`(IGCL)。能力枚举是**两趟**:`pFeatureDetails=NULL` 先取数量,再传数组,最后单特性取 116B 自定义负载;get/set 用 120B `ctl_video_processing_feature_getset_t`(`FeatureType=4`、`bSet`、`ValueType=5`、`CustomValueSize`/`pCustomValue`)配 92B `ctl_video_processing_super_resolution_t`(flag 在 +8,1=`DISABLE`、2=`ENABLE_DEFAULT_SCENARIO_MODE`)。本机驱动对枚举与状态查询均回 `0x4000000b`(`INVALID_ARGUMENT`);第二条链路 `IntelSRAPI.dll → CLSIDFromProgID(Igfxext.CUIExternal)` 在本机未注册;`root\wmi:LENOVO_SR_DATA`(EC)的方法参数在 CIM schema 中无名字,无法按名调用。写路径以“成功读到旧状态”为门控:读到才写,写后回读,不一致回滚。见 `docs/evidence/re-panel-20261105.md` §4。
 
 **色域(诚实 Unsupported,依赖被禁)**:原版链路 `SEColorManagerPlugin64.dll` → `MONITORCONTROL.dll`(SmartColor addin 1.1.4.32 交付,**联想交付组件,禁依赖**)→ `MonCtrl_GetMonitorColorGamutByIndex`(按名查索引)/`MonCtrl_SetMonitorColorGamut(monitor, index)`,配 `WcsSetDefaultColorProfile`+`InstallColorProfileW` 挂 ICM(ICM 包 9 个 TPLCD_8AD7_*.icm 位于 C:\ProgramData\Lenovo\SmartColorAddin\AddinData\icc\ColorCalibration\)。无 MONITORCONTROL 只剩 ICC 关联 ≠ 原版行为(面板原生色域未切),不平替 → Unsupported, recovered contract 存档于此待非联想路径。Linux 等价评估:colord。
 
@@ -664,8 +717,8 @@ addin 侧的 VantageService contract 调度契约(`CommandNameGet/SetAutoKBDBack
 
 **2026-11-02 契约与实机复验**:像素变换查询必须使用**显示输出句柄**,并固定请求与公开头文件匹配的 1.1 ABI;超分信息结构(116B)与 get/set 负载(92B)是不同结构。此前查询错用 adapter 句柄,不能用来判断块管线是否存在。修正后的独立只读探针成功枚举所选显示输出,返回 0 个 pixtx 块;超分 caps 查询仍返回 `0x4000000b`(`INVALID_ARGUMENT`)。见 `docs/evidence/igcl-readonly-probe-20261102.md`。因此:
 
-- `panel eye-care` 仍报 `Unsupported(panel.eye-care.pixel-transformation-query-unsupported)`;本次无块可配置,没有护眼 LUT 写入入口;
-- 超分状态查询被驱动以 `0x4000000b` 拒(`INVALID_ARGUMENT`),CLI 报 `unknown`;写路径同理拒绝(`panel.super-resolution.write-unverified`);
+- IGCL 像素变换支路:0 块可配置,没有 IGCL 护眼 LUT 写入入口;可写的护眼支路是上文的 gamma ramp(`panel.eye-care.gamma-ramp-detached` 只在未挂 ramp 传输时出现);
+- 超分状态查询被驱动以 `0x4000000b` 拒(`INVALID_ARGUMENT`),CLI 报 `unknown`;写路径由“成功读到旧状态”门控,读被拒即拒绝写(`panel.super-resolution.state-query.rejected`);
 - 0 块结论只适用于本次所选显示输出与该驱动版本,不推断其他显示输出/未来驱动也没有能力。写路径不做猜测。
 
-**Overdrive(当前 Unsupported)**:21VG 上未观察到 `\\.\SPBTESTTOOL` PnP 设备/INF,所测 BIOSOD `0x1A0000` 返回 null。上述结果不足以证明不存在其他硬件控制通道。
+**Overdrive(诚实 Unsupported,固件未声明)**:原版 owner 是 `SmartPanelAddin` 的 `Vantage.SmartEngineBiosOD` → `BiosOD.dll`(导出 `Init`/`Uninit`/`GetODStatus`/`SetODStatus`)。它先枚举 `SELECT * FROM LENOVO_CAPABILITY_DATA_00`,仅当存在 `(IDs >> 16) == 0x1A` 且 `Capability != 0` 的行时,才对 `LENOVO_OTHER_METHOD` 用 `IDs = 0x1A0000` 调 `GetFeatureValue`(读回 `value`)或 `SetFeatureValue`(`value` = `"1"`/`"0"`);本机 11 行能力表中没有 0x1A 家族(全表见 `docs/evidence/re-panel-20261105.md` §3)。这与三条独立否定一致:`LENOVO_GAMEZONE_DATA` 的 OD 方法族回 `无效的对象`、`LENOVO_PANEL_METHOD` 的 MPRT 回 `不支持`、TCON 动态 OD 需要的 `\\.\SPBTESTTOOL` 设备不存在。`crates/lctrl-hal-win/src/gamezone.rs` 已有该 WMI 原语,缺的是固件能力行;不为一台不支持的机器预置服务。

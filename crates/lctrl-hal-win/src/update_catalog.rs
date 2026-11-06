@@ -17,6 +17,27 @@
 
 use lctrl_core::{LctrlError, Result, UpdateCheckReport};
 
+/// What the locally synced UDC catalogue proves: the service wrote a
+/// parseable `LastUpdateConfig` and its sync provenance value.
+///
+/// This is the read-only precondition behind the `update.catalog.local`
+/// capability id — it answers "does a synced catalogue exist", never "which
+/// packages apply to this machine" (`check_updates_impl` answers that). One
+/// registry read per value plus a JSON parse: no network, no package
+/// evaluation, no install.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CatalogSync {
+    /// `UpdateCheckDateTime` — the provenance of the sync. A sibling registry
+    /// value, not a JSON field, so it is absent when the service wrote only
+    /// the config.
+    pub last_sync: Option<String>,
+    /// How many packages the synced config lists, before applicability.
+    pub packages: usize,
+    /// `ConfigUpdateRequired=1` in the synced JSON: the cached config is
+    /// marked stale by the service.
+    pub stale: bool,
+}
+
 #[cfg(any(windows, test))]
 mod catalog {
     use lctrl_core::CatalogPackage;
@@ -40,6 +61,10 @@ mod catalog {
 
     #[derive(Debug, Deserialize)]
     pub(crate) struct RawPackage {
+        /// UDC's stable package identifier; the download cache directory is
+        /// named after it.
+        #[serde(default)]
+        pub(crate) package_id: Option<String>,
         #[serde(default)]
         pub(crate) package_name: Option<String>,
         #[serde(default)]
@@ -109,18 +134,23 @@ mod catalog {
             .packages
             .iter()
             .filter(|package| package_applies(package, device))
-            .map(|package| CatalogPackage {
-                name: package.package_name.clone().unwrap_or_default(),
-                version: package.package_version.clone().unwrap_or_default(),
-                package_type: package.package_type.clone(),
-                update_type: package.package_update_type.clone(),
-                size_bytes: package.package_size,
-                manifest_url: package.package_manifest_url.clone(),
-                download_url: package.package_url.clone(),
-                file_hash: package.package_file_hash.clone(),
-                handler: package.package_handler.clone(),
-            })
+            .map(to_catalog_package)
             .collect()
+    }
+
+    /// Project one catalogue entry, keeping only what a caller can act on.
+    pub(crate) fn to_catalog_package(package: &RawPackage) -> CatalogPackage {
+        CatalogPackage {
+            name: package.package_name.clone().unwrap_or_default(),
+            version: package.package_version.clone().unwrap_or_default(),
+            package_type: package.package_type.clone(),
+            update_type: package.package_update_type.clone(),
+            size_bytes: package.package_size,
+            manifest_url: package.package_manifest_url.clone(),
+            download_url: package.package_url.clone(),
+            file_hash: package.package_file_hash.clone(),
+            handler: package.package_handler.clone(),
+        }
     }
 
     pub(crate) fn package_applies(package: &RawPackage, device: &DeviceApplicability<'_>) -> bool {
@@ -282,6 +312,7 @@ pub(super) use catalog::*;
 #[cfg(windows)]
 mod imp {
     use super::*;
+    use lctrl_core::CatalogPackage;
     use std::collections::BTreeMap;
     use std::ffi::c_void;
     use windows_sys::Win32::System::Registry::{
@@ -403,22 +434,29 @@ mod imp {
         value.encode_utf16().chain(Some(0)).collect()
     }
 
+    /// Whether a synced catalogue config exists and parses. Stops before
+    /// applicability evaluation (`evaluate`), so it makes no claim about the
+    /// packages this machine qualifies for.
+    pub fn catalog_sync() -> Result<Option<CatalogSync>> {
+        let Some(config) = read_config()? else {
+            return Ok(None);
+        };
+        Ok(Some(CatalogSync {
+            last_sync: read_sz(UDC_PACKAGES_KEY, "UpdateCheckDateTime")?
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty()),
+            packages: config.packages.len(),
+            stale: config.config_update_required.unwrap_or(0) == 1,
+        }))
+    }
+
     /// Read the synced UDC config + device facts and evaluate the catalog.
     /// Returns the report or an `Unsupported`/`Unavailable` error, never a
     /// fabricated package set.
     pub fn check_updates_impl(mtm: &str) -> Result<UpdateCheckReport> {
-        let config_json = match read_sz(UDC_PACKAGES_KEY, "LastUpdateConfig")? {
-            Some(json) if !json.trim().is_empty() => json,
-            _ => {
-                return Err(LctrlError::ChannelUnavailable {
-                    channel: "UDC LastUpdateConfig is not synced in the registry".into(),
-                });
-            }
-        };
-        let config: UpdateConfig =
-            serde_json::from_str(&config_json).map_err(|error| LctrlError::ChannelUnavailable {
-                channel: format!("UDC LastUpdateConfig is not parseable JSON: {error}"),
-            })?;
+        let config = read_config()?.ok_or_else(|| LctrlError::ChannelUnavailable {
+            channel: "UDC LastUpdateConfig is not synced in the registry".into(),
+        })?;
         let org = read_sz(UDC_KEY, "registration-account")?
             .unwrap_or_default()
             .trim()
@@ -441,10 +479,59 @@ mod imp {
             packages,
         })
     }
+
+    /// The synced catalogue config, or `None` when the service has not written
+    /// one. A config that is present but unparseable is an error, never an
+    /// empty catalogue.
+    fn read_config() -> Result<Option<UpdateConfig>> {
+        let json = match read_sz(UDC_PACKAGES_KEY, "LastUpdateConfig")? {
+            Some(json) if !json.trim().is_empty() => json,
+            _ => return Ok(None),
+        };
+        let config: UpdateConfig =
+            serde_json::from_str(&json).map_err(|error| LctrlError::ChannelUnavailable {
+                channel: format!("UDC LastUpdateConfig is not parseable JSON: {error}"),
+            })?;
+        Ok(Some(config))
+    }
+
+    /// The catalogue entry for one package identifier, when the synced config
+    /// still lists it. Used to bind an on-disk package directory to the
+    /// package's name and type before its installer runs.
+    pub fn package_binding(package_id: &str) -> Result<Option<CatalogPackage>> {
+        let Some(config) = read_config()? else {
+            return Ok(None);
+        };
+        Ok(config
+            .packages
+            .iter()
+            .find(|package| {
+                package
+                    .package_id
+                    .as_deref()
+                    .is_some_and(|id| id.eq_ignore_ascii_case(package_id))
+            })
+            .map(to_catalog_package))
+    }
 }
 
 #[cfg(windows)]
 pub use imp::check_updates_impl;
+
+#[cfg(windows)]
+pub use imp::package_binding;
+
+#[cfg(windows)]
+pub use imp::catalog_sync;
+
+/// Non-Windows build: the UDC registry channel does not exist, so no synced
+/// catalogue can be proven — `Unsupported`, never an empty catalogue.
+#[cfg(not(windows))]
+pub fn catalog_sync() -> Result<Option<CatalogSync>> {
+    Err(LctrlError::Unsupported {
+        feature: "update.catalog.local".into(),
+    })
+}
 
 /// Non-Windows build: the UDC registry channel does not exist, so the catalog
 /// is honestly unavailable rather than fabricating an empty report.

@@ -20,25 +20,40 @@ use lctrl_core::{
     ApplyMode, Availability, BacklightState, BiosChange, Capability, CapabilitySet, ChargeMode,
     ChargeModeActual, DeviceState, DiagnosticKind, DolbyProfile, DolbyState, DriverIdentity,
     DriverVersion, FanMode, HardwareInfo, LctrlError, LocalDriverRollbackRequest,
-    LocalDriverUpdateRequest, NoiseCancelState, NoiseCancellationMode, PerformanceMode, Platform,
+    LocalDriverUpdateRequest, LocalPackageInstallRequest, NoiseCancelState,
+    NoiseCancellationMode, PerformanceMode, Platform,
     PowerGuid, PowerMutation, PowerRangeObservation, PowerSchemeId, PowerSettingKey,
     PowerSettingValue, PowerSource, PowerSourceValues, ProcessPolicy, ProcessSnapshot,
-    ProcessTarget, ProcessorBoostMode, SceneAction, UpdateCapability,
+    ProcessTarget, ProcessorBoostMode, SceneAction, SensorDescriptor, SensorGuid, SensorInventory,
+    SensorReading, SensorValue, SystemIdentity, UpdateCapability,
+    UpdateHistoryLedger,
 };
 use lctrl_hal::ScenePolicyControl;
 use lctrl_hal::{
-    AudioControl, BatteryControl, BiosControl, ControlConflictDetection, DbdcControl,
-    DiagnosticsControl, FanControl, Hal, HotkeyControl, KeyboardControl, LocalUpdateControl,
-    MachineFixControl, MagicBayControl, NoiseCancelControl, OsdControl, PanelBrightnessControl,
-    PanelControl, PanelFeaturesControl, PerformanceControl, PowerControl, PowerLimitKind,
-    PrivacyControl, ProcessControl, ProcessorPowerControl, SenseControl, SenseFeature,
-    TemperatureControl, TouchpadControl, TuningControl, UpdateControl, UsbControl,
-    WifiSecurityControl,
+    AudioControl, AudioEndpointControl, BatteryControl, BiosControl, BluetoothControl,
+    BluetoothInventory, BluetoothMajorClass, ControlConflictDetection, DbdcControl,
+    DiagnosticsControl, EventLogControl, FanControl, GpuOcControl, Hal, HotkeyControl,
+    ItsPolicyControl,
+    FirmwareControl,
+    KeyboardControl, LocalPackageInstallControl, LocalUpdateControl, MachineFixControl,
+    MagicBayControl, MobileBroadbandControl, NoiseCancelControl, OsdControl,
+    DisplayStatusControl, PanelBrightnessControl, PanelControl, PanelFeaturesControl,
+    PanelIdentityControl,
+    PerformanceControl, PowerControl, PowerLimitKind, PrivacyControl, ProcessControl,
+    ProcessorPowerControl, RadioControl, RadioKind, RadioState, SenseControl, SenseFeature,
+    BitLockerState, BitLockerVolume, SecureBootState, SecurityControl, SecuritySource,
+    SensorControl,
+    SecurityStatusReport, StorageStatusControl, TemperatureControl, TouchpadControl,
+    TuningControl, UpdateControl,
+    UsbControl, WifiBand, WifiSecurityControl, WifiStatusControl, WifiStatusReport,
+    TpmState,
 };
 use serde::{Deserialize, Serialize};
 
+mod battery_health;
 mod battery_observation;
 mod capability;
+mod power_ac;
 use serde_json::Value;
 
 /// Result returned by [`execute`].
@@ -68,6 +83,7 @@ pub struct StreamSpec {
 pub struct CommandServices<'a> {
     hal: &'a dyn Hal,
     audio: Option<&'a dyn AudioControl>,
+    audio_endpoints: Option<&'a dyn AudioEndpointControl>,
     noise_cancel: Option<&'a dyn NoiseCancelControl>,
     battery: Option<&'a dyn BatteryControl>,
     bios: Option<&'a dyn BiosControl>,
@@ -75,8 +91,11 @@ pub struct CommandServices<'a> {
     dbdc: Option<&'a dyn DbdcControl>,
     diagnostics: Option<&'a dyn DiagnosticsControl>,
     fan: Option<&'a dyn FanControl>,
+    gpu_oc: Option<&'a dyn GpuOcControl>,
     keyboard: Option<&'a dyn KeyboardControl>,
+    its_policy: Option<&'a dyn ItsPolicyControl>,
     magicbay: Option<&'a dyn MagicBayControl>,
+    mobile_broadband: Option<&'a dyn MobileBroadbandControl>,
     performance: Option<&'a dyn PerformanceControl>,
     power: Option<&'a dyn PowerControl>,
     privacy: Option<&'a dyn PrivacyControl>,
@@ -84,19 +103,31 @@ pub struct CommandServices<'a> {
     panel: Option<&'a dyn PanelControl>,
     panel_brightness: Option<&'a dyn PanelBrightnessControl>,
     panel_features: Option<&'a dyn PanelFeaturesControl>,
+    panel_identity: Option<&'a dyn PanelIdentityControl>,
+    display_status: Option<&'a dyn DisplayStatusControl>,
     process: Option<&'a dyn ProcessControl>,
     temperature: Option<&'a dyn TemperatureControl>,
     tuning: Option<&'a dyn TuningControl>,
     usb: Option<&'a dyn UsbControl>,
+    usb_ports: Option<&'a dyn lctrl_hal::UsbPortInventoryControl>,
     processor_power: Option<&'a dyn ProcessorPowerControl>,
     sense: Option<&'a dyn SenseControl>,
     update: Option<&'a dyn UpdateControl>,
     local_update: Option<&'a dyn LocalUpdateControl>,
+    local_package: Option<&'a dyn LocalPackageInstallControl>,
     wifi: Option<&'a dyn WifiSecurityControl>,
+    wifi_status: Option<&'a dyn WifiStatusControl>,
+    bluetooth: Option<&'a dyn BluetoothControl>,
+    radio: Option<&'a dyn RadioControl>,
+    sensor: Option<&'a dyn SensorControl>,
     machine_fix: Option<&'a dyn MachineFixControl>,
     scene: Option<&'a dyn ScenePolicyControl>,
     osd: Option<&'a dyn OsdControl>,
     hotkey: Option<&'a dyn HotkeyControl>,
+    firmware: Option<&'a dyn FirmwareControl>,
+    security: Option<&'a dyn SecurityControl>,
+    storage: Option<&'a dyn StorageStatusControl>,
+    event_log: Option<&'a dyn EventLogControl>,
 }
 
 impl<'a> CommandServices<'a> {
@@ -104,6 +135,7 @@ impl<'a> CommandServices<'a> {
         Self {
             hal,
             audio: None,
+            audio_endpoints: None,
             noise_cancel: None,
             battery: None,
             bios: None,
@@ -111,8 +143,11 @@ impl<'a> CommandServices<'a> {
             dbdc: None,
             diagnostics: None,
             fan: None,
+            gpu_oc: None,
             keyboard: None,
+            its_policy: None,
             magicbay: None,
+            mobile_broadband: None,
             performance: None,
             power: None,
             privacy: None,
@@ -120,25 +155,46 @@ impl<'a> CommandServices<'a> {
             panel: None,
             panel_brightness: None,
             panel_features: None,
+            panel_identity: None,
+            display_status: None,
             process: None,
             temperature: None,
             tuning: None,
             usb: None,
+            usb_ports: None,
             processor_power: None,
             sense: None,
             update: None,
             local_update: None,
+            local_package: None,
             wifi: None,
+            wifi_status: None,
+            bluetooth: None,
+            radio: None,
+            sensor: None,
             machine_fix: None,
             scene: None,
             osd: None,
             hotkey: None,
+            firmware: None,
+            security: None,
+            storage: None,
+            event_log: None,
         }
     }
 
     #[must_use]
     pub fn with_audio(mut self, audio: &'a dyn AudioControl) -> Self {
         self.audio = Some(audio);
+        self
+    }
+
+    #[must_use]
+    pub fn with_audio_endpoints(
+        mut self,
+        audio_endpoints: &'a dyn AudioEndpointControl,
+    ) -> Self {
+        self.audio_endpoints = Some(audio_endpoints);
         self
     }
 
@@ -157,6 +213,30 @@ impl<'a> CommandServices<'a> {
     #[must_use]
     pub fn with_bios(mut self, bios: &'a dyn BiosControl) -> Self {
         self.bios = Some(bios);
+        self
+    }
+
+    #[must_use]
+    pub fn with_firmware(mut self, firmware: &'a dyn FirmwareControl) -> Self {
+        self.firmware = Some(firmware);
+        self
+    }
+
+    #[must_use]
+    pub fn with_event_log(mut self, event_log: &'a dyn EventLogControl) -> Self {
+        self.event_log = Some(event_log);
+        self
+    }
+
+    #[must_use]
+    pub fn with_security(mut self, security: &'a dyn SecurityControl) -> Self {
+        self.security = Some(security);
+        self
+    }
+
+    #[must_use]
+    pub fn with_storage(mut self, storage: &'a dyn StorageStatusControl) -> Self {
+        self.storage = Some(storage);
         self
     }
 
@@ -185,14 +265,32 @@ impl<'a> CommandServices<'a> {
     }
 
     #[must_use]
+    pub fn with_gpu_oc(mut self, gpu_oc: &'a dyn GpuOcControl) -> Self {
+        self.gpu_oc = Some(gpu_oc);
+        self
+    }
+
+    #[must_use]
     pub fn with_keyboard(mut self, keyboard: &'a dyn KeyboardControl) -> Self {
         self.keyboard = Some(keyboard);
         self
     }
 
     #[must_use]
+    pub fn with_its_policy(mut self, its_policy: &'a dyn ItsPolicyControl) -> Self {
+        self.its_policy = Some(its_policy);
+        self
+    }
+
+    #[must_use]
     pub fn with_magicbay(mut self, magicbay: &'a dyn MagicBayControl) -> Self {
         self.magicbay = Some(magicbay);
+        self
+    }
+
+    #[must_use]
+    pub fn with_mobile_broadband(mut self, mobile_broadband: &'a dyn MobileBroadbandControl) -> Self {
+        self.mobile_broadband = Some(mobile_broadband);
         self
     }
 
@@ -239,6 +337,18 @@ impl<'a> CommandServices<'a> {
     }
 
     #[must_use]
+    pub fn with_panel_identity(mut self, panel_identity: &'a dyn PanelIdentityControl) -> Self {
+        self.panel_identity = Some(panel_identity);
+        self
+    }
+
+    #[must_use]
+    pub fn with_display_status(mut self, display_status: &'a dyn DisplayStatusControl) -> Self {
+        self.display_status = Some(display_status);
+        self
+    }
+
+    #[must_use]
     pub fn with_temperature(mut self, temperature: &'a dyn TemperatureControl) -> Self {
         self.temperature = Some(temperature);
         self
@@ -252,6 +362,12 @@ impl<'a> CommandServices<'a> {
     #[must_use]
     pub fn with_usb(mut self, usb: &'a dyn UsbControl) -> Self {
         self.usb = Some(usb);
+        self
+    }
+
+    #[must_use]
+    pub fn with_usb_ports(mut self, usb_ports: &'a dyn lctrl_hal::UsbPortInventoryControl) -> Self {
+        self.usb_ports = Some(usb_ports);
         self
     }
 
@@ -285,8 +401,41 @@ impl<'a> CommandServices<'a> {
     }
 
     #[must_use]
+    pub fn with_local_package(
+        mut self,
+        local_package: &'a dyn LocalPackageInstallControl,
+    ) -> Self {
+        self.local_package = Some(local_package);
+        self
+    }
+
+    #[must_use]
     pub fn with_wifi(mut self, wifi: &'a dyn WifiSecurityControl) -> Self {
         self.wifi = Some(wifi);
+        self
+    }
+
+    #[must_use]
+    pub fn with_wifi_status(mut self, wifi_status: &'a dyn WifiStatusControl) -> Self {
+        self.wifi_status = Some(wifi_status);
+        self
+    }
+
+    #[must_use]
+    pub fn with_bluetooth(mut self, bluetooth: &'a dyn BluetoothControl) -> Self {
+        self.bluetooth = Some(bluetooth);
+        self
+    }
+
+    #[must_use]
+    pub fn with_radio(mut self, radio: &'a dyn RadioControl) -> Self {
+        self.radio = Some(radio);
+        self
+    }
+
+    #[must_use]
+    pub fn with_sensor(mut self, sensor: &'a dyn SensorControl) -> Self {
+        self.sensor = Some(sensor);
         self
     }
 
@@ -470,98 +619,193 @@ pub enum Command {
     Doctor,
     /// Report each command's observed status on this machine as a matrix.
     Capability,
+    /// Read the Lenovo records the OS event log holds, newest first.
+    ///
+    /// Read-only: no channel is enabled, cleared or written. Classic records
+    /// carry no message resource, so only the raw `EventData` strings are shown.
+    Events {
+        /// Maximum number of records to return.
+        #[arg(long, default_value_t = lctrl_hal::DEFAULT_EVENT_LOG_RECORDS)]
+        limit: usize,
+    },
+    /// Processor identity, rated clocks, the derived current clock and the
+    /// processor power policy (read-only).
+    Cpu {
+        #[command(subcommand)]
+        command: Option<CpuCommand>,
+    },
+    /// Battery state, charge mode, and charge behaviour.
     Battery {
         #[command(subcommand)]
         command: Option<BatteryCommand>,
     },
+    /// USB power delivery while the machine is off or running on battery.
     Usb {
         #[command(subcommand)]
         command: Option<UsbCommand>,
     },
+    /// Windows power schemes and the one-shot saver workflow.
     Power {
         #[command(subcommand)]
         command: Option<PowerCommand>,
     },
+    /// Performance mode, fans, temperatures, power limits, and process priority.
     Perf {
         #[command(subcommand)]
         command: Option<PerfCommand>,
     },
+    /// Tuning profiles, power limits, EPP, turbo, and telemetry.
     Tune {
         #[command(subcommand)]
         command: Option<TuneCommand>,
     },
+    /// Keyboard backlight and Fn-key behaviour.
     Kbd {
         #[command(subcommand)]
         command: Option<KbdCommand>,
     },
+    /// Touchpad state, on/off, and recovery.
     Touchpad {
         #[arg(value_enum)]
         state: TouchpadAction,
     },
+    /// Internal display brightness, refresh rate, colour, and eye care.
     Panel {
         #[command(subcommand)]
         command: Option<PanelCommand>,
     },
+    /// Read-only display state: mode, refresh rate, per-monitor scaling, and HDR.
+    Display {
+        #[command(subcommand)]
+        command: Option<DisplayCommand>,
+    },
+    /// Camera, microphone, and fingerprint access.
     Privacy {
         #[command(subcommand)]
         command: Option<PrivacyCommand>,
     },
+    /// Smart sensing: presence, attention, keyboard light, and the HPD reset.
     Sense {
         #[command(subcommand)]
         command: Option<SenseCommand>,
     },
+    /// Dolby profile and microphone noise cancellation.
     Audio {
         #[command(subcommand)]
         command: Option<AudioCommand>,
     },
+    /// Read and stage Lenovo BIOS settings.
     Bios {
         #[command(subcommand)]
         command: Option<BiosCommand>,
     },
+    /// Read UEFI/BIOS firmware identity and the firmware-resource table.
+    ///
+    /// Inventory only: no capsule is staged, flashed or cleared.
+    Firmware {
+        #[command(subcommand)]
+        command: Option<FirmwareCommand>,
+    },
+    /// Read-only identity and health of each physical drive.
+    ///
+    /// Observation only: no self-test, sanitize or firmware-slot request is
+    /// issued, because the recovered channel answers queries only.
+    Storage {
+        #[command(subcommand)]
+        command: Option<StorageCommand>,
+    },
+    /// Magic Bay accessory detection and state.
     Magicbay {
         #[command(subcommand)]
         command: Option<MagicbayCommand>,
     },
+    /// Lenovo Fn OSD preference and the replacement on-screen overlay.
     Osd {
         #[command(subcommand)]
         command: Option<OsdCommand>,
     },
+    /// Global hotkey registration and the Lenovo Fn hotkey package state.
     Hotkey {
         #[command(subcommand)]
         command: Option<HotkeyCommand>,
     },
+    /// Lenovo UDC catalogue, package install and rollback, and local drivers.
     Update {
         #[command(subcommand)]
         command: Option<UpdateCommand>,
     },
+    /// Diagnostic scans: list the items, then run some or all of them.
     Scan {
         #[command(subcommand)]
         command: Option<ScanCommand>,
     },
+    /// Managed hardware snapshots: capture, diff, and restore.
     Snapshot {
         #[command(subcommand)]
         command: Option<SnapshotCommand>,
     },
+    /// Wi-Fi security assessment and the bounded observation history.
     Wifi {
         #[command(subcommand)]
         command: Option<WifiCommand>,
     },
+    /// Bluetooth: the local radios and the devices this machine knows.
+    Bluetooth {
+        #[command(subcommand)]
+        command: Option<BluetoothCommand>,
+    },
+    /// Hardware radios: observe Wi-Fi/Bluetooth/WWAN state, switch one off or on.
+    Radio {
+        #[command(subcommand)]
+        command: Option<RadioCommand>,
+    },
+    /// Operating-system sensors: list the sensors this machine instantiates and
+    /// take one read-only report from a selected sensor.
+    Sensor {
+        #[command(subcommand)]
+        command: Option<SensorCommand>,
+    },
+    /// Platform security posture: Secure Boot, TPM and BitLocker. Read-only.
+    Security {
+        #[command(subcommand)]
+        command: Option<SecurityCommand>,
+    },
+    /// MachineFix: transparent ruleset, repair, and the local ledger.
     Fix {
         #[command(subcommand)]
         command: Option<FixCommand>,
     },
+    /// Scene policies: ruleset, match test, and the local ledger.
     Scene {
         #[command(subcommand)]
         command: Option<SceneCommand>,
     },
+    /// Optional resident daemon lifecycle.
     Daemon {
         #[command(subcommand)]
         command: Option<DaemonCommand>,
     },
+    /// Print shell completions for the command tree.
     Completions {
         #[arg(value_enum)]
         shell: Shell,
     },
+}
+
+/// Processor command tree.
+#[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
+pub enum CpuCommand {
+    /// Identity, firmware-declared rated clocks, the derived current clock and
+    /// the processor power policy. Read-only.
+    Status,
+}
+
+/// Storage command tree.
+#[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
+pub enum StorageCommand {
+    /// Enumerate the physical drives and report the identity and health fields
+    /// each one actually answered. Read-only.
+    Status,
 }
 
 /// MachineFix command tree.
@@ -570,10 +814,11 @@ pub enum FixCommand {
     /// List the transparent ruleset and which issues are present.
     Scan,
     /// Apply the named rule's repair, or report the plan under --dry-run.
+    ///
+    /// `--dry-run` is the root-level global flag; the handler consumes the
+    /// resolved `ApplyMode` instead of a second local declaration.
     Run {
         issue: String,
-        #[arg(long)]
-        dry_run: bool,
     },
     /// Show the local ledger of applied fixes and their rollbacks.
     Track,
@@ -590,8 +835,6 @@ pub enum SceneCommand {
         /// Test a specific rule by its id instead of the first rule that fires on the event.
         #[arg(long)]
         rule: Option<String>,
-        #[arg(long)]
-        dry_run: bool,
     },
     /// Show the local ledger of applied scene actions and their rollbacks.
     Track,
@@ -601,6 +844,8 @@ pub enum SceneCommand {
 #[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
 pub enum BatteryCommand {
     Status,
+    /// Show design versus full-charge capacity, wear percent and cycle count (read-only).
+    Health,
     Adapter,
     ChargeMode {
         #[arg(value_enum)]
@@ -641,6 +886,9 @@ pub enum UsbCommand {
         #[arg(long)]
         persistent: bool,
     },
+    /// List controllers, hubs and ports with the speed and power each port
+    /// actually reports (read-only).
+    Ports,
 }
 
 /// Power command tree.
@@ -651,6 +899,11 @@ pub enum PowerCommand {
         command: Option<SchemeCommand>,
     },
     SaverOnce,
+    /// Read-only AC adapter state: line state, vendor adapter identity and
+    /// adapter power where the firmware exposes it.
+    Ac,
+    /// Read-only instantaneous battery-pack power flow and its exact source.
+    Draw,
 }
 
 #[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
@@ -702,6 +955,12 @@ pub enum PerfCommand {
         #[command(subcommand)]
         command: Option<DbdcCommand>,
     },
+    /// Decode the dispatcher's published `Policy_*` PowerSlider values (read-only).
+    Policy,
+    Gpu {
+        #[command(subcommand)]
+        command: Option<GpuCommand>,
+    },
     Top,
     Boost {
         pids: Vec<u32>,
@@ -715,6 +974,12 @@ pub enum PerfCommand {
 pub enum DbdcCommand {
     /// 读取电池直放逐流限流表(LENOVO_REPORT_DBDC_DATA,只读)
     Get,
+}
+
+#[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
+pub enum GpuCommand {
+    /// 读取 GPU 超频能力与 OC 参数块(LENOVO_GAMEZONE_DATA,只读)
+    Status,
 }
 
 #[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
@@ -781,8 +1046,6 @@ pub enum ProfileCommand {
     },
     Apply {
         name: String,
-        #[arg(long)]
-        dry_run: bool,
     },
 }
 
@@ -790,6 +1053,10 @@ pub enum ProfileCommand {
 #[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
 pub enum KbdCommand {
     Backlight {
+        /// Backlight state: `off`, `low`, `high`, `auto`, or the raw firmware
+        /// level (`0..3`). `auto` is the ambient-light mode of firmware that
+        /// advertises a fourth state; other machines reject it.
+        #[arg(value_parser = parse_backlight_level)]
         level: u8,
         #[arg(long, value_enum)]
         effect: Option<BacklightEffect>,
@@ -814,9 +1081,29 @@ pub enum BacklightEffect {
     Breath,
 }
 
+/// Parse a named backlight state to the firmware level it selects.
+///
+/// The hardware levels are `0` off, `1` low, `2` high and, only on firmware
+/// that advertises it, `3` auto. Which of them exist is discovered per machine
+/// by the HAL, so a level outside the published range still fails there with
+/// the firmware's own bound rather than in the parser.
+fn parse_backlight_level(value: &str) -> std::result::Result<u8, String> {
+    match value {
+        "off" => Ok(0),
+        "low" => Ok(1),
+        "high" => Ok(2),
+        "auto" => Ok(3),
+        other => other.parse::<u8>().map_err(|_| {
+            format!("expected off, low, high, auto or a firmware level 0..3, got {other:?}")
+        }),
+    }
+}
+
 /// Panel command tree.
 #[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
 pub enum PanelCommand {
+    /// Read-only identity of the embedded panel, decoded from its own EDID.
+    Info,
     Brightness {
         #[arg(value_parser = clap::value_parser!(u8).range(0..=100))]
         percent: Option<u8>,
@@ -841,6 +1128,19 @@ pub enum PanelCommand {
     EyeCare {
         level: EyeCareLevel,
     },
+}
+
+/// Display-state command tree. Read-only by construction: no HDR, scaling, or
+/// mode transition exists here.
+#[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
+pub enum DisplayCommand {
+    /// Current mode, per-monitor scale, and HDR/wide-colour state.
+    ///
+    /// Two scopes are reported and never merged: `displays` is the calling
+    /// session's live desktop (which a service or SSH logon cannot see), and
+    /// `monitors` is machine-wide driver/EDID state joined by monitor hardware
+    /// id.
+    Status,
 }
 
 #[derive(Clone, Debug, ValueEnum, PartialEq, Eq)]
@@ -868,12 +1168,42 @@ pub enum EyeCareLevel {
     High,
 }
 
+/// Privacy camera actions. `on`/`off` are the established spellings;
+/// `enable`/`disable` are accepted as the same transitions.
+#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
+pub enum PrivacyCamAction {
+    #[value(alias = "enable")]
+    On,
+    #[value(alias = "disable")]
+    Off,
+    /// Read the runtime devnodes and the persistent BIOS switch together
+    /// without changing any device.
+    Status,
+    /// Read the per-application consent and last-use records Windows'
+    /// Capability Access Manager stores for the camera. This is what the OS
+    /// recorded, not an observation that a camera is streaming.
+    #[value(name = "inuse", alias = "in-use")]
+    InUse,
+}
+
+impl PrivacyCamAction {
+    /// The transition this action requests, or `None` for a read-only action.
+    const fn toggle(self) -> Option<Toggle> {
+        match self {
+            Self::On => Some(Toggle::On),
+            Self::Off => Some(Toggle::Off),
+            Self::Status | Self::InUse => None,
+        }
+    }
+}
+
 /// Privacy command tree.
 #[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
 pub enum PrivacyCommand {
+    #[command(visible_alias = "camera")]
     Cam {
         #[arg(value_enum)]
-        state: Toggle,
+        action: PrivacyCamAction,
         #[arg(long, conflicts_with = "persistent")]
         runtime: bool,
         #[arg(long, conflicts_with = "runtime")]
@@ -951,6 +1281,39 @@ pub enum SenseCommand {
 pub enum AudioCommand {
     Dolby { profile: DolbyProfileArg },
     NoiseCancel { mode: NoiseCancelArg },
+    /// List the OS audio endpoints through the MMDevice API.
+    Endpoints {
+        /// Include disabled, unplugged, and not-present endpoints.
+        #[arg(long)]
+        all: bool,
+    },
+    /// Read or set one endpoint's master volume.
+    Volume {
+        /// Target volume in whole percent (0-100); omit to read the state.
+        percent: Option<u8>,
+        /// Endpoint id; defaults to the console-role render endpoint.
+        #[arg(long)]
+        device: Option<String>,
+    },
+    /// Read or set one endpoint's mute flag.
+    Mute {
+        /// `on`/`off`; omit to read the state.
+        state: Option<MuteArg>,
+        /// Endpoint id; defaults to the console-role render endpoint.
+        #[arg(long)]
+        device: Option<String>,
+    },
+}
+
+/// Firmware command tree.
+///
+/// `status` is the only verb, and it is a read: the recovered firmware
+/// contract on this platform exposes the identity and the ESRT projection, not
+/// a capsule write this tool may drive.
+#[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
+pub enum FirmwareCommand {
+    /// Report firmware identity, the ESRT entries, and the last attempt.
+    Status,
 }
 
 /// BIOS command tree.
@@ -1032,6 +1395,15 @@ pub enum UpdateCommand {
         #[command(subcommand)]
         command: LocalDriverCommand,
     },
+    /// Install a package the Lenovo UDC service already downloaded, using the
+    /// package's own signed `install.ps1` (the payload directory is
+    /// `...\Udc\Download\<package_id>\<version>\temp`). The catalogue must
+    /// still list the package, its signature and pinned hash are verified, and
+    /// firmware packages are refused. Never downloads and never reboots.
+    LocalInstall {
+        /// The package payload directory (the one holding `install.ps1`).
+        package: PathBuf,
+    },
     Download {
         #[arg(required = true, num_args = 1..)]
         packages: Vec<String>,
@@ -1083,9 +1455,6 @@ pub enum LocalDriverCommand {
         inf: PathBuf,
         /// Hardware ID the package must bind to (e.g. `PCI\VEN_8086&DEV_1234`).
         hardware_id: String,
-        /// Validate and report without installing.
-        #[arg(long)]
-        dry_run: bool,
     },
     /// Roll a present device's driver back to a previously admitted identity.
     Rollback {
@@ -1118,9 +1487,6 @@ pub enum LocalDriverCommand {
         restore_date: String,
         #[arg(long = "restore-section")]
         restore_section: String,
-        /// Report the planned restore without performing it.
-        #[arg(long)]
-        dry_run: bool,
     },
 }
 
@@ -1139,6 +1505,10 @@ pub enum SnapshotCommand {
 
 #[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
 pub enum WifiCommand {
+    /// Read the live association of every WLAN interface: SSID, BSSID, signal
+    /// (percent and dBm), band, channel, rates, and the negotiated security.
+    /// Read-only; it never scans, so it cannot disturb the current link.
+    Status,
     /// Read the current live interfaces, saved profiles, and security
     /// assessment (open/WEP/WPA/WPA2/WPA3/unknown) with evidence-based risk
     /// reasons.
@@ -1150,10 +1520,118 @@ pub enum WifiCommand {
     ClearHistory,
 }
 
+/// Bluetooth command tree.
+#[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
+pub enum BluetoothCommand {
+    /// List the local radios and the devices this machine knows (paired,
+    /// remembered, or connected) with address, class, state, and last use.
+    /// Read-only: it never starts a discovery/inquiry.
+    List,
+}
+
+/// Radio command tree.
+#[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
+pub enum RadioCommand {
+    /// Report every enumerated radio and its state, plus the Wi-Fi per-PHY software and hardware
+    /// radio switches and the kinds this platform exposes no radio for.
+    Status,
+    /// Switch one radio off and verify it by read-back. Refuses by default when the radio carries
+    /// this remote session; `--force` is for an operator with out-of-band access.
+    Off {
+        #[arg(value_enum)]
+        kind: RadioKindArg,
+        /// Switch the radio off even when it is carrying the current session.
+        #[arg(long)]
+        force: bool,
+    },
+    /// Switch one radio on and verify it by read-back.
+    On {
+        #[arg(value_enum)]
+        kind: RadioKindArg,
+    },
+}
+
+/// Sensor command tree.
+///
+/// Both verbs are read-only: the platform's sensor stack owns report
+/// intervals, thresholds and event sinks, and nothing here subscribes to one.
+#[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
+pub enum SensorCommand {
+    /// List every sensor this machine instantiates, with its identity, state,
+    /// report timestamp and freshness.
+    ///
+    /// A sensor that was enumerated but returned no report is listed in a
+    /// separate `unavailable` set: it has no value, which is not a zero.
+    List,
+    /// Take one report from the selected sensor.
+    ///
+    /// A target this machine does not instantiate (an accelerometer on a SKU
+    /// that has none, for example) is reported as absent instead of being
+    /// answered with a zero reading.
+    Read {
+        /// List index (`5`), full device path, full name, or a unique
+        /// case-insensitive part of the name.
+        target: String,
+    },
+}
+
+impl SensorCommand {
+    const fn feature(&self) -> &'static str {
+        match self {
+            Self::List => "list",
+            Self::Read { .. } => "read",
+        }
+    }
+}
+
+/// The radio media a switch command can address by name.
+#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
+pub enum RadioKindArg {
+    Wifi,
+    Bluetooth,
+    /// Mobile broadband (WWAN).
+    Wwan,
+}
+
+impl RadioKindArg {
+    const fn kind(self) -> RadioKind {
+        match self {
+            Self::Wifi => RadioKind::Wifi,
+            Self::Bluetooth => RadioKind::Bluetooth,
+            Self::Wwan => RadioKind::MobileBroadband,
+        }
+    }
+}
+
+/// Platform security posture command tree.
+#[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
+pub enum SecurityCommand {
+    /// Report Secure Boot, TPM and BitLocker state, each with its own source.
+    ///
+    /// Read-only: no firmware variable, TPM operation, key protector or
+    /// recovery password is written or read.
+    Status,
+}
+
+impl SecurityCommand {
+    const fn feature(&self) -> &'static str {
+        match self {
+            Self::Status => "status",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
 pub enum OsdCommand {
+    /// Turn the Lenovo Fn on-screen display on (CapsLk/NumLk indicators) via
+    /// the `LenovoFnAndFunctionKeys` user-defined control codes, verified by
+    /// registry read-back.
     Enable,
+    /// Turn the Lenovo Fn on-screen display off. Indicators the installed
+    /// hotkey package does not control are reported as `not_supported` and are
+    /// never sent a control code.
     Disable,
+    /// Paint the replacement overlay as a smoke test of the desktop gate.
     Test,
     /// Show a custom on-screen overlay with the given lines.
     Show {
@@ -1167,6 +1645,10 @@ pub enum OsdCommand {
 pub enum HotkeyCommand {
     /// List the hotkeys this process has registered and made live.
     List,
+    /// Report the Lenovo Fn hotkey package state read-only: the owner service
+    /// and its session-1 renderers, the `Capbility` flags, the firmware FnLock
+    /// and Fn/Ctrl switches, and the persisted per-keyboard tables.
+    Status,
     /// Register a global Alt-hotkey natively (id + virtual key code).
     Register {
         /// The internal hotkey identifier.
@@ -1204,13 +1686,23 @@ pub enum Toggle {
     Off,
 }
 
+/// Touchpad actions. `on`/`off` are the established spellings;
+/// `enable`/`disable` are accepted as the same transitions.
 #[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
 pub enum TouchpadAction {
+    #[value(alias = "enable")]
     On,
+    #[value(alias = "disable")]
     Off,
     /// Read the aggregate input state without changing devices.
     Status,
-    /// Enable observed input leaves after an interrupted split-state transition.
+    /// Read the HID capability descriptor: declared contacts, surface ranges,
+    /// button type and the usages the collection declares. Read-only; needs no
+    /// `--yes` and has no write path.
+    Caps,
+    /// Repair the input leaves: enable what an interrupted transition left
+    /// disabled, or restart them when the pad is enumerated but not serving
+    /// input.
     Recover,
 }
 
@@ -1257,6 +1749,13 @@ pub enum NoiseCancelArg {
     VoiceId,
 }
 
+/// Endpoint mute request.
+#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
+pub enum MuteArg {
+    On,
+    Off,
+}
+
 #[derive(Clone, Debug, ValueEnum, PartialEq, Eq)]
 pub enum Shell {
     Bash,
@@ -1270,6 +1769,9 @@ pub enum Shell {
 struct InfoPayload {
     platform: Platform,
     hardware: HardwareInfo,
+    /// Absent when the HAL reports no identity module at all.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    identity: Option<SystemIdentity>,
     features: BTreeMap<String, Capability>,
 }
 
@@ -1284,6 +1786,37 @@ struct PrivacyStatusPayload {
     #[serde(skip_serializing_if = "Option::is_none")]
     runtime_microphone_error: Option<Value>,
     bios: Vec<lctrl_core::BiosItem>,
+}
+
+/// Windows' occlusion channel is `Windows.Media.Devices.CameraOcclusionInfo`,
+/// which is only reachable from the `VideoDeviceController` of an initialized
+/// WinRT `MediaCapture` session: reading it opens the camera, it cannot be read
+/// while the devnode is disabled, and Microsoft documents the value as
+/// meaningful only while streaming and explicitly not as an absolute privacy
+/// indicator. The reference target exposes no shutter hardware, so the channel
+/// stays closed instead of being faked from the devnode state.
+const CAMERA_OCCLUSION_REASON: &str = "CameraOcclusionInfo requires an initialized WinRT MediaCapture session; no shutter hardware on 21VG";
+
+#[derive(Debug, Serialize)]
+struct CameraOcclusionAvailability {
+    supported: bool,
+    reason: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+struct CameraStatusPayload {
+    /// Aggregate answer: `None` when the devnodes disagree, which is exactly
+    /// what the per-devnode list below attributes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    runtime: Option<DeviceState>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    runtime_error: Option<Value>,
+    devices: Vec<lctrl_core::PrivacyDeviceState>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    devices_error: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    persistent: Option<lctrl_core::BiosItem>,
+    occlusion: CameraOcclusionAvailability,
 }
 
 #[derive(Debug, Serialize)]
@@ -1400,6 +1933,16 @@ pub use lctrl_hal::{
 };
 
 pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> CommandResult {
+    // A parent command with no subcommand is a usage error, not a hardware
+    // verdict: no channel was asked anything. Classifying it here keeps the
+    // `Unsupported` reasons reserved for features the code actually refuses,
+    // and stops a bare `privacy`/`magicbay`/`scan` from asserting that the
+    // implementation is missing when it is attached.
+    if let Some(parent) = missing_subcommand(&cli.command) {
+        return Err(LctrlError::InvalidArgument {
+            detail: format!("a {parent} subcommand is required; run `vantage {parent} --help`"),
+        });
+    }
     if let Some(spec) = stream_spec(&cli)? {
         return Err(streaming_command_error(spec.kind));
     }
@@ -1422,15 +1965,13 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
             detail: "brightness and expected current must be 0..=100; --expect-current requires a requested brightness".into(),
         });
     }
-    let local_dry_run = matches!(
-        &cli.command,
-        Command::Tune {
-            command: Some(TuneCommand::Profile {
-                command: Some(ProfileCommand::Apply { dry_run: true, .. }),
-            }),
-        }
-    );
-    let apply = if cli.dry_run || local_dry_run {
+    // Single authoritative dry-run resolution: `--dry-run` is declared once, as
+    // the root global flag, and every mutating handler receives this value.
+    // No subcommand may declare its own `--dry-run`: clap skips propagating the
+    // global into a subcommand that already declares the id
+    // (`Command::_propagate_global_args`), which is what made the old
+    // per-subcommand fields a second, drift-prone source of truth.
+    let apply = if cli.dry_run {
         ApplyMode::DryRun
     } else {
         ApplyMode::Commit
@@ -1445,11 +1986,18 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
     match cli.command {
         Command::Info => execute_info(services.hal),
         Command::Doctor => execute_doctor(&services),
-        Command::Capability => execute_capability(services.hal),
+        Command::Capability => execute_capability(&services),
+        Command::Events { limit } => execute_events_log(services.event_log, limit),
+        Command::Cpu {
+            command: None | Some(CpuCommand::Status),
+        } => execute_cpu_status(services.hal, services.power, services.processor_power),
         Command::Battery {
             command: Some(BatteryCommand::Status),
         } => battery_observation::execute(services.battery),
         Command::Battery { command: None } => battery_observation::execute(services.battery),
+        Command::Battery {
+            command: Some(BatteryCommand::Health),
+        } => battery_health::execute(services.battery),
         Command::Battery {
             command: Some(BatteryCommand::Adapter),
         } => execute_battery_adapter(services.battery),
@@ -1474,6 +2022,12 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
         Command::Power {
             command: Some(PowerCommand::SaverOnce),
         } => execute_power_saver_once(&services, apply, cli.auto_restore),
+        Command::Power {
+            command: Some(PowerCommand::Ac),
+        } => power_ac::execute_ac(services.battery, services.hal.platform()),
+        Command::Power {
+            command: Some(PowerCommand::Draw),
+        } => power_ac::execute_draw(services.battery, services.hal.platform()),
         Command::Perf {
             command: Some(PerfCommand::Mode { mode }),
         } => execute_performance_mode(services.performance, mode, apply, cli.auto_restore),
@@ -1515,6 +2069,12 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
             command: Some(PerfCommand::Dbdc { command }),
         } => execute_dbdc(services.dbdc, command.unwrap_or(DbdcCommand::Get)),
         Command::Perf {
+            command: Some(PerfCommand::Policy),
+        } => execute_its_policy(services.its_policy),
+        Command::Perf {
+            command: Some(PerfCommand::Gpu { command }),
+        } => execute_gpu_oc(services.gpu_oc, command.unwrap_or(GpuCommand::Status)),
+        Command::Perf {
             command: Some(PerfCommand::Top),
         } => execute_process_top(services.process),
         Command::Perf {
@@ -1537,6 +2097,7 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
         ),
         Command::Audio { command } => execute_audio(
             services.audio,
+            services.audio_endpoints,
             services.noise_cancel,
             command,
             apply,
@@ -1556,6 +2117,11 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
             cli.auto_restore,
         ),
         Command::Bios { command: None } => execute_bios_list(services.bios),
+        Command::Firmware { command } => execute_firmware(services.firmware, command),
+        Command::Storage { .. } => execute_storage(services.storage),
+        Command::Usb {
+            command: Some(UsbCommand::Ports),
+        } => execute_usb_ports(services.usb_ports),
         Command::Usb { command } => execute_usb(
             services.usb,
             services.bios,
@@ -1607,6 +2173,9 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
             cli.auto_restore,
         ),
         Command::Panel {
+            command: Some(PanelCommand::Info),
+        } => execute_panel_info(services.panel_identity),
+        Command::Panel {
             command: Some(command),
         } => execute_panel(
             services.panel,
@@ -1615,6 +2184,9 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
             apply,
             cli.auto_restore,
         ),
+        Command::Display {
+            command: Some(DisplayCommand::Status),
+        } => execute_display_status(services.display_status, services.panel),
         Command::Privacy {
             command: Some(command),
         } => execute_privacy(
@@ -1629,9 +2201,21 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
         Command::Magicbay {
             command: Some(MagicbayCommand::Detect),
         } => execute_magicbay_detect(services.magicbay),
+        Command::Magicbay {
+            command:
+                Some(MagicbayCommand::Lte {
+                    command: Some(LteCommand::Status),
+                }),
+        } => execute_magicbay_lte_status(services.mobile_broadband),
         Command::Update {
             command: Some(command),
-        } => execute_update(services.update, services.local_update, command),
+        } => execute_update(
+            services.update,
+            services.local_update,
+            services.local_package,
+            apply,
+            command,
+        ),
         Command::Scan {
             command: Some(command),
         } => execute_scan(services.diagnostics, command),
@@ -1640,7 +2224,17 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
         } => execute_snapshot(&services, command, apply),
         Command::Wifi {
             command: Some(command),
-        } => execute_wifi(services.wifi, command),
+        } => execute_wifi(services.wifi, services.wifi_status, command),
+        Command::Bluetooth {
+            command: Some(command),
+        } => execute_bluetooth(services.bluetooth, command),
+        Command::Radio {
+            command: Some(command),
+        } => execute_radio(services.radio, command, apply),
+        Command::Sensor { command } => execute_sensor(services.sensor, command.as_ref()),
+        Command::Security {
+            command: Some(command),
+        } => execute_security(services.security, command),
         Command::Tune {
             command: Some(TuneCommand::Pl1 { watts, pl2, tau }),
         } => execute_tune_power_limits(services.tuning, watts, pl2, tau, apply, cli.auto_restore),
@@ -1667,8 +2261,8 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
             command: Some(FixCommand::Scan),
         } => execute_fix_scan(services.machine_fix),
         Command::Fix {
-            command: Some(FixCommand::Run { issue, dry_run }),
-        } => execute_fix_run(services.machine_fix, &issue, dry_run),
+            command: Some(FixCommand::Run { issue }),
+        } => execute_fix_run(services.machine_fix, &issue, apply),
         Command::Fix {
             command: Some(FixCommand::Track),
         } => execute_fix_track(services.machine_fix),
@@ -1677,13 +2271,8 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
             command: Some(SceneCommand::List),
         } => execute_scene_list(services.scene),
         Command::Scene {
-            command:
-                Some(SceneCommand::Test {
-                    event,
-                    rule,
-                    dry_run,
-                }),
-        } => execute_scene_test(services.scene, &event, rule.as_deref(), dry_run),
+            command: Some(SceneCommand::Test { event, rule }),
+        } => execute_scene_test(services.scene, &event, rule.as_deref(), apply),
         Command::Scene {
             command: Some(SceneCommand::Track),
         } => execute_scene_track(services.scene),
@@ -1753,10 +2342,14 @@ fn command_is_mutating(command: &Command) -> bool {
             )
         } | Command::Touchpad {
             state: TouchpadAction::On | TouchpadAction::Off | TouchpadAction::Recover,
+        } | Command::Radio {
+            command: Some(RadioCommand::Off { .. } | RadioCommand::On { .. }),
         } | Command::Privacy {
             command: Some(
-                PrivacyCommand::Cam { .. }
-                    | PrivacyCommand::Mic { .. }
+                PrivacyCommand::Cam {
+                    action: PrivacyCamAction::On | PrivacyCamAction::Off,
+                    ..
+                } | PrivacyCommand::Mic { .. }
                     | PrivacyCommand::Fingerprint { .. },
             )
         } | Command::Bios {
@@ -1768,6 +2361,59 @@ fn command_is_mutating(command: &Command) -> bool {
                         command: Some(PasswordCommand::Set { .. } | PasswordCommand::Clear { .. },),
                     },
             )
+        } | Command::Audio {
+            command: Some(
+                AudioCommand::Volume {
+                    percent: Some(_),
+                    ..
+                } | AudioCommand::Mute {
+                    state: Some(_),
+                    ..
+                } | AudioCommand::Dolby { .. }
+                    | AudioCommand::NoiseCancel { .. },
+            )
+        } | Command::Usb {
+            // Both usb verbs write the off/battery charging gate; `--persistent`
+            // additionally commits the BIOS `AlwaysOnUSB` setting.
+            command: Some(UsbCommand::AlwaysOn { .. } | UsbCommand::ChargeOnBattery { .. }),
+        } | Command::Sense {
+            // `sense status` is the only read-only form.
+            command: Some(
+                SenseCommand::LockOnLeave { .. }
+                    | SenseCommand::WakeOnApproach { .. }
+                    | SenseCommand::PauseVideo { .. }
+                    | SenseCommand::CameraAssist { .. }
+                    | SenseCommand::ApproachAutoAdjust { .. }
+                    | SenseCommand::LeaveAutoAdjust { .. }
+                    | SenseCommand::AttentionTracking { .. }
+                    | SenseCommand::KbdLightAuto { .. }
+                    | SenseCommand::Reset,
+            )
+        } | Command::Osd {
+            // `osd test`/`osd show` only paint our own overlay window; the two
+            // persisted control-code writes are the mutating forms.
+            command: Some(OsdCommand::Enable | OsdCommand::Disable),
+        } | Command::Hotkey {
+            // `list`/`status`/`trigger` observe; register/unregister change the
+            // live hotkey table.
+            command: Some(HotkeyCommand::Register { .. } | HotkeyCommand::Unregister { .. }),
+        } | Command::Update {
+            // `check`/`history` read; the refusing catalogue verbs never write.
+            command: Some(
+                UpdateCommand::LocalInstall { .. }
+                    | UpdateCommand::LocalDriver {
+                        command: LocalDriverCommand::Apply { .. },
+                    }
+                    | UpdateCommand::LocalDriver {
+                        command: LocalDriverCommand::Rollback { .. },
+                    },
+            ),
+        } | Command::Fix {
+            // `scan`/`rules`/`track` observe; `run` repairs.
+            command: Some(FixCommand::Run { .. }),
+        } | Command::Scene {
+            // `list`/`track` observe; `test` applies the firing rule.
+            command: Some(SceneCommand::Test { .. }),
         }
     )
 }
@@ -2060,11 +2706,13 @@ fn execute_temporary_charge(battery: Option<&dyn BatteryControl>) -> CommandResu
     structured_output(
         &state,
         format!(
-            "temporary charge mode: raw={:#x} permanent={} plug-in={} dynamic-lifespan={} temporary={}\n",
+            "temporary charge mode: raw={:#x} supported={} valid={} mode={} temporary={}\n",
             state.raw,
-            state.permanent,
-            state.plug_in,
-            state.dynamic_lifespan,
+            state.supported,
+            state.valid,
+            state
+                .mode
+                .map_or_else(|| "unknown".to_string(), |mode| mode.to_string()),
             state.is_temporary()
         ),
     )
@@ -2562,13 +3210,51 @@ fn execute_fan_status(fan: Option<&dyn FanControl>) -> CommandResult {
         feature: "perf.fan".into(),
     })?;
     let (mode, mode_error) = capture_optional(fan.fan_mode());
-    let fans = fan.fans().unwrap_or_default();
+    // An empty inventory record is the same answer the capability probe
+    // records as `perf.fan.inventory` unavailable (windows_hal.rs
+    // `record_fan_capabilities`), so it is an unavailable sub-read here rather
+    // than a successful "0 fan(s)" count. A failed read is never flattened
+    // into an empty list.
+    let (fans, fans_error) = capture_optional(fan.fans().and_then(|fans| {
+        if fans.is_empty() {
+            Err(LctrlError::Unsupported {
+                feature: "perf.fan.inventory: firmware exposed no fan inventory record".into(),
+            })
+        } else {
+            Ok(fans)
+        }
+    }));
+    if mode.is_none() && fans.is_none() {
+        return Err(LctrlError::ChannelUnavailable {
+            channel: format!(
+                "perf.fan: mode and inventory both unavailable: mode={mode_error:?}; inventory={fans_error:?}"
+            ),
+        });
+    }
+    let error_detail = |error: &Option<Value>| {
+        error
+            .as_ref()
+            .map_or_else(|| "no detail recorded".to_string(), ToString::to_string)
+    };
+    let human = format!(
+        "{}\n{}\n",
+        match (&mode, &mode_error) {
+            (Some(mode), _) => format!("fan mode: {mode}"),
+            (None, error) => format!("fan mode: unavailable ({})", error_detail(error)),
+        },
+        match (&fans, &fans_error) {
+            (Some(fans), _) => format!("{} fan device record(s)", fans.len()),
+            (None, error) => format!("fan inventory: unavailable ({})", error_detail(error)),
+        }
+    );
     structured_output(
-        &serde_json::json!({ "mode": mode, "mode_error": mode_error, "fans": fans }),
-        format!(
-            "{} fan device record(s); mode readback is unavailable\n",
-            fans.len()
-        ),
+        &serde_json::json!({
+            "mode": mode,
+            "mode_error": mode_error,
+            "fans": fans,
+            "fans_error": fans_error,
+        }),
+        human,
     )
 }
 
@@ -2624,6 +3310,189 @@ fn execute_dbdc(dbdc: Option<&dyn DbdcControl>, command: DbdcCommand) -> Command
                 );
             }
             structured_output(&profile, text)
+        }
+    }
+}
+
+fn execute_its_policy(policy: Option<&dyn ItsPolicyControl>) -> CommandResult {
+    let policy = policy.ok_or_else(|| LctrlError::Unsupported {
+        feature: "perf.policy".into(),
+    })?;
+    let policy = policy.its_policy()?;
+    structured_output(&policy, format_its_policy(&policy))
+}
+
+/// Human rendering of the decoded policy.
+///
+/// Interpreted values always sit beside the raw one, an absent value says so
+/// instead of disappearing, and a value the decode refused prints the raw text
+/// plus the reason.
+fn format_its_policy(policy: &lctrl_core::ItsPolicy) -> String {
+    let mut text = String::from(
+        "dispatcher policy (read-only, PowerSlider key; opaque tables reported verbatim)\n",
+    );
+    match &policy.plx_set_mode {
+        Some(mode) => {
+            let _ = writeln!(
+                text,
+                "  plx-set-mode: raw=0x{:08x} ac={} dc={} (AC reads the low lane, DC the high lane)",
+                mode.raw, mode.ac, mode.dc
+            );
+        }
+        None => text.push_str("  plx-set-mode: not published\n"),
+    }
+    match policy.fan_speed_address {
+        Some(address) => {
+            let _ = writeln!(
+                text,
+                "  fan-speed-address: {address} (0x{address:08x}); no dispatcher reader located"
+            );
+        }
+        None => text.push_str("  fan-speed-address: not published\n"),
+    }
+    match &policy.ap_min_std_fan {
+        Some(fan) => {
+            let _ = writeln!(
+                text,
+                "  ap-min-std-fan: enable={} gpu={} cpu={} (thresholds clamp to 0..=100, 50 when \
+                 unreadable)",
+                u8::from(fan.enable),
+                fan.gpu_threshold_pct,
+                fan.cpu_threshold_pct
+            );
+        }
+        None => text.push_str("  ap-min-std-fan: not published\n"),
+    }
+    match &policy.turbo_value {
+        Some(turbo) => {
+            let _ = writeln!(
+                text,
+                "  turbo-value: raw={} default_epp={} (0xff means \"use the default EPP\")",
+                turbo.raw,
+                u8::from(turbo.default_epp)
+            );
+        }
+        None => text.push_str("  turbo-value: not published\n"),
+    }
+    match &policy.turbo_time {
+        Some(time) => {
+            let _ = writeln!(
+                text,
+                "  turbo-time: raw=0x{:08x} turbo_time={} byte0={} byte1={} byte3={} \
+                 (turbo_time is max'd with epp-turbo's)",
+                time.raw, time.turbo_time, time.byte0, time.byte1, time.byte3
+            );
+        }
+        None => text.push_str("  turbo-time: not published\n"),
+    }
+    match &policy.epp_turbo {
+        Some(turbo) => {
+            let _ = writeln!(
+                text,
+                "  epp-turbo: raw=0x{:08x} mode_nibble={} turbo_time={} not_turbo_to_apm={}",
+                turbo.raw,
+                turbo.mode_nibble,
+                turbo.turbo_time,
+                u8::from(turbo.not_turbo_to_apm)
+            );
+        }
+        None => text.push_str("  epp-turbo: not published\n"),
+    }
+    for (label, table) in [
+        ("power-bucket", &policy.power_bucket),
+        ("cppc", &policy.cppc),
+        ("cfqc", &policy.cfqc),
+        ("cfqc1", &policy.cfqc1),
+    ] {
+        match table {
+            Some(table) => {
+                let pairs = table
+                    .pairs()
+                    .iter()
+                    .map(|(x, y)| format!("{x}:{y}"))
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                let _ = writeln!(
+                    text,
+                    "  {label}: {}/{} slot(s) {pairs}",
+                    table.slots.len(),
+                    table.capacity
+                );
+            }
+            None => {
+                let _ = writeln!(text, "  {label}: not published");
+            }
+        }
+    }
+    for issue in &policy.issues {
+        match &issue.raw {
+            Some(raw) => {
+                let _ = writeln!(
+                    text,
+                    "  decode issue: {} = {:?}: {}",
+                    issue.value, raw, issue.detail
+                );
+            }
+            None => {
+                let _ = writeln!(text, "  decode issue: {}: {}", issue.value, issue.detail);
+            }
+        }
+    }
+    text
+}
+
+fn execute_gpu_oc(gpu_oc: Option<&dyn GpuOcControl>, command: GpuCommand) -> CommandResult {
+    match command {
+        GpuCommand::Status => {
+            let gpu_oc = gpu_oc.ok_or_else(|| LctrlError::Unsupported {
+                feature: "perf.gpu".into(),
+            })?;
+            let status = gpu_oc.gpu_oc_status()?;
+            let mut text = format!(
+                "GPU overclock: {}\n",
+                if status.supported {
+                    "supported by the firmware"
+                } else {
+                    "not supported by the firmware"
+                }
+            );
+            let _ = writeln!(
+                text,
+                "  probe {}: ReturnValue={}, Data={}",
+                status.probe.method, status.probe.return_value, status.probe.data
+            );
+            match &status.parameter {
+                Some(parameter) => {
+                    let _ = writeln!(
+                        text,
+                        "  OC parameter block: clock_id={} pstate_id={} offset={} scale={} range={}..={} default={} interval={} capability={}",
+                        parameter.clock_id,
+                        parameter.pstate_id,
+                        parameter.oc_offset_freq,
+                        parameter.oc_offset_scale,
+                        parameter.oc_min_offset,
+                        parameter.oc_max_offset,
+                        parameter.default_value,
+                        parameter.interval,
+                        parameter.capability
+                    );
+                }
+                None => {
+                    let _ = writeln!(
+                        text,
+                        "  OC parameter block: unavailable ({})",
+                        status
+                            .parameter_error
+                            .as_deref()
+                            .unwrap_or("the firmware published no instance")
+                    );
+                }
+            }
+            let _ = writeln!(
+                text,
+                "  write: unsupported (no reversible OC set with readback)"
+            );
+            structured_output(&status, text)
         }
     }
 }
@@ -2766,6 +3635,7 @@ fn output_with_restore<T: Serialize>(
 
 fn execute_audio(
     audio: Option<&dyn AudioControl>,
+    audio_endpoints: Option<&dyn AudioEndpointControl>,
     noise_cancel: Option<&dyn NoiseCancelControl>,
     command: Option<AudioCommand>,
     apply: ApplyMode,
@@ -2773,6 +3643,23 @@ fn execute_audio(
 ) -> CommandResult {
     match command {
         Some(AudioCommand::Dolby { profile }) => execute_dolby(audio, profile, apply, auto_restore),
+        Some(AudioCommand::Endpoints { all }) => {
+            execute_audio_endpoints(audio_endpoints, all)
+        }
+        Some(AudioCommand::Volume { percent, device }) => execute_audio_volume(
+            audio_endpoints,
+            device.as_deref(),
+            percent,
+            apply,
+            auto_restore,
+        ),
+        Some(AudioCommand::Mute { state, device }) => execute_audio_mute(
+            audio_endpoints,
+            device.as_deref(),
+            state,
+            apply,
+            auto_restore,
+        ),
         Some(AudioCommand::NoiseCancel { mode }) => {
             execute_noise_cancel(noise_cancel, mode, apply, auto_restore)
         }
@@ -2780,6 +3667,177 @@ fn execute_audio(
             detail: "an audio subcommand is required".into(),
         }),
     }
+}
+
+fn audio_endpoint_service<'a>(
+    audio_endpoints: Option<&'a dyn AudioEndpointControl>,
+    feature: &str,
+) -> lctrl_core::Result<&'a dyn AudioEndpointControl> {
+    audio_endpoints.ok_or_else(|| LctrlError::Unsupported {
+        feature: feature.to_string(),
+    })
+}
+
+fn execute_audio_endpoints(
+    audio_endpoints: Option<&dyn AudioEndpointControl>,
+    all: bool,
+) -> CommandResult {
+    let audio_endpoints = audio_endpoint_service(audio_endpoints, "audio.endpoints")?;
+    let endpoints = audio_endpoints.endpoints(all)?;
+    if endpoints.is_empty() {
+        return Err(LctrlError::ChannelUnavailable {
+            channel: if all {
+                "the MMDevice API reported no audio endpoints".into()
+            } else {
+                "the MMDevice API reported no active audio endpoints".into()
+            },
+        });
+    }
+    let mut text = String::new();
+    for endpoint in &endpoints {
+        let _ = writeln!(text, "{endpoint}");
+    }
+    structured_output(&endpoints, text)
+}
+
+fn execute_audio_volume(
+    audio_endpoints: Option<&dyn AudioEndpointControl>,
+    device: Option<&str>,
+    percent: Option<u8>,
+    apply: ApplyMode,
+    auto_restore: bool,
+) -> CommandResult {
+    let audio_endpoints = audio_endpoint_service(audio_endpoints, "audio.volume")?;
+    let Some(percent) = percent else {
+        let state = audio_endpoints.endpoint_volume(device)?;
+        return structured_output(&state, format!("{state}\n"));
+    };
+    let report = audio_endpoints.set_endpoint_volume(device, percent, apply)?;
+    let restore = if auto_restore && apply == ApplyMode::Commit {
+        Some(restore_endpoint_volume(
+            audio_endpoints,
+            device,
+            report.previous(),
+        )?)
+    } else {
+        None
+    };
+    output_with_restore(
+        &report,
+        format_endpoint_volume_change(&report),
+        restore.as_deref(),
+    )
+}
+
+fn execute_audio_mute(
+    audio_endpoints: Option<&dyn AudioEndpointControl>,
+    device: Option<&str>,
+    state: Option<MuteArg>,
+    apply: ApplyMode,
+    auto_restore: bool,
+) -> CommandResult {
+    let audio_endpoints = audio_endpoint_service(audio_endpoints, "audio.mute")?;
+    let Some(state) = state else {
+        let current = audio_endpoints.endpoint_volume(device)?;
+        return structured_output(&current, format!("{current}\n"));
+    };
+    let mute = matches!(state, MuteArg::On);
+    let report = audio_endpoints.set_endpoint_mute(device, mute, apply)?;
+    let restore = if auto_restore && apply == ApplyMode::Commit {
+        Some(restore_endpoint_mute(
+            audio_endpoints,
+            device,
+            report.previous(),
+        )?)
+    } else {
+        None
+    };
+    output_with_restore(
+        &report,
+        format_endpoint_mute_change(&report),
+        restore.as_deref(),
+    )
+}
+
+fn format_endpoint_volume_change(
+    report: &lctrl_core::ChangeReport<lctrl_core::EndpointVolume>,
+) -> String {
+    let mode = if report.mode() == ApplyMode::DryRun {
+        "dry run"
+    } else {
+        "applied"
+    };
+    let mut text = format!(
+        "volume ({mode}): previous {}, requested {}%, actual {}",
+        report.previous(),
+        report.requested().percent,
+        report
+            .actual()
+            .map_or_else(|| "unread".to_string(), |actual| format!("{}%", actual.percent)),
+    );
+    text.push('\n');
+    text
+}
+
+fn format_endpoint_mute_change(
+    report: &lctrl_core::ChangeReport<lctrl_core::EndpointVolume>,
+) -> String {
+    let mode = if report.mode() == ApplyMode::DryRun {
+        "dry run"
+    } else {
+        "applied"
+    };
+    let mute = |value: bool| if value { "on" } else { "off" };
+    let mut text = format!(
+        "mute ({mode}): previous {}, requested {}, actual {}",
+        report.previous(),
+        mute(report.requested().mute),
+        report
+            .actual()
+            .map_or_else(|| "unread".to_string(), |actual| mute(actual.mute).to_string()),
+    );
+    text.push('\n');
+    text
+}
+
+/// Put the volume a write replaced back and prove the readback. A restore that
+/// does not read back within the endpoint's step tolerance is reported, not
+/// papered over.
+fn restore_endpoint_volume(
+    audio_endpoints: &dyn AudioEndpointControl,
+    device: Option<&str>,
+    previous: &lctrl_core::EndpointVolume,
+) -> lctrl_core::Result<String> {
+    audio_endpoints.set_endpoint_volume(device, previous.percent, ApplyMode::Commit)?;
+    let actual = audio_endpoints.endpoint_volume(device)?;
+    let tolerance = lctrl_core::volume_readback_tolerance_percent(previous.steps);
+    if actual.percent.abs_diff(previous.percent) > tolerance {
+        return Err(LctrlError::FirmwareRejected {
+            detail: format!(
+                "volume restore mismatch: expected {}%, actual {}%",
+                previous.percent, actual.percent
+            ),
+        });
+    }
+    Ok(format!("restored volume: {}%", actual.percent))
+}
+
+fn restore_endpoint_mute(
+    audio_endpoints: &dyn AudioEndpointControl,
+    device: Option<&str>,
+    previous: &lctrl_core::EndpointVolume,
+) -> lctrl_core::Result<String> {
+    audio_endpoints.set_endpoint_mute(device, previous.mute, ApplyMode::Commit)?;
+    let actual = audio_endpoints.endpoint_volume(device)?;
+    if actual.mute != previous.mute {
+        return Err(LctrlError::FirmwareRejected {
+            detail: format!(
+                "mute restore mismatch: expected mute={}, actual mute={}",
+                previous.mute, actual.mute
+            ),
+        });
+    }
+    Ok(format!("restored mute: {}", if actual.mute { "on" } else { "off" }))
 }
 
 fn execute_noise_cancel(
@@ -3205,6 +4263,17 @@ fn restore_sense_features(
     ))
 }
 
+/// `usb ports`: the read-only inventory path. It shares no service with the
+/// charging switches, because those only toggle a power gate and hold no port
+/// or power-delivery data.
+fn execute_usb_ports(usb_ports: Option<&dyn lctrl_hal::UsbPortInventoryControl>) -> CommandResult {
+    let usb_ports = usb_ports.ok_or_else(|| LctrlError::Unsupported {
+        feature: "usb.ports".into(),
+    })?;
+    let inventory = usb_ports.usb_port_inventory()?;
+    structured_output(&inventory, format_usb_ports(&inventory))
+}
+
 fn execute_usb(
     usb: Option<&dyn UsbControl>,
     bios: Option<&dyn BiosControl>,
@@ -3215,6 +4284,12 @@ fn execute_usb(
     auto_restore: bool,
 ) -> CommandResult {
     match command {
+        // The dispatcher routes `usb ports` to `execute_usb_ports`, which owns
+        // the read-only inventory service. This arm keeps the charging path
+        // total without inventing a port list from a write service.
+        UsbCommand::Ports => Err(LctrlError::Unsupported {
+            feature: "usb.ports".into(),
+        }),
         UsbCommand::AlwaysOn { state, persistent } => {
             let enabled = matches!(state, Toggle::On);
             if persistent {
@@ -3290,6 +4365,106 @@ fn execute_usb(
     }
 }
 
+/// Render the port tree the way the channels reported it. A port with no
+/// reported speed/device/power prints exactly that, and a driver speed outside
+/// the documented grades prints its raw value.
+fn format_usb_ports(inventory: &lctrl_core::UsbPortInventory) -> String {
+    use std::fmt::Write as _;
+
+    let mut output = String::new();
+    if inventory.controllers.is_empty() {
+        output.push_str("no USB controller exposes ports on this machine\n");
+    }
+    for controller in &inventory.controllers {
+        let instance_id = &controller.instance_id;
+        let kind = controller.kind.label();
+        let description = &controller.description;
+        let _ = writeln!(output, "controller {instance_id} ({kind}) {description}");
+        if let Some(driver) = &controller.driver {
+            let _ = writeln!(output, "  driver: {driver}");
+        }
+        for hub in &controller.hubs {
+            let hub_id = &hub.instance_id;
+            let port_count = hub.port_count;
+            let power_source = if hub.bus_powered {
+                "bus-powered"
+            } else {
+                "self-powered"
+            };
+            let _ = writeln!(output, "  hub {hub_id}: {port_count} port(s), {power_source}");
+            for port in &hub.ports {
+                let number = port.number;
+                let facts = format_usb_port(port);
+                let _ = writeln!(output, "    port {number}: {facts}");
+            }
+        }
+        if let Some(detail) = &controller.ports_unavailable {
+            let _ = writeln!(output, "  ports: unavailable ({detail})");
+        }
+    }
+
+    let power = &inventory.power_delivery;
+    output.push_str("power delivery:\n");
+    match &power.pd_controller {
+        Some(controller) => {
+            let id = &controller.instance_id;
+            let driver = controller
+                .driver
+                .as_ref()
+                .map(|driver| format!(" (driver {driver})"))
+                .unwrap_or_default();
+            let firmware = controller
+                .firmware_version
+                .as_ref()
+                .map(|version| format!(", firmware {version}"))
+                .unwrap_or_default();
+            let _ = writeln!(output, "  controller: {id}{driver}{firmware}");
+        }
+        None => output.push_str("  controller: none present\n"),
+    }
+    for router in &power.usb4_host_routers {
+        let _ = writeln!(output, "  usb4 host router: {router}");
+    }
+    if let Some(detail) = &power.per_port_unavailable {
+        let _ = writeln!(output, "  per-port power: unavailable ({detail})");
+    }
+    output
+}
+
+fn format_usb_port(port: &lctrl_core::UsbPort) -> String {
+    use lctrl_core::UsbPortConnection;
+
+    let mut text = match port.connection {
+        UsbPortConnection::Empty => "empty".to_string(),
+        UsbPortConnection::Connected => "connected".to_string(),
+        UsbPortConnection::Other(raw) => format!("connection status {raw}"),
+    };
+    if let Some(speed) = port.speed {
+        text.push_str(&format!(", speed {speed}"));
+    }
+    if let Some(device) = &port.device {
+        let vendor = device.vendor_id;
+        let product = device.product_id;
+        let revision = &device.usb_revision;
+        text.push_str(&format!(
+            ", device {vendor:04x}:{product:04x} (USB {revision})"
+        ));
+        if let Some(description) = &device.description {
+            text.push_str(&format!(" \"{description}\""));
+        }
+        if let Some(instance_id) = &device.instance_id {
+            text.push_str(&format!(" [{instance_id}]"));
+        }
+        if let Some(milliamps) = device.max_power_ma {
+            text.push_str(&format!(", declares {milliamps} mA"));
+        }
+        if device.is_hub {
+            text.push_str(" (hub)");
+        }
+    }
+    text
+}
+
 fn execute_fan(
     fan: Option<&dyn FanControl>,
     command: FanCommand,
@@ -3342,6 +4517,478 @@ fn execute_fan(
         FanCommand::Curve { .. } => Err(LctrlError::Unsupported {
             feature: "perf.fan.curve.kernel-interface".into(),
         }),
+    }
+}
+
+/// Identity of the embedded panel, decoded from its own EDID.
+///
+/// Everything printed here comes from the panel's base block except
+/// `connection`, which also needs the OS output-technology classification (an
+/// internal DisplayPort interface code is eDP, an external one is not).
+fn execute_panel_info(identity: Option<&dyn PanelIdentityControl>) -> CommandResult {
+    let identity = identity
+        .ok_or_else(|| LctrlError::Unsupported {
+            feature: "panel.identity".into(),
+        })?
+        .identity()?;
+    let mut human = String::new();
+    let model = identity.model_name.as_deref().unwrap_or("no name descriptor");
+    let _ = writeln!(
+        human,
+        "panel: {}{:04X} ({model})",
+        identity.manufacturer, identity.product_code
+    );
+    let _ = writeln!(
+        human,
+        "manufacturer: {} (id 0x{:04x})",
+        identity.manufacturer, identity.manufacturer_id
+    );
+    if let Some(name) = &identity.product_name {
+        let _ = writeln!(human, "product name: {name}");
+    }
+    match identity.serial_number {
+        Some(serial) => {
+            let _ = writeln!(human, "serial: {serial} (0x{serial:08x})");
+        }
+        None => {
+            let _ = writeln!(human, "serial: not specified by the EDID");
+        }
+    }
+    if let Some(serial) = &identity.serial_text {
+        let _ = writeln!(human, "serial text: {serial}");
+    }
+    let manufacture = &identity.manufacture;
+    let date = match (manufacture.model_year, manufacture.week) {
+        (true, _) => format!("{} (model year)", manufacture.year),
+        (false, Some(week)) => format!("{} week {}", manufacture.year, week),
+        (false, None) => format!("{} (week not specified)", manufacture.year),
+    };
+    let _ = writeln!(human, "manufactured: {date}");
+    let _ = writeln!(
+        human,
+        "edid: version {}.{}, {} extension block(s)",
+        identity.edid_version.major, identity.edid_version.minor, identity.extension_blocks
+    );
+    match (&identity.native_resolution, identity.native_refresh_hz) {
+        (Some(resolution), Some(hz)) => {
+            let _ = writeln!(
+                human,
+                "native resolution: {}x{} @ {hz}Hz (preferred timing)",
+                resolution.width, resolution.height
+            );
+        }
+        (Some(resolution), None) => {
+            let _ = writeln!(
+                human,
+                "native resolution: {}x{} (preferred timing)",
+                resolution.width, resolution.height
+            );
+        }
+        (None, _) => {
+            let _ = writeln!(
+                human,
+                "native resolution: unavailable (no preferred timing descriptor)"
+            );
+        }
+    }
+    match identity.physical_size {
+        Some(size) => {
+            let diagonal = (f64::from(size.width_mm).powi(2)
+                + f64::from(size.height_mm).powi(2))
+            .sqrt();
+            let _ = writeln!(
+                human,
+                "physical size: {}x{} mm ({:.1} in diagonal)",
+                size.width_mm,
+                size.height_mm,
+                diagonal / 25.4
+            );
+        }
+        None => {
+            let _ = writeln!(human, "physical size: not specified by the EDID");
+        }
+    }
+    let input = &identity.input;
+    if input.digital {
+        let depth = match input.bit_depth {
+            Some(bits) => format!("{bits} bits per primary"),
+            None => "undefined bit depth".to_owned(),
+        };
+        let _ = writeln!(
+            human,
+            "input: digital, {depth}, interface code {}",
+            input.interface_code
+        );
+    } else {
+        let _ = writeln!(human, "input: analog");
+    }
+    let connection = if identity.internal {
+        match identity.connection {
+            lctrl_core::PanelConnection::Edp => "edp (internal panel)".to_owned(),
+            lctrl_core::PanelConnection::Unspecified => {
+                "unspecified (internal panel; the EDID names no DisplayPort interface, \
+                 so LVDS and an EDID-1.3-style eDP byte cannot be told apart)"
+                    .to_owned()
+            }
+            other => format!("{other} (internal panel)"),
+        }
+    } else {
+        format!("{} (external sink)", identity.connection)
+    };
+    let _ = writeln!(human, "connection: {connection}");
+    if let Some(limits) = &identity.limits {
+        let _ = writeln!(
+            human,
+            "limits: {}-{} Hz vertical, {}-{} kHz horizontal, <= {} MHz pixel clock",
+            limits.min_refresh_hz,
+            limits.max_refresh_hz,
+            limits.min_horizontal_khz,
+            limits.max_horizontal_khz,
+            limits.max_pixel_clock_mhz
+        );
+    }
+    structured_output(&identity, human)
+}
+
+/// `display status` payload. Every field carries or names its scope:
+/// `session`+`displays` are the calling session's live desktop, `monitors` is
+/// machine-wide driver/EDID state joined by monitor hardware id, and
+/// `firmware_refresh` is the firmware refresh-range table.
+///
+/// A refused live read is `displays_error` (never an empty `displays` list), and
+/// `session_desktops` then names the surface this session does have, so a
+/// synthetic desktop cannot be mistaken for the panel.
+#[derive(Serialize)]
+struct DisplayStatusPayload {
+    session: lctrl_core::DisplaySession,
+    displays: Option<Vec<lctrl_core::DisplayPathState>>,
+    displays_error: Option<Value>,
+    session_desktops: Option<Vec<lctrl_core::SessionDesktop>>,
+    monitors: Option<Vec<lctrl_core::MonitorColorState>>,
+    monitors_error: Option<Value>,
+    firmware_refresh: Option<lctrl_core::PanelRefreshCapability>,
+    firmware_refresh_error: Option<Value>,
+}
+
+/// Capture a read together with its serialized error report and its rendered
+/// message, so the human text can say why a scope is missing.
+fn capture_optional_with<T>(
+    result: lctrl_core::Result<T>,
+) -> (Option<T>, Option<Value>, Option<String>) {
+    match result {
+        Ok(value) => (Some(value), None, None),
+        Err(error) => (
+            None,
+            Some(serde_json::to_value(error.report()).expect("error reports are serializable")),
+            Some(error.to_string()),
+        ),
+    }
+}
+
+fn execute_display_status(
+    display: Option<&dyn DisplayStatusControl>,
+    panel: Option<&dyn PanelControl>,
+) -> CommandResult {
+    let display = display.ok_or_else(|| LctrlError::Unsupported {
+        feature: "display.status".into(),
+    })?;
+    let session = display.session();
+    let (displays, displays_error, displays_reason) = capture_optional_with(display.displays());
+    let (monitors, monitors_error, monitors_reason) = capture_optional_with(display.monitors());
+    // The session's own monitor list only explains a refused live read; when the
+    // live paths are available it would just repeat them.
+    let session_desktops = if displays.is_none() {
+        display.desktops().ok()
+    } else {
+        None
+    };
+    let refresh = match panel {
+        Some(panel) => panel.refresh_capability(),
+        None => Err(LctrlError::Unsupported {
+            feature: "panel.refresh".into(),
+        }),
+    };
+    let (firmware_refresh, firmware_refresh_error, firmware_reason) =
+        capture_optional_with(refresh);
+    let payload = DisplayStatusPayload {
+        session,
+        displays,
+        displays_error,
+        session_desktops,
+        monitors,
+        monitors_error,
+        firmware_refresh,
+        firmware_refresh_error,
+    };
+    let human = format_display_status(
+        &payload,
+        displays_reason.as_deref(),
+        monitors_reason.as_deref(),
+        firmware_reason.as_deref(),
+    );
+    structured_output(&payload, human)
+}
+
+/// Rendered reason for a scope whose read failed, when there is one.
+type ScopeReason<'a> = Option<&'a str>;
+
+fn format_display_status(
+    payload: &DisplayStatusPayload,
+    displays_reason: ScopeReason<'_>,
+    monitors_reason: ScopeReason<'_>,
+    firmware_reason: ScopeReason<'_>,
+) -> String {
+    use std::fmt::Write as _;
+
+    let mut human = String::new();
+    let session = &payload.session;
+    let console = session
+        .console_session_id
+        .map_or_else(|| "none".to_owned(), |id| id.to_string());
+    let _ = writeln!(
+        human,
+        "display state: session {} (console session {console}, interactive: {})",
+        session.id,
+        yes_no(session.interactive)
+    );
+    match &payload.displays {
+        Some(displays) if displays.is_empty() => {
+            let _ = writeln!(human, "  live display paths (session scope): none active");
+        }
+        Some(displays) => {
+            let _ = writeln!(human, "  live display paths (session scope):");
+            for display in displays {
+                let _ = writeln!(human, "    {}", display_path_text(display));
+            }
+        }
+        None => {
+            let reason = displays_reason.unwrap_or("the OS refused the display read");
+            let _ = writeln!(
+                human,
+                "  live display paths (session scope): unavailable — {reason}"
+            );
+            for desktop in payload.session_desktops.iter().flatten() {
+                let _ = writeln!(
+                    human,
+                    "  this session's own desktop, not a panel: {} {}x{} scaling={}",
+                    desktop.device_name,
+                    desktop.width,
+                    desktop.height,
+                    scaling_text(desktop.scaling)
+                );
+            }
+        }
+    }
+    match &payload.monitors {
+        Some(monitors) => {
+            let _ = writeln!(
+                human,
+                "  machine-wide monitors (display-driver colour store + EDID, joined by hardware id):"
+            );
+            for monitor in monitors {
+                let _ = writeln!(human, "    {}", monitor_text(monitor));
+            }
+        }
+        None => {
+            let reason = monitors_reason.unwrap_or("the machine-wide read failed");
+            let _ = writeln!(human, "  machine-wide monitors: unavailable — {reason}");
+        }
+    }
+    match (
+        &payload.firmware_refresh,
+        payload.firmware_refresh_error.is_some(),
+    ) {
+        (Some(refresh), _) => {
+            let _ = writeln!(
+                human,
+                "  firmware refresh table: {}..={} Hz (default {} Hz)",
+                refresh.min_hz, refresh.max_hz, refresh.default_hz
+            );
+        }
+        (None, true) => {
+            let reason = firmware_reason.unwrap_or("the firmware table is unavailable");
+            let _ = writeln!(human, "  firmware refresh table: unavailable — {reason}");
+        }
+        (None, false) => {}
+    }
+    human
+}
+
+fn display_path_text(display: &lctrl_core::DisplayPathState) -> String {
+    use std::fmt::Write as _;
+
+    let mode = &display.mode;
+    let mut text = format!(
+        "{} {} {}x{}@{}Hz {}bpp rotation={} position=({}, {}) scaling={}",
+        display.device_name,
+        display.connection,
+        mode.width,
+        mode.height,
+        mode.refresh_hz,
+        mode.bits_per_pixel,
+        mode.rotation.raw(),
+        mode.position_x,
+        mode.position_y,
+        scaling_text(display.scaling)
+    );
+    match &display.color {
+        Some(color) => {
+            let _ = write!(text, " colour={}", color_text(color));
+        }
+        None => text.push_str(" colour=rejected by the target"),
+    }
+    text
+}
+
+fn scaling_text(observation: lctrl_core::DisplayScalingObservation) -> String {
+    match observation {
+        lctrl_core::DisplayScalingObservation::Effective(scaling) => format!(
+            "{}% ({}x{} dpi, OS effective dpi)",
+            scaling.percent, scaling.dpi_x, scaling.dpi_y
+        ),
+        lctrl_core::DisplayScalingObservation::NoMonitor => {
+            "unavailable (no monitor covers this desktop position)".to_owned()
+        }
+        lctrl_core::DisplayScalingObservation::ProcessNotPerMonitorAware => {
+            "unavailable (process is not per-monitor DPI aware)".to_owned()
+        }
+    }
+}
+
+fn color_text(color: &lctrl_core::DisplayColorState) -> String {
+    use std::fmt::Write as _;
+
+    let mut text = match (color.hdr_supported, color.hdr_user_enabled) {
+        (Some(supported), Some(enabled)) => {
+            let mode = match color.active_mode {
+                Some(lctrl_core::ActiveColorMode::Sdr) => "sdr",
+                Some(lctrl_core::ActiveColorMode::WideColorGamut) => "wide-colour",
+                Some(lctrl_core::ActiveColorMode::Hdr) => "hdr",
+                Some(lctrl_core::ActiveColorMode::Unknown(_)) | None => "unknown",
+            };
+            format!(
+                "hdr supported={} enabled={} active-mode={mode}",
+                yes_no(supported),
+                yes_no(enabled)
+            )
+        }
+        _ => "hdr unknown (pre-24H2 request: advanced colour only)".to_owned(),
+    };
+    let limited = match color.advanced_color_limited_by_policy {
+        Some(limited) => format!(" limited-by-policy={}", yes_no(limited)),
+        None => String::new(),
+    };
+    let _ = write!(
+        text,
+        " advanced-colour supported={} active={}{limited} encoding={} {}bpc{}",
+        yes_no(color.advanced_color_supported),
+        yes_no(color.advanced_color_active),
+        encoding_name(color.color_encoding),
+        color.bits_per_color,
+        match color.sdr_white_millinits {
+            Some(millinits) => format!(" sdr-white={} nits", nits_text(millinits)),
+            None => " sdr-white=unknown".to_owned(),
+        }
+    );
+    text
+}
+
+fn monitor_text(monitor: &lctrl_core::MonitorColorState) -> String {
+    use std::fmt::Write as _;
+
+    let mut text = format!(
+        "{} {}: hdr={} acm={} (supported={})",
+        monitor.hardware_id,
+        monitor.connection,
+        tri_state(monitor.hdr_enabled),
+        tri_state(monitor.auto_color_management_enabled),
+        tri_state(monitor.auto_color_management_supported)
+    );
+    if let Some(raw) = monitor.sdr_white_level_raw {
+        let _ = write!(text, " sdr-white-raw={raw}");
+    }
+    if let Some(millinits) = monitor.sdr_white_millinits {
+        let _ = write!(text, " sdr-white={} nits", nits_text(millinits));
+    }
+    match &monitor.hdr_capability {
+        lctrl_core::HdrCapabilityObservation::Declared(capability) => {
+            let _ = write!(text, " edid-hdr={}", hdr_capability_text(capability));
+        }
+        lctrl_core::HdrCapabilityObservation::NotDeclared => {
+            text.push_str(" edid-hdr=none declared");
+        }
+        lctrl_core::HdrCapabilityObservation::Unavailable(reason) => {
+            let _ = write!(text, " edid-hdr=unreadable ({reason})");
+        }
+    }
+    if let Some(notified) = monitor.display_hdr_level_notified {
+        let _ = write!(text, " hdr-level-notified={}", yes_no(notified));
+    }
+    text
+}
+
+fn hdr_capability_text(capability: &lctrl_core::PanelHdrCapability) -> String {
+    use std::fmt::Write as _;
+
+    let mut eotfs = Vec::new();
+    if capability.eotf_sdr {
+        eotfs.push("sdr");
+    }
+    if capability.eotf_hdr10_pq {
+        eotfs.push("hdr10-pq");
+    }
+    if capability.eotf_hlg {
+        eotfs.push("hlg");
+    }
+    let mut text = if eotfs.is_empty() {
+        "no-eotf".to_owned()
+    } else {
+        eotfs.join("+")
+    };
+    if capability.bt2020_rgb {
+        text.push_str(" bt2020-rgb");
+    }
+    if capability.static_metadata_type1 {
+        text.push_str(" static-metadata-1");
+    }
+    if let Some(millinits) = capability.max_luminance_millinits {
+        let _ = write!(text, " max={} nits", nits_text(millinits));
+    }
+    if let Some(millinits) = capability.min_luminance_millinits {
+        let _ = write!(text, " min={} nits", nits_text(millinits));
+    }
+    text
+}
+
+/// Millinits rendered as nits without losing the fractional part.
+fn nits_text(millinits: u32) -> String {
+    format!("{}.{:03}", millinits / 1000, millinits % 1000)
+}
+
+fn encoding_name(encoding: lctrl_core::DisplayColorEncoding) -> &'static str {
+    match encoding {
+        lctrl_core::DisplayColorEncoding::Rgb => "rgb",
+        lctrl_core::DisplayColorEncoding::YCbCr444 => "ycbcr444",
+        lctrl_core::DisplayColorEncoding::YCbCr422 => "ycbcr422",
+        lctrl_core::DisplayColorEncoding::YCbCr420 => "ycbcr420",
+        lctrl_core::DisplayColorEncoding::Intensity => "intensity",
+        lctrl_core::DisplayColorEncoding::Unknown(_) => "unknown",
+    }
+}
+
+fn yes_no(value: bool) -> &'static str {
+    if value {
+        "yes"
+    } else {
+        "no"
+    }
+}
+
+fn tri_state(value: Option<bool>) -> &'static str {
+    match value {
+        Some(true) => "yes",
+        Some(false) => "no",
+        None => "unknown",
     }
 }
 
@@ -3401,6 +5048,13 @@ fn execute_panel(
         feature: "panel".into(),
     })?;
     match command {
+        // `panel info` is dispatched before the refresh controller is required:
+        // it reads the panel's EDID and never needs a display mode channel. If a
+        // future dispatch reached here it would be routed wrongly, which is an
+        // error to report, not a panic in a read-only command.
+        PanelCommand::Info => Err(LctrlError::InvalidArgument {
+            detail: "panel info is dispatched before the panel refresh controller".into(),
+        }),
         PanelCommand::Brightness {
             percent,
             expect_current,
@@ -3411,33 +5065,32 @@ fn execute_panel(
                 PanelRate::Fps120 => lctrl_core::PanelRefreshRequest::Fixed(120),
                 PanelRate::Auto => lctrl_core::PanelRefreshRequest::Auto,
             };
-            // Capture the adaptive/manual policy before the write: after the
-            // commit it already reflects the new state and cannot tell the
-            // restore which request shape the previous mode came from.
-            let previous_policy = panel.refresh_mode().ok();
             let report = panel.set_refresh_rate(requested, apply)?;
             let restore = if auto_restore && apply == ApplyMode::Commit {
                 // The report carries the full PanelMode, not the request;
-                // restoring means replaying an equivalent request. Fixed
-                // restores the captured Hz; a pre-existing adaptive mode is
-                // restored through the same Auto request the firmware maps
-                // back.
+                // restoring means replaying the exact observed previous mode.
+                // `PanelRefreshRequest::Auto` is never a restore target: it
+                // resolves to the firmware default rate (`DefaultRefreshRate`),
+                // which differs from the observed rate on any panel that is not
+                // sitting on that default. Measured on the target: firmware
+                // refresh `Mode=1` (adaptive) with a 120 Hz desktop and
+                // `DefaultRefreshRate=60`, so an Auto restore asked for 60 Hz
+                // while the panel was already at 60 Hz, changed nothing, and
+                // failed the mismatch check below with the panel left on the
+                // new rate. The firmware refresh `Mode` has no write channel, so
+                // a fixed replay is the only restore this HAL can verify;
+                // adaptivity cannot be restored by any request shape.
                 let previous = report.previous();
-                let restore_request = match previous_policy {
-                    Some(lctrl_core::RefreshMode::Adaptive) => {
-                        lctrl_core::PanelRefreshRequest::Auto
-                    }
-                    _ => lctrl_core::PanelRefreshRequest::Fixed(
-                        u16::try_from(previous.refresh_hz).map_err(|_| {
-                            LctrlError::FirmwareRejected {
-                                detail: format!(
-                                    "panel refresh {} Hz cannot be restored: exceeds u16",
-                                    previous.refresh_hz
-                                ),
-                            }
-                        })?,
-                    ),
-                };
+                let restore_request = lctrl_core::PanelRefreshRequest::Fixed(
+                    u16::try_from(previous.refresh_hz).map_err(|_| {
+                        LctrlError::FirmwareRejected {
+                            detail: format!(
+                                "panel refresh {} Hz cannot be restored: exceeds u16",
+                                previous.refresh_hz
+                            ),
+                        }
+                    })?,
+                );
                 let restored = panel.set_refresh_rate(restore_request, ApplyMode::Commit)?;
                 if restored.actual().map(|m| m.refresh_hz) != Some(previous.refresh_hz) {
                     return Err(LctrlError::FirmwareRejected {
@@ -3491,7 +5144,7 @@ fn execute_panel(
             )
         }
         PanelCommand::Overdrive { .. } => Err(LctrlError::Unsupported {
-            feature: "panel.overdrive.write".into(),
+            feature: "panel.overdrive.write: LENOVO_CAPABILITY_DATA_00 advertises no 0x1A family and the TCON device is absent (docs/evidence/re-panel-20261105.md §3)".into(),
         }),
         PanelCommand::EyeCare { level } => {
             let features = panel_features.ok_or_else(|| LctrlError::Unsupported {
@@ -4005,6 +5658,23 @@ fn execute_magicbay_detect(magicbay: Option<&dyn MagicBayControl>) -> CommandRes
     )
 }
 
+fn execute_magicbay_lte_status(
+    mobile_broadband: Option<&dyn MobileBroadbandControl>,
+) -> CommandResult {
+    let mobile_broadband = mobile_broadband.ok_or_else(|| LctrlError::Unsupported {
+        feature: "magicbay.lte: no Mobile Broadband status service is attached on this platform"
+            .into(),
+    })?;
+    let status = mobile_broadband.lte_status()?;
+    let human = format!(
+        "{} MagicBay LTE module(s), {} WWAN interface(s), data session {}\n",
+        status.modules.len(),
+        status.interfaces.len(),
+        if status.data_session { "up" } else { "down" },
+    );
+    structured_output(&status, human)
+}
+
 fn execute_completions(shell: Shell) -> CommandResult {
     use clap::CommandFactory;
 
@@ -4114,17 +5784,13 @@ fn execute_tune_profile(
                 })?;
             structured_output(profile, format!("tuning profile: {name}\n"))
         }
-        ProfileCommand::Apply { name, dry_run } => {
+        ProfileCommand::Apply { name } => {
             let profile = catalog
                 .get(&name)
                 .ok_or_else(|| LctrlError::InvalidArgument {
                     detail: format!("tuning profile {name:?} was not found"),
                 })?;
-            let mode = if dry_run || global_apply == ApplyMode::DryRun {
-                ApplyMode::DryRun
-            } else {
-                ApplyMode::Commit
-            };
+            let mode = global_apply;
             let hardware = services.hal.hardware_info()?;
             let capabilities = services.hal.capabilities()?;
             let plan = lctrl_tune::Planner::compile(
@@ -5475,13 +7141,22 @@ fn rollback_tune_changes(
 fn execute_update(
     update: Option<&dyn UpdateControl>,
     local_update: Option<&dyn LocalUpdateControl>,
+    local_package: Option<&dyn LocalPackageInstallControl>,
+    mode: ApplyMode,
     command: UpdateCommand,
 ) -> CommandResult {
-    let update = update.ok_or_else(|| LctrlError::Unsupported {
-        feature: "update".into(),
-    })?;
+    /// A local package install needs no update-catalogue service; the
+    /// catalogue-backed commands require one.
+    fn require_update<'a>(
+        update: Option<&'a dyn UpdateControl>,
+    ) -> lctrl_core::Result<&'a dyn UpdateControl> {
+        update.ok_or_else(|| LctrlError::Unsupported {
+            feature: "update".into(),
+        })
+    }
     match command {
         UpdateCommand::Check { .. } => {
+            let update = require_update(update)?;
             // Prefer the synced-catalog report when the backend can evaluate
             // it (Windows UDC). Fall back to the capability summary for
             // backends without a readable catalog (Linux / no UDC config).
@@ -5532,16 +7207,17 @@ fn execute_update(
                 }
             }
         }
-        UpdateCommand::LocalDriver { command } => execute_local_driver(local_update, command),
+        UpdateCommand::LocalDriver { command } => execute_local_driver(local_update, mode, command),
+        UpdateCommand::LocalInstall { package } => {
+            execute_local_package(local_package, package, mode)
+        }
         UpdateCommand::Download { .. } => Err(LctrlError::Unsupported {
             feature: "update.download.without-authenticated-manifest".into(),
         }),
         UpdateCommand::Install { .. } => Err(LctrlError::Unsupported {
             feature: "update.install.without-authenticated-manifest".into(),
         }),
-        UpdateCommand::History => Err(LctrlError::Unsupported {
-            feature: "update.history.without-catalog".into(),
-        }),
+        UpdateCommand::History => execute_update_history(require_update(update)?),
         UpdateCommand::Ignore { .. } => Err(LctrlError::Unsupported {
             feature: "update.ignore.without-catalog".into(),
         }),
@@ -5554,25 +7230,81 @@ fn execute_update(
     }
 }
 
+/// Read the update ledger the machine's own Lenovo System Update add-in wrote.
+/// No catalogue, network request, or vendor service is involved.
+fn execute_update_history(update: &dyn UpdateControl) -> CommandResult {
+    let report = update.update_history()?;
+    let unit = match report.ledger {
+        UpdateHistoryLedger::InstallEvents => "install event(s)",
+        UpdateHistoryLedger::PackageStatus => "package status row(s)",
+    };
+    let mut human = format!(
+        "{} {unit} from {}\n",
+        report.entries.len(),
+        report.source
+    );
+    for entry in &report.entries {
+        let name = entry.name.as_deref().unwrap_or(&entry.id);
+        let version = entry.version.as_deref().unwrap_or("unknown version");
+        let when = entry
+            .installed_at
+            .as_deref()
+            .unwrap_or("no recorded install time");
+        human.push_str(&format!("  {when}  {name} {version} [{}]\n", entry.status));
+    }
+    structured_output(&report, human)
+}
+
+/// Install a package the UDC service already downloaded, through the
+/// package's own signed installer.
+fn execute_local_package(
+    local_package: Option<&dyn LocalPackageInstallControl>,
+    package: PathBuf,
+    mode: ApplyMode,
+) -> CommandResult {
+    let local_package = local_package.ok_or_else(|| LctrlError::Unsupported {
+        feature: "update.local-install".into(),
+    })?;
+    let request = LocalPackageInstallRequest::new(package)?;
+    let report = local_package.apply_local_package(&request, mode)?;
+    let mut human = format!(
+        "package {} {} ({}) id {}\n",
+        report.package_name,
+        report.package_version,
+        report.package_type.as_deref().unwrap_or("unknown type"),
+        report.package_id
+    );
+    match &report.payload {
+        Some(payload) => human.push_str(&format!(
+            "  payload {} sha256 {}\n",
+            payload.file, payload.sha256
+        )),
+        None => human.push_str(
+            "  the package script validates its own payload (no pinned hash declared)\n",
+        ),
+    }
+    human.push_str(&format!("  signer {}\n", report.signer));
+    match report.exit_code {
+        Some(code) => human.push_str(&format!("  installer exit code {code}\n")),
+        None => human.push_str("  dry-run: the installer was not started\n"),
+    }
+    if let Some(log) = &report.log {
+        human.push_str(&format!("  installer log {log}\n"));
+    }
+    structured_output(&report, human)
+}
+
 fn execute_local_driver(
     local_update: Option<&dyn LocalUpdateControl>,
+    mode: ApplyMode,
     command: LocalDriverCommand,
 ) -> CommandResult {
     let local_update = local_update.ok_or_else(|| LctrlError::Unsupported {
         feature: "update.local".into(),
     })?;
     match command {
-        LocalDriverCommand::Apply {
-            inf,
-            hardware_id,
-            dry_run,
-        } => {
+        LocalDriverCommand::Apply { inf, hardware_id } => {
             let request = LocalDriverUpdateRequest::new(inf, hardware_id)?;
-            let mode = if dry_run {
-                ApplyMode::DryRun
-            } else {
-                ApplyMode::Commit
-            };
             let report = local_update.apply_local_driver_update(&request, mode)?;
             structured_output(&report, local_driver_apply_message(&report))
         }
@@ -5590,7 +7322,6 @@ fn execute_local_driver(
             restore_version,
             restore_date,
             restore_section,
-            dry_run,
         } => {
             let expected = DriverIdentity {
                 provider: expected_provider,
@@ -5611,11 +7342,6 @@ fn execute_local_driver(
                 inf_section: restore_section,
             };
             let request = LocalDriverRollbackRequest::new(device_instance_id, expected, restore)?;
-            let mode = if dry_run {
-                ApplyMode::DryRun
-            } else {
-                ApplyMode::Commit
-            };
             let report = local_update.rollback_local_driver(&request, mode)?;
             structured_output(&report, local_driver_rollback_message(&report))
         }
@@ -5704,12 +7430,24 @@ fn execute_scan(
     }
 }
 
-fn execute_wifi(wifi: Option<&dyn WifiSecurityControl>, command: WifiCommand) -> CommandResult {
-    let wifi = wifi.ok_or_else(|| LctrlError::Unsupported {
-        feature: "wifi.security".into(),
-    })?;
+fn execute_wifi(
+    wifi: Option<&dyn WifiSecurityControl>,
+    wifi_status: Option<&dyn WifiStatusControl>,
+    command: WifiCommand,
+) -> CommandResult {
     match command {
+        WifiCommand::Status => {
+            let wifi_status = wifi_status.ok_or_else(|| LctrlError::Unsupported {
+                feature: "wifi.status".into(),
+            })?;
+            let report = wifi_status.wifi_status()?;
+            let human = format_wifi_status(&report);
+            structured_output(&report, human)
+        }
         WifiCommand::Security => {
+            let wifi = wifi.ok_or_else(|| LctrlError::Unsupported {
+                feature: "wifi.security".into(),
+            })?;
             let report = wifi.wifi_security()?;
             structured_output(
                 &report,
@@ -5721,6 +7459,9 @@ fn execute_wifi(wifi: Option<&dyn WifiSecurityControl>, command: WifiCommand) ->
             )
         }
         WifiCommand::History => {
+            let wifi = wifi.ok_or_else(|| LctrlError::Unsupported {
+                feature: "wifi.security".into(),
+            })?;
             let snapshot = wifi.wifi_security_history()?;
             structured_output(
                 &snapshot,
@@ -5733,12 +7474,648 @@ fn execute_wifi(wifi: Option<&dyn WifiSecurityControl>, command: WifiCommand) ->
             )
         }
         WifiCommand::ClearHistory => {
+            let wifi = wifi.ok_or_else(|| LctrlError::Unsupported {
+                feature: "wifi.security".into(),
+            })?;
             wifi.clear_wifi_security_history()?;
             structured_output(
                 &serde_json::json!({ "cleared": true }),
                 "cleared in-memory Wi-Fi observations (no persisted history)\n".into(),
             )
         }
+    }
+}
+
+fn execute_security(
+    security: Option<&dyn SecurityControl>,
+    command: SecurityCommand,
+) -> CommandResult {
+    let security = security.ok_or_else(|| LctrlError::Unsupported {
+        feature: "security.status".into(),
+    })?;
+    match command {
+        SecurityCommand::Status => {
+            let report = security.security_status()?;
+            let human = format_security_status(&report);
+            structured_output(&report, human)
+        }
+    }
+}
+
+/// Human rendering of `security status`.
+///
+/// Each component prints its own state and source, and a value the source did
+/// not return prints as `unknown`, so a failed read never looks like "off".
+fn format_security_status(report: &SecurityStatusReport) -> String {
+    let mut text = String::new();
+
+    let secure_boot = &report.secure_boot;
+    let _ = writeln!(text, "secure boot: {}", secure_boot.state.as_str());
+    let _ = writeln!(
+        text,
+        "  source: {} ({})",
+        secure_boot.source.as_str(),
+        security_source_detail(secure_boot.source)
+    );
+    let _ = writeln!(text, "  firmware: {}", secure_boot.firmware_type);
+    if secure_boot.state != SecureBootState::NotUefi {
+        let _ = writeln!(
+            text,
+            "  secure boot variable: {}",
+            yes_no_optional(secure_boot.secure_boot_variable)
+        );
+        let _ = writeln!(text, "  setup mode: {}", yes_no_optional(secure_boot.setup_mode));
+        let _ = writeln!(
+            text,
+            "  platform key: {}",
+            platform_key_summary(
+                secure_boot.platform_key_present,
+                secure_boot.platform_key_bytes
+            )
+        );
+        let _ = writeln!(
+            text,
+            "  registry mirror (UEFISecureBootEnabled): {}",
+            yes_no_optional(secure_boot.registry_secure_boot_enabled)
+        );
+    }
+    if let Some(detail) = &secure_boot.detail {
+        let _ = writeln!(text, "  detail: {detail}");
+    }
+
+    let tpm = &report.tpm;
+    let _ = writeln!(text, "tpm: {}", tpm.state.as_str());
+    let _ = writeln!(
+        text,
+        "  source: {} ({})",
+        tpm.source.as_str(),
+        security_source_detail(tpm.source)
+    );
+    if tpm.state == TpmState::Present {
+        let _ = writeln!(
+            text,
+            "  enabled: {}, activated: {}, owned: {}",
+            yes_no_optional(tpm.enabled),
+            yes_no_optional(tpm.activated),
+            yes_no_optional(tpm.owned)
+        );
+        if let Some(version) = &tpm.spec_version {
+            let _ = writeln!(text, "  spec version: {version}");
+        }
+        let _ = writeln!(text, "  manufacturer: {}", manufacturer_summary(tpm));
+        let firmware = tpm.manufacturer_version.as_deref().unwrap_or("unknown");
+        match tpm.manufacturer_version_full.as_deref() {
+            Some(full) if Some(full) != tpm.manufacturer_version.as_deref() => {
+                let _ = writeln!(text, "  firmware: {firmware} (TPM 2.0 full {full})");
+            }
+            _ => {
+                let _ = writeln!(text, "  firmware: {firmware}");
+            }
+        }
+        if let Some(version) = &tpm.physical_presence_version {
+            let _ = writeln!(text, "  physical presence: {version}");
+        }
+    }
+    if let Some(detail) = &tpm.detail {
+        let _ = writeln!(text, "  detail: {detail}");
+    }
+
+    let bitlocker = &report.bitlocker;
+    let _ = writeln!(text, "bitlocker: {}", bitlocker.state.as_str());
+    let _ = writeln!(
+        text,
+        "  source: {} ({})",
+        bitlocker.source.as_str(),
+        security_source_detail(bitlocker.source)
+    );
+    if bitlocker.state == BitLockerState::Observed {
+        let _ = writeln!(
+            text,
+            "  {} encryptable volume(s)",
+            bitlocker.volumes.len()
+        );
+        for volume in &bitlocker.volumes {
+            text.push_str(&format_bitlocker_volume(volume));
+        }
+    }
+    if let Some(detail) = &bitlocker.detail {
+        let _ = writeln!(text, "  detail: {detail}");
+    }
+
+    text
+}
+
+fn format_bitlocker_volume(volume: &BitLockerVolume) -> String {
+    let mut text = String::new();
+    let label = volume.drive_letter.as_deref().unwrap_or("(no drive letter)");
+    let _ = writeln!(
+        text,
+        "  {label}: protection={} ({}) conversion={} ({}) method={} ({}) lock={} ({}) progress={}",
+        optional_value(volume.protection_status.map(|status| status.as_str())),
+        optional_raw(volume.protection_status_raw),
+        optional_value(volume.conversion_status.map(|status| status.as_str())),
+        optional_raw(volume.conversion_status_raw),
+        optional_value(volume.encryption_method.map(|method| method.as_str())),
+        optional_raw(volume.encryption_method_raw),
+        optional_value(volume.lock_status.map(|status| status.as_str())),
+        optional_raw(volume.lock_status_raw),
+        optional_raw(volume.encryption_percentage),
+    );
+    let _ = writeln!(
+        text,
+        "    type={} initialized_for_protection={} device={}",
+        optional_value(volume.volume_type.map(|kind| kind.as_str())),
+        yes_no_optional(volume.initialized_for_protection),
+        optional_value(volume.device_id.as_deref()),
+    );
+    if let Some(id) = &volume.persistent_volume_id {
+        let _ = writeln!(text, "    persistent volume id: {id}");
+    }
+    if let Some(detail) = &volume.detail {
+        let _ = writeln!(text, "    detail: {detail}");
+    }
+    text
+}
+
+const fn yes_no_optional(value: Option<bool>) -> &'static str {
+    match value {
+        Some(true) => "yes",
+        Some(false) => "no",
+        None => "unknown",
+    }
+}
+
+fn optional_value(value: Option<&str>) -> &str {
+    value.unwrap_or("unknown")
+}
+
+fn optional_raw(value: Option<u32>) -> String {
+    value.map_or_else(|| "unknown".into(), |value| value.to_string())
+}
+
+fn platform_key_summary(present: Option<bool>, bytes: Option<usize>) -> String {
+    match present {
+        Some(true) => bytes.map_or_else(
+            || "present".into(),
+            |bytes| format!("present ({bytes} bytes)"),
+        ),
+        Some(false) => "absent".into(),
+        None => "unknown".into(),
+    }
+}
+
+fn manufacturer_summary(tpm: &lctrl_hal::TpmReport) -> String {
+    match (&tpm.manufacturer_id_text, tpm.manufacturer_id) {
+        (Some(name), Some(id)) => format!("{name} (0x{id:08x})"),
+        (Some(name), None) => name.clone(),
+        (None, Some(id)) => format!("0x{id:08x}"),
+        (None, None) => "unknown".into(),
+    }
+}
+
+const fn security_source_detail(source: SecuritySource) -> &'static str {
+    match source {
+        SecuritySource::FirmwareType => "kernel32 GetFirmwareType",
+        SecuritySource::UefiFirmwareVariable => {
+            "GetFirmwareEnvironmentVariableExW {8be4df61-93ca-11d2-aa0d-00e098032b8c}:SecureBoot"
+        }
+        SecuritySource::SecureBootStateRegistry => {
+            "HKLM\\SYSTEM\\CurrentControlSet\\Control\\SecureBoot\\State!UEFISecureBootEnabled"
+        }
+        SecuritySource::Win32Tpm => "root\\CIMV2\\Security\\MicrosoftTpm:Win32_Tpm",
+        SecuritySource::Win32EncryptableVolume => {
+            "root\\CIMV2\\Security\\MicrosoftVolumeEncryption:Win32_EncryptableVolume"
+        }
+    }
+}
+
+fn execute_bluetooth(
+    bluetooth: Option<&dyn BluetoothControl>,
+    command: BluetoothCommand,
+) -> CommandResult {
+    let bluetooth = bluetooth.ok_or_else(|| LctrlError::Unsupported {
+        feature: "bluetooth.list".into(),
+    })?;
+    // `list` is the only Bluetooth verb; the binding is a compile-time check
+    // that a future verb cannot be dispatched through it by accident.
+    let BluetoothCommand::List = command;
+    let inventory = bluetooth.bluetooth_devices()?;
+    let human = format_bluetooth_inventory(&inventory);
+    structured_output(&inventory, human)
+}
+
+/// Read-only sensor access: the platform's own enumeration for `list`, one
+/// report for `read`.
+///
+/// A bare `sensor` lists, because the listing is the only thing this machine
+/// can answer without being told which sensor to read.
+fn execute_sensor(
+    sensor: Option<&dyn SensorControl>,
+    command: Option<&SensorCommand>,
+) -> CommandResult {
+    let sensor = sensor.ok_or_else(|| LctrlError::Unsupported {
+        feature: "sensor.list: no sensor channel is attached on this platform; the Windows \
+                  backend enumerates and reads through the public Sensor API and no Linux \
+                  sensor plane is bound (docs/evidence/re-sensors-20261105.md §1)"
+            .into(),
+    })?;
+    match command {
+        None | Some(SensorCommand::List) => {
+            let inventory = sensor.list()?;
+            let human = format_sensor_inventory(&inventory);
+            structured_output(&inventory, human)
+        }
+        Some(SensorCommand::Read { target }) => {
+            let reading = sensor.read(target)?;
+            let human = format_sensor_read(&reading);
+            structured_output(&reading, human)
+        }
+    }
+}
+
+/// Human rendering of `sensor list`.
+///
+/// Readable sensors and sensors that produced no report are two separate sets:
+/// the second never carries a value, so "0 lx" cannot be confused with "no
+/// reading".
+fn format_sensor_inventory(inventory: &SensorInventory) -> String {
+    let mut text = format!(
+        "sensors (read-only): {} report(s), {} enumerated without a report\n",
+        inventory.sensors.len(),
+        inventory.unavailable.len(),
+    );
+    for reading in &inventory.sensors {
+        text.push_str(&format_sensor_reading(reading));
+        text.push('\n');
+    }
+    if !inventory.unavailable.is_empty() {
+        text.push_str("unavailable (enumerated, no data report)\n");
+        for descriptor in &inventory.unavailable {
+            text.push_str(&format_sensor_descriptor(descriptor));
+            let _ = writeln!(
+                text,
+                "  no report: {}",
+                descriptor
+                    .report_status
+                    .as_deref()
+                    .unwrap_or("the platform returned no report"),
+            );
+            text.push('\n');
+        }
+    }
+    text
+}
+
+/// Human rendering of `sensor read`.
+fn format_sensor_read(reading: &SensorReading) -> String {
+    let mut text = String::from("sensor read (read-only)\n");
+    text.push_str(&format_sensor_reading(reading));
+    text
+}
+
+/// One sensor's identity, the report it produced, and when.
+///
+/// The timestamp is always printed: it is what separates a fresh reading of
+/// zero from a reading that is stale or absent.
+fn format_sensor_reading(reading: &SensorReading) -> String {
+    let mut text = format_sensor_descriptor(&reading.descriptor);
+    let freshness = &reading.freshness;
+    let age = match freshness.age_ms {
+        Some(age) => format!("{age} ms"),
+        None => "unknown".into(),
+    };
+    let _ = writeln!(
+        text,
+        "  report {}  age {age}  {} (window {} ms)",
+        reading
+            .report_timestamp_utc
+            .as_deref()
+            .unwrap_or("no timestamp"),
+        if freshness.fresh { "fresh" } else { "stale" },
+        freshness.stale_after_ms,
+    );
+    if let Some(lux) = reading.illuminance_lux() {
+        let _ = writeln!(
+            text,
+            "  illuminance {lux} lx ({})",
+            if freshness.fresh {
+                "fresh reading"
+            } else {
+                "not a current reading"
+            },
+        );
+    }
+    for field in &reading.fields {
+        let _ = writeln!(
+            text,
+            "  {} = {}",
+            field.label(),
+            sensor_value_text(&field.value)
+        );
+    }
+    text
+}
+
+/// One sensor's published identity. A property the platform rejected prints as
+/// `unavailable` rather than as an empty string.
+fn format_sensor_descriptor(descriptor: &SensorDescriptor) -> String {
+    let mut text = format!("{} [#{}]\n", descriptor.label(), descriptor.index);
+    let _ = writeln!(
+        text,
+        "  category {} / type {}",
+        sensor_identifier(descriptor.category_name, descriptor.category),
+        sensor_identifier(descriptor.sensor_type_name, descriptor.sensor_type),
+    );
+    let _ = writeln!(
+        text,
+        "  manufacturer {}  model {}  serial {}",
+        descriptor.manufacturer.as_deref().unwrap_or("unavailable"),
+        descriptor.model.as_deref().unwrap_or("unavailable"),
+        descriptor.serial_number.as_deref().unwrap_or("unavailable"),
+    );
+    let _ = writeln!(
+        text,
+        "  device path {}",
+        descriptor.device_path.as_deref().unwrap_or("unavailable"),
+    );
+    let interval = match descriptor.min_report_interval_ms {
+        Some(interval) => format!("{interval} ms"),
+        None => "unavailable".into(),
+    };
+    let _ = writeln!(
+        text,
+        "  state {}  min report interval {interval}  data fields {}",
+        descriptor.state.label(),
+        descriptor.data_field_count,
+    );
+    text
+}
+
+/// A documented category/type name with its identifier, or the raw identifier
+/// when this build has no name for it.
+fn sensor_identifier(name: Option<&'static str>, id: SensorGuid) -> String {
+    match name {
+        Some(name) => format!("{name} {id}"),
+        None => format!("undocumented {id}"),
+    }
+}
+
+/// One reported value as text. An undecoded vartype keeps its number and payload
+/// instead of being coerced into a reading.
+fn sensor_value_text(value: &SensorValue) -> String {
+    match value {
+        SensorValue::Real { value } => format!("{value}"),
+        SensorValue::Integer { value } => value.to_string(),
+        SensorValue::Unsigned { value } => value.to_string(),
+        SensorValue::Boolean { value } => {
+            if *value {
+                "true".into()
+            } else {
+                "false".into()
+            }
+        }
+        SensorValue::Text { value } => value.clone(),
+        SensorValue::Timestamp { utc, filetime } => format!("{utc} (FILETIME {filetime})"),
+        SensorValue::Guid { value } => value.to_canonical(),
+        SensorValue::Empty => "empty (no value published)".into(),
+        SensorValue::Unsupported { vartype, raw_hex } => {
+            format!("unsupported vartype {vartype} ({raw_hex})")
+        }
+    }
+}
+
+/// Human rendering of `wifi status`. Absent observations print as `-` so a
+/// missing field is visible instead of looking like a value.
+fn format_wifi_status(report: &WifiStatusReport) -> String {
+    let mut text = format!("{} WLAN interface(s)\n", report.interfaces.len());
+    for interface in &report.interfaces {
+        let state = match interface.connection_state {
+            lctrl_hal::WifiConnectionState::Connected => "connected",
+            lctrl_hal::WifiConnectionState::Disconnected => "disconnected",
+            lctrl_hal::WifiConnectionState::Unknown => "unknown",
+        };
+        text.push_str(&format!(
+            "{}  {}  {}\n",
+            interface.interface_guid,
+            interface.interface_description.as_deref().unwrap_or("-"),
+            state,
+        ));
+        if interface.connection_state != lctrl_hal::WifiConnectionState::Connected {
+            continue;
+        }
+        text.push_str(&format!(
+            "  ssid={} bssid={} profile={}\n",
+            interface.ssid.as_deref().unwrap_or("-"),
+            interface.bssid.as_deref().unwrap_or("-"),
+            interface.profile_name.as_deref().unwrap_or("-"),
+        ));
+        text.push_str(&format!(
+            "  band={} channel={} center_khz={} signal={} rssi={} phy={}\n",
+            interface.band.map_or("-", WifiBand::as_str),
+            optional_number(interface.channel),
+            optional_number(interface.center_frequency_khz),
+            interface
+                .signal_percent
+                .map_or_else(|| "-".to_owned(), |percent| format!("{percent}%")),
+            interface
+                .rssi_dbm
+                .map_or_else(|| "-".to_owned(), |dbm| format!("{dbm}dBm")),
+            interface.phy_type.as_deref().unwrap_or("-"),
+        ));
+        text.push_str(&format!(
+            "  rx_kbps={} tx_kbps={}\n",
+            optional_number(interface.rx_rate_kbps),
+            optional_number(interface.tx_rate_kbps),
+        ));
+        text.push_str(&format!(
+            "  security={}/{} enabled={} 8021x={}\n",
+            interface.authentication.as_deref().unwrap_or("-"),
+            interface.cipher.as_deref().unwrap_or("-"),
+            optional_flag(interface.security_enabled),
+            optional_flag(interface.one_x_enabled),
+        ));
+    }
+    text
+}
+
+/// Human rendering of `bluetooth list`.
+fn format_bluetooth_inventory(inventory: &BluetoothInventory) -> String {
+    let mut text = format!(
+        "{} radio(s), {} known device(s)\n",
+        inventory.adapters.len(),
+        inventory.devices.len(),
+    );
+    for adapter in &inventory.adapters {
+        text.push_str(&format!(
+            "radio {}  {}  class={}\n",
+            adapter.address,
+            adapter.name.as_deref().unwrap_or("-"),
+            adapter.major_class.map_or("-", BluetoothMajorClass::as_str),
+        ));
+    }
+    for device in &inventory.devices {
+        text.push_str(&format!(
+            "device {}  {}  class={}  state={}  last_seen={}  last_used={}\n",
+            device.address,
+            device.name.as_deref().unwrap_or("-"),
+            device.major_class.map_or("-", BluetoothMajorClass::as_str),
+            bluetooth_state(device),
+            optional_time(device.last_seen.as_ref()),
+            optional_time(device.last_used.as_ref()),
+        ));
+    }
+    if inventory.adapters.is_empty() {
+        text.push_str("no Bluetooth radio is enumerated on this machine\n");
+    }
+    text
+}
+
+fn bluetooth_state(device: &lctrl_hal::BluetoothDeviceRecord) -> &'static str {
+    if device.connected {
+        "connected"
+    } else if device.authenticated {
+        "paired"
+    } else if device.remembered {
+        "remembered"
+    } else {
+        "known"
+    }
+}
+
+fn optional_time(value: Option<&lctrl_hal::BluetoothTime>) -> String {
+    value.map_or_else(
+        || "-".to_owned(),
+        |time| {
+            format!(
+                "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+                time.year, time.month, time.day, time.hour, time.minute, time.second
+            )
+        },
+    )
+}
+
+fn optional_number(value: Option<impl std::fmt::Display>) -> String {
+    value.map_or_else(|| "-".to_owned(), |value| value.to_string())
+}
+
+fn optional_flag(value: Option<bool>) -> &'static str {
+    match value {
+        Some(true) => "true",
+        Some(false) => "false",
+        None => "-",
+    }
+}
+
+fn execute_radio(
+    radio: Option<&dyn RadioControl>,
+    command: RadioCommand,
+    apply: ApplyMode,
+) -> CommandResult {
+    let radio = radio.ok_or_else(|| LctrlError::Unsupported {
+        feature: "radio".into(),
+    })?;
+    match command {
+        RadioCommand::Status => {
+            let report = radio.radio_status()?;
+            let mut human = String::new();
+            for status in &report.radios {
+                writeln!(
+                    &mut human,
+                    "{}: {} ({})",
+                    status.kind.as_str(),
+                    status.state.as_str(),
+                    status.name.as_deref().unwrap_or("unnamed"),
+                )
+                .expect("writing to a string cannot fail");
+                for detail in &status.wlan_interfaces {
+                    writeln!(
+                        &mut human,
+                        "  wlan {} ({}): link {} [{}], {} physical layer(s)",
+                        detail.interface_guid,
+                        detail.interface_description.as_deref().unwrap_or("no description"),
+                        wlan_link_state_name(detail.link_state),
+                        detail.link_state_raw,
+                        detail.phys.len(),
+                    )
+                    .expect("writing to a string cannot fail");
+                    for phy in &detail.phys {
+                        writeln!(
+                            &mut human,
+                            "    phy {}: software {}, hardware {}",
+                            phy.phy_index,
+                            phy.software.as_str(),
+                            phy.hardware.as_str(),
+                        )
+                        .expect("writing to a string cannot fail");
+                    }
+                }
+            }
+            if !report.absent_kinds.is_empty() {
+                let absent = report
+                    .absent_kinds
+                    .iter()
+                    .map(|kind| kind.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                writeln!(&mut human, "absent (no radio enumerated): {absent}")
+                    .expect("writing to a string cannot fail");
+            }
+            writeln!(&mut human, "radio access: {}", report.access.as_str())
+                .expect("writing to a string cannot fail");
+            structured_output(&report, human)
+        }
+        RadioCommand::Off { kind, force } => {
+            let transition = radio.radio_set_state(kind.kind(), RadioState::Off, force, apply)?;
+            structured_output(&transition, radio_transition_human(&transition))
+        }
+        RadioCommand::On { kind } => {
+            let transition = radio.radio_set_state(kind.kind(), RadioState::On, false, apply)?;
+            structured_output(&transition, radio_transition_human(&transition))
+        }
+    }
+}
+
+fn radio_transition_human(transition: &lctrl_hal::RadioTransition) -> String {
+    let observed = match transition.observed {
+        Some(observed) => observed.as_str(),
+        None => "not written (dry run)",
+    };
+    let verb = match transition.mode {
+        ApplyMode::DryRun => "would request",
+        ApplyMode::Commit => "requested",
+    };
+    let mut human = format!(
+        "{} radio: {} -> {verb} {}, observed {} (access {}, mode {})\n",
+        transition.kind.as_str(),
+        transition.previous.as_str(),
+        transition.requested.as_str(),
+        observed,
+        transition.access.as_str(),
+        match transition.mode {
+            ApplyMode::DryRun => "dry_run",
+            ApplyMode::Commit => "commit",
+        },
+    );
+    if let Some(rollback) = transition.rollback_observed {
+        human.push_str(&format!(
+            "rollback: previous state restored, observed {}\n",
+            rollback.as_str()
+        ));
+    }
+    human
+}
+
+const fn wlan_link_state_name(state: lctrl_hal::WlanLinkState) -> &'static str {
+    match state {
+        lctrl_hal::WlanLinkState::NotReady => "not_ready",
+        lctrl_hal::WlanLinkState::Connected => "connected",
+        lctrl_hal::WlanLinkState::AdHocNetworkFormed => "ad_hoc_network_formed",
+        lctrl_hal::WlanLinkState::Disconnecting => "disconnecting",
+        lctrl_hal::WlanLinkState::Disconnected => "disconnected",
+        lctrl_hal::WlanLinkState::Associating => "associating",
+        lctrl_hal::WlanLinkState::Discovering => "discovering",
+        lctrl_hal::WlanLinkState::Authenticating => "authenticating",
+        lctrl_hal::WlanLinkState::Unknown => "unknown",
     }
 }
 
@@ -5779,18 +8156,17 @@ fn execute_fix_scan(machine_fix: Option<&dyn MachineFixControl>) -> CommandResul
 fn execute_fix_run(
     machine_fix: Option<&dyn MachineFixControl>,
     issue: &str,
-    dry_run: bool,
+    mode: ApplyMode,
 ) -> CommandResult {
     let machine_fix = machine_fix.ok_or_else(|| LctrlError::Unsupported {
         feature: "fix.run".into(),
     })?;
-    let mode = if dry_run {
-        lctrl_core::ApplyMode::DryRun
-    } else {
-        lctrl_core::ApplyMode::Commit
-    };
     let report = machine_fix.fix(issue, mode)?;
-    let verb = if dry_run { "plan" } else { "applied" };
+    let verb = if mode == ApplyMode::DryRun {
+        "plan"
+    } else {
+        "applied"
+    };
     structured_output(&report, format!("fix {} for {}\n", verb, report.issue_id))
 }
 
@@ -5841,16 +8217,11 @@ fn execute_scene_test(
     scene: Option<&dyn ScenePolicyControl>,
     event: &str,
     rule: Option<&str>,
-    dry_run: bool,
+    mode: ApplyMode,
 ) -> CommandResult {
     let scene = scene.ok_or_else(|| LctrlError::Unsupported {
         feature: "scene.test".into(),
     })?;
-    let mode = if dry_run {
-        ApplyMode::DryRun
-    } else {
-        ApplyMode::Commit
-    };
     if let Some(rule_id) = rule {
         // Test a specific rule by id: apply it directly against the named event class.
         let report = scene.apply(rule_id, event, mode)?;
@@ -5877,7 +8248,11 @@ fn execute_scene_test(
         .find(|m| m.matched)
         .expect("a firing rule exists when firing > 0");
     let report = scene.apply(&first.rule.id, event, mode)?;
-    let verb = if dry_run { "plan" } else { "applied" };
+    let verb = if mode == ApplyMode::DryRun {
+        "plan"
+    } else {
+        "applied"
+    };
     structured_output(
         &serde_json::json!({
             "event": event,
@@ -5908,7 +8283,11 @@ fn execute_scene_track(scene: Option<&dyn ScenePolicyControl>) -> CommandResult 
     )
 }
 
-/// Execute an on-screen-display command against the native overlay backend.
+/// Execute an on-screen-display command.
+///
+/// `enable` / `disable` drive the Lenovo Fn OSD preference (the
+/// `LenovoFnAndFunctionKeys` user-defined control codes) and report what the
+/// registry read-back observed; `test` / `show` paint the replacement overlay.
 fn execute_osd(
     osd: Option<&dyn OsdControl>,
     command: Option<OsdCommand>,
@@ -5920,24 +8299,8 @@ fn execute_osd(
     let dry_run = matches!(apply, ApplyMode::DryRun);
     let command = command.unwrap_or(OsdCommand::Test);
     match command {
-        OsdCommand::Enable => {
-            let outcome = osd.show(&["Vantage replacement OSD enabled"], dry_run)?;
-            structured_output(
-                &outcome,
-                format!("osd {}: {}\n", outcome.state, outcome.detail),
-            )
-        }
-        OsdCommand::Disable => {
-            let was_visible = osd.hide()?;
-            structured_output(
-                &serde_json::json!({ "hidden": was_visible }),
-                if was_visible {
-                    "osd hidden\n".to_string()
-                } else {
-                    "no active osd overlay to hide\n".to_string()
-                },
-            )
-        }
+        OsdCommand::Enable => toggle_fn_osd(osd, true, dry_run),
+        OsdCommand::Disable => toggle_fn_osd(osd, false, dry_run),
         OsdCommand::Test => {
             let outcome = osd.show(&["Vantage replacement", "osd test"], dry_run)?;
             structured_output(
@@ -5954,6 +8317,32 @@ fn execute_osd(
             )
         }
     }
+}
+
+/// Drive the Lenovo Fn OSD preference. The backend reports the observed
+/// before/after status; `osd disable` additionally hides any replacement
+/// overlay this process is still showing.
+fn toggle_fn_osd(osd: &dyn OsdControl, enabled: bool, dry_run: bool) -> CommandResult {
+    let change = osd.set_fn_osd(enabled, dry_run)?;
+    // Enabling never leaves an overlay behind, and a dry-run paints nothing.
+    let overlay_hidden = if enabled || dry_run { false } else { osd.hide()? };
+    let mut human = String::new();
+    if dry_run {
+        human.push_str("osd dry-run: no control code sent to LenovoFnAndFunctionKeys\n");
+    }
+    for indicator in [&change.after.capslock, &change.after.numlock] {
+        human.push_str(&format!(
+            "osd {} {}: {}\n",
+            indicator.indicator, indicator.state, indicator.detail
+        ));
+    }
+    if overlay_hidden {
+        human.push_str("osd overlay hidden\n");
+    }
+    structured_output(
+        &serde_json::json!({ "fn_osd": change, "overlay_hidden": overlay_hidden }),
+        human,
+    )
 }
 
 /// Execute a global-hotkey command against the native RegisterHotKey backend.
@@ -5974,6 +8363,11 @@ fn execute_hotkey(
                 &serde_json::json!({ "registered": ids }),
                 format!("{} live global hotkey(s)\n", ids.len()),
             )
+        }
+        HotkeyCommand::Status => {
+            let status = hotkey.status()?;
+            let human = render_hotkey_status(&status);
+            structured_output(&status, human)
         }
         HotkeyCommand::Register { id, vk } => {
             let outcome = hotkey.register(id, vk, dry_run)?;
@@ -6009,6 +8403,77 @@ fn execute_hotkey(
             )
         }
     }
+}
+
+/// Render the read-only Lenovo Fn hotkey package state for a human reader.
+fn render_hotkey_status(status: &lctrl_hal::HotkeyStatus) -> String {
+    use std::fmt::Write as _;
+
+    let mut text = String::new();
+    let _ = writeln!(
+        text,
+        "hotkey package {}: {} ({})",
+        status.service,
+        if status.service_running {
+            "running"
+        } else {
+            "not running"
+        },
+        status.utility_version.as_deref().unwrap_or("version unknown"),
+    );
+    let _ = writeln!(
+        text,
+        "renderers: FnHotkeyUtility.exe {}, FnHotkeyCapsLKNumLK.exe {}",
+        if status.utility_running {
+            "running"
+        } else {
+            "not running"
+        },
+        if status.caps_led_running {
+            "running"
+        } else {
+            "not running"
+        },
+    );
+    let _ = writeln!(
+        text,
+        "capabilities: fn-lock={} keyboard-layout={} numlock-key={} caps-numlock-user-choice={}",
+        status.capabilities.support_fn_lock,
+        status.capabilities.support_keyboard_layout,
+        status.capabilities.support_numlock_key,
+        status.capabilities.user_changed_caps_numlock,
+    );
+    let _ = writeln!(
+        text,
+        "fn lock: {} ({})",
+        status.fn_lock.state, status.fn_lock.detail
+    );
+    let _ = writeln!(
+        text,
+        "fn/ctrl swap: {} ({})",
+        status.fn_ctrl_swap.state, status.fn_ctrl_swap.detail
+    );
+    let current_user = status
+        .tables
+        .iter()
+        .filter(|table| table.scope == "current_user")
+        .count();
+    let _ = writeln!(
+        text,
+        "hotkey tables: {current_user} current-user, {} machine",
+        status.tables.len() - current_user
+    );
+    for table in &status.tables {
+        let _ = writeln!(
+            text,
+            "  {} {} ({} mappings)",
+            table.scope, table.device, table.mappings
+        );
+    }
+    for note in &status.notes {
+        let _ = writeln!(text, "note: {note}");
+    }
+    text
 }
 
 fn parse_diagnostic_kind(value: &str) -> lctrl_core::Result<DiagnosticKind> {
@@ -6072,6 +8537,7 @@ fn execute_touchpad(
     let touchpad = touchpad.ok_or_else(|| LctrlError::Unsupported {
         feature: match state {
             TouchpadAction::Status => "touchpad.status",
+            TouchpadAction::Caps => "touchpad.caps",
             TouchpadAction::Recover => "touchpad.recover",
             _ => "touchpad",
         }
@@ -6087,16 +8553,29 @@ fn execute_touchpad(
                 format!("touchpad: {actual}\n"),
             );
         }
+        TouchpadAction::Caps => {
+            let caps = touchpad.touchpad_caps()?;
+            return structured_output(&caps, format_touchpad_caps(&caps));
+        }
         TouchpadAction::Recover => {
             let report = touchpad.recover_touchpad(apply)?;
-            return structured_output(
-                &report,
-                if apply == ApplyMode::DryRun {
-                    "touchpad recovery dry run; no input leaf changed\n".into()
-                } else {
-                    "touchpad input leaves enabled and independently read back\n".into()
-                },
-            );
+            let message = match (apply, report.strategy) {
+                (
+                    ApplyMode::DryRun,
+                    lctrl_core::TouchpadRecoveryStrategy::EnableDisabledLeaves,
+                ) => "touchpad recovery dry run; disabled input leaves would be enabled\n",
+                (
+                    ApplyMode::DryRun,
+                    lctrl_core::TouchpadRecoveryStrategy::CycleInputLeaves,
+                ) => "touchpad recovery dry run; input leaves would be restarted\n",
+                (_, lctrl_core::TouchpadRecoveryStrategy::EnableDisabledLeaves) => {
+                    "touchpad input leaves enabled and independently read back\n"
+                }
+                (_, lctrl_core::TouchpadRecoveryStrategy::CycleInputLeaves) => {
+                    "touchpad input leaves restarted and independently read back; readback proves enumeration, not press or haptic function\n"
+                }
+            };
+            return structured_output(&report, message.to_string());
         }
     };
     let report = touchpad.set_touchpad(requested, apply)?;
@@ -6121,6 +8600,113 @@ fn execute_touchpad(
         ),
         restore.as_deref(),
     )
+}
+
+/// Human form for `touchpad caps`. Every number is either declared by the
+/// device or arithmetic over a declared range; the millimetres line says so.
+fn format_touchpad_caps(caps: &lctrl_core::TouchpadCapabilities) -> String {
+    let mut output = format!(
+        "touchpad caps (HID-declared, read-only): {}\n",
+        caps.instance_id
+    );
+    output.push_str(&format!(
+        "  collection: 0x{:04X}/0x{:04X} (digitizer touchpad)\n",
+        caps.usage.page, caps.usage.usage
+    ));
+    output.push_str(&format!(
+        "  device: vid=0x{:04X} pid=0x{:04X} version=0x{:04X}",
+        caps.identity.vendor_id, caps.identity.product_id, caps.identity.version
+    ));
+    if let Some(product) = &caps.identity.product {
+        output.push_str(&format!(" product={product:?}"));
+    }
+    output.push('\n');
+    output.push_str(&format!(
+        "  reports: input={}B output={}B feature={}B link-collections={}\n",
+        caps.reports.input_bytes,
+        caps.reports.output_bytes,
+        caps.reports.feature_bytes,
+        caps.reports.link_collections
+    ));
+    output.push_str(&format!(
+        "  contacts: declared-collections={} maximum={} identifier-max={} count-field-max={}\n",
+        caps.contacts.declared_collections,
+        caps.contacts
+            .count_maximum
+            .map_or_else(|| "unavailable".to_owned(), |value| value.to_string()),
+        caps.contacts.identifier_max,
+        caps.contacts.count_field_max
+    ));
+    for (label, axis) in [("x", caps.surface.x), ("y", caps.surface.y)] {
+        output.push_str(&format!(
+            "  surface {label}: logical {}..{} physical {}..{} unit=0x{:04X} exponent={}\n",
+            axis.logical_min,
+            axis.logical_max,
+            axis.physical_min,
+            axis.physical_max,
+            axis.unit,
+            axis.unit_exponent
+        ));
+    }
+    match caps.surface.derived_size_mm {
+        Some(size) => output.push_str(&format!(
+            "  surface size: {:.1} mm x {:.1} mm (derived from the declared physical range)\n",
+            size.width_mm, size.height_mm
+        )),
+        None => output.push_str(
+            "  surface size: not derived (declared unit is not a length unit this build converts)\n",
+        ),
+    }
+    let button_type = caps.buttons.button_type.map_or_else(
+        || "unavailable".to_owned(),
+        |kind| {
+            let raw = match kind {
+                lctrl_core::TouchpadButtonType::Depressible => "0".to_owned(),
+                lctrl_core::TouchpadButtonType::NonDepressible => "1".to_owned(),
+                lctrl_core::TouchpadButtonType::NonClickable => "2".to_owned(),
+                lctrl_core::TouchpadButtonType::Other(raw) => raw.to_string(),
+            };
+            format!("{kind:?} ({raw})")
+        },
+    );
+    output.push_str(&format!(
+        "  buttons: type={button_type} integrated-button={}\n",
+        if caps.buttons.integrated_button {
+            "declared"
+        } else {
+            "absent"
+        }
+    ));
+    let mut bits: Vec<&str> = Vec::new();
+    for (declared, label) in [
+        (caps.support.two_finger, "two-finger"),
+        (caps.support.three_finger, "three-finger"),
+        (caps.support.four_finger, "four-finger"),
+        (caps.support.five_finger, "five-finger"),
+        (caps.support.pressure, "pressure"),
+        (caps.support.palm_confidence, "palm-confidence"),
+        (caps.support.haptic_intensity, "haptic-intensity"),
+        (caps.support.button_press_threshold, "button-press-threshold"),
+    ] {
+        if declared {
+            bits.push(label);
+        }
+    }
+    output.push_str(&format!(
+        "  support: {}\n",
+        if bits.is_empty() {
+            "no gesture input declared".to_owned()
+        } else {
+            bits.join(" ")
+        }
+    ));
+    if let Some(error) = &caps.capability_report_error {
+        output.push_str(&format!("  capability report: unreadable ({error})\n"));
+    }
+    output.push_str(
+        "  note: declared capabilities, not a measurement; Windows synthesizes gestures from the declared contacts\n",
+    );
+    output
 }
 
 fn execute_fnlock(
@@ -6258,21 +8844,33 @@ fn execute_privacy(
 ) -> CommandResult {
     match command {
         PrivacyCommand::Cam {
-            state,
+            action,
             runtime,
             persistent,
-        } => match privacy_layer(runtime, persistent)? {
-            PrivacyLayer::Runtime => execute_runtime_camera(privacy, state, apply, auto_restore),
-            PrivacyLayer::Persistent => execute_persistent_bios_toggle(
-                bios,
-                "IntegratedCamera",
-                state,
-                apply,
-                confirmed,
-                interactive,
-                auto_restore,
-            ),
-        },
+        } => {
+            // The consent-store read is not a device state; it never takes a
+            // layer flag and never shares the toggle path.
+            if action == PrivacyCamAction::InUse {
+                return execute_camera_inuse(privacy, runtime, persistent);
+            }
+            match action.toggle() {
+                Some(state) => match privacy_layer(runtime, persistent)? {
+                    PrivacyLayer::Runtime => {
+                        execute_runtime_camera(privacy, state, apply, auto_restore)
+                    }
+                    PrivacyLayer::Persistent => execute_persistent_bios_toggle(
+                        bios,
+                        "IntegratedCamera",
+                        state,
+                        apply,
+                        confirmed,
+                        interactive,
+                        auto_restore,
+                    ),
+                },
+                None => execute_camera_status(privacy, bios, runtime, persistent),
+            }
+        }
         PrivacyCommand::Mic {
             state,
             runtime,
@@ -6314,10 +8912,13 @@ fn execute_privacy(
                     capture_optional(privacy.microphone_state())
                 });
             let mut bios_items = Vec::new();
+            let mut unpublished = Vec::new();
             if let Some(bios) = bios {
                 for name in ["IntegratedCamera", "Microphone", "FingerprintReader"] {
                     if let Some(item) = bios.get(name)? {
                         bios_items.push(item);
+                    } else {
+                        unpublished.push(name);
                     }
                 }
             }
@@ -6328,7 +8929,42 @@ fn execute_privacy(
                 runtime_microphone_error,
                 bios: bios_items,
             };
-            structured_output(&payload, "privacy status collected\n".into())
+            // Text mode renders the state the JSON carries. A camera or
+            // microphone read that failed keeps its captured error instead of
+            // collapsing into a bare "collected" line, and a switch the
+            // firmware does not publish is named rather than silently omitted.
+            let mut human = String::from("privacy status:\n");
+            for (layer, state, error) in [
+                (
+                    "runtime camera",
+                    &payload.runtime_camera,
+                    &payload.runtime_camera_error,
+                ),
+                (
+                    "runtime microphone",
+                    &payload.runtime_microphone,
+                    &payload.runtime_microphone_error,
+                ),
+            ] {
+                let detail = error
+                    .as_ref()
+                    .map_or_else(|| "service not attached".to_string(), ToString::to_string);
+                let _ = match state {
+                    Some(state) => writeln!(human, "  {layer}: {state}"),
+                    None => writeln!(human, "  {layer}: unavailable ({detail})"),
+                };
+            }
+            for item in &payload.bios {
+                let _ = writeln!(human, "  persistent {}: {}", item.name, item.value);
+            }
+            if !unpublished.is_empty() {
+                let _ = writeln!(
+                    human,
+                    "  firmware publishes no {} switch",
+                    unpublished.join(", ")
+                );
+            }
+            structured_output(&payload, human)
         }
     }
 }
@@ -6347,6 +8983,194 @@ fn privacy_layer(runtime: bool, persistent: bool) -> lctrl_core::Result<PrivacyL
             detail: "privacy camera/microphone requires exactly one of --persistent or --runtime"
                 .into(),
         }),
+    }
+}
+
+/// Read-only camera status: the aggregate runtime answer, the per-devnode
+/// attribution behind it, the persistent BIOS switch, and the honest state of
+/// the occlusion channel.
+fn execute_camera_status(
+    privacy: Option<&dyn PrivacyControl>,
+    bios: Option<&dyn BiosControl>,
+    runtime: bool,
+    persistent: bool,
+) -> CommandResult {
+    if runtime || persistent {
+        // A layer flag scopes a write; the status read always reports both
+        // layers so the operator can compare them.
+        return Err(LctrlError::InvalidArgument {
+            detail: "privacy cam status reports both layers; drop --runtime/--persistent".into(),
+        });
+    }
+    if privacy.is_none() && bios.is_none() {
+        return Err(LctrlError::Unsupported {
+            feature: "privacy.cam.status".into(),
+        });
+    }
+    let (runtime_state, runtime_error) =
+        privacy.map_or((None, None), |service| capture_optional(service.camera_state()));
+    let (devices, devices_error) = privacy.map_or((Vec::new(), None), |service| {
+        let (devices, error) = capture_optional(service.camera_devices());
+        (devices.unwrap_or_default(), error)
+    });
+    let persistent_item = match bios {
+        Some(bios) => bios.get("IntegratedCamera")?,
+        None => None,
+    };
+    let payload = CameraStatusPayload {
+        runtime: runtime_state,
+        runtime_error,
+        devices,
+        devices_error,
+        persistent: persistent_item,
+        occlusion: CameraOcclusionAvailability {
+            supported: false,
+            reason: CAMERA_OCCLUSION_REASON,
+        },
+    };
+    structured_output(&payload, "privacy camera status collected\n".into())
+}
+
+/// Read-only camera consent / last-use records.
+///
+/// The answer comes from the Capability Access Manager registry store, so it
+/// describes what Windows recorded, not what a camera is doing now. The
+/// rendered text and the JSON both carry that caveat and the in-use rule, and
+/// no store is merged into another: a `deny` in the machine store and an
+/// `allow` in the user store are reported side by side.
+fn execute_camera_inuse(
+    privacy: Option<&dyn PrivacyControl>,
+    runtime: bool,
+    persistent: bool,
+) -> CommandResult {
+    if runtime || persistent {
+        // The consent store spans every layer; a layer flag would suggest a
+        // write this command never performs.
+        return Err(LctrlError::InvalidArgument {
+            detail: "privacy cam inuse reads all stores; drop --runtime/--persistent".into(),
+        });
+    }
+    let privacy = privacy.ok_or_else(|| LctrlError::Unsupported {
+        feature: "privacy.cam.inuse".into(),
+    })?;
+    let report = privacy.camera_consent()?;
+    let human = render_camera_consent(&report);
+    structured_output(&report, human)
+}
+
+fn render_camera_consent(report: &lctrl_core::CameraConsentReport) -> String {
+    use std::fmt::Write as _;
+
+    let mut text = String::new();
+    let _ = writeln!(text, "{}", report.as_recorded);
+    let _ = writeln!(text, "in-use rule: {}", report.in_use_rule);
+    for scope in &report.scopes {
+        if !scope.present {
+            let _ = writeln!(text, "{}: no consent-store key", scope_name(scope.scope));
+            continue;
+        }
+        let consent = match (&scope.consent, &scope.consent_raw) {
+            (Some(consent), _) => consent_name(*consent),
+            (None, Some(raw)) => raw.as_str(),
+            (None, None) => "no consent text recorded",
+        };
+        let _ = write!(
+            text,
+            "{}: {consent} ({} record(s))",
+            scope_name(scope.scope),
+            scope.entries.len()
+        );
+        if let Some(last_set) = &scope.last_set {
+            let _ = write!(
+                text,
+                ", last set {}",
+                last_set.utc.as_deref().unwrap_or("undecodable FILETIME")
+            );
+        }
+        text.push('\n');
+        for entry in &scope.entries {
+            let identity = entry.path.as_deref().unwrap_or(&entry.key);
+            let consent = match (&entry.consent, &entry.consent_raw) {
+                (Some(consent), _) => consent_name(*consent),
+                (None, Some(raw)) => raw.as_str(),
+                (None, None) => "no consent text recorded",
+            };
+            let marker = if entry.in_use { "*" } else { " " };
+            let _ = write!(text, "  {marker} {identity}: {consent}");
+            if let (Some(start), Some(stop)) = (&entry.last_used_start, &entry.last_used_stop) {
+                let _ = write!(
+                    text,
+                    ", last use {} → {}",
+                    start.utc.as_deref().unwrap_or("undecodable FILETIME"),
+                    stop.utc.as_deref().unwrap_or("undecodable FILETIME"),
+                );
+            }
+            text.push('\n');
+        }
+        for note in &scope.notes {
+            let _ = writeln!(text, "  ! {note}");
+        }
+    }
+    if report.policy.present {
+        let value = match (
+            &report.policy.let_apps_access_camera,
+            report.policy.let_apps_access_camera_value,
+        ) {
+            (Some(policy), _) => policy_name(*policy).to_string(),
+            (None, Some(raw)) => format!("unrecognised value {raw}"),
+            (None, None) => "not configured".to_string(),
+        };
+        let _ = writeln!(
+            text,
+            "policy LetAppsAccessCamera: {value} (this is policy, not consent)"
+        );
+        for (label, list) in [
+            ("force-allow", &report.policy.force_allow),
+            ("force-deny", &report.policy.force_deny),
+        ] {
+            if let Some(list) = list {
+                let _ = writeln!(text, "policy {label}: {}", list.join(", "));
+            }
+        }
+        for note in &report.policy.notes {
+            let _ = writeln!(text, "policy note: {note}");
+        }
+    } else {
+        let _ = writeln!(
+            text,
+            "policy: no AppPrivacy policy key; no policy value is recorded (this is not an allow)"
+        );
+    }
+    let in_use = report.in_use().count();
+    let _ = write!(
+        text,
+        "{in_use} record(s) satisfy the in-use rule; that is a recorded stamp pair, not a live stream\n"
+    );
+    text
+}
+
+const fn scope_name(scope: lctrl_core::CameraConsentScope) -> &'static str {
+    match scope {
+        lctrl_core::CameraConsentScope::CurrentUser => "current_user",
+        lctrl_core::CameraConsentScope::CurrentUserNonPackaged => "current_user_non_packaged",
+        lctrl_core::CameraConsentScope::Machine => "machine",
+        lctrl_core::CameraConsentScope::MachineNonPackaged => "machine_non_packaged",
+    }
+}
+
+const fn consent_name(consent: lctrl_core::CameraConsent) -> &'static str {
+    match consent {
+        lctrl_core::CameraConsent::Allow => "Allow",
+        lctrl_core::CameraConsent::Deny => "Deny",
+        lctrl_core::CameraConsent::PromptOnFirstUse => "PromptOnFirstUse",
+    }
+}
+
+const fn policy_name(policy: lctrl_core::CameraAppPrivacyPolicy) -> &'static str {
+    match policy {
+        lctrl_core::CameraAppPrivacyPolicy::UserInControl => "0 (user in control)",
+        lctrl_core::CameraAppPrivacyPolicy::ForceAllow => "1 (force allow)",
+        lctrl_core::CameraAppPrivacyPolicy::ForceDeny => "2 (force deny)",
     }
 }
 
@@ -6664,6 +9488,347 @@ fn discard_after_bios_failure(bios: &dyn BiosControl, error: LctrlError) -> lctr
     }
 }
 
+/// Report the Lenovo records the OS event log holds.
+///
+/// The HAL validates the bound and does all of the reading, so this handler adds
+/// no second interpretation: it reports the providers it discovered, the
+/// channels that accepted the query and the raw records, newest first. A record
+/// whose message resource is empty keeps only its raw `EventData` strings — no
+/// message text is invented from them.
+fn execute_events_log(event_log: Option<&dyn EventLogControl>, limit: usize) -> CommandResult {
+    let event_log = event_log.ok_or_else(|| LctrlError::Unsupported {
+        feature: "events.log: no event-log channel is attached on this platform".into(),
+    })?;
+    let report = event_log.lenovo_events(limit)?;
+    let human = format_event_log(&report);
+    structured_output(&report, human)
+}
+
+fn format_event_log(report: &lctrl_hal::LenovoEventLogReport) -> String {
+    let mut text = String::from("Lenovo event records (read-only)\n");
+    text.push_str(&format!(
+        "  records: {} of at most {}\n",
+        report.events.len(),
+        report.limit
+    ));
+    if report.providers.is_empty() {
+        text.push_str("  providers: none discoverable on this machine\n");
+    } else {
+        text.push_str(&format!("  providers: {}\n", report.providers.join(", ")));
+    }
+    if report.channels.is_empty() {
+        text.push_str("  channels: none accepted the query\n");
+    } else {
+        text.push_str(&format!("  channels: {}\n", report.channels.join(", ")));
+    }
+    if report.events.is_empty() {
+        if report.providers.is_empty() {
+            text.push_str("  no Lenovo provider or event source was discoverable\n");
+        } else {
+            text.push_str("  the discovered providers hold no record on the queried channels\n");
+        }
+        return text;
+    }
+    for record in &report.events {
+        text.push_str(&format!(
+            "  {}  {}  {}  id {}  {}  record {}\n",
+            record.time_utc,
+            record.channel,
+            record.provider,
+            record.event_id,
+            record.level.name,
+            record.record_id,
+        ));
+        if record.qualifiers != 0 {
+            text.push_str(&format!("    qualifiers: {}\n", record.qualifiers));
+        }
+        // These records carry no message resource, so the raw insertion strings
+        // are the whole content; an empty list stays empty.
+        if record.data.is_empty() {
+            text.push_str("    data: none\n");
+        } else {
+            for (index, value) in record.data.iter().enumerate() {
+                text.push_str(&format!("    data[{index}]: {value}\n"));
+            }
+        }
+    }
+    text
+}
+
+
+/// Execute `storage status`: enumerate the physical drives read-only.
+///
+/// The report is the observation itself, so a drive that refused a field shows
+/// `not reported` plus the recorded issue instead of a zero.
+fn execute_storage(storage: Option<&dyn StorageStatusControl>) -> CommandResult {
+    let storage = storage.ok_or_else(|| LctrlError::Unsupported {
+        feature: "storage.status: no read-only storage channel is attached on this platform".into(),
+    })?;
+    let status = storage.storage_status()?;
+    let human = format_storage_status(&status);
+    structured_output(&status, human)
+}
+
+fn format_storage_status(status: &lctrl_core::StorageStatus) -> String {
+    let mut text = String::new();
+    if status.devices.is_empty() {
+        text.push_str("no physical disk reported\n");
+    }
+    for device in &status.devices {
+        text.push_str(&format!("{}\n", device.device_path));
+        if let Some(interface) = &device.interface_path {
+            text.push_str(&format!("  interface: {interface}\n"));
+        }
+        text.push_str(&format!(
+            "  model: {}\n",
+            device.model.as_deref().unwrap_or("not reported")
+        ));
+        text.push_str(&format!(
+            "  serial ({}): {}\n",
+            device.fields.serial_number,
+            device.serial_number.as_deref().unwrap_or("not reported")
+        ));
+        text.push_str(&format!(
+            "  device serial ({}): {}\n",
+            device.fields.device_serial,
+            device.device_serial.as_deref().unwrap_or("not reported")
+        ));
+        text.push_str(&format!(
+            "  firmware: {}\n",
+            device.firmware_version.as_deref().unwrap_or("not reported")
+        ));
+        let bus = match (device.bus_type, device.bus_type_raw) {
+            (Some(bus), Some(raw)) => format!("{} (raw {raw})", bus.as_str()),
+            (Some(bus), None) => bus.as_str().to_string(),
+            (None, Some(raw)) => format!("raw {raw}"),
+            (None, None) => "not reported".to_string(),
+        };
+        text.push_str(&format!("  bus: {bus} ({})\n", device.fields.bus_type));
+        text.push_str(&format!(
+            "  media: {} ({})\n",
+            device
+                .media_type
+                .map_or("not reported", lctrl_core::StorageMediaType::as_str),
+            device.fields.media_type
+        ));
+        match (device.size_bytes, device.logical_sector_size) {
+            (Some(size), Some(sector)) => {
+                let gib = size / (1 << 30);
+                let tenths = (size % (1 << 30)) * 10 / (1 << 30);
+                text.push_str(&format!(
+                    "  size: {size} bytes ({gib}.{tenths} GiB), {sector}-byte logical sectors\n"
+                ));
+            }
+            (Some(size), None) => {
+                let gib = size / (1 << 30);
+                let tenths = (size % (1 << 30)) * 10 / (1 << 30);
+                text.push_str(&format!(
+                    "  size: {size} bytes ({gib}.{tenths} GiB), logical sector size not reported\n"
+                ));
+            }
+            (None, _) => text.push_str("  size: not reported\n"),
+        }
+        text.push_str(&format!(
+            "  health: {} ({})\n",
+            device
+                .health
+                .map_or("not reported", lctrl_core::StorageHealth::as_str),
+            device.fields.health
+        ));
+        if let Some(warning) = device.critical_warning {
+            let asserted: Vec<&str> = [
+                (warning.available_spare_below_threshold, "spare below threshold"),
+                (warning.temperature_above_threshold, "temperature above threshold"),
+                (warning.reliability_degraded, "reliability degraded"),
+                (warning.media_read_only, "media read-only"),
+                (warning.volatile_memory_backup_failed, "volatile-memory backup failed"),
+                (
+                    warning.persistent_memory_region_read_only,
+                    "persistent-memory region read-only",
+                ),
+            ]
+            .into_iter()
+            .filter_map(|(set, label)| set.then_some(label))
+            .collect();
+            text.push_str(&format!(
+                "  critical warning: raw {:#04x}, {}\n",
+                warning.raw,
+                if asserted.is_empty() {
+                    "none asserted".to_string()
+                } else {
+                    asserted.join(", ")
+                }
+            ));
+        }
+        match device.temperature_celsius {
+            Some(celsius) => {
+                text.push_str(&format!(
+                    "  temperature: {celsius} C ({})",
+                    device.fields.temperature
+                ));
+                if let Some(warning) = device.temperature_warning_celsius {
+                    text.push_str(&format!(", warns at {warning} C"));
+                }
+                if let Some(critical) = device.temperature_critical_celsius {
+                    text.push_str(&format!(", critical at {critical} C"));
+                }
+                text.push('\n');
+            }
+            None => text.push_str("  temperature: not reported\n"),
+        }
+        for (label, value, source) in [
+            (
+                "percentage used",
+                device.percentage_used.map(|value| format!("{value}%")),
+                device.fields.percentage_used,
+            ),
+            (
+                "available spare",
+                device
+                    .available_spare_percent
+                    .map(|spare| match device.available_spare_threshold_percent {
+                        Some(threshold) => format!("{spare}% (threshold {threshold}%)"),
+                        None => format!("{spare}%"),
+                    }),
+                device.fields.percentage_used,
+            ),
+            (
+                "power-on hours",
+                device.power_on_hours.map(|hours| hours.to_string()),
+                device.fields.power_on_hours,
+            ),
+        ] {
+            match value {
+                Some(value) => text.push_str(&format!("  {label}: {value} ({source})\n")),
+                None => text.push_str(&format!("  {label}: not reported\n")),
+            }
+        }
+        for (label, value) in [
+            ("power cycles", device.power_cycles),
+            ("unsafe shutdowns", device.unsafe_shutdowns),
+            ("media errors", device.media_errors),
+        ] {
+            match value {
+                Some(value) => text.push_str(&format!("  {label}: {value}\n")),
+                None => text.push_str(&format!("  {label}: not reported\n")),
+            }
+        }
+        for issue in &device.issues {
+            text.push_str(&format!("  issue: {} — {}\n", issue.source, issue.detail));
+        }
+    }
+    for issue in &status.issues {
+        text.push_str(&format!("issue: {} — {}\n", issue.source, issue.detail));
+    }
+    text
+}
+
+fn execute_firmware(
+    firmware: Option<&dyn FirmwareControl>,
+    command: Option<FirmwareCommand>,
+) -> CommandResult {
+    let firmware = firmware.ok_or_else(|| LctrlError::Unsupported {
+        feature: "firmware.status: no firmware inventory channel is attached on this platform"
+            .into(),
+    })?;
+    match command {
+        Some(FirmwareCommand::Status) | None => execute_firmware_status(firmware),
+    }
+}
+
+/// Report the firmware identity, the ESRT entries, and the recorded update
+/// attempts. Every value is an observation of the platform's own projection;
+/// nothing is normalised into a verdict.
+fn execute_firmware_status(firmware: &dyn FirmwareControl) -> CommandResult {
+    let status = firmware.firmware_status()?;
+    let identity = &status.identity;
+    let vendor = identity.vendor.as_deref().unwrap_or("vendor not reported");
+    let version = identity.version.as_deref().unwrap_or("version not reported");
+    let mut human = format!("{} firmware: {vendor} {version}", identity.firmware_type);
+    if let Some(date) = &identity.release_date {
+        human.push_str(&format!(", dated {date}"));
+    }
+    human.push('\n');
+    for (label, value) in [
+        ("BIOS release", identity.bios_release()),
+        ("EC firmware", identity.ec_firmware()),
+        ("SMBIOS", identity.smbios_version()),
+    ] {
+        if let Some(value) = value {
+            human.push_str(&format!("  {label}: {value}\n"));
+        }
+    }
+    if !identity.version_strings.is_empty() {
+        human.push_str(&format!("  version strings: {}\n", identity.version_strings.join(", ")));
+    }
+    human.push_str(&format!("ESRT entries: {}\n", status.resources.len()));
+    for resource in &status.resources {
+        let name = resource
+            .description
+            .as_deref()
+            .unwrap_or("no device description");
+        let state = resource.status.as_deref().unwrap_or("status not reported");
+        let version = match resource.reported_version() {
+            Some(version) => lctrl_core::format_firmware_version(version),
+            None => "version absent".into(),
+        };
+        human.push_str(&format!(
+            "  {}  {name}  version {version}  [{state}]\n",
+            resource.firmware_class
+        ));
+        // The store value is printed only when the documented derivation also
+        // answered; otherwise it is the fallback already shown above.
+        if let (Some(_), Some(stored)) = (resource.current_version, resource.stored_version) {
+            human.push_str(&format!(
+                "    property store: {}\n",
+                lctrl_core::format_firmware_version(stored)
+            ));
+        }
+        for issue in &resource.issues {
+            human.push_str(&format!("    issue: {issue}\n"));
+        }
+    }
+    if status.attempts.is_empty() {
+        human.push_str("update attempts: none recorded\n");
+    } else {
+        human.push_str(&format!("update attempts: {}\n", status.attempts.len()));
+    }
+    for attempt in &status.attempts {
+        let version = attempt
+            .version
+            .map(lctrl_core::format_firmware_version)
+            .unwrap_or_else(|| "version absent".into());
+        let last_attempt = attempt
+            .last_attempt_version
+            .map(lctrl_core::format_firmware_version)
+            .unwrap_or_else(|| "version absent".into());
+        // An unnamed status is printed as its raw number; only the documented
+        // values get a word.
+        let outcome = match (&attempt.last_attempt_outcome, attempt.last_attempt_status) {
+            (Some(meaning), Some(status)) => format!("{status} ({meaning})"),
+            (None, Some(status)) => format!("{status} (unnamed)"),
+            (_, None) => "not recorded".into(),
+        };
+        human.push_str(&format!(
+            "  {}  version {version}, last attempt {last_attempt}, status {outcome}\n",
+            attempt.firmware_class
+        ));
+        if let Some(phase) = attempt.phase {
+            human.push_str(&format!("    phase: {phase}\n"));
+        }
+        if let Some(filename) = &attempt.filename {
+            human.push_str(&format!("    image: {filename}\n"));
+        }
+        if let Some(catalog) = &attempt.catalog {
+            human.push_str(&format!("    catalog: {catalog}\n"));
+        }
+    }
+    for issue in &status.issues {
+        human.push_str(&format!("issue: {issue}\n"));
+    }
+    structured_output(&status, human)
+}
+
 fn execute_bios_list(bios: Option<&dyn BiosControl>) -> CommandResult {
     let bios = bios.ok_or_else(|| LctrlError::Unsupported {
         feature: "bios".into(),
@@ -6802,7 +9967,17 @@ fn execute_bios(
             command: Some(PasswordCommand::Status),
         } => {
             let status = bios.password_status()?;
-            structured_output(&status, "BIOS password status read\n".into())
+            // Text mode carries the observed state: the previous line reported
+            // only that a read happened while JSON held the answer.
+            let human = format!(
+                "BIOS supervisor switch status (set: {}; length {}..={}):\n{}\n",
+                status.supervisor_set,
+                status.min_length,
+                status.max_length,
+                serde_json::to_string_pretty(&status)
+                    .map_err(|error| LctrlError::Io(io::Error::other(error)))?
+            );
+            structured_output(&status, human)
         }
         BiosCommand::Defaults { password } => {
             if apply == ApplyMode::DryRun {
@@ -6853,10 +10028,13 @@ fn execute_info(hal: &dyn Hal) -> CommandResult {
     let hardware = hal.hardware_info()?;
     let capabilities = hal.capabilities()?;
     let platform = hal.platform();
-    let human = format_info(&platform, &hardware, &capabilities);
+    let identity = hal.system_identity()?;
+    let identity = (!identity.is_empty()).then_some(identity);
+    let human = format_info(&platform, &hardware, identity.as_ref(), &capabilities);
     let payload = InfoPayload {
         platform,
         hardware,
+        identity,
         features: capabilities.features,
     };
     let json = serde_json::to_value(payload)
@@ -6868,6 +10046,7 @@ fn execute_info(hal: &dyn Hal) -> CommandResult {
 fn format_info(
     platform: &Platform,
     hardware: &HardwareInfo,
+    identity: Option<&SystemIdentity>,
     capabilities: &CapabilitySet,
 ) -> String {
     let mut output = format!("platform: {}\n", platform_label(*platform));
@@ -6883,6 +10062,33 @@ fn format_info(
         "bios: {}\n",
         hardware.bios_version.as_deref().unwrap_or("unknown")
     ));
+    if let Some(identity) = identity {
+        let ec_version = identity.bios.embedded_controller_version();
+        output.push_str("identity:\n");
+        for (label, value) in [
+            // Machine type model: SMBIOS Product Name (Win32_ComputerSystem.Model).
+            ("model (mtm)", identity.product.model.as_deref()),
+            // Marketing product version (Win32_ComputerSystemProduct.Version).
+            ("product version", identity.product.version.as_deref()),
+            (
+                "serial",
+                identity.product.identifying_number.as_deref(),
+            ),
+            // Win32_BaseBoard.Product: Lenovo's internal board id, not the MTM.
+            ("baseboard", identity.motherboard.product.as_deref()),
+            ("baseboard version", identity.motherboard.version.as_deref()),
+            // DMTF datetime text exactly as Win32_BIOS.ReleaseDate delivered it.
+            ("bios release date", identity.bios.release_date.as_deref()),
+            // SMBIOS Type 0 embedded-controller firmware revision.
+            ("ec firmware", ec_version.as_deref()),
+        ] {
+            output.push_str("  ");
+            output.push_str(label);
+            output.push_str(": ");
+            output.push_str(value.unwrap_or("unknown"));
+            output.push('\n');
+        }
+    }
     output.push_str("features:\n");
     for (feature, capability) in &capabilities.features {
         output.push_str("  ");
@@ -6914,8 +10120,35 @@ fn availability_label(availability: Availability) -> &'static str {
     }
 }
 
-fn execute_capability(hal: &dyn Hal) -> CommandResult {
-    let rows = capability::evaluate_commands(hal)?;
+/// Accessory presence as observed by the detect service.
+///
+/// The registry gates the accessory-only rows on this observation: without an
+/// attached accessory they are `not_applicable` rather than a failed probe, and
+/// a failed inventory stays `unknown` instead of being read as absence.
+fn magicbay_hardware(magicbay: Option<&dyn MagicBayControl>) -> lctrl_hal::HardwareObservation {
+    let Some(magicbay) = magicbay else {
+        return lctrl_hal::HardwareObservation::default();
+    };
+    let magicbay = match magicbay.detect_magicbay() {
+        Ok(inventory) => {
+            if inventory.devices.is_empty() && inventory.acpi_devices.is_empty() {
+                lctrl_core::HardwarePresence::Absent
+            } else {
+                lctrl_core::HardwarePresence::Present
+            }
+        }
+        Err(_) => lctrl_core::HardwarePresence::Unknown,
+    };
+    lctrl_hal::HardwareObservation { magicbay }
+}
+
+fn execute_capability(services: &CommandServices<'_>) -> CommandResult {
+    let capabilities = services.hal.capabilities()?;
+    let rows = capability::evaluate_commands_with_hardware(
+        services.hal,
+        &capabilities,
+        magicbay_hardware(services.magicbay),
+    );
     let human = format_capabilities(&rows);
     structured_output(&rows, human)
 }
@@ -6950,6 +10183,273 @@ fn json_label<T: Serialize>(value: &T) -> String {
         .unwrap_or_else(|| "unknown".into())
 }
 
+/// Read-only processor status: the platform observation plus the processor
+/// policies stored in the active power scheme.
+#[derive(Debug, Serialize)]
+struct CpuStatusPayload {
+    #[serde(flatten)]
+    cpu: lctrl_core::CpuStatus,
+    /// `PERFEPP` percentage per power source, as
+    /// `PowerReadACValueIndex`/`PowerReadDCValueIndex` return it.
+    epp_percent: PowerSourceValues<u32>,
+    /// What `PowerReadValue{Min,Max,Increment}` publishes for `PERFEPP`.
+    epp_range: PowerRangeObservation,
+    /// `PERFBOOSTMODE` index per power source. An index rather than a boolean:
+    /// the target stores `2` (aggressive), which no boolean request selects.
+    boost_mode: PowerSourceValues<ProcessorBoostMode>,
+    /// What `PowerReadValue{Min,Max,Increment}` publishes for `PERFBOOSTMODE`.
+    /// `Unavailable` on the target: all three calls return
+    /// `ERROR_FILE_NOT_FOUND`, so no bound is claimed.
+    boost_range: PowerRangeObservation,
+}
+
+/// `SUB_PROCESSOR`: the subgroup the processor policies live in.
+const PROCESSOR_SETTINGS_SUBGROUP: &str = "54533251-82be-4824-96c1-47b60b740d00";
+/// `PERFEPP`.
+const PROCESSOR_EPP_SETTING: &str = "36687f9e-e3a5-4dbf-b1dc-15eb381c6863";
+/// `PERFBOOSTMODE`.
+const PROCESSOR_BOOST_SETTING: &str = "be337238-0d82-4146-a960-4f3749d470c7";
+
+fn execute_cpu_status(
+    hal: &dyn Hal,
+    power: Option<&dyn PowerControl>,
+    processor_power: Option<&dyn ProcessorPowerControl>,
+) -> CommandResult {
+    // The processor observation is reported first so a platform without a
+    // clock source fails with its own honest reason.
+    let cpu = hal.cpu_status()?;
+    let processor = processor_power.ok_or_else(|| LctrlError::Unsupported {
+        feature: "cpu.status: no processor power service".into(),
+    })?;
+    // Both values come from the documented power API on the active scheme. The
+    // ranges are read separately: a setting whose bounds
+    // `PowerReadValue{Min,Max,Increment}` refuses to publish (PERFBOOSTMODE
+    // returns ERROR_FILE_NOT_FOUND on the target) is reported as an unavailable
+    // range, never as a guessed 0..=4.
+    let epp_percent = processor.epp_percent_ac_dc()?;
+    let boost_mode = processor.boost_ac_dc()?;
+    let epp_range = processor_setting_range(power, PROCESSOR_EPP_SETTING)?;
+    let boost_range = processor_setting_range(power, PROCESSOR_BOOST_SETTING)?;
+    let human = format_cpu_status(&cpu, epp_percent, &epp_range, boost_mode, &boost_range);
+    structured_output(
+        &CpuStatusPayload {
+            cpu,
+            epp_percent,
+            epp_range,
+            boost_mode,
+            boost_range,
+        },
+        human,
+    )
+}
+
+/// Read one processor setting's advertised range from the active scheme.
+///
+/// A range the API refuses to publish becomes
+/// [`PowerRangeObservation::Unavailable`] with the API's own error text; any
+/// other failure is returned rather than flattened into "no range", matching
+/// `PowerControl::read_power_setting`.
+fn processor_setting_range(
+    power: Option<&dyn PowerControl>,
+    setting: &str,
+) -> lctrl_core::Result<PowerRangeObservation> {
+    let Some(power) = power else {
+        return Ok(PowerRangeObservation::Unavailable {
+            detail: "no power control service".into(),
+        });
+    };
+    let key = PowerSettingKey {
+        subgroup: PowerGuid::new(PROCESSOR_SETTINGS_SUBGROUP)?,
+        setting: PowerGuid::new(setting)?,
+    };
+    match power.power_value_range(&key) {
+        Ok(range) => Ok(PowerRangeObservation::Available { range }),
+        Err(
+            error @ (LctrlError::Unsupported { .. } | LctrlError::ChannelUnavailable { .. }),
+        ) => Ok(PowerRangeObservation::Unavailable {
+            detail: format!("{setting}: {error}"),
+        }),
+        Err(error) => Err(error),
+    }
+}
+
+fn format_cpu_status(
+    cpu: &lctrl_core::CpuStatus,
+    epp_percent: PowerSourceValues<u32>,
+    epp_range: &PowerRangeObservation,
+    boost_mode: PowerSourceValues<ProcessorBoostMode>,
+    boost_range: &PowerRangeObservation,
+) -> String {
+    let mut text = String::new();
+    text.push_str("processor identity (read-only)\n");
+    push_labelled(&mut text, "name", cpu.name.as_deref(), "");
+    push_labelled(&mut text, "vendor", cpu.vendor.as_deref(), "");
+    push_labelled(&mut text, "identifier", cpu.identifier.as_deref(), "");
+    push_labelled(&mut text, "cores", cpu.cores, "");
+    push_labelled(&mut text, "threads", cpu.threads, "");
+    push_labelled(&mut text, "L2 cache", cpu.l2_cache_kb, " KB");
+    push_labelled(&mut text, "L3 cache", cpu.l3_cache_kb, " KB");
+
+    text.push_str("rated clocks (firmware-declared; not a running frequency)\n");
+    push_labelled(
+        &mut text,
+        "Win32_Processor.MaxClockSpeed",
+        cpu.firmware_max_clock_mhz,
+        " MHz",
+    );
+    push_labelled(
+        &mut text,
+        "registry ~MHz",
+        cpu.firmware_approximate_clock_mhz,
+        " MHz",
+    );
+
+    text.push_str("current clock\n");
+    match cpu.current_clock_mhz {
+        Some(mhz) => {
+            let _ = writeln!(
+                text,
+                "derived: {mhz} MHz (highest logical processor; rated MHz × percent processor \
+                 performance / 100)"
+            );
+        }
+        None => {
+            let detail = cpu
+                .current_clock_detail
+                .as_deref()
+                .unwrap_or("no processor performance sample");
+            let _ = writeln!(text, "derived: unavailable ({detail})");
+        }
+    }
+    let _ = writeln!(
+        text,
+        "source: Win32_PerfFormattedData_Counters_ProcessorInformation \
+         (ProcessorFrequency × PercentProcessorPerformance / 100)"
+    );
+    for cluster in &cpu.clusters {
+        let processors = cluster
+            .logical_processors
+            .iter()
+            .map(u32::to_string)
+            .collect::<Vec<_>>()
+            .join(",");
+        let percent = cluster
+            .percent_processor_performance
+            .map(|percent| format!("{percent}%"))
+            .unwrap_or_else(|| "no sample".into());
+        match cluster.current_clock_mhz {
+            Some(mhz) => {
+                let _ = writeln!(
+                    text,
+                    "  domain {} MHz rated (logical processors {processors}): {percent} → {mhz} MHz",
+                    cluster.rated_clock_mhz
+                );
+            }
+            None => {
+                let _ = writeln!(
+                    text,
+                    "  domain {} MHz rated (logical processors {processors}): {percent} → no \
+                     frequency (0 percent carries no sample)",
+                    cluster.rated_clock_mhz
+                );
+            }
+        }
+    }
+
+    text.push_str("processor power policy (active scheme, PowerRead{AC,DC}ValueIndex)\n");
+    let _ = writeln!(
+        text,
+        "  EPP: AC {}% / DC {}% ({})",
+        epp_percent.ac,
+        epp_percent.dc,
+        format_power_range(epp_range)
+    );
+    let _ = writeln!(
+        text,
+        "  boost mode: AC {} ({}) / DC {} ({}) ({})",
+        boost_mode.ac.get(),
+        boost_mode_label(boost_mode.ac),
+        boost_mode.dc.get(),
+        boost_mode_label(boost_mode.dc),
+        format_power_range(boost_range),
+    );
+    text
+}
+
+/// Render an advertised range, or the API's own reason for not publishing one.
+fn format_power_range(range: &PowerRangeObservation) -> String {
+    match range {
+        PowerRangeObservation::Available { range } => {
+            format!("range: {}..={} (increment: {})", range.min, range.max, range.increment)
+        }
+        PowerRangeObservation::Unavailable { detail } => format!("range: unavailable ({detail})"),
+    }
+}
+
+/// Render one optional observation, keeping an absent value visible.
+fn push_labelled<T: std::fmt::Display>(
+    text: &mut String,
+    label: &str,
+    value: Option<T>,
+    suffix: &str,
+) {
+    match value {
+        Some(value) => {
+            let _ = writeln!(text, "{label}: {value}{suffix}");
+        }
+        None => {
+            let _ = writeln!(text, "{label}: unavailable");
+        }
+    }
+}
+
+/// The documented `PERFBOOSTMODE` index labels; an unpublished index is
+/// reported as an unrecognized index rather than folded into a boolean.
+fn boost_mode_label(mode: ProcessorBoostMode) -> &'static str {
+    match mode.get() {
+        0 => "disabled",
+        1 => "enabled",
+        2 => "aggressive",
+        3 => "efficient-enabled",
+        4 => "efficient-aggressive",
+        _ => "unrecognized index",
+    }
+}
+
+/// The parent command a bare invocation left without a subcommand, if any.
+///
+/// Only the "nothing was asked" case is listed. Subcommands that default to a
+/// read (`battery`, `bios`, `hotkey`, `fix`, `scene`, `power scheme`) are not
+/// usage errors, and every `Unsupported` reason still describes a feature the
+/// code refuses rather than an argument the caller forgot.
+fn missing_subcommand(command: &Command) -> Option<&'static str> {
+    match command {
+        Command::Power { command: None } => Some("power"),
+        Command::Perf { command: None } => Some("perf"),
+        Command::Tune { command: None } => Some("tune"),
+        Command::Tune {
+            command: Some(TuneCommand::Profile { command: None }),
+        } => Some("tune profile"),
+        Command::Kbd { command: None } => Some("kbd"),
+        Command::Panel { command: None } => Some("panel"),
+        Command::Display { command: None } => Some("display"),
+        Command::Privacy { command: None } => Some("privacy"),
+        Command::Magicbay { command: None } => Some("magicbay"),
+        Command::Magicbay {
+            command: Some(MagicbayCommand::Lte { command: None }),
+        } => Some("magicbay lte"),
+        Command::Update { command: None } => Some("update"),
+        Command::Scan { command: None } => Some("scan"),
+        Command::Snapshot { command: None } => Some("snapshot"),
+        Command::Wifi { command: None } => Some("wifi"),
+        Command::Bluetooth { command: None } => Some("bluetooth"),
+        Command::Radio { command: None } => Some("radio"),
+        Command::Security { command: None } => Some("security"),
+        Command::Daemon { command: None } => Some("daemon"),
+        _ => None,
+    }
+}
+
 fn unsupported(command: Command) -> LctrlError {
     let feature = command_feature(&command);
     LctrlError::Unsupported {
@@ -6973,28 +10473,20 @@ fn unsupported_reason(command: &Command) -> &'static str {
         Command::Power {
             command: Some(PowerCommand::SaverOnce),
         } => "composite saver workflow has no transactional executor",
-        Command::Power { command: None } => "a power subcommand is required",
-        Command::Perf { command: None } => "a performance subcommand is required",
         Command::Perf {
             command: Some(PerfCommand::Fan { command: None }),
         } => "a fan subcommand is required",
         Command::Perf {
             command: Some(PerfCommand::Temp { command: None }),
         } => "a temperature subcommand is required",
-        Command::Tune { command: None } => "a tuning subcommand is required",
-        Command::Tune {
-            command: Some(TuneCommand::Profile { command: None }),
-        } => "a profile subcommand is required",
         Command::Tune {
             command: Some(TuneCommand::Turbo { .. }),
         } => "no verified turbo mutator is attached",
-        Command::Kbd { command: None } => "a keyboard subcommand is required",
         Command::Kbd {
             command: Some(KbdCommand::Winlock { .. }),
         } => {
             "firmware rejects the Win-key methods: LENOVO_GAMEZONE_DATA.GetWinKeyStatus/SetWinKeyStatus return WBEM_E_INVALID_OBJECT on this SKU (docs/evidence/wmi-capability-exhaustion-20261104.md §4)"
         }
-        Command::Panel { command: None } => "a panel subcommand is required",
         Command::Panel {
             command: Some(PanelCommand::Color { .. }),
         } => {
@@ -7003,7 +10495,7 @@ fn unsupported_reason(command: &Command) -> &'static str {
         Command::Panel {
             command: Some(PanelCommand::Overdrive { .. }),
         } => {
-            "firmware rejects the overdrive plane: LENOVO_PANEL_METHOD.Panel_Get_MPRT and Panel_Set_MPRT return WBEM_E_NOT_SUPPORTED, and no SPBTESTTOOL PnP device is present (docs/evidence/wmi-capability-exhaustion-20261104.md §2)"
+            "firmware advertises no overdrive feature: LENOVO_CAPABILITY_DATA_00 lists no 0x1A family, the GAMEZONE/panel MPRT plane rejects, and the TCON device (\\\\.\\SPBTESTTOOL) is absent (docs/evidence/re-panel-20261105.md §3)"
         }
         Command::Sense {
             command: Some(SenseCommand::KbdLightAuto { .. }),
@@ -7015,11 +10507,58 @@ fn unsupported_reason(command: &Command) -> &'static str {
         Command::Magicbay {
             command: Some(MagicbayCommand::Detect),
         } => "MagicBay detection service is unavailable",
-        Command::Magicbay { .. } => "standard MBIM/UVC/DRM control is not attached",
+        Command::Magicbay {
+            command:
+                Some(MagicbayCommand::Lte {
+                    command: Some(LteCommand::Connect | LteCommand::Disconnect | LteCommand::Apn { .. }),
+                }),
+        } => {
+            "modem session control has no bindable API on this build: mbnapi.dll is absent and the WWAN Service API is COM-only, with its interface contract (WDK wwanapi.h) unavailable and no module attached to exercise it (docs/evidence/re-magicbay-20261105.md §3.2)"
+        }
+        Command::Magicbay {
+            command: Some(MagicbayCommand::Cam),
+        } => {
+            "MagicBay cameras enumerate as plain UVC devices with no Lenovo identifier, so a camera cannot be attributed to the accessory without the 17EF enclosure (docs/06-magicbay.md §5.3)"
+        }
+        Command::Magicbay {
+            command: Some(MagicbayCommand::Display),
+        } => {
+            "the display bridge is an ACPI device (ACPI\\QCOM2488 / ACPI\\QCOM24B7) already reported by `magicbay detect`; EDID and mode switching are a display-configuration surface, not an accessory control (docs/06-magicbay.md §6)"
+        }
+        Command::Magicbay {
+            command: Some(MagicbayCommand::Watch),
+        } => {
+            "hot-plug streaming belongs to the daemon event source; the recovered contract is WM_DEVICECHANGE on GUID_DEVINTERFACE_USB_DEVICE (docs/evidence/re-magicbay-20261105.md §2.3)"
+        }
         Command::Daemon { .. } => "daemon commands are handled by the platform binary",
-        Command::Snapshot { command: None } => "a snapshot subcommand is required",
-        Command::Wifi { command: None } => "a wifi subcommand is required",
-        Command::Wifi { .. } => "no verified Wi-Fi security service is attached",
+        Command::Wifi {
+            command: Some(WifiCommand::Status),
+        } => {
+            "no WLAN query channel is attached on this platform: the Windows backend reads the \
+             live association and cached BSS list through wlanapi, and no Linux WLAN plane is \
+             bound (docs/evidence/re-network-20261105.md §1)"
+        }
+        Command::Bluetooth { .. } => {
+            "no Bluetooth channel is attached on this platform: the Windows backend enumerates \
+             radios and known devices through bluetoothapis, and no Linux Bluetooth plane is \
+             bound (docs/evidence/re-network-20261105.md §1)"
+        }
+        Command::Radio { .. } => {
+            "no radio channel is attached on this platform: the Windows backend drives the WinRT \
+             Windows.Devices.Radios contract over the OS radio-management plane, and no Linux \
+             radio plane is bound (docs/evidence/re-radio-20261105.md §1)"
+        }
+        Command::Sensor { .. } => {
+            "no sensor channel is attached on this platform: the Windows backend enumerates and \
+             reads through the public Sensor API (SensorsApi), and no Linux sensor plane is bound \
+             (docs/evidence/re-sensors-20261105.md §1)"
+        }
+        Command::Security { .. } => {
+            "no security posture channel is attached on this platform: the Windows backend reads \
+             the UEFI SecureBoot/SetupMode/PK variables, Win32_Tpm, and Win32_EncryptableVolume \
+             read-only, and no Linux equivalent is bound \
+             (docs/evidence/re-security-20261105.md §6)"
+        }
         _ => "no verified implementation is attached on this platform",
     }
 }
@@ -7029,6 +10568,8 @@ fn command_feature(command: &Command) -> String {
         Command::Info => "info".into(),
         Command::Doctor => "doctor".into(),
         Command::Capability => "capability".into(),
+        Command::Events { .. } => "events.log".into(),
+        Command::Cpu { command } => prefixed("cpu", command.as_ref().map(CpuCommand::feature)),
         Command::Battery { command } => {
             prefixed("battery", command.as_ref().map(BatteryCommand::feature))
         }
@@ -7043,11 +10584,17 @@ fn command_feature(command: &Command) -> String {
             state: TouchpadAction::Status,
         } => "touchpad.status".into(),
         Command::Touchpad {
+            state: TouchpadAction::Caps,
+        } => "touchpad.caps".into(),
+        Command::Touchpad {
             state: TouchpadAction::Recover,
         } => "touchpad.recover".into(),
         Command::Touchpad { .. } => "touchpad".into(),
         Command::Panel { command } => {
             prefixed("panel", command.as_ref().map(PanelCommand::feature))
+        }
+        Command::Display { command } => {
+            prefixed("display", command.as_ref().map(DisplayCommand::feature))
         }
         Command::Privacy { command } => {
             prefixed("privacy", command.as_ref().map(PrivacyCommand::feature))
@@ -7059,6 +10606,12 @@ fn command_feature(command: &Command) -> String {
             prefixed("audio", command.as_ref().map(AudioCommand::feature))
         }
         Command::Bios { command } => prefixed("bios", command.as_ref().map(BiosCommand::feature)),
+        Command::Firmware { command } => {
+            prefixed("firmware", command.as_ref().map(FirmwareCommand::feature))
+        }
+        Command::Storage { command } => {
+            prefixed("storage", command.as_ref().map(StorageCommand::feature))
+        }
         Command::Magicbay { command } => {
             prefixed("magicbay", command.as_ref().map(MagicbayCommand::feature))
         }
@@ -7067,6 +10620,16 @@ fn command_feature(command: &Command) -> String {
         }
         Command::Scan { command } => prefixed("scan", command.as_ref().map(ScanCommand::feature)),
         Command::Wifi { command } => prefixed("wifi", command.as_ref().map(WifiCommand::feature)),
+        Command::Bluetooth { command } => {
+            prefixed("bluetooth", command.as_ref().map(BluetoothCommand::feature))
+        }
+        Command::Radio { command } => prefixed("radio", command.as_ref().map(RadioCommand::feature)),
+        Command::Sensor { command } => {
+            prefixed("sensor", command.as_ref().map(SensorCommand::feature))
+        }
+        Command::Security { command } => {
+            prefixed("security", command.as_ref().map(SecurityCommand::feature))
+        }
         Command::Fix { command } => prefixed("fix", command.as_ref().map(FixCommand::feature)),
         Command::Scene { command } => {
             prefixed("scene", command.as_ref().map(SceneCommand::feature))
@@ -7092,10 +10655,27 @@ fn prefixed(prefix: &str, suffix: Option<&'static str>) -> String {
     }
 }
 
+impl CpuCommand {
+    const fn feature(&self) -> &'static str {
+        match self {
+            Self::Status => "status",
+        }
+    }
+}
+
+impl StorageCommand {
+    const fn feature(&self) -> &'static str {
+        match self {
+            Self::Status => "status",
+        }
+    }
+}
+
 impl BatteryCommand {
     const fn feature(&self) -> &'static str {
         match self {
             Self::Status => "status",
+            Self::Health => "health",
             Self::Adapter => "adapter",
             Self::ChargeMode { .. } => "charge-mode",
             Self::Thresholds { .. } => "thresholds",
@@ -7112,6 +10692,7 @@ impl UsbCommand {
         match self {
             Self::AlwaysOn { .. } => "always-on",
             Self::ChargeOnBattery { .. } => "charge-on-battery",
+            Self::Ports => "ports",
         }
     }
 }
@@ -7121,6 +10702,8 @@ impl PowerCommand {
         match self {
             Self::Scheme { .. } => "scheme",
             Self::SaverOnce => "saver-once",
+            Self::Ac => "ac",
+            Self::Draw => "draw",
         }
     }
 }
@@ -7134,6 +10717,8 @@ impl PerfCommand {
             Self::Pl1 { .. } => "pl1",
             Self::Pl2 { .. } => "pl2",
             Self::Dbdc { .. } => "dbdc",
+            Self::Policy => "policy",
+            Self::Gpu { .. } => "gpu",
             Self::Top => "top",
             Self::Boost { .. } => "boost",
             Self::Throttle { .. } => "throttle",
@@ -7169,6 +10754,7 @@ impl KbdCommand {
 impl PanelCommand {
     const fn feature(&self) -> &'static str {
         match self {
+            Self::Info => "info",
             Self::Brightness { .. } => "brightness",
             Self::Rate { .. } => "rate",
             Self::Color { .. } => "color",
@@ -7185,6 +10771,14 @@ impl PrivacyCommand {
             Self::Cam { .. } => "cam",
             Self::Mic { .. } => "mic",
             Self::Fingerprint { .. } => "fingerprint",
+            Self::Status => "status",
+        }
+    }
+}
+
+impl DisplayCommand {
+    const fn feature(&self) -> &'static str {
+        match self {
             Self::Status => "status",
         }
     }
@@ -7212,6 +10806,9 @@ impl AudioCommand {
         match self {
             Self::Dolby { .. } => "dolby",
             Self::NoiseCancel { .. } => "noise-cancel",
+            Self::Endpoints { .. } => "endpoints",
+            Self::Volume { .. } => "volume",
+            Self::Mute { .. } => "mute",
         }
     }
 }
@@ -7230,6 +10827,14 @@ impl BiosCommand {
     }
 }
 
+impl FirmwareCommand {
+    const fn feature(&self) -> &'static str {
+        match self {
+            Self::Status => "status",
+        }
+    }
+}
+
 impl UpdateCommand {
     const fn feature(&self) -> &'static str {
         match self {
@@ -7238,6 +10843,7 @@ impl UpdateCommand {
             Self::Download { .. } => "download",
             Self::Install { .. } => "install",
             Self::History => "history",
+            Self::LocalInstall { .. } => "local-install",
             Self::Ignore { .. } => "ignore",
             Self::Rollback { .. } => "rollback",
             Self::Schedule { .. } => "schedule",
@@ -7286,9 +10892,28 @@ impl ScanCommand {
 impl WifiCommand {
     const fn feature(&self) -> &'static str {
         match self {
+            Self::Status => "status",
             Self::Security => "security",
             Self::History => "history",
             Self::ClearHistory => "clear_history",
+        }
+    }
+}
+
+impl BluetoothCommand {
+    const fn feature(&self) -> &'static str {
+        match self {
+            Self::List => "list",
+        }
+    }
+}
+
+impl RadioCommand {
+    const fn feature(&self) -> &'static str {
+        match self {
+            Self::Status => "status",
+            Self::Off { .. } => "off",
+            Self::On { .. } => "on",
         }
     }
 }
@@ -7330,6 +10955,7 @@ impl HotkeyCommand {
     const fn feature(&self) -> &'static str {
         match self {
             Self::List => "list",
+            Self::Status => "status",
             Self::Register { .. } => "register",
             Self::Trigger { .. } => "trigger",
             Self::Unregister { .. } => "unregister",

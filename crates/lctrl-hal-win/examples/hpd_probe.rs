@@ -35,6 +35,10 @@ fn main() {
         Ok(cap) => println!("capability: 0x{cap:04x}"),
         Err(e) => eprintln!("capability failed: {e}"),
     }
+    match rpc.version() {
+        Ok(version) => println!("version: {version}"),
+        Err(e) => eprintln!("version failed: {e}"),
+    }
     match rpc.raw_settings() {
         Ok(values) => {
             for (index, value) in values.iter().enumerate() {

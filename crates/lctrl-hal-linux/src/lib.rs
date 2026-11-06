@@ -14,9 +14,11 @@
 
 mod msr;
 mod process;
+mod radio;
 
 pub use msr::{DevMsr, MsrAddress, MsrTransport};
 pub use process::LinuxProcessController;
+pub use radio::LinuxRadio;
 
 use std::fs;
 use std::io;
@@ -25,8 +27,9 @@ use std::time::Duration;
 
 use lctrl_core::{
     AdapterAuthentication, AdapterInfo, AdapterStatus, ApplyMode, Availability, BacklightState,
-    BatteryHealth, BatteryTelemetry, CapabilitySet, ChangeReport, ChargeMode, ChargeModeActual,
-    ChargePrimitive, ChargeStatus, DeviceState, DiagnosticKind, DiagnosticOutcome,
+    BatteryFieldProvenance, BatteryHealth, BatteryTelemetry, BatteryWearReport, CapabilitySet,
+    ChangeReport, ChargeMode, ChargeModeActual, ChargePrimitive, ChargeStatus, DeviceState,
+    DiagnosticKind, DiagnosticOutcome,
     DiagnosticResult, DispatcherVersion, FanDescriptor, FanId, FanMode, FanTable, HardwareInfo,
     LctrlError, LightingEffect, MagicBayDevice, MagicBayInventory, MagicBayKind,
     PerformanceCapabilities, PerformanceMode, PerformanceState, Platform, PowerMutation,
@@ -46,6 +49,14 @@ const POWER_SUPPLY_ROOT: &str = "sys/class/power_supply";
 const BATTERY_NAME: &str = "BAT0";
 const CONSERVATION_MODE: &str = "sys/devices/platform/ideapad/conservation_mode";
 const FAST_CHARGE: &str = "sys/devices/platform/ideapad/fast_charge";
+const SYSFS_CAPACITY_CHANNEL: &str = "linux_power_supply";
+const ENERGY_FULL_DESIGN_NODE: &str = "sys/class/power_supply/BAT0/energy_full_design";
+const CHARGE_FULL_DESIGN_NODE: &str =
+    "sys/class/power_supply/BAT0/charge_full_design (converted to mWh with voltage)";
+const ENERGY_FULL_NODE: &str = "sys/class/power_supply/BAT0/energy_full";
+const CHARGE_FULL_NODE: &str =
+    "sys/class/power_supply/BAT0/charge_full (converted to mWh with voltage)";
+const CYCLE_COUNT_NODE: &str = "sys/class/power_supply/BAT0/cycle_count";
 const KBD_BACKLIGHT: &str = "sys/devices/platform/ideapad/kbd_backlight";
 const KBD_BACKLIGHT_MAX: &str = "sys/devices/platform/ideapad/kbd_backlight_max";
 const KBD_BACKLIGHT_LEDS: [&str; 3] = [
@@ -626,6 +637,25 @@ impl Hal for LinuxHal {
                 .join(BATTERY_NAME)
                 .join("status"),
         )?;
+        let design_energy = Path::new(POWER_SUPPLY_ROOT)
+            .join(BATTERY_NAME)
+            .join("energy_full_design");
+        let design_charge = Path::new(POWER_SUPPLY_ROOT)
+            .join(BATTERY_NAME)
+            .join("charge_full_design");
+        let health_available =
+            self.node_exists(&design_energy)? || self.node_exists(&design_charge)?;
+        capabilities.record(
+            "battery.health",
+            if health_available {
+                Availability::Available
+            } else {
+                Availability::Unavailable
+            },
+            (!health_available).then(|| {
+                "no design-capacity power_supply node; wear percent cannot be derived".to_owned()
+            }),
+        )?;
 
         let adapter_available = self.ac_online()?.is_some();
         capabilities.record(
@@ -688,6 +718,23 @@ impl Hal for LinuxHal {
         self.record_node(&mut capabilities, "touchpad", TOUCHPAD)?;
         self.record_node(&mut capabilities, "privacy.camera", CAMERA_POWER)?;
 
+        // `update check` binds `update.catalog.local` on both backends. The
+        // local catalogue is a Windows UDC registry contract
+        // (`HKLM\SOFTWARE\Lenovo\UDC\Packages\LastUpdateConfig`), so this
+        // backend has no local catalogue to read and records that absence
+        // instead of leaving the row `unverified`:
+        // `update_capability()` states the same boundary for `doctor`.
+        capabilities.record(
+            "update.catalog.local",
+            Availability::Unavailable,
+            Some(
+                "no local UDC catalogue on this backend: the synced catalogue is a Windows \
+                 registry contract, and no authenticated public update catalog/manifest \
+                 contract is specified"
+                    .into(),
+            ),
+        )?;
+
         // Process telemetry is implemented through the `/proc` backend
         // (`LinuxProcessController`). Per-process policy mutation is not:
         // the `ProcessState` model carries a Windows hard working-set quota
@@ -721,10 +768,18 @@ impl Hal for LinuxHal {
         match self.fan_mode_path() {
             Ok(_) => {
                 capabilities.record("perf.fan.mode", Availability::Available, None)?;
+                // The same sysfs node carries the write, and the write is
+                // verified by reading it back.
+                capabilities.record("perf.fan.mode.write", Availability::Available, None)?;
             }
             Err(error) => {
                 capabilities.record(
                     "perf.fan.mode",
+                    Availability::Unavailable,
+                    Some(error.to_string()),
+                )?;
+                capabilities.record(
+                    "perf.fan.mode.write",
                     Availability::Unavailable,
                     Some(error.to_string()),
                 )?;
@@ -1357,6 +1412,39 @@ impl BatteryControl for LinuxHal {
             chemistry: battery_text(self.battery_value(index, "technology")?),
             source_issues: Vec::new(),
         })
+    }
+
+    /// Wear facts from the same power_supply battery the telemetry read, with
+    /// the node that actually supplied each mWh capacity.
+    fn battery_wear(&self) -> Result<BatteryWearReport> {
+        let telemetry = self.battery_telemetry(0)?;
+        let battery = self.battery_dir(0);
+        let design_capacity = if self.node_exists_path(battery.join("energy_full_design"))? {
+            ENERGY_FULL_DESIGN_NODE
+        } else if self.node_exists_path(battery.join("charge_full_design"))? {
+            CHARGE_FULL_DESIGN_NODE
+        } else {
+            ENERGY_FULL_DESIGN_NODE
+        };
+        let full_charge_capacity = if self.node_exists_path(battery.join("energy_full"))? {
+            ENERGY_FULL_NODE
+        } else if self.node_exists_path(battery.join("charge_full"))? {
+            CHARGE_FULL_NODE
+        } else {
+            ENERGY_FULL_NODE
+        };
+        Ok(BatteryWearReport::from_capacities(
+            SYSFS_CAPACITY_CHANNEL,
+            BatteryFieldProvenance {
+                design_capacity,
+                full_charge_capacity,
+                cycle_count: CYCLE_COUNT_NODE,
+            },
+            telemetry.design_capacity_mwh,
+            telemetry.full_charge_capacity_mwh,
+            telemetry.cycle_count,
+            telemetry.source_issues,
+        ))
     }
 
     fn adapter_info(&self) -> Result<AdapterInfo> {

@@ -61,10 +61,22 @@ where
     }
 
     fn get(&self, name: &str) -> Result<Option<BiosItem>> {
-        Ok(self
+        let Some(mut item) = self
             .settings()?
             .into_iter()
-            .find(|item| item.name.eq_ignore_ascii_case(name)))
+            .find(|item| item.name.eq_ignore_ascii_case(name))
+        else {
+            return Ok(None);
+        };
+        // `CurrentSetting` mirrors the value only; the legal value domain is a
+        // separate `Lenovo_GetBiosSelections` call. A single-setting read must
+        // carry the same domain `list` reports, while a setting the firmware
+        // exposes without selections stays a readable item rather than a
+        // hard failure.
+        if let Ok(selections) = self.selections(&item.name) {
+            item.selections = selections;
+        }
+        Ok(Some(item))
     }
 
     fn selections(&self, name: &str) -> Result<Vec<String>> {
@@ -223,7 +235,10 @@ impl<W> WindowsBiosController<W>
 where
     W: WmiTransport,
 {
-    fn settings(&self) -> Result<Vec<BiosItem>> {
+    /// One `Lenovo_BiosSetting` enumeration for in-crate read-only consumers
+    /// (`hotkey status` derives FnLock and Fn/Ctrl swap from it). Never stages
+    /// anything and never calls `GetBiosSelections`.
+    pub(crate) fn settings(&self) -> Result<Vec<BiosItem>> {
         let query = format!("SELECT CurrentSetting FROM {BIOS_SETTING_CLASS}");
         let objects = self.transport.query(ROOT_WMI, &query)?;
         Ok(objects

@@ -57,6 +57,10 @@ Rollback:按 Coreq 拓扑倒序调 UninstallElement → ROLLED_BACK
 - 调度:Windows 任务计划「Lenovo System Update」(日/周触发);
   AD 策略三个注册表值(全局/关键/推荐开关,`HKLM\SOFTWARE\Policies\Lenovo\…Companion…`)。
 - 历史:本地 SQLite(UpdateName/Status/DateTime/PackageID/Severity),并同步到 WMI 记录器。
+  实测位置:`%ProgramData%\Lenovo\Vantage\AddinData\LenovoSystemUpdateAddin\session\
+  editable_update_history.db`(安装事件,`utcinstalldate` 为 .NET ticks)与同目录
+  `update_history.db`(目录评估状态,无时间戳);`vantage update history` 只读其一,
+  经系统自带 `winsqlite3.dll` 打开为 READONLY。证据见 `evidence/re-update-install-20261105.md`。
 - 忽略规则:IgnoredDriverFileStore / IgnoredDriverExclusionRule / HardwareIdExclusionRule 三层。
 
 ### 2.4 UEFI 运行时变量(保留)
@@ -73,6 +77,27 @@ Rollback:按 Coreq 拓扑倒序调 UninstallElement → ROLLED_BACK
 `Installer64.exe`(GUI)/`DiDriverInstall64.exe`(CLI 驱动安装)+ TvsuUpdateMgrLib(搜索/安装 API)
 + egather 缓存 + mcp 打包 + 分架构证书校验 + hotfixplatform 热修复驱动。
 本实现**不兼容** MCP 格式;CLI 复现等价能力:`update check/download/install` 走 §2.2 XML + HTTPS。
+
+### 2.6 固件清单(只读,`vantage firmware status`)
+
+固件身份与 ESRT 都是平台的投影,不是联想服务,因此不经过任何 Lenovo 组件:
+
+| 读取 | 来源 | 说明 |
+|---|---|---|
+| 厂商/BIOS 版本/发布日期/BIOS 与 EC 版本/SMBIOS 版本/版本串 | `root\CIMV2 Win32_BIOS` | `Version` 只是厂商序数串;真版本在 `SMBIOSBIOSVersion`;`ReleaseDate` 保留 DMTF 原文 |
+| 固件类型 | `GetFirmwareType` | `BIOS` / `UEFI` |
+| ESRT 条目 | `Win32_PnPEntity WHERE PNPClass='Firmware'` | 每条 = `UEFI\RES_{FirmwareClass}\0`,类 GUID `{f2e7dd72-…}` |
+| 当前固件版本 | 硬件 ID `UEFI\RES_{…}&REV_<hex>` | 官方文档规定的推导方式(`QueryVersionAndStatus.ps1`) |
+| 版本交叉校验 | `SetupDiGetDevicePropertyW` `{80497100-8C73-48B9-AAD9-CE387E19C56E}` pid 4 | 两源不一致时逐条记 `issues`,不静默取其一 |
+| 最近一次尝试 | `HKLM\SYSTEM\CurrentControlSet\Control\FirmwareResources\{<FirmwareClass>}` | `Version`/`LastAttemptVersion`/`LastAttemptStatus`/`Phase`/`Filename`/`Catalog` |
+
+`LastAttemptStatus` 只认规范值:`0` = success,`0xFFFFFFFF` = no attempt,其余原样打印
+`<数字> (unnamed)`,绝不写 success。未记录尝试的类报 "none recorded"。
+
+本命令**没有**写入面:不 stage / 不刷写 / 不清理 capsule。联想 BIOS/EC 更新仍是 §8
+排除的 UDC 包安装路径。本机无联想 capsule INF —— 仅 Goodix(`oem57.inf`)与
+Realtek PD(`oem43.inf`)两个厂商 capsule 描述符,其余 8 条由微软 `c_firmware.inf` 承载。
+实机取值见 `evidence/re-firmware-20261105.md`。
 
 ## 3. HardwareScan(硬件自检)
 
@@ -151,11 +176,15 @@ CLI 等价:`vantage snapshot {capture,diff,restore}`(restore 限定到本工具�
 update check [--severity critical|recommended|driver|optional]   # §2.3 SEARCHING 等价
 update download <id>... / update install <id>... [--reboot]      # XML 包 + HTTPS + SetupAPI
 update history [--json] / update ignore <id> / update rollback <id>
+update local-install <payload-dir> [--dry-run]                   # 已下载 UDC 包的自有签名 install.ps1
 update schedule {daily|weekly|off}                               # 任务计划
+firmware status [--json]                                         # §2.6 固件身份 + ESRT + 最近尝试(只读)
 scan list / scan run [ITEM...] [--json]                          # §3 自检
 fix scan / fix run <issue>... / fix track                        # §4
 snapshot capture|diff|restore                                    # §5
 wifi security [--json]                                           # §7
+wifi status [--json]                                             # 实时关联(不扫描),见 evidence/re-network-20261105.md
+bluetooth list [--json]                                          # 本机射频与已知设备(不发起发现),同上
 ```
 
 ## 10. 证据
@@ -168,3 +197,4 @@ wifi security [--json]                                           # §7
 | HardwareScan/MachineFix/Snapshot 状态机与契约 | `官方组件接口说明/§3.9.2-3.9.4 |
 | 取舍表 | `官方组件接口说明`(逐项建议) |
 | 设备信息来源 | `官方组件接口说明 |
+| ESRT 投影/版本推导/尝试记录/本机 capsule 描述符 | `evidence/re-firmware-20261105.md` |

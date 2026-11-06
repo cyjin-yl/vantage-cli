@@ -4,12 +4,22 @@
 //! battery identities are not known to refer to the same physical pack.
 
 use lctrl_core::{
-    AdapterInfo, ApplyMode, BatteryElectricalObservation, BatteryTelemetry, ChangeReport,
-    ChargeMode, ChargeModeActual, OsBatterySnapshot, Result, SystemPowerStatus,
+    AdapterInfo, ApplyMode, BatteryElectricalObservation, BatteryFieldProvenance, BatteryTelemetry,
+    BatteryWearReport, ChangeReport, ChargeMode, ChargeModeActual, OsBatterySnapshot, Result,
+    SystemPowerStatus,
 };
 use lctrl_hal::{BatteryControl, BatteryElectricalSource};
 
 use crate::OsBatteryChannel;
+
+/// Capacity/cycle facts come from the root\WMI battery class chain, which is
+/// the only channel on the target that exposes absolute design capacity.
+const WMI_CAPACITY_CHANNEL: &str = "root_wmi_battery_classes";
+const WMI_CAPACITY_FIELDS: BatteryFieldProvenance = BatteryFieldProvenance {
+    design_capacity: "root\\WMI:BatteryStaticData.DesignedCapacity",
+    full_charge_capacity: "root\\WMI:BatteryFullChargedCapacity.FullChargedCapacity",
+    cycle_count: "root\\WMI:BatteryCycleCount.CycleCount",
+};
 
 pub struct WindowsBatterySources<V, O, E> {
     vendor: V,
@@ -59,6 +69,20 @@ where
 
     fn battery_electrical(&self) -> Result<BatteryElectricalObservation> {
         self.electrical.read_electrical()
+    }
+
+    /// Wear facts are derived only from the identity-matched OS capacity
+    /// observation; the vendor device response is never merged into it.
+    fn battery_wear(&self) -> Result<BatteryWearReport> {
+        let snapshot = self.os.snapshot()?;
+        Ok(BatteryWearReport::from_capacities(
+            WMI_CAPACITY_CHANNEL,
+            WMI_CAPACITY_FIELDS,
+            snapshot.design_capacity_mwh,
+            snapshot.full_charge_capacity_mwh,
+            snapshot.cycle_count,
+            snapshot.source_issues,
+        ))
     }
 
     fn system_power_status(&self) -> Result<SystemPowerStatus> {

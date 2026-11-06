@@ -8,7 +8,7 @@
 use lctrl_core::{
     BiosInventory, CpuInventory, DiskInventory, FirmwareInventory, GpuInventory, InventorySnapshot,
     MemoryModuleInventory, MotherboardInventory, NetworkAdapterInventory, OperatingSystemInventory,
-    ProductInventory, Result,
+    ProductInventory, Result, SystemIdentity,
 };
 
 use crate::{WmiObject, WmiTransport, WmiValue};
@@ -96,6 +96,50 @@ where
             firmware: firmware_objects.iter().map(firmware_from_wmi).collect(),
         })
     }
+
+    /// Capture only the identity modules: product, baseboard, and BIOS.
+    ///
+    /// This runs the four identity queries of [`Self::capture`] and none of the
+    /// CPU/memory/GPU/disk/network/firmware ones, so `vantage info` stays a
+    /// bounded read instead of a full inventory sweep.
+    pub fn capture_identity(&self) -> Result<SystemIdentity> {
+        identity_from_wmi(&self.wmi)
+    }
+}
+
+/// Read the identity modules through `wmi`.
+///
+/// Field provenance (all in `root\CIMV2`):
+///
+/// | Field | Source |
+/// |---|---|
+/// | machine type model (MTM) | `Win32_ComputerSystemProduct.Name`, mirrored by `Win32_ComputerSystem.Model` |
+/// | marketing product version | `Win32_ComputerSystemProduct.Version` |
+/// | serial number | `Win32_ComputerSystemProduct.IdentifyingNumber` |
+/// | product UUID | `Win32_ComputerSystemProduct.UUID` |
+/// | family | `Win32_ComputerSystem.SystemFamily` |
+/// | baseboard product/version/serial | `Win32_BaseBoard.Product`/`.Version`/`.SerialNumber` |
+/// | BIOS version | `Win32_BIOS.SMBIOSBIOSVersion` (`Win32_BIOS.Version` is a firmware vendor/ordinal string, never the version) |
+/// | BIOS release date | `Win32_BIOS.ReleaseDate`, the DMTF datetime text as delivered |
+/// | SMBIOS version | `Win32_BIOS.SMBIOSMajorVersion`/`.SMBIOSMinorVersion` |
+/// | EC firmware major/minor | `Win32_BIOS.EmbeddedControllerMajorVersion`/`.EmbeddedControllerMinorVersion` (SMBIOS Type 0 offsets 0x16/0x17) |
+///
+/// A class that returns no instance leaves its record all-`None`; nothing is
+/// substituted from another class or from the registry.
+pub(crate) fn identity_from_wmi<W: WmiTransport>(wmi: &W) -> Result<SystemIdentity> {
+    let product_objects = wmi.query(ROOT_CIMV2, PRODUCT_QUERY)?;
+    let computer_system_objects = wmi.query(ROOT_CIMV2, COMPUTER_SYSTEM_QUERY)?;
+    let motherboard_objects = wmi.query(ROOT_CIMV2, MOTHERBOARD_QUERY)?;
+    let bios_objects = wmi.query(ROOT_CIMV2, BIOS_QUERY)?;
+
+    Ok(SystemIdentity {
+        product: product_from_wmi(product_objects.first(), computer_system_objects.first()),
+        motherboard: motherboard_objects
+            .first()
+            .map(motherboard_from_wmi)
+            .unwrap_or_default(),
+        bios: bios_objects.first().map(bios_from_wmi).unwrap_or_default(),
+    })
 }
 
 fn operating_system_from_wmi(object: &WmiObject) -> OperatingSystemInventory {
