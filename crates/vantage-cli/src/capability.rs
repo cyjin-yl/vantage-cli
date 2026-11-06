@@ -955,7 +955,18 @@ fn evaluate_command(
                 dependencies(entry, platform),
             );
         }
-        (DispatchSupport::Implemented, ServicePresence::Unexposed, _) => ObservedStatus::Unverified,
+        (DispatchSupport::Implemented, ServicePresence::Unexposed, _) => {
+            let detail = feature_reason(entry.feature, capabilities)
+                .or_else(|| Some("command is implemented but the service binding is not exposed on this platform".into()));
+            return make(
+                entry,
+                hardware,
+                ObservedStatus::Unverified,
+                detail,
+                service_roles,
+                dependencies(entry, platform),
+            );
+        }
         // A composite command whose service legs are partially present can
         // still do verified work; it is limited, not unverified.
         (DispatchSupport::Implemented, ServicePresence::Partial, _) => {
