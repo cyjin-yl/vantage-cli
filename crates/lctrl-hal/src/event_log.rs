@@ -200,10 +200,10 @@ mod tests {
     #[test]
     fn epoch_and_known_timestamps_render_as_utc() {
         assert_eq!(format_utc_millis(0), "1970-01-01T00:00:00.000Z");
-        // 2026-11-03T18:09:41.072Z: the live LenovoPcManagerService record.
+        // 2026-11-03T19:09:41.072Z: the live LenovoPcManagerService record.
         assert_eq!(
             format_utc_millis(1_793_732_981_072),
-            "2026-11-03T18:09:41.072Z"
+            "2026-11-03T19:09:41.072Z"
         );
         // Leap day.
         assert_eq!(
