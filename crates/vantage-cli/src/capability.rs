@@ -940,7 +940,19 @@ fn evaluate_command(
         | (DispatchSupport::Implemented, _service, FeaturePresence::Unverified) => {
             // The feature probe recorded a reason on the capability record;
             // surface it so `capability` does not print a bare status.
-            let detail = feature_reason(entry.feature, capabilities);
+            let detail = feature_reason(entry.feature, capabilities)
+                .or_else(|| match feature {
+                    FeaturePresence::Unverified => match entry.feature {
+                        FeatureBinding::Unprobed(f) => {
+                            Some(format!("{f} has not been probed on this platform"))
+                        }
+                        FeatureBinding::Capability(f) => {
+                            Some(format!("{f} capability is not recorded on this platform"))
+                        }
+                        _ => None,
+                    },
+                    _ => None,
+                });
             return make(
                 entry,
                 hardware,
@@ -957,7 +969,18 @@ fn evaluate_command(
         }
         (DispatchSupport::Implemented, ServicePresence::Unexposed, _) => {
             let detail = feature_reason(entry.feature, capabilities)
-                .or_else(|| Some("command is implemented but the service binding is not exposed on this platform".into()));
+                .or_else(|| match entry.feature {
+                    FeatureBinding::Unprobed(feature) => Some(format!(
+                        "command is implemented but the {feature} feature probe has not run on this platform"
+                    )),
+                    FeatureBinding::Capability(feature) => Some(format!(
+                        "command is implemented but the {feature} capability is not verified on this platform"
+                    )),
+                    _ => Some(
+                        "command is implemented but the service binding is not exposed on this platform"
+                            .into(),
+                    ),
+                });
             return make(
                 entry,
                 hardware,
