@@ -1,21 +1,21 @@
+#[cfg(windows)]
+use lenovo_laptop_control_core::{
+    ApplyMode, ChangeReport, FanDescriptor, FanId, FanMode, FanTable, SensorId,
+};
 use lenovo_laptop_control_core::{
     Availability, LenovoLaptopControlError, Result, TemperatureLocation, TemperatureSensor,
     TemperatureSensorMetadata, TemperatureSource,
 };
 #[cfg(windows)]
 use std::time::Duration;
-#[cfg(windows)]
-use lenovo_laptop_control_core::{
-    ApplyMode, ChangeReport, FanDescriptor, FanId, FanMode, FanTable, SensorId,
-};
 
 use lenovo_laptop_control_hal::{BatteryControl, DbdcControl, TemperatureControl};
 #[cfg(windows)]
 use lenovo_laptop_control_hal::{FanControl, poll_readback};
 
-use crate::{WmiObject, WmiTransport, WmiValue, wmi_contract::ROOT_WMI};
 #[cfg(windows)]
 use crate::GameZone;
+use crate::{WmiObject, WmiTransport, WmiValue, wmi_contract::ROOT_WMI};
 // The PowerSlider projection is the Win32 registry reader, so both the reader
 // and the fan-mode fallback that consumes it exist only on Windows. The rest of
 // this module stays portable so the Linux CI host still typechecks it.
@@ -25,8 +25,7 @@ use crate::{NativePerformanceRegistry, PerformanceRegistryReader};
 const BATTERY_SENSOR_ID: &str = "windows-battery-class/temperature";
 const THERMAL_ZONE_QUERY: &str =
     "SELECT InstanceName, CurrentTemperature FROM MSAcpi_ThermalZoneTemperature";
-const ESIF_PARTICIPANT_QUERY: &str =
-    "SELECT InstanceName, Temperature FROM EsifDeviceInformation";
+const ESIF_PARTICIPANT_QUERY: &str = "SELECT InstanceName, Temperature FROM EsifDeviceInformation";
 #[cfg(windows)]
 const FAN_INVENTORY_QUERY: &str =
     "SELECT NumOfFans, FanId, FanMinSpeed, FanMaxSpeed FROM LENOVO_FAN_TEST_DATA";
@@ -105,11 +104,11 @@ where
     /// (`WBEM_E_INVALID_OBJECT`), e.g. ThinkBook 21VG.
     fn firmware_fan_mode(&self) -> Result<FanMode> {
         let raw = GameZone::new(&self.wmi).smart_fan_mode()?;
-        u16::try_from(raw)
-            .map(FanMode::from_raw)
-            .map_err(|_| LenovoLaptopControlError::ChannelUnavailable {
+        u16::try_from(raw).map(FanMode::from_raw).map_err(|_| {
+            LenovoLaptopControlError::ChannelUnavailable {
                 channel: format!("GetSmartFanMode returned {raw}, outside the u16 fan-mode domain"),
-            })
+            }
+        })
     }
 }
 
@@ -268,18 +267,17 @@ where
         if let Ok(mode) = self.firmware_fan_mode() {
             return Ok(mode);
         }
-        let reg = self
-            .registry
-            .read_dword("ITS_FanMode")
-            .map_err(|_| LenovoLaptopControlError::ChannelUnavailable {
+        let reg = self.registry.read_dword("ITS_FanMode").map_err(|_| {
+            LenovoLaptopControlError::ChannelUnavailable {
                 channel: "GAMEZONE GetSmartFanMode rejected and ITS_FanMode registry unreadable"
                     .to_string(),
-            })?;
-        u16::try_from(reg)
-            .map(FanMode::from_raw)
-            .map_err(|_| LenovoLaptopControlError::ChannelUnavailable {
+            }
+        })?;
+        u16::try_from(reg).map(FanMode::from_raw).map_err(|_| {
+            LenovoLaptopControlError::ChannelUnavailable {
                 channel: format!("ITS_FanMode registry value {reg} outside u16"),
-            })
+            }
+        })
     }
 
     fn set_fan_mode(&self, mode: FanMode, apply: ApplyMode) -> Result<ChangeReport<FanMode>> {
@@ -295,19 +293,20 @@ where
         // dispatcher projection that our write does not update. Writing there
         // would report an effect that is unobservable and unvalidated
         // (docs/evidence/re-fan-write-20261105.md §2, §5).
-        let firmware_previous =
-            self.firmware_fan_mode()
-                .map_err(|error| LenovoLaptopControlError::ChannelUnavailable {
-                    channel: format!(
-                        "perf.fan.mode.write requires a firmware fan-mode readback, \
+        let firmware_previous = self.firmware_fan_mode().map_err(|error| {
+            LenovoLaptopControlError::ChannelUnavailable {
+                channel: format!(
+                    "perf.fan.mode.write requires a firmware fan-mode readback, \
                          but GetSmartFanMode is unavailable ({error}); the GAMEZONE setter \
                          acknowledges calls without validating the value and nothing reads \
                          the result back (docs/evidence/re-fan-write-20261105.md)"
-                    ),
-                })?;
+                ),
+            }
+        })?;
         GameZone::new(&self.wmi).set_smart_fan_mode(u32::from(raw))?;
-        let actual =
-            poll_readback(&mode, 3, Duration::from_millis(200), || self.firmware_fan_mode())?;
+        let actual = poll_readback(&mode, 3, Duration::from_millis(200), || {
+            self.firmware_fan_mode()
+        })?;
         Ok(ChangeReport::committed(firmware_previous, mode, actual))
     }
 
@@ -360,16 +359,8 @@ where
     }
 
     fn fan_speeds(&self) -> Result<Vec<(FanId, u32)>> {
-        // Live tach via the WMAE dispatcher. FanId 1 matches the single fan
-        // LENOVO_FAN_TEST_DATA publishes on this SKU; where the inventory is
-        // absent the reading still stands on its own (the EC answers it).
         let rpm = GameZone::new(&self.wmi).fan_rpm()?;
-        let id = self
-            .fans()
-            .ok()
-            .and_then(|fans| fans.first().map(|fan| fan.id))
-            .unwrap_or_else(|| FanId::new(1));
-        Ok(vec![(id, rpm)])
+        Ok(vec![(self.single_fan()?.id, rpm)])
     }
 
     fn set_fan_duty(&self, duty_pct: u8, apply: ApplyMode) -> Result<ChangeReport<u8>> {
@@ -378,24 +369,43 @@ where
                 detail: format!("fan duty percent {duty_pct} exceeds 100"),
             });
         }
-        // The duty register is write-only, so `previous` and the verified
-        // `actual` are both estimates from live RPM against inventory bounds.
-        let bounds = self.duty_rpm_bounds();
-        let previous = self.estimate_duty(bounds);
+        let zone = GameZone::new(&self.wmi);
+        let previous_rpm = zone.fan_rpm()?;
+        if previous_rpm == 0 {
+            return Err(LenovoLaptopControlError::ChannelUnavailable {
+                channel:
+                    "perf.fan.duty: WMAE tach is zero; the EC manual override cannot be confirmed"
+                        .into(),
+            });
+        }
+        let fan = self.single_fan()?;
+        let estimate = |rpm: u32| {
+            let offset = rpm.clamp(fan.min_rpm, fan.max_rpm) - fan.min_rpm;
+            (u64::from(offset) * 100 / u64::from(fan.max_rpm - fan.min_rpm)) as u8
+        };
+        let previous = estimate(previous_rpm);
         if apply == ApplyMode::DryRun {
             return Ok(ChangeReport::dry_run(previous, duty_pct));
         }
-        let zone = GameZone::new(&self.wmi);
-        // Settling: fan tracking lag is ~250 ms per step; sample after the
-        // mechanical ramp has had time to reach the new duty.
         zone.set_fan_duty(u32::from(duty_pct) * 100)?;
-        std::thread::sleep(Duration::from_millis(1200));
-        let actual = self.estimate_duty(bounds);
-        // Verification honesty: a write that moves RPM toward the requested
-        // duty is committed. Below ~25 % the EC's ~1800 RPM floor makes the
-        // RPM-based estimate unreliable, so only the absence of a write
-        // failure is asserted there (the floor itself is the check).
-        Ok(ChangeReport::committed(previous, duty_pct, actual))
+        // The observed ramp took nearly three seconds. Require a change
+        // larger than the idle jitter in the direction of the request.
+        std::thread::sleep(Duration::from_secs(3));
+        let actual_rpm = zone.fan_rpm()?;
+        if actual_rpm.abs_diff(previous_rpm) < 200
+            || actual_rpm.cmp(&previous_rpm) != duty_pct.cmp(&previous)
+            || (actual_rpm == 0 && duty_pct != 0)
+        {
+            return Err(LenovoLaptopControlError::VerifyMismatch {
+                requested: format!("observable tach response to {duty_pct}% fan duty"),
+                actual: format!("tach {previous_rpm} → {actual_rpm} RPM"),
+            });
+        }
+        Ok(ChangeReport::committed(
+            previous,
+            duty_pct,
+            estimate(actual_rpm),
+        ))
     }
 }
 
@@ -406,27 +416,18 @@ where
     B: BatteryControl,
     R: PerformanceRegistryReader,
 {
-    /// RPM bounds for duty estimation: the inventory row when present, else
-    /// the values `LENOVO_FAN_TEST_DATA` publishes on 21VG (2100..5100).
-    fn duty_rpm_bounds(&self) -> (u32, u32) {
-        self.fans()
-            .ok()
-            .and_then(|fans| fans.first().map(|fan| (fan.min_rpm, fan.max_rpm)))
-            .unwrap_or((2100, 5100))
-    }
-
-    /// Estimate the currently-applied duty (0..=100) from the live RPM
-    /// against `min..=max`. The EC's ~1800 RPM floor means a request below
-    /// the floor's duty still reads as the floor — that is the intended
-    /// floor behaviour, not an estimate failure.
-    fn estimate_duty(&self, (min_rpm, max_rpm): (u32, u32)) -> u8 {
-        match GameZone::new(&self.wmi).fan_rpm() {
-            Ok(rpm) if max_rpm > min_rpm => {
-                let clamped = rpm.clamp(min_rpm, max_rpm);
-                ((clamped - min_rpm) * 100 / (max_rpm - min_rpm)) as u8
-            }
-            _ => 0,
+    // WMAE returns one tach value without a fan ID.
+    fn single_fan(&self) -> Result<FanDescriptor> {
+        let mut fans = self.fans()?;
+        if fans.len() != 1 {
+            return Err(LenovoLaptopControlError::ChannelUnavailable {
+                channel: format!(
+                    "WMAE tach cannot be attributed to {} inventory fans",
+                    fans.len()
+                ),
+            });
         }
+        Ok(fans.remove(0))
     }
 }
 
@@ -526,9 +527,11 @@ where
 {
     fn dbdc_profile(&self) -> Result<lenovo_laptop_control_core::DbdcProfile> {
         let rows = self.wmi.query(ROOT_WMI, DBDC_QUERY)?;
-        let row = rows.first().ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
-            channel: "LENOVO_REPORT_DBDC_DATA returned no instance".into(),
-        })?;
+        let row = rows
+            .first()
+            .ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
+                channel: "LENOVO_REPORT_DBDC_DATA returned no instance".into(),
+            })?;
         let counts = row
             .get("Counts")
             .ok_or_else(|| invalid_wmi_value("Counts", &WmiValue::Empty))

@@ -9,8 +9,8 @@
 
 use lenovo_laptop_control_core::{UsbPortConnection, UsbPortSpeed};
 use lenovo_laptop_control_hal_win::{
-    decode_config_descriptor, decode_hub_node_information, decode_port_connection_information,
-    format_usb_revision, max_power_ma,
+    HUB_NODE_INFORMATION_BYTES, decode_config_descriptor, decode_hub_node_information,
+    decode_port_connection_information, format_usb_revision, max_power_ma,
 };
 
 fn bytes(hex: &str) -> Vec<u8> {
@@ -19,13 +19,19 @@ fn bytes(hex: &str) -> Vec<u8> {
         .collect()
 }
 
+fn hub_buffer(prefix: &str) -> Vec<u8> {
+    let mut buffer = bytes(prefix);
+    // The evidence displays the descriptor prefix and records a zero at
+    // offset 75 for HubIsBusPowered in the full 76-byte response.
+    buffer.resize(HUB_NODE_INFORMATION_BYTES, 0);
+    buffer
+}
+
 /// `IOCTL_USB_GET_NODE_INFORMATION`, 5-port root hub `4&32F967F1`.
-const HUB_5_PORTS: &str =
-    "00 00 00 00 09 29 05 00 00 02 00 00 ff 00";
+const HUB_5_PORTS: &str = "00 00 00 00 09 29 05 00 00 02 00 00 ff 00";
 
 /// `IOCTL_USB_GET_NODE_INFORMATION`, 12-port root hub `4&196F3462`.
-const HUB_12_PORTS: &str =
-    "00 00 00 00 09 29 0c 00 00 02 00 00 00 ff ff";
+const HUB_12_PORTS: &str = "00 00 00 00 09 29 0c 00 00 02 00 00 00 ff ff";
 
 /// Port 4: Goodix `27c6:659a`, full speed, address 1, two open pipes.
 const PORT_4_GOODIX: &str = "04 00 00 00 12 01 00 02 ef 00 00 40 c6 27 9a 65 00 01 01 02 03 \
@@ -40,25 +46,23 @@ const PORT_8_RECEIVER: &str = "08 00 00 00 12 01 10 01 00 00 00 08 6d 04 42 c5 0
      01 01 01 00 03 00 01 00 00 00 01 00 00 00 07 05 82 03 08 00 04 00 00 00 00 00 00";
 
 /// Goodix active configuration: bus powered, remote wakeup, `bMaxPower` 50.
-const GOODIX_CONFIG: &str =
-    "04 00 00 00 80 06 00 02 00 00 ff 00 09 02 20 00 01 01 03 a0 32";
+const GOODIX_CONFIG: &str = "04 00 00 00 80 06 00 02 00 00 ff 00 09 02 20 00 01 01 03 a0 32";
 
 /// Camera active configuration: bus powered, `bMaxPower` 250.
-const CAMERA_CONFIG: &str =
-    "05 00 00 00 80 06 00 02 00 00 ff 00 09 02 9d 04 05 01 04 80 fa";
+const CAMERA_CONFIG: &str = "05 00 00 00 80 06 00 02 00 00 ff 00 09 02 9d 04 05 01 04 80 fa";
 
 /// Receiver active configuration: remote wakeup, `bMaxPower` 25.
-const RECEIVER_CONFIG: &str =
-    "08 00 00 00 80 06 00 02 00 00 ff 00 09 02 22 00 01 01 00 a0 19";
+const RECEIVER_CONFIG: &str = "08 00 00 00 80 06 00 02 00 00 ff 00 09 02 22 00 01 01 00 a0 19";
 
 #[test]
 fn hub_descriptors_yield_the_reported_port_counts() {
-    let five = decode_hub_node_information(&bytes(HUB_5_PORTS)).expect("5-port hub decodes");
+    let five = decode_hub_node_information(&hub_buffer(HUB_5_PORTS)).expect("5-port hub decodes");
     assert_eq!(five.port_count, 5);
     assert!(!five.bus_powered, "root hubs are self-powered");
     assert_eq!(five.characteristics, 0x0000);
 
-    let twelve = decode_hub_node_information(&bytes(HUB_12_PORTS)).expect("12-port hub decodes");
+    let twelve =
+        decode_hub_node_information(&hub_buffer(HUB_12_PORTS)).expect("12-port hub decodes");
     assert_eq!(twelve.port_count, 12);
     assert!(!twelve.bus_powered);
     assert_eq!(twelve.characteristics, 0x0000);
@@ -106,7 +110,10 @@ fn empty_port_is_empty_without_speed_or_descriptor() {
     let port = decode_port_connection_information(&[0u8; 35]).expect("empty port decodes");
     assert_eq!(port.connection, UsbPortConnection::Empty);
     assert_eq!(port.speed, None);
-    assert!(port.descriptor.is_none(), "no invented device on an empty port");
+    assert!(
+        port.descriptor.is_none(),
+        "no invented device on an empty port"
+    );
 }
 
 #[test]
@@ -131,7 +138,7 @@ fn truncated_or_mislabelled_buffers_are_rejected() {
     wrong_descriptor[5] = 0x02;
     assert!(decode_port_connection_information(&wrong_descriptor).is_none());
 
-    let mut wrong_hub_type = bytes(HUB_5_PORTS);
+    let mut wrong_hub_type = hub_buffer(HUB_5_PORTS);
     wrong_hub_type[5] = 0x2a;
     assert!(decode_hub_node_information(&wrong_hub_type).is_none());
 }

@@ -138,12 +138,11 @@ impl WlanNetshRunner for FakeNetsh {
             .lock()
             .unwrap()
             .push(format!("profile:{name}:{}", interface.unwrap_or("")));
-        self.details
-            .get(name)
-            .cloned()
-            .ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
+        self.details.get(name).cloned().ok_or_else(|| {
+            LenovoLaptopControlError::ChannelUnavailable {
                 channel: format!("missing fake profile {name}"),
-            })
+            }
+        })
     }
 }
 

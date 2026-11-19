@@ -20,11 +20,13 @@ use crate::{
     WindowsPerformanceP0, WindowsPowerP0, WindowsThermal,
 };
 use lenovo_laptop_control_core::{
-    ApplyMode, FanMode, LenovoLaptopControlError, PanelRefreshRequest, PerformanceMode, PowerMutation, Result,
-    SceneAction, ScenePolicyLedger, ScenePolicyLedgerEntry, ScenePolicyMatch, ScenePolicyReport,
-    ScenePolicyRule,
+    ApplyMode, FanMode, LenovoLaptopControlError, PanelRefreshRequest, PerformanceMode,
+    PowerMutation, Result, SceneAction, ScenePolicyLedger, ScenePolicyLedgerEntry,
+    ScenePolicyMatch, ScenePolicyReport, ScenePolicyRule,
 };
-use lenovo_laptop_control_hal::{FanControl, PanelControl, PerformanceControl, PowerControl, ScenePolicyControl};
+use lenovo_laptop_control_hal::{
+    FanControl, PanelControl, PerformanceControl, PowerControl, ScenePolicyControl,
+};
 
 /// A transparent scene-policy backend over the Windows control channels.
 ///
@@ -263,13 +265,14 @@ impl NativeScenePolicy {
         if mode == ApplyMode::DryRun {
             return Ok(self.report_dry_run(rule, event_class, mode, previous));
         }
-        let actual = report
-            .actual()
-            .cloned()
-            .ok_or_else(|| LenovoLaptopControlError::VerifyMismatch {
-                requested: format!("panel refresh {hz} Hz"),
-                actual: "panel refresh readback was not returned".into(),
-            })?;
+        let actual =
+            report
+                .actual()
+                .cloned()
+                .ok_or_else(|| LenovoLaptopControlError::VerifyMismatch {
+                    requested: format!("panel refresh {hz} Hz"),
+                    actual: "panel refresh readback was not returned".into(),
+                })?;
         self.record_entry(rule, event_class, "applied")?;
         Ok(ScenePolicyReport {
             rule_id: rule.id.clone(),
@@ -301,14 +304,12 @@ impl NativeScenePolicy {
                 if mode == ApplyMode::DryRun {
                     return Ok(self.report_dry_run(rule, event_class, mode, previous));
                 }
-                let actual =
-                    report
-                        .actual()
-                        .cloned()
-                        .ok_or_else(|| LenovoLaptopControlError::VerifyMismatch {
-                            requested: format!("fan mode {requested}"),
-                            actual: "fan mode readback was not returned".into(),
-                        })?;
+                let actual = report.actual().cloned().ok_or_else(|| {
+                    LenovoLaptopControlError::VerifyMismatch {
+                        requested: format!("fan mode {requested}"),
+                        actual: "fan mode readback was not returned".into(),
+                    }
+                })?;
                 self.record_entry(rule, event_class, "applied")?;
                 Ok(ScenePolicyReport {
                     rule_id: rule.id.clone(),
@@ -338,14 +339,12 @@ impl NativeScenePolicy {
                 if mode == ApplyMode::DryRun {
                     return Ok(self.report_dry_run(rule, event_class, mode, previous));
                 }
-                let actual =
-                    report
-                        .actual()
-                        .cloned()
-                        .ok_or_else(|| LenovoLaptopControlError::VerifyMismatch {
-                            requested: format!("performance mode {requested}"),
-                            actual: "performance mode readback was not returned".into(),
-                        })?;
+                let actual = report.actual().cloned().ok_or_else(|| {
+                    LenovoLaptopControlError::VerifyMismatch {
+                        requested: format!("performance mode {requested}"),
+                        actual: "performance mode readback was not returned".into(),
+                    }
+                })?;
                 self.record_entry(rule, event_class, "applied")?;
                 Ok(ScenePolicyReport {
                     rule_id: rule.id.clone(),
@@ -414,17 +413,20 @@ fn persist_ledger_entry(
     ledger: &Mutex<ScenePolicyLedger>,
     entry: ScenePolicyLedgerEntry,
 ) -> Result<()> {
-    let mut guard = ledger.lock().map_err(|_| LenovoLaptopControlError::InvalidArgument {
-        detail: "scene ledger lock was poisoned".into(),
-    })?;
+    let mut guard = ledger
+        .lock()
+        .map_err(|_| LenovoLaptopControlError::InvalidArgument {
+            detail: "scene ledger lock was poisoned".into(),
+        })?;
     guard.entries.push(entry);
     let path = ledger_path().ok_or_else(|| LenovoLaptopControlError::InvalidArgument {
         detail: "USERPROFILE is unset; cannot persist the scene ledger".into(),
     })?;
-    let text =
-        serde_json::to_string_pretty(&*guard).map_err(|error| LenovoLaptopControlError::InvalidArgument {
+    let text = serde_json::to_string_pretty(&*guard).map_err(|error| {
+        LenovoLaptopControlError::InvalidArgument {
             detail: format!("serializing scene ledger failed: {error}"),
-        })?;
+        }
+    })?;
     write_all(&path, text.as_bytes())
 }
 

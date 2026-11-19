@@ -1,6 +1,7 @@
 use lenovo_laptop_control_core::{
-    ApplyMode, ChangeReport, LenovoLaptopControlError, PowerGuid, PowerMutation, PowerSchemeId, PowerSettingKey,
-    PowerSettingValue, PowerSource, PowerSourceValues, PowerValueRange, ProcessorBoostMode, Result,
+    ApplyMode, ChangeReport, LenovoLaptopControlError, PowerGuid, PowerMutation, PowerSchemeId,
+    PowerSettingKey, PowerSettingValue, PowerSource, PowerSourceValues, PowerValueRange,
+    ProcessorBoostMode, Result,
 };
 use lenovo_laptop_control_hal::{PowerLimitKind, ProcessorPowerControl, TuningControl};
 

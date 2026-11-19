@@ -9,7 +9,14 @@ use lenovo_laptop_control_core::{
 #[test]
 fn plx_set_mode_splits_the_two_lanes_with_the_raw_value_kept() {
     let mode = ItsPlxSetMode::from_raw(0x0001_0001);
-    assert_eq!(mode, ItsPlxSetMode { raw: 0x0001_0001, ac: 1, dc: 1 });
+    assert_eq!(
+        mode,
+        ItsPlxSetMode {
+            raw: 0x0001_0001,
+            ac: 1,
+            dc: 1
+        }
+    );
 
     // Low half is AC, high half is DC: 0x0002_0003 is AC=3, DC=2.
     let mixed = ItsPlxSetMode::from_raw(0x0002_0003);

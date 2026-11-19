@@ -13,13 +13,20 @@ use lenovo_laptop_control_hal::{ProcessControl, poll_readback};
 pub trait ProcessApi: Send + Sync {
     fn inventory(&self, limit: usize) -> Result<ProcessInventory>;
     fn resolve_target(&self, pid: u32) -> Result<ProcessTarget>;
-    fn snapshot(&self, identity: &lenovo_laptop_control_core::ProcessIdentity) -> Result<ProcessSnapshot>;
+    fn snapshot(
+        &self,
+        identity: &lenovo_laptop_control_core::ProcessIdentity,
+    ) -> Result<ProcessSnapshot>;
     fn set_priority_class(
         &self,
         identity: &lenovo_laptop_control_core::ProcessIdentity,
         priority: ProcessPriorityClass,
     ) -> Result<()>;
-    fn set_affinity_mask(&self, identity: &lenovo_laptop_control_core::ProcessIdentity, mask: usize) -> Result<()>;
+    fn set_affinity_mask(
+        &self,
+        identity: &lenovo_laptop_control_core::ProcessIdentity,
+        mask: usize,
+    ) -> Result<()>;
     fn set_working_set(
         &self,
         identity: &lenovo_laptop_control_core::ProcessIdentity,
@@ -443,7 +450,10 @@ fn is_definite_prewrite_error(error: &LenovoLaptopControlError) -> bool {
     )
 }
 
-fn rollback_failure(primary: LenovoLaptopControlError, rollback: LenovoLaptopControlError) -> LenovoLaptopControlError {
+fn rollback_failure(
+    primary: LenovoLaptopControlError,
+    rollback: LenovoLaptopControlError,
+) -> LenovoLaptopControlError {
     LenovoLaptopControlError::Io(std::io::Error::other(format!(
         "process mutation failed ({primary}); exact rollback also failed ({rollback})"
     )))
@@ -473,9 +483,9 @@ mod native {
     };
 
     use lenovo_laptop_control_core::{
-        LenovoLaptopControlError, ProcessIdentity, ProcessInventory, ProcessInventoryEntry, ProcessPriorityClass,
-        ProcessSnapshot, ProcessState, ProcessTarget, ProcessWorkingSet, Result,
-        validate_process_top_limit,
+        LenovoLaptopControlError, ProcessIdentity, ProcessInventory, ProcessInventoryEntry,
+        ProcessPriorityClass, ProcessSnapshot, ProcessState, ProcessTarget, ProcessWorkingSet,
+        Result, validate_process_top_limit,
     };
     use windows_sys::Win32::{
         Foundation::{CloseHandle, FILETIME, GetLastError, HANDLE, INVALID_HANDLE_VALUE},

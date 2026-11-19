@@ -17,8 +17,9 @@ use std::thread::sleep;
 use std::time::{Duration, Instant};
 
 use lenovo_laptop_control_core::{
-    ApplyMode, ChangeReport, LenovoLaptopControlError, ProcessInventory, ProcessInventoryEntry, ProcessPolicy,
-    ProcessSnapshot, ProcessState, ProcessTarget, Result, validate_process_top_limit,
+    ApplyMode, ChangeReport, LenovoLaptopControlError, ProcessInventory, ProcessInventoryEntry,
+    ProcessPolicy, ProcessSnapshot, ProcessState, ProcessTarget, Result,
+    validate_process_top_limit,
 };
 use lenovo_laptop_control_hal::ProcessControl;
 
@@ -198,8 +199,10 @@ impl ProcessControl for LinuxProcessController {
     }
 
     fn resolve_target(&self, pid: u32) -> Result<ProcessTarget> {
-        let now = sample(&self.proc_root, pid).map_err(|_| LenovoLaptopControlError::ChannelUnavailable {
-            channel: format!("process {pid} is not readable"),
+        let now = sample(&self.proc_root, pid).map_err(|_| {
+            LenovoLaptopControlError::ChannelUnavailable {
+                channel: format!("process {pid} is not readable"),
+            }
         })?;
         let identity = lenovo_laptop_control_core::ProcessIdentity {
             pid,
@@ -210,10 +213,11 @@ impl ProcessControl for LinuxProcessController {
 
     fn process_snapshot(&self, target: &ProcessTarget) -> Result<ProcessSnapshot> {
         let identity = target.identity();
-        let now =
-            sample(&self.proc_root, identity.pid).map_err(|_| LenovoLaptopControlError::ChannelUnavailable {
+        let now = sample(&self.proc_root, identity.pid).map_err(|_| {
+            LenovoLaptopControlError::ChannelUnavailable {
                 channel: format!("process {} is not readable", identity.pid),
-            })?;
+            }
+        })?;
         if !target.accepts_image_name(&now.name) {
             return Err(LenovoLaptopControlError::InvalidArgument {
                 detail: format!(

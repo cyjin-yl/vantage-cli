@@ -16,8 +16,8 @@
 //! tested without a device.
 
 use lenovo_laptop_control_core::{
-    LenovoLaptopControlError, Result, TouchpadAxis, TouchpadButtonType, TouchpadButtons, TouchpadCapabilities,
-    TouchpadContacts, TouchpadDerivedSize, TouchpadIdentity, TouchpadReports,
+    LenovoLaptopControlError, Result, TouchpadAxis, TouchpadButtonType, TouchpadButtons,
+    TouchpadCapabilities, TouchpadContacts, TouchpadDerivedSize, TouchpadIdentity, TouchpadReports,
     TouchpadSupportBits, TouchpadSurface, TouchpadUsage,
 };
 
@@ -302,8 +302,7 @@ fn declared_axis(
     let mut axis: Option<TouchpadAxis> = None;
     let mut seen = false;
     for cap in descriptor.input_values.iter().filter(|cap| {
-        cap.declares(DESKTOP_USAGE_PAGE, usage)
-            && finger_collections.contains(&cap.link_collection)
+        cap.declares(DESKTOP_USAGE_PAGE, usage) && finger_collections.contains(&cap.link_collection)
     }) {
         seen = true;
         if cap.bit_size == 0 || cap.report_count != 1 {
@@ -423,17 +422,13 @@ fn support_bits(
         three_finger: capacity >= 3,
         four_finger: capacity >= 4,
         five_finger: capacity >= 5,
-        pressure: descriptor
-            .input_values
-            .iter()
-            .any(|cap| cap.declares(DIGITIZER_USAGE_PAGE, PRESSURE_USAGE) && cap.is_finger_collection()),
-        palm_confidence: descriptor
-            .input_buttons
-            .iter()
-            .any(|cap| {
-                cap.declares(DIGITIZER_USAGE_PAGE, CONFIDENCE_USAGE)
-                    && finger_collections.contains(&cap.link_collection)
-            }),
+        pressure: descriptor.input_values.iter().any(|cap| {
+            cap.declares(DIGITIZER_USAGE_PAGE, PRESSURE_USAGE) && cap.is_finger_collection()
+        }),
+        palm_confidence: descriptor.input_buttons.iter().any(|cap| {
+            cap.declares(DIGITIZER_USAGE_PAGE, CONFIDENCE_USAGE)
+                && finger_collections.contains(&cap.link_collection)
+        }),
         haptic_intensity: descriptor.feature_values.iter().any(|cap| {
             cap.declares(HAPTICS_USAGE_PAGE, HAPTIC_INTENSITY_USAGE)
                 && cap.link_usage_page == HAPTICS_USAGE_PAGE
@@ -494,14 +489,15 @@ mod native {
     use windows_sys::Win32::{
         Devices::{
             DeviceAndDriverInstallation::{
-                CM_GET_DEVICE_INTERFACE_LIST_PRESENT, CM_Get_Device_Interface_ListW,
-                CM_Get_Device_Interface_List_SizeW, CR_SUCCESS,
+                CM_GET_DEVICE_INTERFACE_LIST_PRESENT, CM_Get_Device_Interface_List_SizeW,
+                CM_Get_Device_Interface_ListW, CR_SUCCESS,
             },
             HumanInterfaceDevice::{
                 GUID_DEVINTERFACE_HID, HIDD_ATTRIBUTES, HIDP_BUTTON_CAPS, HIDP_CAPS,
                 HIDP_STATUS_SUCCESS, HIDP_VALUE_CAPS, HidD_FreePreparsedData, HidD_GetAttributes,
                 HidD_GetFeature, HidD_GetPreparsedData, HidD_GetProductString, HidP_Feature,
-                HidP_GetButtonCaps, HidP_GetCaps, HidP_GetUsageValue, HidP_GetValueCaps, HidP_Input,
+                HidP_GetButtonCaps, HidP_GetCaps, HidP_GetUsageValue, HidP_GetValueCaps,
+                HidP_Input,
             },
         },
         Foundation::{
@@ -556,12 +552,16 @@ mod native {
 
     fn open_error(code: u32) -> LenovoLaptopControlError {
         match code {
-            ERROR_ACCESS_DENIED | ERROR_SHARING_VIOLATION => LenovoLaptopControlError::ChannelUnavailable {
-                channel: format!(
-                    "touchpad.caps cannot open the precision-touchpad collection with FILE_READ_ATTRIBUTES and share READ|WRITE (Win32 error {code}); the input stack holds the collection, and this read does not fall back to a broader access mask"
-                ),
-            },
-            other => crate::map_win_error(other, "touchpad.caps open precision-touchpad collection"),
+            ERROR_ACCESS_DENIED | ERROR_SHARING_VIOLATION => {
+                LenovoLaptopControlError::ChannelUnavailable {
+                    channel: format!(
+                        "touchpad.caps cannot open the precision-touchpad collection with FILE_READ_ATTRIBUTES and share READ|WRITE (Win32 error {code}); the input stack holds the collection, and this read does not fall back to a broader access mask"
+                    ),
+                }
+            }
+            other => {
+                crate::map_win_error(other, "touchpad.caps open precision-touchpad collection")
+            }
         }
     }
 
@@ -696,27 +696,12 @@ mod native {
             "HidP_GetCaps",
         )?;
 
-        let input_values = value_caps(
-            preparsed.raw(),
-            HidP_Input,
-            caps.NumberInputValueCaps,
-        )?;
-        let feature_values = value_caps(
-            preparsed.raw(),
-            HidP_Feature,
-            caps.NumberFeatureValueCaps,
-        )?;
-        let input_buttons = button_caps(
-            preparsed.raw(),
-            HidP_Input,
-            caps.NumberInputButtonCaps,
-        )?;
-        let (capability_report, capability_report_error) = capability_report(
-            handle,
-            preparsed.raw(),
-            &caps,
-            &feature_values,
-        );
+        let input_values = value_caps(preparsed.raw(), HidP_Input, caps.NumberInputValueCaps)?;
+        let feature_values =
+            value_caps(preparsed.raw(), HidP_Feature, caps.NumberFeatureValueCaps)?;
+        let input_buttons = button_caps(preparsed.raw(), HidP_Input, caps.NumberInputButtonCaps)?;
+        let (capability_report, capability_report_error) =
+            capability_report(handle, preparsed.raw(), &caps, &feature_values);
 
         Ok(TouchpadDescriptor {
             instance_id: instance_id.to_owned(),
@@ -852,8 +837,13 @@ mod native {
         }
         let mut buffer = vec![0u8; usize::from(length)];
         buffer[0] = report_id;
-        if !unsafe { HidD_GetFeature(handle, buffer.as_mut_ptr().cast::<c_void>(), u32::from(length)) }
-        {
+        if !unsafe {
+            HidD_GetFeature(
+                handle,
+                buffer.as_mut_ptr().cast::<c_void>(),
+                u32::from(length),
+            )
+        } {
             return (
                 None,
                 Some(format!(
@@ -903,8 +893,10 @@ mod native {
             ),
             _ => (
                 None,
-                Some("capability feature report carries a value outside the 16-bit declaration"
-                    .to_owned()),
+                Some(
+                    "capability feature report carries a value outside the 16-bit declaration"
+                        .to_owned(),
+                ),
             ),
         }
     }
@@ -932,11 +924,11 @@ mod native {
 mod tests {
     use super::{
         BUTTON_1_USAGE, BUTTON_PRESS_THRESHOLD_USAGE, BUTTON_TYPE_USAGE, BUTTON_USAGE_PAGE,
-        ButtonCap, CONTACT_COUNT_MAXIMUM_USAGE, CONTACT_COUNT_USAGE, CONTACT_IDENTIFIER_USAGE,
-        CONFIDENCE_USAGE, CapabilityReport, DESKTOP_USAGE_PAGE, DIGITIZER_USAGE_PAGE,
+        ButtonCap, CONFIDENCE_USAGE, CONTACT_COUNT_MAXIMUM_USAGE, CONTACT_COUNT_USAGE,
+        CONTACT_IDENTIFIER_USAGE, CapabilityReport, DESKTOP_USAGE_PAGE, DIGITIZER_USAGE_PAGE,
         ENGLISH_LINEAR_INCH, FINGER_USAGE, HAPTIC_CONTROLLER_USAGE, HAPTIC_INTENSITY_USAGE,
-        HAPTICS_USAGE_PAGE, LenovoLaptopControlError, PRESSURE_USAGE, TOUCHPAD_USAGE, TIP_SWITCH_USAGE,
-        TouchpadButtonType, TouchpadDescriptor, ValueCap, derive_capabilities,
+        HAPTICS_USAGE_PAGE, LenovoLaptopControlError, PRESSURE_USAGE, TIP_SWITCH_USAGE,
+        TOUCHPAD_USAGE, TouchpadButtonType, TouchpadDescriptor, ValueCap, derive_capabilities,
     };
 
     const X_USAGE: u16 = 0x0030;
@@ -1008,7 +1000,11 @@ mod tests {
             usage_min: usage,
             usage_max: usage,
             report_id,
-            link_collection: if usage_page == HAPTICS_USAGE_PAGE { 6 } else { 0 },
+            link_collection: if usage_page == HAPTICS_USAGE_PAGE {
+                6
+            } else {
+                0
+            },
             link_usage_page: link.0,
             link_usage: link.1,
             bit_size: 8,
@@ -1085,12 +1081,7 @@ mod tests {
 
         let touchpad_link = (DIGITIZER_USAGE_PAGE, TOUCHPAD_USAGE);
         let feature_values = vec![
-            feature_value(
-                DIGITIZER_USAGE_PAGE,
-                BUTTON_TYPE_USAGE,
-                2,
-                touchpad_link,
-            ),
+            feature_value(DIGITIZER_USAGE_PAGE, BUTTON_TYPE_USAGE, 2, touchpad_link),
             feature_value(
                 DIGITIZER_USAGE_PAGE,
                 CONTACT_COUNT_MAXIMUM_USAGE,
@@ -1199,7 +1190,9 @@ mod tests {
     #[test]
     fn missing_finger_collection_refuses() {
         let mut descriptor = reference_descriptor();
-        descriptor.input_values.retain(|cap| !cap.is_finger_collection());
+        descriptor
+            .input_values
+            .retain(|cap| !cap.is_finger_collection());
         descriptor.input_buttons.clear();
         assert!(matches!(
             derive_capabilities(&descriptor),

@@ -21,7 +21,12 @@ impl FakeIoctl {
 }
 
 impl IoctlTransport for FakeIoctl {
-    fn call(&self, code: u32, input: &[u8], output_len: usize) -> lenovo_laptop_control_core::Result<Vec<u8>> {
+    fn call(
+        &self,
+        code: u32,
+        input: &[u8],
+        output_len: usize,
+    ) -> lenovo_laptop_control_core::Result<Vec<u8>> {
         assert_eq!(code, IOCTL_USB_CHARGER);
         assert_eq!(input.len(), 1);
         match input[0] {

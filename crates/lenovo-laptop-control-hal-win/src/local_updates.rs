@@ -281,9 +281,9 @@ mod native {
     };
 
     use lenovo_laptop_control_core::{
-        DriverIdentity, DriverPackage, DriverSignature, DriverVersion, InstalledDriver, LenovoLaptopControlError,
-        MAX_LOCAL_UPDATE_DEVICES, MAX_LOCAL_UPDATE_PACKAGE_FILES, PresentPnpDevice, Result,
-        SignedDriverFile, validate_hardware_id, validate_local_path,
+        DriverIdentity, DriverPackage, DriverSignature, DriverVersion, InstalledDriver,
+        LenovoLaptopControlError, MAX_LOCAL_UPDATE_DEVICES, MAX_LOCAL_UPDATE_PACKAGE_FILES,
+        PresentPnpDevice, Result, SignedDriverFile, validate_hardware_id, validate_local_path,
     };
     use windows_sys::{
         Win32::{

@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use lenovo_laptop_control_core::{
-    ApplyMode, ChangeReport, LenovoLaptopControlError, PanelMode, PanelRefreshCapability, PanelRefreshRequest,
-    PanelTarget, RefreshMode, Result,
+    ApplyMode, ChangeReport, LenovoLaptopControlError, PanelMode, PanelRefreshCapability,
+    PanelRefreshRequest, PanelTarget, RefreshMode, Result,
 };
 use lenovo_laptop_control_hal::{PanelControl, poll_readback};
 
@@ -252,9 +252,11 @@ fn select_internal_target(mut targets: Vec<PanelTarget>) -> Result<PanelTarget> 
         .iter()
         .enumerate()
         .filter(|(_, target)| target.internal);
-    let (index, target) = internal.next().ok_or_else(|| LenovoLaptopControlError::Unsupported {
-        feature: "panel.internal.connected".into(),
-    })?;
+    let (index, target) = internal
+        .next()
+        .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+            feature: "panel.internal.connected".into(),
+        })?;
     if internal.next().is_some() {
         return Err(LenovoLaptopControlError::ChannelUnavailable {
             channel: "native panel selection is ambiguous: multiple active internal panels".into(),
@@ -329,7 +331,9 @@ fn required_u16(object: &WmiObject, name: &str) -> Result<u16> {
 mod native {
     use std::{io, ptr};
 
-    use lenovo_laptop_control_core::{LenovoLaptopControlError, PanelAdapterId, PanelMode, PanelRotation, PanelTarget, Result};
+    use lenovo_laptop_control_core::{
+        LenovoLaptopControlError, PanelAdapterId, PanelMode, PanelRotation, PanelTarget, Result,
+    };
     use windows_sys::Win32::{
         Devices::Display::{
             DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME, DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME,
@@ -488,9 +492,11 @@ mod native {
                 {
                     continue;
                 }
-                return Ok(Some(lenovo_laptop_control_core::DisplayConnection::from_output_technology(
-                    path.targetInfo.outputTechnology as u32,
-                )));
+                return Ok(Some(
+                    lenovo_laptop_control_core::DisplayConnection::from_output_technology(
+                        path.targetInfo.outputTechnology as u32,
+                    ),
+                ));
             }
             // The path disappeared between the enumeration and this read; the
             // caller keeps the internal flag only.
@@ -537,11 +543,11 @@ mod native {
                         modes.push(mode);
                     }
                 }
-                index = index
-                    .checked_add(1)
-                    .ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
+                index = index.checked_add(1).ok_or_else(|| {
+                    LenovoLaptopControlError::ChannelUnavailable {
                         channel: "display mode index overflow".into(),
-                    })?;
+                    }
+                })?;
             }
             if modes.is_empty() {
                 return Err(LenovoLaptopControlError::Unsupported {
@@ -647,11 +653,11 @@ mod native {
                 raw.Anonymous1.Anonymous2 = display;
                 return Ok(raw);
             }
-            index = index
-                .checked_add(1)
-                .ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
+            index = index.checked_add(1).ok_or_else(|| {
+                LenovoLaptopControlError::ChannelUnavailable {
                     channel: "display mode index overflow".into(),
-                })?;
+                }
+            })?;
         }
         Err(LenovoLaptopControlError::Unsupported {
             feature: format!("panel.refresh.{}Hz.exact_native_mode", mode.refresh_hz),
@@ -735,8 +741,10 @@ mod native {
             .iter()
             .position(|value| *value == 0)
             .unwrap_or(raw.len());
-        String::from_utf16(&raw[..length]).map_err(|error| LenovoLaptopControlError::ChannelUnavailable {
-            channel: format!("display API returned invalid UTF-16: {error}"),
+        String::from_utf16(&raw[..length]).map_err(|error| {
+            LenovoLaptopControlError::ChannelUnavailable {
+                channel: format!("display API returned invalid UTF-16: {error}"),
+            }
         })
     }
 
@@ -767,15 +775,19 @@ mod native {
             DISP_CHANGE_BADMODE => Err(LenovoLaptopControlError::Unsupported {
                 feature: "panel.refresh.requested_native_mode".into(),
             }),
-            DISP_CHANGE_BADFLAGS | DISP_CHANGE_BADPARAM => Err(LenovoLaptopControlError::InvalidArgument {
-                detail: format!("ChangeDisplaySettingsExW rejected mode parameters ({status})"),
-            }),
+            DISP_CHANGE_BADFLAGS | DISP_CHANGE_BADPARAM => {
+                Err(LenovoLaptopControlError::InvalidArgument {
+                    detail: format!("ChangeDisplaySettingsExW rejected mode parameters ({status})"),
+                })
+            }
             DISP_CHANGE_NOTUPDATED => Err(LenovoLaptopControlError::PermissionDenied {
                 need: "write access to the current user's display settings".into(),
             }),
-            DISP_CHANGE_FAILED | DISP_CHANGE_BADDUALVIEW => Err(LenovoLaptopControlError::FirmwareRejected {
-                detail: format!("ChangeDisplaySettingsExW failed with status {status}"),
-            }),
+            DISP_CHANGE_FAILED | DISP_CHANGE_BADDUALVIEW => {
+                Err(LenovoLaptopControlError::FirmwareRejected {
+                    detail: format!("ChangeDisplaySettingsExW failed with status {status}"),
+                })
+            }
             other => Err(LenovoLaptopControlError::Io(io::Error::other(format!(
                 "ChangeDisplaySettingsExW returned unknown status {other}"
             )))),

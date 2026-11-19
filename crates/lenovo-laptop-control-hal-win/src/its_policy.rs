@@ -61,12 +61,15 @@ where
             .map(ItsPlxSetMode::from_raw),
         fan_speed_address: dword(registry, "Policy_FanSpeedAddress", &mut issues),
         ap_min_std_fan: read_ap_min_std_fan(registry, &mut issues),
-        turbo_value: dword(registry, "Policy_TurboValue", &mut issues)
-            .map(ItsTurboValue::from_raw),
-        turbo_time: dword(registry, "Policy_TurboTime", &mut issues)
-            .map(ItsTurboTime::from_raw),
+        turbo_value: dword(registry, "Policy_TurboValue", &mut issues).map(ItsTurboValue::from_raw),
+        turbo_time: dword(registry, "Policy_TurboTime", &mut issues).map(ItsTurboTime::from_raw),
         epp_turbo: dword(registry, "Policy_EPPTurbo", &mut issues).map(ItsEppTurbo::from_raw),
-        power_bucket: read_table(registry, "Policy_PowerBucket", POWER_BUCKET_SLOTS, &mut issues),
+        power_bucket: read_table(
+            registry,
+            "Policy_PowerBucket",
+            POWER_BUCKET_SLOTS,
+            &mut issues,
+        ),
         cppc: read_table(registry, "Policy_CPPC", CURVE_SLOTS, &mut issues),
         cfqc: read_table(registry, "Policy_CFQC", CURVE_SLOTS, &mut issues),
         cfqc1: read_table(registry, "Policy_CFQC1", CURVE_SLOTS, &mut issues),
@@ -106,10 +109,7 @@ where
     Ok(())
 }
 
-fn read_ap_min_std_fan<R>(
-    registry: &R,
-    issues: &mut Vec<ItsPolicyIssue>,
-) -> Option<ItsApMinStdFan>
+fn read_ap_min_std_fan<R>(registry: &R, issues: &mut Vec<ItsPolicyIssue>) -> Option<ItsApMinStdFan>
 where
     R: PerformanceRegistryReader + ?Sized,
 {

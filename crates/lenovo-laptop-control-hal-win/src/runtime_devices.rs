@@ -8,7 +8,9 @@
 
 use std::{thread, time::Duration};
 
-use lenovo_laptop_control_core::{ApplyMode, ChangeReport, DeviceState, LenovoLaptopControlError, PrivacyDeviceState, Result};
+use lenovo_laptop_control_core::{
+    ApplyMode, ChangeReport, DeviceState, LenovoLaptopControlError, PrivacyDeviceState, Result,
+};
 use lenovo_laptop_control_hal::{PrivacyControl, TouchpadControl, poll_readback};
 
 const READBACK_ATTEMPTS: usize = 10;
@@ -153,13 +155,15 @@ pub fn select_runtime_device(
             selected = Some(device);
         }
     }
-    selected.cloned().ok_or_else(|| LenovoLaptopControlError::Unsupported {
-        feature: format!(
-            "{}.runtime_pnp (no uniquely identifiable {:?} device)",
-            kind.feature(),
-            kind.class()
-        ),
-    })
+    selected
+        .cloned()
+        .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+            feature: format!(
+                "{}.runtime_pnp (no uniquely identifiable {:?} device)",
+                kind.feature(),
+                kind.class()
+            ),
+        })
 }
 
 /// Select every devnode of one logical runtime device.
@@ -468,7 +472,11 @@ where
                 state: None,
                 error: None,
             };
-            match self.api.status(&device.instance_id)?.state(RuntimeDeviceKind::Camera) {
+            match self
+                .api
+                .status(&device.instance_id)?
+                .state(RuntimeDeviceKind::Camera)
+            {
                 Ok(state) => node.state = Some(state),
                 Err(error) => node.error = Some(error.to_string()),
             }
@@ -806,7 +814,10 @@ where
         self.set(RuntimeDeviceKind::Touchpad, state, apply)
     }
 
-    fn recover_touchpad(&self, apply: ApplyMode) -> Result<lenovo_laptop_control_core::TouchpadRecoveryReport> {
+    fn recover_touchpad(
+        &self,
+        apply: ApplyMode,
+    ) -> Result<lenovo_laptop_control_core::TouchpadRecoveryReport> {
         let (group, states) = self.touchpad_leaves()?;
         // A split group has a known repair: enable what an interrupted
         // transition left disabled. A group whose leaves are all enabled while
@@ -820,12 +831,14 @@ where
         let mut leaves: Vec<_> = states
             .iter()
             .enumerate()
-            .map(|(index, &previous)| lenovo_laptop_control_core::TouchpadRecoveryLeaf {
-                role: if index == 0 { "digitizer" } else { "mouse" },
-                previous,
-                requested: DeviceState::Enabled,
-                actual: None,
-            })
+            .map(
+                |(index, &previous)| lenovo_laptop_control_core::TouchpadRecoveryLeaf {
+                    role: if index == 0 { "digitizer" } else { "mouse" },
+                    previous,
+                    requested: DeviceState::Enabled,
+                    actual: None,
+                },
+            )
             .collect();
         if apply == ApplyMode::DryRun {
             return Ok(lenovo_laptop_control_core::TouchpadRecoveryReport {
@@ -1128,9 +1141,11 @@ mod native {
             _ => {
                 let gle = unsafe { CM_MapCrToWin32Err(status, ERROR_GEN_FAILURE) };
                 match map_win_error(gle, context) {
-                    LenovoLaptopControlError::Io(_) => LenovoLaptopControlError::Io(std::io::Error::other(format!(
-                        "{context}: CONFIGRET {status}, Win32 error {gle}"
-                    ))),
+                    LenovoLaptopControlError::Io(_) => {
+                        LenovoLaptopControlError::Io(std::io::Error::other(format!(
+                            "{context}: CONFIGRET {status}, Win32 error {gle}"
+                        )))
+                    }
                     other => other,
                 }
             }
@@ -1163,7 +1178,10 @@ mod native {
                 channel: format!("SetupDi device instance id length {required} is invalid"),
             })?;
         String::from_utf16(&buffer[..length]).map_err(|error| {
-            LenovoLaptopControlError::Io(std::io::Error::new(std::io::ErrorKind::InvalidData, error))
+            LenovoLaptopControlError::Io(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                error,
+            ))
         })
     }
 
@@ -1204,8 +1222,10 @@ mod native {
             .split(|value| *value == 0)
             .filter(|value| !value.is_empty())
             .map(|value| {
-                String::from_utf16(value).map_err(|error| LenovoLaptopControlError::ChannelUnavailable {
-                    channel: format!("{context} returned invalid UTF-16: {error}"),
+                String::from_utf16(value).map_err(|error| {
+                    LenovoLaptopControlError::ChannelUnavailable {
+                        channel: format!("{context} returned invalid UTF-16: {error}"),
+                    }
                 })
             })
             .collect()
@@ -1249,13 +1269,14 @@ mod native {
                 channel: format!("{context} returned odd UTF-16 byte length {required}"),
             });
         }
-        let mut buffer =
-            vec![
-                0u16;
-                usize::try_from(required / 2).map_err(|_| LenovoLaptopControlError::ChannelUnavailable {
+        let mut buffer = vec![
+            0u16;
+            usize::try_from(required / 2).map_err(|_| {
+                LenovoLaptopControlError::ChannelUnavailable {
                     channel: format!("{context} length exceeds usize"),
-                })?
-            ];
+                }
+            })?
+        ];
         let mut actual_type = 0u32;
         let mut actual_size = 0u32;
         let success = unsafe {

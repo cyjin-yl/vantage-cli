@@ -1,6 +1,8 @@
 use std::collections::{BTreeMap, VecDeque};
 
-use lenovo_laptop_control_core::{BiosAssistantCapabilities, BiosAssistantValue, LenovoLaptopControlError};
+use lenovo_laptop_control_core::{
+    BiosAssistantCapabilities, BiosAssistantValue, LenovoLaptopControlError,
+};
 use lenovo_laptop_control_hal::BiosAssistantControl;
 use lenovo_laptop_control_hal_win::{WindowsBiosController, WmiObject, WmiTransport, WmiValue};
 use parking_lot::Mutex;
@@ -21,7 +23,11 @@ struct FakeAssistantWmi {
 }
 
 impl WmiTransport for FakeAssistantWmi {
-    fn query(&self, _namespace: &str, wql: &str) -> lenovo_laptop_control_core::Result<Vec<WmiObject>> {
+    fn query(
+        &self,
+        _namespace: &str,
+        wql: &str,
+    ) -> lenovo_laptop_control_core::Result<Vec<WmiObject>> {
         if wql.contains("LENOVO_BIOS_ASSISTANT") {
             Ok(self.instances.clone())
         } else {
@@ -43,12 +49,11 @@ impl WmiTransport for FakeAssistantWmi {
             method: method.to_string(),
             input: input.clone(),
         });
-        self.replies
-            .lock()
-            .pop_front()
-            .ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
+        self.replies.lock().pop_front().ok_or_else(|| {
+            LenovoLaptopControlError::ChannelUnavailable {
                 channel: "fake Assistant reply exhausted".into(),
-            })
+            }
+        })
     }
 }
 

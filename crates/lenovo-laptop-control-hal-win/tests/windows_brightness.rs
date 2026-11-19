@@ -271,7 +271,10 @@ fn failure_after_effect_restores_only_requested_value() {
     let error = WindowsPanelBrightness::new(fake.clone())
         .set_brightness(50, None, ApplyMode::Commit)
         .unwrap_err();
-    assert!(matches!(error, LenovoLaptopControlError::ChannelUnavailable { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::ChannelUnavailable { .. }
+    ));
     let state = fake.0.lock().unwrap();
     assert_eq!(state.calls.len(), 2);
     assert_eq!(state.calls[1].1.get("Brightness"), Some(&WmiValue::U8(100)));
@@ -293,7 +296,10 @@ fn third_party_or_lost_or_changed_target_is_never_overwritten() {
         let error = WindowsPanelBrightness::new(fake.clone())
             .set_brightness(50, None, ApplyMode::Commit)
             .unwrap_err();
-        assert!(matches!(error, LenovoLaptopControlError::FirmwareRejected { .. }));
+        assert!(matches!(
+            error,
+            LenovoLaptopControlError::FirmwareRejected { .. }
+        ));
         assert_eq!(fake.0.lock().unwrap().calls.len(), 1);
     }
 }
@@ -307,7 +313,8 @@ fn setter_requires_uint32_zero_return() {
             .unwrap_err();
         assert!(matches!(
             error,
-            LenovoLaptopControlError::ChannelUnavailable { .. } | LenovoLaptopControlError::FirmwareRejected { .. }
+            LenovoLaptopControlError::ChannelUnavailable { .. }
+                | LenovoLaptopControlError::FirmwareRejected { .. }
         ));
         assert_eq!(fake.0.lock().unwrap().calls.len(), 1);
     }
@@ -387,6 +394,9 @@ fn transport_permission_errors_remain_permission_errors_without_identity_leak() 
     let error = WindowsPanelBrightness::new(Denied)
         .brightness()
         .unwrap_err();
-    assert!(matches!(error, LenovoLaptopControlError::PermissionDenied { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::PermissionDenied { .. }
+    ));
     assert!(!error.to_string().contains("private-monitor-identity"));
 }

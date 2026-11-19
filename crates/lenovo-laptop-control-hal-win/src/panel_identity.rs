@@ -25,7 +25,9 @@
 
 use std::ptr;
 
-use lenovo_laptop_control_core::{LenovoLaptopControlError, PanelIdentity, Result, decode_panel_edid};
+use lenovo_laptop_control_core::{
+    LenovoLaptopControlError, PanelIdentity, Result, decode_panel_edid,
+};
 use lenovo_laptop_control_hal::PanelIdentityControl;
 use windows_sys::Win32::System::Registry::{
     HKEY, HKEY_LOCAL_MACHINE, KEY_READ, REG_BINARY, RegCloseKey, RegOpenKeyExW, RegQueryValueExW,
@@ -109,8 +111,7 @@ where
 
 impl PanelRegistry for NativePanelRegistry {
     fn edid(&self, device_instance: &str) -> Result<Vec<u8>> {
-        let path =
-            format!("SYSTEM\\CurrentControlSet\\Enum\\{device_instance}\\Device Parameters");
+        let path = format!("SYSTEM\\CurrentControlSet\\Enum\\{device_instance}\\Device Parameters");
         let path = wide(&path);
         let mut key: HKEY = ptr::null_mut();
         let status =
@@ -234,11 +235,11 @@ fn select_internal_instance(connections: &[WmiObject]) -> Result<String> {
 
 /// Strip the WMI display index (`..._0`) from a monitor instance name.
 fn device_instance_of(instance_name: &str) -> Result<String> {
-    let (device, index) = instance_name
-        .rsplit_once('_')
-        .ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
+    let (device, index) = instance_name.rsplit_once('_').ok_or_else(|| {
+        LenovoLaptopControlError::ChannelUnavailable {
             channel: format!("monitor instance {instance_name} carries no display index"),
-        })?;
+        }
+    })?;
     if device.is_empty() || index.is_empty() || !index.bytes().all(|byte| byte.is_ascii_digit()) {
         return Err(LenovoLaptopControlError::ChannelUnavailable {
             channel: format!("monitor instance {instance_name} does not end in a display index"),
@@ -250,15 +251,15 @@ fn device_instance_of(instance_name: &str) -> Result<String> {
 /// `Some(true)`/`Some(false)` when the instance's class component is a monitor
 /// PnP id, `None` when the generic class (for example `Default_Monitor`) is in
 /// use and no cross-check is possible.
-fn pnp_class_matches(
-    device_instance: &str,
-    manufacturer: &str,
-    product_code: u16,
-) -> Option<bool> {
+fn pnp_class_matches(device_instance: &str, manufacturer: &str, product_code: u16) -> Option<bool> {
     let class = device_instance.split('\\').nth(1)?;
     let class_manufacturer = class.get(..3)?;
     let product = class.get(3..)?;
-    if product.len() != 4 || !class_manufacturer.bytes().all(|byte| byte.is_ascii_uppercase()) {
+    if product.len() != 4
+        || !class_manufacturer
+            .bytes()
+            .all(|byte| byte.is_ascii_uppercase())
+    {
         return None;
     }
     let product = u16::from_str_radix(product, 16).ok()?;
@@ -289,7 +290,10 @@ mod tests {
 
     fn connection(instance: &str, technology: WmiValue) -> WmiObject {
         [
-            ("InstanceName".to_owned(), WmiValue::String(instance.to_owned())),
+            (
+                "InstanceName".to_owned(),
+                WmiValue::String(instance.to_owned()),
+            ),
             ("VideoOutputTechnology".to_owned(), technology),
         ]
         .into_iter()

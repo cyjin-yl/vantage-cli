@@ -103,7 +103,9 @@ impl DisplayConnection {
             Self::INTERNAL | Self::LVDS | Self::DISPLAYPORT_EMBEDDED | Self::UDI_EMBEDDED => {
                 Self::Internal
             }
-            Self::MIRACAST | Self::INDIRECT_WIRED | Self::INDIRECT_VIRTUAL
+            Self::MIRACAST
+            | Self::INDIRECT_WIRED
+            | Self::INDIRECT_VIRTUAL
             | Self::DISPLAYPORT_USB_TUNNEL => Self::Virtual,
             // 0..=5 (HD15, S-Video, composite, component, DVI, HDMI), 8/9
             // (D_JPN, SDI), 10 (external DisplayPort), 12 (UDI external) and 14

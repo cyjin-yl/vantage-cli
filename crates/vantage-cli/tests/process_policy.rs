@@ -9,9 +9,10 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use lenovo_laptop_control_core::{
-    ApplyMode, Availability, CapabilitySet, ChangeReport, HardwareInfo, LenovoLaptopControlError, Platform,
-    ProcessAffinityPolicy, ProcessIdentity, ProcessInventory, ProcessInventoryEntry, ProcessPolicy,
-    ProcessPriorityClass, ProcessSnapshot, ProcessState, ProcessTarget, ProcessWorkingSet, Result,
+    ApplyMode, Availability, CapabilitySet, ChangeReport, HardwareInfo, LenovoLaptopControlError,
+    Platform, ProcessAffinityPolicy, ProcessIdentity, ProcessInventory, ProcessInventoryEntry,
+    ProcessPolicy, ProcessPriorityClass, ProcessSnapshot, ProcessState, ProcessTarget,
+    ProcessWorkingSet, Result,
 };
 use lenovo_laptop_control_hal::{Hal, ProcessControl};
 use vantage_cli::{Cli, CommandServices, execute_with_services};
@@ -209,7 +210,10 @@ fn perf_top_without_service_is_structured_unsupported() {
     let error = execute_with_services(cli, CommandServices::new(&hal))
         .expect_err("missing process service must not succeed");
 
-    assert!(matches!(error, LenovoLaptopControlError::Unsupported { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::Unsupported { .. }
+    ));
     assert!(error.to_string().contains("perf.top"));
 }
 
@@ -304,7 +308,10 @@ fn perf_boost_rejects_a_pid_that_cannot_be_resolved() {
     let error = execute_with_services(cli, CommandServices::new(&hal).with_process(&process))
         .expect_err("an unknown pid must not succeed");
 
-    assert!(matches!(error, LenovoLaptopControlError::InvalidArgument { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::InvalidArgument { .. }
+    ));
     assert_eq!(process.writes.load(Ordering::SeqCst), 0);
 }
 
@@ -317,7 +324,10 @@ fn perf_boost_requires_at_least_one_pid() {
     let error = execute_with_services(cli, CommandServices::new(&hal).with_process(&process))
         .expect_err("an empty pid list must not succeed");
 
-    assert!(matches!(error, LenovoLaptopControlError::InvalidArgument { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::InvalidArgument { .. }
+    ));
     assert_eq!(process.writes.load(Ordering::SeqCst), 0);
 }
 
@@ -329,7 +339,10 @@ fn perf_boost_without_service_is_structured_unsupported() {
     let error = execute_with_services(cli, CommandServices::new(&hal))
         .expect_err("missing process service must not succeed");
 
-    assert!(matches!(error, LenovoLaptopControlError::Unsupported { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::Unsupported { .. }
+    ));
     assert!(error.to_string().contains("perf.boost"));
 }
 

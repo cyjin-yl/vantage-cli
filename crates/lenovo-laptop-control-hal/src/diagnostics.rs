@@ -30,16 +30,20 @@ pub trait UpdateControl: Send + Sync {
     /// device's own applicability filter. Read-only. Backends without a
     /// readable catalog stay honest.
     fn check_updates(&self) -> Result<lenovo_laptop_control_core::UpdateCheckReport> {
-        Err(lenovo_laptop_control_core::LenovoLaptopControlError::Unsupported {
-            feature: "update.check".into(),
-        })
+        Err(
+            lenovo_laptop_control_core::LenovoLaptopControlError::Unsupported {
+                feature: "update.check".into(),
+            },
+        )
     }
 
     /// Read the update history the machine's own update add-in recorded.
     /// Read-only; backends without a local ledger stay honest.
     fn update_history(&self) -> Result<lenovo_laptop_control_core::UpdateHistoryReport> {
-        Err(lenovo_laptop_control_core::LenovoLaptopControlError::Unsupported {
-            feature: "update.history".into(),
-        })
+        Err(
+            lenovo_laptop_control_core::LenovoLaptopControlError::Unsupported {
+                feature: "update.history".into(),
+            },
+        )
     }
 }

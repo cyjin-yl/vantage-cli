@@ -37,7 +37,11 @@ impl FakeWmi {
     }
 }
 impl WmiTransport for FakeWmi {
-    fn query(&self, namespace: &str, wql: &str) -> lenovo_laptop_control_core::Result<Vec<WmiObject>> {
+    fn query(
+        &self,
+        namespace: &str,
+        wql: &str,
+    ) -> lenovo_laptop_control_core::Result<Vec<WmiObject>> {
         assert_eq!(namespace, "ROOT\\WMI");
         assert!(!wql.contains('*'));
         self.queries.lock().push(wql.into());

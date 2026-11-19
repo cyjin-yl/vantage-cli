@@ -50,9 +50,11 @@ pub trait HotkeyControl {
     /// package answers with `service_running = false` and `unknown` switches
     /// instead of an error.
     fn status(&self) -> Result<HotkeyStatus> {
-        Err(lenovo_laptop_control_core::LenovoLaptopControlError::Unsupported {
-            feature: "hotkey.status".into(),
-        })
+        Err(
+            lenovo_laptop_control_core::LenovoLaptopControlError::Unsupported {
+                feature: "hotkey.status".into(),
+            },
+        )
     }
 }
 

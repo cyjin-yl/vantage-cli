@@ -29,7 +29,9 @@ use std::ffi::c_void;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-use lenovo_laptop_control_core::{ApplyMode, ChangeReport, EyeCareLevel, LenovoLaptopControlError, Result};
+use lenovo_laptop_control_core::{
+    ApplyMode, ChangeReport, EyeCareLevel, LenovoLaptopControlError, Result,
+};
 use lenovo_laptop_control_hal::PanelFeaturesControl;
 
 struct DllModule {
@@ -736,10 +738,7 @@ impl IntelControlLib {
             reserved_fields: [0; 16],
         };
         unsafe {
-            (self.handles.ctl_get_set_video_processing_feature)(
-                self.primary_adapter,
-                &mut feature,
-            )
+            (self.handles.ctl_get_set_video_processing_feature)(self.primary_adapter, &mut feature)
         }
     }
 
@@ -853,9 +852,7 @@ impl IntelCtlApi for IntelControlLib {
         let _guard = self.state.lock();
         // Get/set takes `ctl_video_processing_super_resolution_t` (92
         // bytes), not the 116-byte capability payload.
-        Ok(self
-            .read_super_resolution_payload()?
-            .super_resolution_flag)
+        Ok(self.read_super_resolution_payload()?.super_resolution_flag)
     }
 
     fn super_resolution_capability(&self) -> Result<SuperResolutionCaps> {
@@ -1250,9 +1247,12 @@ fn classify_ramp(ramp: &RampSamples) -> Option<EyeCareLevel> {
 
 impl<T: IntelCtlApi> PanelFeaturesControl for WindowsPanelFeatures<T> {
     fn eye_care(&self) -> Result<Option<EyeCareLevel>> {
-        let gamma = self.gamma.as_deref().ok_or_else(|| LenovoLaptopControlError::Unsupported {
-            feature: "panel.eye-care.gamma-ramp-detached".to_string(),
-        })?;
+        let gamma = self
+            .gamma
+            .as_deref()
+            .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                feature: "panel.eye-care.gamma-ramp-detached".to_string(),
+            })?;
         Ok(classify_ramp(&gamma.get()?))
     }
 
@@ -1261,9 +1261,12 @@ impl<T: IntelCtlApi> PanelFeaturesControl for WindowsPanelFeatures<T> {
         level: EyeCareLevel,
         apply: ApplyMode,
     ) -> Result<ChangeReport<Option<EyeCareLevel>>> {
-        let gamma = self.gamma.as_deref().ok_or_else(|| LenovoLaptopControlError::Unsupported {
-            feature: "panel.eye-care.gamma-ramp-detached".to_string(),
-        })?;
+        let gamma = self
+            .gamma
+            .as_deref()
+            .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                feature: "panel.eye-care.gamma-ramp-detached".to_string(),
+            })?;
         // The raw ramp is captured, not just its classification: it is the
         // rollback target even when it matches no known level.
         let previous_ramp = gamma.get()?;
@@ -1290,7 +1293,9 @@ impl<T: IntelCtlApi> PanelFeaturesControl for WindowsPanelFeatures<T> {
         Err(LenovoLaptopControlError::VerifyMismatch {
             requested: level.to_string(),
             actual: match restored {
-                Ok(()) => format!("observed {observed_text} after the write; previous ramp restored"),
+                Ok(()) => {
+                    format!("observed {observed_text} after the write; previous ramp restored")
+                }
                 Err(error) => format!(
                     "observed {observed_text} after the write; restoring the previous ramp failed: {error}"
                 ),
@@ -1391,11 +1396,13 @@ impl IntelControlLib {
 
 fn discover_intel_control_lib() -> Result<PathBuf> {
     let store = PathBuf::from(r"C:\Windows\System32\DriverStore\FileRepository");
-    let entries = std::fs::read_dir(&store).map_err(|error| LenovoLaptopControlError::ChannelUnavailable {
-        channel: format!(
-            "cannot enumerate {} (Intel graphics driver required): {error}",
-            store.display()
-        ),
+    let entries = std::fs::read_dir(&store).map_err(|error| {
+        LenovoLaptopControlError::ChannelUnavailable {
+            channel: format!(
+                "cannot enumerate {} (Intel graphics driver required): {error}",
+                store.display()
+            ),
+        }
     })?;
     let mut candidates: Vec<PathBuf> = entries
         .filter_map(std::result::Result::ok)

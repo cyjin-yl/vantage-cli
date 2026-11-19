@@ -244,17 +244,20 @@ fn read_ledger_file() -> Option<FixLedger> {
 }
 
 fn persist_ledger_entry(ledger: &Mutex<FixLedger>, entry: FixLedgerEntry) -> Result<()> {
-    let mut guard = ledger.lock().map_err(|_| LenovoLaptopControlError::InvalidArgument {
-        detail: "fix ledger lock was poisoned".into(),
-    })?;
+    let mut guard = ledger
+        .lock()
+        .map_err(|_| LenovoLaptopControlError::InvalidArgument {
+            detail: "fix ledger lock was poisoned".into(),
+        })?;
     guard.entries.push(entry);
     let path = ledger_path().ok_or_else(|| LenovoLaptopControlError::InvalidArgument {
         detail: "USERPROFILE is unset; cannot persist the fix ledger".into(),
     })?;
-    let text =
-        serde_json::to_string_pretty(&*guard).map_err(|error| LenovoLaptopControlError::InvalidArgument {
+    let text = serde_json::to_string_pretty(&*guard).map_err(|error| {
+        LenovoLaptopControlError::InvalidArgument {
             detail: format!("serializing fix ledger failed: {error}"),
-        })?;
+        }
+    })?;
     write_all(&path, text.as_bytes())
 }
 

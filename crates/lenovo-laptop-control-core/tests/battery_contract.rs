@@ -1,8 +1,8 @@
 use lenovo_laptop_control_core::{
     AdapterAuthentication, AdapterDetailValues, AdapterInfo, BatteryDate, BatteryHealth,
-    BatteryTelemetry, ChargeMode, ChargeModeActual, ChargePrimitive, ChargeStatus, LenovoLaptopControlError,
-    NightChargeState, TemporaryChargeMode, TemporaryChargeState, decode_charge_mode,
-    decode_gbmd_charge_mode, plan_charge_mode,
+    BatteryTelemetry, ChargeMode, ChargeModeActual, ChargePrimitive, ChargeStatus,
+    LenovoLaptopControlError, NightChargeState, TemporaryChargeMode, TemporaryChargeState,
+    decode_charge_mode, decode_gbmd_charge_mode, plan_charge_mode,
 };
 
 #[test]
@@ -630,11 +630,12 @@ fn temporary_charge_mode_matches_contract_values_and_names() {
     assert_eq!(json["mode"], "plug_in");
 }
 
-const WEAR_FIELDS: lenovo_laptop_control_core::BatteryFieldProvenance = lenovo_laptop_control_core::BatteryFieldProvenance {
-    design_capacity: "root\\WMI:BatteryStaticData.DesignedCapacity",
-    full_charge_capacity: "root\\WMI:BatteryFullChargedCapacity.FullChargedCapacity",
-    cycle_count: "root\\WMI:BatteryCycleCount.CycleCount",
-};
+const WEAR_FIELDS: lenovo_laptop_control_core::BatteryFieldProvenance =
+    lenovo_laptop_control_core::BatteryFieldProvenance {
+        design_capacity: "root\\WMI:BatteryStaticData.DesignedCapacity",
+        full_charge_capacity: "root\\WMI:BatteryFullChargedCapacity.FullChargedCapacity",
+        cycle_count: "root\\WMI:BatteryCycleCount.CycleCount",
+    };
 
 #[test]
 fn wear_percent_is_derived_only_from_absolute_capacities() {
@@ -702,10 +703,12 @@ fn zero_full_charge_capacity_is_unsupported_not_a_measurement() {
     assert_eq!(report.full_charge_capacity_mwh, None);
     assert_eq!(report.capacity_ratio_percent, None);
     assert_eq!(report.wear_percent, None);
-    assert!(report
-        .issues
-        .iter()
-        .any(|issue| issue.detail.contains("full-charge capacity")));
+    assert!(
+        report
+            .issues
+            .iter()
+            .any(|issue| issue.detail.contains("full-charge capacity"))
+    );
 }
 
 #[test]
@@ -720,10 +723,12 @@ fn full_charge_above_design_keeps_the_ratio_and_refuses_wear() {
     );
     assert_eq!(report.capacity_ratio_percent, Some(104));
     assert_eq!(report.wear_percent, None);
-    assert!(report
-        .issues
-        .iter()
-        .any(|issue| issue.detail.contains("exceeds design capacity")));
+    assert!(
+        report
+            .issues
+            .iter()
+            .any(|issue| issue.detail.contains("exceeds design capacity"))
+    );
 }
 
 #[test]

@@ -2,7 +2,9 @@ use std::collections::{BTreeMap, VecDeque};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use lenovo_laptop_control_core::{BiosApplyEffect, BiosChange, BiosItem, BiosPasswordStatus, LenovoLaptopControlError};
+use lenovo_laptop_control_core::{
+    BiosApplyEffect, BiosChange, BiosItem, BiosPasswordStatus, LenovoLaptopControlError,
+};
 use lenovo_laptop_control_hal::{BiosControl, apply_bios_transaction, plan_bios_apply};
 
 struct FakeBios {

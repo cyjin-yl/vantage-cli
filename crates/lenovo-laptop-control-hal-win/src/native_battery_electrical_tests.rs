@@ -14,7 +14,9 @@ fn query_tag_classifies_only_documented_empty_ports() {
     );
     for code in [5, 6, 87, 122, 1167] {
         match battery_tag(Err(std::io::Error::from_raw_os_error(code).into())) {
-            Err(LenovoLaptopControlError::Io(error)) => assert_eq!(error.raw_os_error(), Some(code)),
+            Err(LenovoLaptopControlError::Io(error)) => {
+                assert_eq!(error.raw_os_error(), Some(code))
+            }
             result => panic!("unexpected tag classification: {result:?}"),
         }
     }

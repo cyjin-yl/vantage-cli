@@ -9,7 +9,7 @@ use std::sync::Mutex;
 
 use lenovo_laptop_control_core::{LenovoLaptopControlError, Result};
 use lenovo_laptop_control_hal::GpuOcControl;
-use lenovo_laptop_control_hal_win::{WmiObject, WmiTransport, WmiValue, WindowsGpuOc};
+use lenovo_laptop_control_hal_win::{WindowsGpuOc, WmiObject, WmiTransport, WmiValue};
 
 struct FakeWmi {
     /// `(ReturnValue, Data)` for every `Is*` probe invocation.
@@ -80,11 +80,17 @@ fn unsupported_machine_reports_probe_and_provider_verdict() {
 
     let status = gpu.gpu_oc_status().unwrap();
 
-    assert!(!status.supported, "Data=0 means the firmware does not support GPU OC");
+    assert!(
+        !status.supported,
+        "Data=0 means the firmware does not support GPU OC"
+    );
     assert_eq!(status.probe.method, "LENOVO_GAMEZONE_DATA.IsSupportGpuOC");
     assert!(status.probe.return_value);
     assert_eq!(status.probe.data, 0);
-    assert!(status.parameter.is_none(), "no instance means no parameter block");
+    assert!(
+        status.parameter.is_none(),
+        "no instance means no parameter block"
+    );
     let reason = status.parameter_error.expect("the verdict is kept as text");
     assert!(
         reason.contains("LENOVO_GAMEZONE_GPU_OC_DATA"),
@@ -162,7 +168,10 @@ fn incomplete_parameter_row_is_refused_instead_of_defaulted() {
     assert!(status.supported);
     assert!(status.parameter.is_none());
     let reason = status.parameter_error.expect("the omission is reported");
-    assert!(reason.contains("PStateID"), "missing field is named: {reason}");
+    assert!(
+        reason.contains("PStateID"),
+        "missing field is named: {reason}"
+    );
 }
 
 #[test]

@@ -21,15 +21,16 @@ use std::io;
 use std::mem::size_of;
 
 use lenovo_laptop_control_core::{
-    Availability, CapabilitySet, LenovoLaptopControlError, PowerDeliveryReport, Result, UsbController,
-    UsbControllerKind, UsbHub, UsbPdController, UsbPort, UsbPortDevice, UsbPortInventory,
+    Availability, CapabilitySet, LenovoLaptopControlError, PowerDeliveryReport, Result,
+    UsbController, UsbControllerKind, UsbHub, UsbPdController, UsbPort, UsbPortDevice,
+    UsbPortInventory,
 };
 use lenovo_laptop_control_hal::UsbPortInventoryControl;
 use windows_sys::Win32::Devices::DeviceAndDriverInstallation::{
-    CM_Get_Child, CM_Get_Device_IDW, CM_Get_DevNode_PropertyW, CM_Get_Sibling, CM_Locate_DevNodeW,
+    CM_Get_Child, CM_Get_DevNode_PropertyW, CM_Get_Device_IDW, CM_Get_Sibling, CM_Locate_DevNodeW,
     CR_SUCCESS, DIGCF_DEVICEINTERFACE, DIGCF_PRESENT, GUID_DEVCLASS_UCM, GUID_DEVCLASS_USB,
-    HDEVINFO, MAX_DEVICE_ID_LEN, SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W,
-    SP_DEVINFO_DATA, SETUP_DI_GET_CLASS_DEVS_FLAGS, SetupDiDestroyDeviceInfoList,
+    HDEVINFO, MAX_DEVICE_ID_LEN, SETUP_DI_GET_CLASS_DEVS_FLAGS, SP_DEVICE_INTERFACE_DATA,
+    SP_DEVICE_INTERFACE_DETAIL_DATA_W, SP_DEVINFO_DATA, SetupDiDestroyDeviceInfoList,
     SetupDiEnumDeviceInfo, SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW,
     SetupDiGetDeviceInterfaceDetailW, SetupDiGetDevicePropertyW,
 };
@@ -67,8 +68,7 @@ const MAX_HUB_CHILDREN: usize = 64;
 /// USB4 port state is owned by the `Usb4DeviceRouter` stack; the platform
 /// exposes no user-mode enumeration for it, so `usb ports` reports the router
 /// instead of guessing a port list.
-const USB4_PORT_ENUMERATION_UNAVAILABLE: &str =
-    "USB4 port state is owned by the Usb4DeviceRouter stack; the platform exposes no user-mode \
+const USB4_PORT_ENUMERATION_UNAVAILABLE: &str = "USB4 port state is owned by the Usb4DeviceRouter stack; the platform exposes no user-mode \
      port enumeration for it";
 
 /// Read-only USB port inventory for this machine.
@@ -322,9 +322,9 @@ fn probe_hub(hub: &HubInterface) -> Result<UsbHub> {
                 product_id: descriptor.product_id,
                 usb_revision: format_usb_revision(descriptor.bcd_usb),
                 is_hub: descriptor.device_is_hub,
-                max_power_ma: handle
-                    .port_configuration(number)
-                    .map(|configuration| max_power_ma(configuration.max_power_raw, descriptor.bcd_usb)),
+                max_power_ma: handle.port_configuration(number).map(|configuration| {
+                    max_power_ma(configuration.max_power_raw, descriptor.bcd_usb)
+                }),
             }
         });
 
@@ -568,7 +568,13 @@ impl HubHandle {
         Ok(Self(handle))
     }
 
-    fn ioctl(&self, code: u32, input: &[u8], input_length: u32, output: &mut [u8]) -> Result<usize> {
+    fn ioctl(
+        &self,
+        code: u32,
+        input: &[u8],
+        input_length: u32,
+        output: &mut [u8],
+    ) -> Result<usize> {
         let mut returned = 0u32;
         let ok = unsafe {
             DeviceIoControl(
@@ -708,7 +714,10 @@ fn setupapi_property(
             )
         };
         if ok != 0 {
-            return Some(RawProperty { kind, bytes: buffer });
+            return Some(RawProperty {
+                kind,
+                bytes: buffer,
+            });
         }
         if required as usize > capacity {
             continue;
@@ -727,7 +736,10 @@ fn devnode_property(devinst: u32, key: &DEVPROPKEY) -> Option<RawProperty> {
             CM_Get_DevNode_PropertyW(devinst, key, &mut kind, buffer.as_mut_ptr(), &mut size, 0)
         };
         if status == CR_SUCCESS {
-            return Some(RawProperty { kind, bytes: buffer });
+            return Some(RawProperty {
+                kind,
+                bytes: buffer,
+            });
         }
         if size as usize > capacity {
             continue;

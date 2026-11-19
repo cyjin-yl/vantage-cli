@@ -348,7 +348,10 @@ mod tests {
         assert_eq!(identity.bios_release().as_deref(), Some("1.22"));
         assert_eq!(identity.ec_firmware(), None);
         assert_eq!(identity.smbios_version().as_deref(), Some("3.8"));
-        assert_eq!(format_firmware_version(0x7125_0022), "1898250274 (0x71250022)");
+        assert_eq!(
+            format_firmware_version(0x7125_0022),
+            "1898250274 (0x71250022)"
+        );
     }
 
     #[test]

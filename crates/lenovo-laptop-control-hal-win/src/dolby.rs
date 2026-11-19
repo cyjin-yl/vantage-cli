@@ -55,7 +55,9 @@
 
 use std::time::Duration;
 
-use lenovo_laptop_control_core::{ApplyMode, ChangeReport, DolbyProfile, DolbyState, LenovoLaptopControlError, Result};
+use lenovo_laptop_control_core::{
+    ApplyMode, ChangeReport, DolbyProfile, DolbyState, LenovoLaptopControlError, Result,
+};
 use lenovo_laptop_control_hal::AudioControl;
 use lenovo_laptop_control_hal::poll_readback_until;
 

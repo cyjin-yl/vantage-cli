@@ -1,6 +1,10 @@
-use lenovo_laptop_control_core::{CapabilitySet, CommandSelector, HardwarePresence, HardwareRequirement};
+use lenovo_laptop_control_core::{
+    CapabilitySet, CommandSelector, HardwarePresence, HardwareRequirement,
+};
 use lenovo_laptop_control_hal::HardwareObservation;
-use lenovo_laptop_control_hal::{CommandCapability, DispatchSupport, FeatureBinding, ServiceBinding, ServiceRole};
+use lenovo_laptop_control_hal::{
+    CommandCapability, DispatchSupport, FeatureBinding, ServiceBinding, ServiceRole,
+};
 
 /// Map a parsed CLI command to the exact registry selector.
 ///
@@ -896,7 +900,9 @@ fn evaluate_command(
     {
         capabilities
             .get("bios.staging.contract")
-            .filter(|capability| capability.availability == lenovo_laptop_control_core::Availability::Unavailable)
+            .filter(|capability| {
+                capability.availability == lenovo_laptop_control_core::Availability::Unavailable
+            })
     } else {
         None
     };
@@ -946,19 +952,18 @@ fn evaluate_command(
         | (DispatchSupport::Implemented, _service, FeaturePresence::Unverified) => {
             // The feature probe recorded a reason on the capability record;
             // surface it so `capability` does not print a bare status.
-            let detail = feature_reason(entry.feature, capabilities)
-                .or_else(|| match feature {
-                    FeaturePresence::Unverified => match entry.feature {
-                        FeatureBinding::Unprobed(f) => {
-                            Some(format!("{f} has not been probed on this platform"))
-                        }
-                        FeatureBinding::Capability(f) => {
-                            Some(format!("{f} capability is not recorded on this platform"))
-                        }
-                        _ => None,
-                    },
+            let detail = feature_reason(entry.feature, capabilities).or_else(|| match feature {
+                FeaturePresence::Unverified => match entry.feature {
+                    FeatureBinding::Unprobed(f) => {
+                        Some(format!("{f} has not been probed on this platform"))
+                    }
+                    FeatureBinding::Capability(f) => {
+                        Some(format!("{f} capability is not recorded on this platform"))
+                    }
                     _ => None,
-                });
+                },
+                _ => None,
+            });
             return make(
                 entry,
                 hardware,
@@ -1031,15 +1036,10 @@ fn evaluate_command(
 
 /// The detail string a feature probe recorded, or `None` when the probe
 /// ran clean or the feature was never recorded.
-fn feature_reason(
-    binding: FeatureBinding,
-    capabilities: &CapabilitySet,
-) -> Option<String> {
+fn feature_reason(binding: FeatureBinding, capabilities: &CapabilitySet) -> Option<String> {
     let features = match binding {
         FeatureBinding::Capability(feature) | FeatureBinding::Unprobed(feature) => vec![feature],
-        FeatureBinding::AnyOf(features) | FeatureBinding::Dynamic(features) => {
-            features.to_vec()
-        }
+        FeatureBinding::AnyOf(features) | FeatureBinding::Dynamic(features) => features.to_vec(),
         FeatureBinding::LocalOnly | FeatureBinding::ServiceOnly => return None,
     };
     for feature in features {
@@ -1143,9 +1143,7 @@ fn role_channel(role: ServiceRole) -> Option<&'static str> {
         // This arm list is exhaustive on purpose: a new `ServiceRole` variant
         // must decide its channel here rather than silently inheriting
         // `Unexposed` (capability audit §6.2).
-        ServiceRole::Hal
-        | ServiceRole::MagicBayCamera
-        | ServiceRole::MagicBayDisplay => None,
+        ServiceRole::Hal | ServiceRole::MagicBayCamera | ServiceRole::MagicBayDisplay => None,
     }
 }
 
@@ -1155,9 +1153,8 @@ fn role_present(role: ServiceRole, capabilities: &CapabilitySet) -> ServicePrese
     }
     match role_channel(role).and_then(|name| capabilities.get(name)) {
         Some(capability) => match capability.availability {
-            lenovo_laptop_control_core::Availability::Available | lenovo_laptop_control_core::Availability::Limited => {
-                ServicePresence::Present
-            }
+            lenovo_laptop_control_core::Availability::Available
+            | lenovo_laptop_control_core::Availability::Limited => ServicePresence::Present,
             lenovo_laptop_control_core::Availability::Unavailable => ServicePresence::Unexposed,
         },
         None => ServicePresence::Unexposed,

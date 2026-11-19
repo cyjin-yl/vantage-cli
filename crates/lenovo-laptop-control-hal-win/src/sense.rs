@@ -51,11 +51,12 @@ impl<R: HpdRpc, P: SensePipe, S: HpdSettingsStore> WindowsSenseControl<R, P, S> 
         if feature.rpc_command().is_some() || feature.context_only_rpc().is_some() {
             return self.rpc.set_feature(feature);
         }
-        let (code, arg) = feature
-            .pipe_command()
-            .ok_or_else(|| LenovoLaptopControlError::Unsupported {
-                feature: format!("no recovered SmartSense setter for {feature:?}"),
-            })?;
+        let (code, arg) =
+            feature
+                .pipe_command()
+                .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                    feature: format!("no recovered SmartSense setter for {feature:?}"),
+                })?;
         match self.pipe.call(code, arg)? {
             0 => Err(LenovoLaptopControlError::FirmwareRejected {
                 detail: format!("SmartSense pipe rejected command 0x{code:08x} arg {arg}"),

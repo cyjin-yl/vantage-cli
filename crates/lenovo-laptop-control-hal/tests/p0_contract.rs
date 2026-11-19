@@ -8,7 +8,10 @@ use lenovo_laptop_control_hal::{BatteryControl, FanControl, PerformanceControl, 
 struct FakeP0;
 
 impl BatteryControl for FakeP0 {
-    fn battery_telemetry(&self, _index: u32) -> lenovo_laptop_control_core::Result<BatteryTelemetry> {
+    fn battery_telemetry(
+        &self,
+        _index: u32,
+    ) -> lenovo_laptop_control_core::Result<BatteryTelemetry> {
         unreachable!()
     }
     fn adapter_info(&self) -> lenovo_laptop_control_core::Result<AdapterInfo> {
@@ -85,7 +88,8 @@ impl PowerControl for FakeP0 {
         &self,
         _scheme: &PowerSchemeId,
         _key: &PowerSettingKey,
-    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::PowerSettingObservation> {
+    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::PowerSettingObservation>
+    {
         unreachable!()
     }
 

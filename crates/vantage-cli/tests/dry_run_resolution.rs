@@ -425,7 +425,10 @@ fn root_dry_run_reaches_local_driver_apply() {
 #[test]
 fn root_dry_run_reaches_local_driver_rollback() {
     let observation = execute_driver(&driver_rollback_argv(true));
-    assert_dry_run(&observation, "vantage --dry-run update local-driver rollback");
+    assert_dry_run(
+        &observation,
+        "vantage --dry-run update local-driver rollback",
+    );
 }
 
 #[test]
@@ -510,8 +513,15 @@ fn commit_without_either_spelling_still_commits() {
 
 #[test]
 fn tune_profile_apply_reads_the_single_global_flag() {
-    let cli = Cli::try_parse_from(["vantage", "--dry-run", "tune", "profile", "apply", "balanced"])
-        .expect("parse tune profile apply");
+    let cli = Cli::try_parse_from([
+        "vantage",
+        "--dry-run",
+        "tune",
+        "profile",
+        "apply",
+        "balanced",
+    ])
+    .expect("parse tune profile apply");
     assert!(cli.dry_run);
     assert!(matches!(
         cli.command,
@@ -522,9 +532,15 @@ fn tune_profile_apply_reads_the_single_global_flag() {
         }
     ));
 
-    let trailing =
-        Cli::try_parse_from(["vantage", "tune", "profile", "apply", "balanced", "--dry-run"])
-            .expect("parse tune profile apply with the trailing flag");
+    let trailing = Cli::try_parse_from([
+        "vantage",
+        "tune",
+        "profile",
+        "apply",
+        "balanced",
+        "--dry-run",
+    ])
+    .expect("parse tune profile apply with the trailing flag");
     assert!(
         trailing.dry_run,
         "the trailing spelling must still reach the global flag"

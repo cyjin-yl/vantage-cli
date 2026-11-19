@@ -63,7 +63,10 @@ fn module_row(device_id: &str) -> WmiObject {
 fn adapter_row(index: u32, if_type: u32, media: u32, operational: u32) -> WmiObject {
     object(&[
         ("InterfaceIndex", WmiValue::U32(index)),
-        ("InterfaceType", WmiValue::U16(u16::try_from(if_type).unwrap())),
+        (
+            "InterfaceType",
+            WmiValue::U16(u16::try_from(if_type).unwrap()),
+        ),
         (
             "InterfaceDescription",
             WmiValue::String("Generic Mobile Broadband Adapter".into()),
@@ -77,7 +80,10 @@ fn address_row(index: u32, address: &str, family: u32) -> WmiObject {
     object(&[
         ("InterfaceIndex", WmiValue::U32(index)),
         ("IPAddress", WmiValue::String(address.into())),
-        ("AddressFamily", WmiValue::U16(u16::try_from(family).unwrap())),
+        (
+            "AddressFamily",
+            WmiValue::U16(u16::try_from(family).unwrap()),
+        ),
     ])
 }
 
@@ -108,11 +114,18 @@ fn attached_composite_module_reports_link_state_and_data_session() {
     assert_eq!(status.modules.len(), 1, "parent and MI_00 coalesce");
     assert_eq!(status.modules[0].kind, MagicBayKind::Lte2);
     assert_eq!(status.modules[0].interfaces, vec!["mbim"]);
-    assert_eq!(status.interfaces.len(), 1, "only WWAN interfaces are listed");
+    assert_eq!(
+        status.interfaces.len(),
+        1,
+        "only WWAN interfaces are listed"
+    );
     assert_eq!(status.interfaces[0].interface_index, 57);
     assert_eq!(status.interfaces[0].ipv4, vec!["10.42.7.9"]);
     assert_eq!(status.interfaces[0].ipv6.len(), 1);
-    assert!(status.data_session, "a routable address means a data session");
+    assert!(
+        status.data_session,
+        "a routable address means a data session"
+    );
 }
 
 #[test]
@@ -193,7 +206,9 @@ fn documented_media_and_operational_values_are_projected() {
     let status = WindowsMobileBroadband::new(&wmi)
         .lte_status()
         .expect("status");
-    use lenovo_laptop_control_core::{MagicBayLteMediaState as Media, MagicBayLteOperational as Operational};
+    use lenovo_laptop_control_core::{
+        MagicBayLteMediaState as Media, MagicBayLteOperational as Operational,
+    };
     let expected = [
         (Media::Connected, Operational::Up),
         (Media::Disconnected, Operational::NotPresent),
@@ -202,7 +217,11 @@ fn documented_media_and_operational_values_are_projected() {
     ];
     assert_eq!(status.interfaces.len(), expected.len());
     for (interface, (media, operational)) in status.interfaces.iter().zip(expected) {
-        assert_eq!(interface.media_state, media, "{}", interface.interface_index);
+        assert_eq!(
+            interface.media_state, media,
+            "{}",
+            interface.interface_index
+        );
         assert_eq!(
             interface.operational, operational,
             "{}",

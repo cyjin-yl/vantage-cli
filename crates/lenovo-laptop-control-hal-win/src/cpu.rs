@@ -86,8 +86,10 @@ where
         && registry_identifier.is_none()
         && registry_clock.is_none()
     {
-        return Err(identity_failure.unwrap_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
-            channel: format!("{PROCESSOR_NAME_VALUE:?} registry value and Win32_Processor"),
+        return Err(identity_failure.unwrap_or_else(|| {
+            LenovoLaptopControlError::ChannelUnavailable {
+                channel: format!("{PROCESSOR_NAME_VALUE:?} registry value and Win32_Processor"),
+            }
         }));
     }
 
@@ -96,9 +98,8 @@ where
         name: processor
             .and_then(|object| string_field(object, "Name"))
             .or(registry_name),
-        vendor: registry_vendor.or_else(|| {
-            processor.and_then(|object| string_field(object, "Manufacturer"))
-        }),
+        vendor: registry_vendor
+            .or_else(|| processor.and_then(|object| string_field(object, "Manufacturer"))),
         identifier: registry_identifier,
         cores: processor.and_then(|object| u32_field(object, "NumberOfCores")),
         threads: processor.and_then(|object| u32_field(object, "NumberOfLogicalProcessors")),
@@ -148,13 +149,10 @@ fn clock_clusters(rows: &[WmiObject]) -> (Vec<CpuClockCluster>, Availability, Op
     let mut grouped: BTreeMap<u32, (Vec<u32>, Option<u32>)> = BTreeMap::new();
     let mut per_processor_rows = 0_usize;
     for row in rows {
-        let Some(index) = row
-            .get("Name")
-            .and_then(|value| match value {
-                WmiValue::String(name) => counter_logical_index(name),
-                _ => None,
-            })
-        else {
+        let Some(index) = row.get("Name").and_then(|value| match value {
+            WmiValue::String(name) => counter_logical_index(name),
+            _ => None,
+        }) else {
             continue;
         };
         per_processor_rows += 1;

@@ -5,7 +5,9 @@ use lenovo_laptop_control_core::{
     PowerSourceValues, PowerValueRange, ProcessorBoostMode, Result,
 };
 use lenovo_laptop_control_hal::{PowerLimitKind, ProcessorPowerControl, TuningControl};
-use lenovo_laptop_control_hal_win::{PowerApi, WindowsPowerP0, epp_percent_from_raw, epp_raw_from_percent};
+use lenovo_laptop_control_hal_win::{
+    PowerApi, WindowsPowerP0, epp_percent_from_raw, epp_raw_from_percent,
+};
 
 const EPP_SETTING: &str = "36687f9e-e3a5-4dbf-b1dc-15eb381c6863";
 const BOOST_SETTING: &str = "be337238-0d82-4146-a960-4f3749d470c7";
@@ -175,8 +177,10 @@ impl PowerApi for FakePowerApi {
     }
 
     fn apply_if_active(&self, _: &PowerSchemeId) -> Result<bool> {
-        let source = (*self.last_write.lock()).ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
-            channel: "test apply had no preceding write".into(),
+        let source = (*self.last_write.lock()).ok_or_else(|| {
+            LenovoLaptopControlError::ChannelUnavailable {
+                channel: "test apply had no preceding write".into(),
+            }
         })?;
         self.calls.lock().push(Call::Apply(source));
         let should_fail = {

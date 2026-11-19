@@ -1,4 +1,6 @@
-use lenovo_laptop_control_core::{Availability, CapabilitySet, HardwareInfo, Platform, Result, SystemIdentity};
+use lenovo_laptop_control_core::{
+    Availability, CapabilitySet, HardwareInfo, Platform, Result, SystemIdentity,
+};
 use lenovo_laptop_control_hal::{
     BatteryElectricalSource, BluetoothControl, Hal, HotkeyControl, SecurityAvailability,
     TouchpadControl, WifiStatusControl,
@@ -9,9 +11,8 @@ use crate::MmDeviceApi;
 use crate::{
     EnergyDriver, GameZone, IoctlTransport, NativePerformanceRegistry, PerformanceRegistryReader,
     WmiObject, WmiTransport, WmiValue, active_instance, its_policy::record_its_policy_capability,
-    mobile_broadband::probe_mobile_broadband,
-    power_overlay::NativePowerOverlay, power_overlay::PowerOverlayControl,
-    wmi_contract::ROOT_WMI,
+    mobile_broadband::probe_mobile_broadband, power_overlay::NativePowerOverlay,
+    power_overlay::PowerOverlayControl, wmi_contract::ROOT_WMI,
 };
 #[cfg(windows)]
 use crate::{WIN_MSR_TRANSPORT, WinMsrDev};
@@ -201,8 +202,7 @@ where
             } else {
                 Availability::Unavailable
             },
-            (!firmware_ok)
-                .then(|| "no firmware-class (ESRT) device is projected".into()),
+            (!firmware_ok).then(|| "no firmware-class (ESRT) device is projected".into()),
         )?;
 
         match active_instance(&self.wmi, "LENOVO_UTILITY_DATA") {
@@ -855,8 +855,10 @@ where
                 error.map(|error| error.to_string())
             }
             Err(error) => {
-                thermal_source_failed =
-                    !matches!(error, lenovo_laptop_control_core::LenovoLaptopControlError::Unsupported { .. });
+                thermal_source_failed = !matches!(
+                    error,
+                    lenovo_laptop_control_core::LenovoLaptopControlError::Unsupported { .. }
+                );
                 Some(error.to_string())
             }
         };
@@ -880,8 +882,10 @@ where
                     .join("; ")
             }),
             Err(error) => {
-                battery_source_failed =
-                    !matches!(error, lenovo_laptop_control_core::LenovoLaptopControlError::Unsupported { .. });
+                battery_source_failed = !matches!(
+                    error,
+                    lenovo_laptop_control_core::LenovoLaptopControlError::Unsupported { .. }
+                );
                 Some(error.to_string())
             }
         };
@@ -910,15 +914,21 @@ where
                         error.to_string()
                     })
             }
-            Err(error) if matches!(error, lenovo_laptop_control_core::LenovoLaptopControlError::Unsupported { .. }) => None,
+            Err(error)
+                if matches!(
+                    error,
+                    lenovo_laptop_control_core::LenovoLaptopControlError::Unsupported { .. }
+                ) =>
+            {
+                None
+            }
             Err(error) => {
                 esif_source_failed = true;
                 Some(error.to_string())
             }
         };
-        let temperature_readable = thermal_zone_error.is_none()
-            || battery_temperature_error.is_none()
-            || esif_readable;
+        let temperature_readable =
+            thermal_zone_error.is_none() || battery_temperature_error.is_none() || esif_readable;
         let mut source_failures = Vec::new();
         if let Some(reason) = &thermal_zone_error {
             source_failures.push(format!("ACPI: {reason}"));
@@ -1185,7 +1195,10 @@ where
                 } else {
                     Availability::Unavailable
                 },
-                wifi_status_probe.as_ref().err().map(|error| error.to_string()),
+                wifi_status_probe
+                    .as_ref()
+                    .err()
+                    .map(|error| error.to_string()),
             )?;
             let bluetooth_probe = crate::WindowsBluetooth.bluetooth_devices();
             let bluetooth_detail = match &bluetooth_probe {
@@ -1219,7 +1232,8 @@ where
             // sensor), so the detail states what this machine actually
             // instantiates instead of assuming a sensor type exists
             // (docs/evidence/re-sensors-20261105.md §3).
-            let sensor_probe = lenovo_laptop_control_hal::SensorControl::list(&crate::WindowsSensors);
+            let sensor_probe =
+                lenovo_laptop_control_hal::SensorControl::list(&crate::WindowsSensors);
             let sensor_detail = match &sensor_probe {
                 Ok(inventory) => format!(
                     "{} sensor report(s); {} enumerated sensor(s) returned no report",
@@ -1234,11 +1248,7 @@ where
                 Availability::Unavailable
             };
             for channel in ["channel.sensor", "sensor.list"] {
-                capabilities.record(
-                    channel,
-                    sensor_availability,
-                    Some(sensor_detail.clone()),
-                )?;
+                capabilities.record(channel, sensor_availability, Some(sensor_detail.clone()))?;
             }
             // Secure Boot / TPM / BitLocker. Every component is read-only and
             // reports its own reason: the channel is `Available` only when all
@@ -1272,7 +1282,8 @@ where
             // role no longer depends on an unmapped id (capability audit §6.2).
             // `radio.off`/`radio.on` stay unprobed on purpose: a status query
             // cannot prove an owned set-state with readback.
-            let radio_probe = lenovo_laptop_control_hal::RadioControl::radio_status(&crate::NativeRadio::new());
+            let radio_probe =
+                lenovo_laptop_control_hal::RadioControl::radio_status(&crate::NativeRadio::new());
             let (radio_availability, radio_detail) = match &radio_probe {
                 Ok(report) => (
                     Availability::Available,
@@ -1670,10 +1681,8 @@ where
             Err(_) => Availability::Unavailable,
         },
         Some(match &firmware_fan_mode {
-            Ok(_) => {
-                "GAMEZONE GetSmartFanMode readable; fan-mode writes are verified by readback"
-                    .to_string()
-            }
+            Ok(_) => "GAMEZONE GetSmartFanMode readable; fan-mode writes are verified by readback"
+                .to_string(),
             Err(error) => format!(
                 "GetSmartFanMode unavailable ({error}); SetSmartFanMode acknowledges calls \
                  without validating the value and its result cannot be read back, so a \
@@ -1694,18 +1703,24 @@ where
             Availability::Unavailable
         },
         match &wmae_fan {
-            Ok(rpm) => Some(format!("WMAE SIDS 0x04030001 live tach readable ({rpm} RPM)")),
+            Ok(rpm) => Some(format!(
+                "WMAE SIDS 0x04030001 live tach readable ({rpm} RPM)"
+            )),
             Err(error) => Some(format!("WMAE fan tach rejected: {error}")),
         },
     )?;
     capabilities.record(
         "perf.fan.duty.write",
-        if wmae_fan.is_ok() {
-            Availability::Available
+        if matches!(&wmae_fan, Ok(rpm) if *rpm > 0) && fan_inventory_available {
+            Availability::Limited
         } else {
             Availability::Unavailable
         },
         match &wmae_fan {
+            Ok(0) => Some("WMAE tach is zero; the EC manual override cannot be confirmed".into()),
+            Ok(_) if !fan_inventory_available => {
+                Some("WMAE duty verification requires fan inventory".into())
+            }
             Ok(_) => Some(
                 "WMAE SIDS 0x04030001 write->ECCC(0x62) direct duty override; honored only while \
                  the EC manual override is armed (RPM tracked 60->30% live); ITS auto releases \
@@ -1756,14 +1771,12 @@ fn record_fn_osd(capabilities: &mut CapabilitySet) -> Result<()> {
     let status = crate::NativeFnOsd::new().status();
     let (detail, caps_osd, num_osd) = match &status {
         Ok(status) => {
-            let supported = |state: lenovo_laptop_control_hal::OsdIndicatorState, running: bool| {
-                match state {
-                    lenovo_laptop_control_hal::OsdIndicatorState::On | lenovo_laptop_control_hal::OsdIndicatorState::Off => {
-                        running
-                    }
+            let supported =
+                |state: lenovo_laptop_control_hal::OsdIndicatorState, running: bool| match state {
+                    lenovo_laptop_control_hal::OsdIndicatorState::On
+                    | lenovo_laptop_control_hal::OsdIndicatorState::Off => running,
                     lenovo_laptop_control_hal::OsdIndicatorState::NotSupported => false,
-                }
-            };
+                };
             (
                 status.capslock.detail.clone(),
                 supported(status.capslock.state, status.service_running),
@@ -1813,7 +1826,10 @@ fn record_fn_osd(capabilities: &mut CapabilitySet) -> Result<()> {
 #[cfg(not(windows))]
 fn record_fn_osd(capabilities: &mut CapabilitySet) -> Result<()> {
     for (feature, detail) in [
-        ("channel.fn-osd", "the Lenovo Fn OSD channel is a Windows service"),
+        (
+            "channel.fn-osd",
+            "the Lenovo Fn OSD channel is a Windows service",
+        ),
         (
             "osd.fn.capslock",
             "the Lenovo Fn OSD channel is a Windows service",

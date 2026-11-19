@@ -68,7 +68,8 @@ pub fn derive_current_clock_mhz(
     if percent_processor_performance == 0 {
         return None;
     }
-    let product = u64::from(rated_clock_mhz).checked_mul(u64::from(percent_processor_performance))?;
+    let product =
+        u64::from(rated_clock_mhz).checked_mul(u64::from(percent_processor_performance))?;
     u32::try_from(product / 100).ok()
 }
 
@@ -120,4 +121,3 @@ pub struct CpuStatus {
     /// Per clock domain observations, ordered by logical processor index.
     pub clusters: Vec<CpuClockCluster>,
 }
-

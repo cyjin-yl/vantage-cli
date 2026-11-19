@@ -265,9 +265,10 @@ impl WlanClient {
                 feature: "WLAN_CONNECTION_ATTRIBUTES has no SSID length field".into(),
             }
         })?;
-        let ssid_length = usize::try_from(ssid_length).map_err(|_| LenovoLaptopControlError::Unsupported {
-            feature: "WLAN_ASSOCIATION_ATTRIBUTES reports an unusable SSID length".into(),
-        })?;
+        let ssid_length =
+            usize::try_from(ssid_length).map_err(|_| LenovoLaptopControlError::Unsupported {
+                feature: "WLAN_ASSOCIATION_ATTRIBUTES reports an unusable SSID length".into(),
+            })?;
         if ssid_length > DOT11_SSID_MAX_LENGTH {
             return Err(LenovoLaptopControlError::Unsupported {
                 feature: format!(
@@ -322,11 +323,10 @@ impl WlanClient {
         let filter_pointer = match association.raw_ssid.as_deref() {
             Some(bytes) => {
                 let length = bytes.len().min(DOT11_SSID_MAX_LENGTH);
-                filter.uSSIDLength = u32::try_from(length).map_err(|_| {
-                    LenovoLaptopControlError::Unsupported {
+                filter.uSSIDLength =
+                    u32::try_from(length).map_err(|_| LenovoLaptopControlError::Unsupported {
                         feature: "association SSID does not fit DOT11_SSID".into(),
-                    }
-                })?;
+                    })?;
                 filter.ucSSID[..length].copy_from_slice(&bytes[..length]);
                 &filter as *const DOT11_SSID
             }
@@ -490,11 +490,12 @@ fn decode_bss_list(
             .ok_or_else(|| LenovoLaptopControlError::Unsupported {
                 feature: "WLAN_BSS_ENTRY length overflows".into(),
             })?;
-        let stride = entry_length.checked_add(7).map(|value| value & !7).ok_or_else(|| {
-            LenovoLaptopControlError::Unsupported {
+        let stride = entry_length
+            .checked_add(7)
+            .map(|value| value & !7)
+            .ok_or_else(|| LenovoLaptopControlError::Unsupported {
                 feature: "WLAN_BSS_ENTRY stride overflows".into(),
-            }
-        })?;
+            })?;
         if stride < BSS_ENTRY_FIXED_LEN as usize || stride > total - offset {
             return Err(LenovoLaptopControlError::Unsupported {
                 feature: format!("WLAN_BSS_ENTRY at offset {offset} declares length {stride}"),

@@ -59,8 +59,7 @@ pub struct PrivacyDeviceState {
 /// with a later start than stop is a record of a session Windows noticed, not
 /// an observation of the device. Neither an entry nor a `Deny` here proves the
 /// current state of any camera.
-pub const CAMERA_CONSENT_AS_RECORDED: &str =
-    "as recorded by CapabilityAccessManager; last-use stamps are not proof that a camera is streaming";
+pub const CAMERA_CONSENT_AS_RECORDED: &str = "as recorded by CapabilityAccessManager; last-use stamps are not proof that a camera is streaming";
 
 /// The rule [`camera_in_use`] applies, printed with the report so the computed
 /// flag never appears without its definition.
@@ -91,7 +90,10 @@ impl CameraConsentScope {
     /// package family names.
     #[must_use]
     pub const fn non_packaged(self) -> bool {
-        matches!(self, Self::CurrentUserNonPackaged | Self::MachineNonPackaged)
+        matches!(
+            self,
+            Self::CurrentUserNonPackaged | Self::MachineNonPackaged
+        )
     }
 }
 

@@ -12,8 +12,8 @@
 use std::collections::BTreeMap;
 
 use lenovo_laptop_control_core::{
-    FirmwareIdentity, FirmwareResource, FirmwareStatus, FirmwareType, LenovoLaptopControlError, Result,
-    firmware_class, firmware_revision,
+    FirmwareIdentity, FirmwareResource, FirmwareStatus, FirmwareType, LenovoLaptopControlError,
+    Result, firmware_class, firmware_revision,
 };
 use lenovo_laptop_control_hal::FirmwareControl;
 
@@ -26,8 +26,7 @@ const ROOT_CIMV2: &str = "ROOT\\CIMV2";
 const BIOS_QUERY: &str = "SELECT Manufacturer, SMBIOSBIOSVersion, ReleaseDate, SMBIOSMajorVersion, SMBIOSMinorVersion, SystemBiosMajorVersion, SystemBiosMinorVersion, EmbeddedControllerMajorVersion, EmbeddedControllerMinorVersion, BIOSVersion FROM Win32_BIOS";
 
 /// Every ESRT entry is projected as a device of the `Firmware` PnP class.
-const FIRMWARE_DEVICE_QUERY: &str =
-    "SELECT DeviceID, Name, HardwareID, CompatibleID, Status FROM Win32_PnPEntity WHERE PNPClass = 'Firmware'";
+const FIRMWARE_DEVICE_QUERY: &str = "SELECT DeviceID, Name, HardwareID, CompatibleID, Status FROM Win32_PnPEntity WHERE PNPClass = 'Firmware'";
 
 /// A standalone read-only firmware inventory service.
 ///
@@ -127,9 +126,11 @@ fn identity_from_wmi<W: WmiTransport>(
     issues: &mut Vec<String>,
 ) -> Result<FirmwareIdentity> {
     let objects = wmi.query(ROOT_CIMV2, BIOS_QUERY)?;
-    let object = objects.first().ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
-        channel: "Win32_BIOS returned no instance".into(),
-    })?;
+    let object = objects
+        .first()
+        .ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
+            channel: "Win32_BIOS returned no instance".into(),
+        })?;
     Ok(FirmwareIdentity {
         firmware_type: native::firmware_type(issues),
         vendor: string_field(object, "Manufacturer"),
@@ -233,7 +234,9 @@ mod native {
     use std::mem::size_of;
     use std::ptr;
 
-    use lenovo_laptop_control_core::{FirmwareAttempt, FirmwareType, firmware_class, last_attempt_status_meaning};
+    use lenovo_laptop_control_core::{
+        FirmwareAttempt, FirmwareType, firmware_class, last_attempt_status_meaning,
+    };
     use windows_sys::Win32::Devices::DeviceAndDriverInstallation::{
         DIGCF_ALLCLASSES, DIGCF_PRESENT, HDEVINFO, SP_DEVINFO_DATA, SetupDiDestroyDeviceInfoList,
         SetupDiEnumDeviceInfo, SetupDiGetClassDevsW, SetupDiGetDeviceInstanceIdW,

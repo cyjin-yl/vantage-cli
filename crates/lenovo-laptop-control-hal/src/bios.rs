@@ -72,9 +72,11 @@ pub fn plan_bios_apply(bios: &dyn BiosControl, requested: &[BiosChange]) -> Resu
     let mut changes = Vec::with_capacity(requested.len());
     for requested_change in requested {
         let name = requested_change.name.as_str();
-        let current = bios.get(name)?.ok_or_else(|| LenovoLaptopControlError::InvalidArgument {
-            detail: format!("BIOS setting {name:?} was not found"),
-        })?;
+        let current = bios
+            .get(name)?
+            .ok_or_else(|| LenovoLaptopControlError::InvalidArgument {
+                detail: format!("BIOS setting {name:?} was not found"),
+            })?;
         let selections = bios.selections(&current.name)?;
         if selections.is_empty() {
             return Err(LenovoLaptopControlError::Unsupported {
@@ -180,7 +182,10 @@ fn stage_and_save<'a>(
     Ok(())
 }
 
-fn discard_after_failure(bios: &dyn BiosControl, error: LenovoLaptopControlError) -> LenovoLaptopControlError {
+fn discard_after_failure(
+    bios: &dyn BiosControl,
+    error: LenovoLaptopControlError,
+) -> LenovoLaptopControlError {
     match bios.discard() {
         Ok(()) => error,
         Err(discard) => LenovoLaptopControlError::FirmwareRejected {
@@ -197,12 +202,12 @@ fn readback_mirror<'a>(
     mut observed: impl FnMut(BiosItem),
 ) -> Result<()> {
     for expected in expected {
-        let actual =
-            bios.get(expected.name.as_str())?
-                .ok_or_else(|| LenovoLaptopControlError::VerifyMismatch {
-                    requested: format!("{}={}", expected.name, expected.value),
-                    actual: "setting absent after save".into(),
-                })?;
+        let actual = bios.get(expected.name.as_str())?.ok_or_else(|| {
+            LenovoLaptopControlError::VerifyMismatch {
+                requested: format!("{}={}", expected.name, expected.value),
+                actual: "setting absent after save".into(),
+            }
+        })?;
         if !actual.name.eq_ignore_ascii_case(expected.name.as_str())
             || actual.value.as_str() != expected.value.as_str()
         {

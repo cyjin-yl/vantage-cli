@@ -1,4 +1,6 @@
-use lenovo_laptop_control_core::{DiagnosticKind, DiagnosticOutcome, DiagnosticResult, UpdateCapability};
+use lenovo_laptop_control_core::{
+    DiagnosticKind, DiagnosticOutcome, DiagnosticResult, UpdateCapability,
+};
 
 #[test]
 fn diagnostics_and_update_states_serialize_truthfully() {

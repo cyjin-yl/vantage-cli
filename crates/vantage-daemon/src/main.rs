@@ -53,7 +53,9 @@ fn spawn_event_source(events: mpsc::Sender<DaemonEvent>) {
     spawn_windows_snapshot_source(events.clone());
     thread::spawn(move || {
         use lenovo_laptop_control_hal::{EventCancellation, EventSource};
-        use lenovo_laptop_control_hal_win::{DOCUMENTED_LENOVO_EVENT_CLASSES, NativeWmiEventSource};
+        use lenovo_laptop_control_hal_win::{
+            DOCUMENTED_LENOVO_EVENT_CLASSES, NativeWmiEventSource,
+        };
 
         let result = (|| -> lenovo_laptop_control_core::Result<()> {
             let source = NativeWmiEventSource::new()?;
@@ -81,9 +83,12 @@ fn spawn_windows_snapshot_source(events: mpsc::Sender<DaemonEvent>) {
             lenovo_laptop_control_hal_win::NativeWmi,
             lenovo_laptop_control_hal_win::NativeIoctl,
         );
-        let performance =
-            lenovo_laptop_control_hal_win::WindowsPerformanceP0::new(lenovo_laptop_control_hal_win::NativePerformanceRegistry);
-        let power = lenovo_laptop_control_hal_win::WindowsPowerP0::new(lenovo_laptop_control_hal_win::NativePowerApi);
+        let performance = lenovo_laptop_control_hal_win::WindowsPerformanceP0::new(
+            lenovo_laptop_control_hal_win::NativePerformanceRegistry,
+        );
+        let power = lenovo_laptop_control_hal_win::WindowsPowerP0::new(
+            lenovo_laptop_control_hal_win::NativePowerApi,
+        );
         let magicbay = lenovo_laptop_control_hal_win::NativeMagicBay;
         let mut previous = Value::Null;
         loop {

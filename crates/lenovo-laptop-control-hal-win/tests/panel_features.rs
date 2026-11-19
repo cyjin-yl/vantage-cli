@@ -170,22 +170,31 @@ fn classify_lut_round_trips_known_levels() {
 fn eye_care_channel_is_closed_without_a_gamma_transport() {
     let features = WindowsPanelFeatures::new(FakeCtl::default());
     let error = features.eye_care().expect_err("channel stays closed");
-    assert!(matches!(error, LenovoLaptopControlError::Unsupported { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::Unsupported { .. }
+    ));
     let error = features
         .set_eye_care(EyeCareLevel::Mid, ApplyMode::DryRun)
         .expect_err("channel stays closed");
-    assert!(matches!(error, LenovoLaptopControlError::Unsupported { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::Unsupported { .. }
+    ));
     let error = features
         .set_eye_care(EyeCareLevel::Mid, ApplyMode::Commit)
         .expect_err("channel stays closed");
-    assert!(matches!(error, LenovoLaptopControlError::Unsupported { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::Unsupported { .. }
+    ));
 }
 
 #[test]
 fn eye_care_reads_an_identity_ramp_as_off() {
     let gamma = FakeGamma::default();
-    let features = WindowsPanelFeatures::new(FakeCtl::default())
-        .with_gamma_ramp(Box::new(gamma.clone()));
+    let features =
+        WindowsPanelFeatures::new(FakeCtl::default()).with_gamma_ramp(Box::new(gamma.clone()));
     assert_eq!(features.eye_care().expect("state"), Some(EyeCareLevel::Off));
 }
 
@@ -193,16 +202,15 @@ fn eye_care_reads_an_identity_ramp_as_off() {
 fn eye_care_reports_an_unknown_ramp_as_unknown() {
     let gamma = FakeGamma::default();
     *gamma.ramp.lock() = [12345u16; 768];
-    let features = WindowsPanelFeatures::new(FakeCtl::default())
-        .with_gamma_ramp(Box::new(gamma));
+    let features = WindowsPanelFeatures::new(FakeCtl::default()).with_gamma_ramp(Box::new(gamma));
     assert_eq!(features.eye_care().expect("state"), None);
 }
 
 #[test]
 fn eye_care_commit_applies_the_level_and_reads_it_back() {
     let gamma = FakeGamma::default();
-    let features = WindowsPanelFeatures::new(FakeCtl::default())
-        .with_gamma_ramp(Box::new(gamma.clone()));
+    let features =
+        WindowsPanelFeatures::new(FakeCtl::default()).with_gamma_ramp(Box::new(gamma.clone()));
     let report = features
         .set_eye_care(EyeCareLevel::High, ApplyMode::Commit)
         .expect("committed");
@@ -220,8 +228,8 @@ fn eye_care_commit_applies_the_level_and_reads_it_back() {
 fn eye_care_commit_restores_the_previous_ramp_on_mismatch() {
     let gamma = FakeGamma::default();
     *gamma.ignore_writes.lock() = true;
-    let features = WindowsPanelFeatures::new(FakeCtl::default())
-        .with_gamma_ramp(Box::new(gamma.clone()));
+    let features =
+        WindowsPanelFeatures::new(FakeCtl::default()).with_gamma_ramp(Box::new(gamma.clone()));
     let error = features
         .set_eye_care(EyeCareLevel::High, ApplyMode::Commit)
         .expect_err("readback mismatch");
@@ -240,8 +248,8 @@ fn eye_care_commit_restores_the_previous_ramp_on_mismatch() {
 #[test]
 fn eye_care_dry_run_does_not_touch_the_ramp() {
     let gamma = FakeGamma::default();
-    let features = WindowsPanelFeatures::new(FakeCtl::default())
-        .with_gamma_ramp(Box::new(gamma.clone()));
+    let features =
+        WindowsPanelFeatures::new(FakeCtl::default()).with_gamma_ramp(Box::new(gamma.clone()));
     let report = features
         .set_eye_care(EyeCareLevel::Mid, ApplyMode::DryRun)
         .expect("dry run");
@@ -294,7 +302,10 @@ fn super_resolution_commit_never_writes_when_the_state_read_is_rejected() {
     let error = features
         .set_super_resolution(true, ApplyMode::Commit)
         .expect_err("no previous value, no write");
-    assert!(matches!(error, LenovoLaptopControlError::Unsupported { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::Unsupported { .. }
+    ));
     assert_eq!(*ctl.sr_writes.lock(), 0);
 }
 

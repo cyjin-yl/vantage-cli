@@ -354,7 +354,10 @@ mod tests {
     #[test]
     fn endpoint_state_maps_documented_bits_and_keeps_unknown_raw() {
         assert_eq!(AudioEndpointState::from_raw(1), AudioEndpointState::Active);
-        assert_eq!(AudioEndpointState::from_raw(2), AudioEndpointState::Disabled);
+        assert_eq!(
+            AudioEndpointState::from_raw(2),
+            AudioEndpointState::Disabled
+        );
         assert_eq!(
             AudioEndpointState::from_raw(4),
             AudioEndpointState::NotPresent

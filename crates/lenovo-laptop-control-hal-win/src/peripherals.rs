@@ -1,6 +1,8 @@
 use std::{collections::BTreeMap, time::Duration};
 
-use lenovo_laptop_control_core::{ApplyMode, BacklightState, ChangeReport, LenovoLaptopControlError, LightingEffect, Result};
+use lenovo_laptop_control_core::{
+    ApplyMode, BacklightState, ChangeReport, LenovoLaptopControlError, LightingEffect, Result,
+};
 use lenovo_laptop_control_hal::{KeyboardControl, poll_readback};
 
 use crate::wmi_contract::ROOT_WMI;
@@ -45,11 +47,12 @@ where
             })?;
         let lighting_type = required_u8(&object, "Lighting_Type")?;
         let count = required_u8(&object, "State_Type_Num")?;
-        let max_level = count
-            .checked_sub(1)
-            .ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
-                channel: "keyboard backlight reports zero brightness states".into(),
-            })?;
+        let max_level =
+            count
+                .checked_sub(1)
+                .ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
+                    channel: "keyboard backlight reports zero brightness states".into(),
+                })?;
         Ok((lighting_type, max_level))
     }
 

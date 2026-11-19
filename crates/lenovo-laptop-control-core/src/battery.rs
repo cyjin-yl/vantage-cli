@@ -129,7 +129,9 @@ impl BatteryWearReport {
             (Some(_), Some(_)) => {
                 issues.push(BatterySourceIssue {
                     source,
-                    detail: "full-charge capacity exceeds design capacity; wear percent is undefined".into(),
+                    detail:
+                        "full-charge capacity exceeds design capacity; wear percent is undefined"
+                            .into(),
                 });
                 None
             }
@@ -702,16 +704,18 @@ impl BatteryTelemetry {
 }
 
 fn fixed_text(input: &[u8], offset: usize, width: usize) -> Result<Option<String>> {
-    let end = offset
-        .checked_add(width)
-        .ok_or_else(|| LenovoLaptopControlError::FirmwareRejected {
-            detail: "battery identity field offset overflow".into(),
-        })?;
-    let bytes = input
-        .get(offset..end)
-        .ok_or_else(|| LenovoLaptopControlError::FirmwareRejected {
-            detail: format!("battery identity field {offset}..{end} exceeds response"),
-        })?;
+    let end =
+        offset
+            .checked_add(width)
+            .ok_or_else(|| LenovoLaptopControlError::FirmwareRejected {
+                detail: "battery identity field offset overflow".into(),
+            })?;
+    let bytes =
+        input
+            .get(offset..end)
+            .ok_or_else(|| LenovoLaptopControlError::FirmwareRejected {
+                detail: format!("battery identity field {offset}..{end} exceeds response"),
+            })?;
     let trimmed = bytes
         .split(|byte| *byte == 0 || *byte == u8::MAX)
         .next()
@@ -732,9 +736,10 @@ fn fixed_text(input: &[u8], offset: usize, width: usize) -> Result<Option<String
         .chunks_exact(2)
         .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
         .collect::<Vec<_>>();
-    let value = String::from_utf16(&units).map_err(|error| LenovoLaptopControlError::FirmwareRejected {
-        detail: format!("battery identity field {offset} has invalid UTF-16LE: {error}"),
-    })?;
+    let value =
+        String::from_utf16(&units).map_err(|error| LenovoLaptopControlError::FirmwareRejected {
+            detail: format!("battery identity field {offset} has invalid UTF-16LE: {error}"),
+        })?;
     let value = value.trim();
     Ok((!value.is_empty()).then(|| value.to_owned()))
 }
@@ -1058,11 +1063,9 @@ impl PowerDrawObservation {
                 Some(value.unsigned_abs()),
                 None,
             ),
-            Some(value) if value > 0 => (
-                BatteryRateState::Charging,
-                None,
-                Some(value.unsigned_abs()),
-            ),
+            Some(value) if value > 0 => {
+                (BatteryRateState::Charging, None, Some(value.unsigned_abs()))
+            }
             Some(_) => (BatteryRateState::Zero, None, None),
             None => (BatteryRateState::NotReported, None, None),
         };

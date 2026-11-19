@@ -11,8 +11,8 @@ use std::{
 use lenovo_laptop_control_core::{
     DiagnosticCancellationReason, DiagnosticKind, DiagnosticMeasurement, DiagnosticOutcome,
     DiagnosticReason, DiagnosticResult, DiagnosticRunOptions, DiagnosticRunState,
-    DiagnosticStatusSnapshot, DiagnosticThreshold, LenovoLaptopControlError, Result, UpdateCapability,
-    UpdateCheckReport,
+    DiagnosticStatusSnapshot, DiagnosticThreshold, LenovoLaptopControlError, Result,
+    UpdateCapability, UpdateCheckReport,
 };
 use lenovo_laptop_control_hal::{DiagnosticsControl, UpdateControl};
 
@@ -607,9 +607,8 @@ fn provider_error_result(
     error: LenovoLaptopControlError,
 ) -> DiagnosticResult {
     let outcome = match &error {
-        LenovoLaptopControlError::Unsupported { .. } | LenovoLaptopControlError::ChannelUnavailable { .. } => {
-            DiagnosticOutcome::Unavailable
-        }
+        LenovoLaptopControlError::Unsupported { .. }
+        | LenovoLaptopControlError::ChannelUnavailable { .. } => DiagnosticOutcome::Unavailable,
         LenovoLaptopControlError::PermissionDenied { .. }
         | LenovoLaptopControlError::FirmwareRejected { .. }
         | LenovoLaptopControlError::InvalidArgument { .. }

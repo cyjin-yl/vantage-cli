@@ -3,9 +3,9 @@
 use std::time::Duration;
 
 use lenovo_laptop_control_core::{
-    ApplyMode, LenovoLaptopControlError, MAX_PROCESS_TOP_LIMIT, ProcessAffinityPolicy, ProcessIdentity,
-    ProcessInventory, ProcessInventoryEntry, ProcessPolicy, ProcessPriorityClass, ProcessSnapshot,
-    ProcessState, ProcessTarget, ProcessWorkingSet, Result,
+    ApplyMode, LenovoLaptopControlError, MAX_PROCESS_TOP_LIMIT, ProcessAffinityPolicy,
+    ProcessIdentity, ProcessInventory, ProcessInventoryEntry, ProcessPolicy, ProcessPriorityClass,
+    ProcessSnapshot, ProcessState, ProcessTarget, ProcessWorkingSet, Result,
 };
 use lenovo_laptop_control_hal::ProcessControl;
 use lenovo_laptop_control_hal_win::{ProcessApi, ProcessReadbackPolicy, WindowsProcessController};

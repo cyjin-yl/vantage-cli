@@ -1,7 +1,9 @@
 use std::sync::Mutex;
 
 use lenovo_laptop_control_core::{LenovoLaptopControlError, Result};
-use lenovo_laptop_control_hal_win::{FeatureId, GameZone, SupportProbe, WmiObject, WmiTransport, WmiValue};
+use lenovo_laptop_control_hal_win::{
+    FeatureId, GameZone, SupportProbe, WmiObject, WmiTransport, WmiValue,
+};
 
 #[derive(Default)]
 struct FakeWmi {
@@ -100,7 +102,10 @@ fn setter_rejects_nonzero_return_value() {
     let zone = GameZone::new(&fake);
 
     let error = zone.set_smart_fan_mode(1).unwrap_err();
-    assert!(matches!(error, LenovoLaptopControlError::FirmwareRejected { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::FirmwareRejected { .. }
+    ));
 }
 
 #[test]
@@ -200,5 +205,8 @@ fn missing_numeric_output_is_channel_unavailable() {
     let zone = GameZone::new(&fake);
 
     let error = zone.cpu_frequency().unwrap_err();
-    assert!(matches!(error, LenovoLaptopControlError::ChannelUnavailable { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::ChannelUnavailable { .. }
+    ));
 }

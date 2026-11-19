@@ -1,7 +1,7 @@
 use lenovo_laptop_control_core::{
-    AdapterInfo, ApplyMode, BatteryElectricalObservation, BatteryTelemetry, ChangeReport,
-    BatteryWearReport, ChargeMode, ChargeModeActual, LenovoLaptopControlError, OsBatterySnapshot, Result,
-    SystemPowerStatus,
+    AdapterInfo, ApplyMode, BatteryElectricalObservation, BatteryTelemetry, BatteryWearReport,
+    ChangeReport, ChargeMode, ChargeModeActual, LenovoLaptopControlError, OsBatterySnapshot,
+    Result, SystemPowerStatus,
 };
 
 pub trait BatteryElectricalSource: Send + Sync {

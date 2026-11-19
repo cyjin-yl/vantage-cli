@@ -25,9 +25,11 @@ impl SystemPowerStatusReader for NativeSystemPowerStatus {
         };
         let ok = unsafe { GetSystemPowerStatus(&mut status) };
         if ok == 0 {
-            return Err(lenovo_laptop_control_core::LenovoLaptopControlError::ChannelUnavailable {
-                channel: "GetSystemPowerStatus".into(),
-            });
+            return Err(
+                lenovo_laptop_control_core::LenovoLaptopControlError::ChannelUnavailable {
+                    channel: "GetSystemPowerStatus".into(),
+                },
+            );
         }
 
         Ok(SystemPowerStatus {

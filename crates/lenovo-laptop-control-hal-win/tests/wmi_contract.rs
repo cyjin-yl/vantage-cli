@@ -119,7 +119,11 @@ struct FakeTransport {
 }
 
 impl WmiTransport for FakeTransport {
-    fn query(&self, namespace: &str, wql: &str) -> lenovo_laptop_control_core::Result<Vec<WmiObject>> {
+    fn query(
+        &self,
+        namespace: &str,
+        wql: &str,
+    ) -> lenovo_laptop_control_core::Result<Vec<WmiObject>> {
         self.queries.lock().push((namespace.into(), wql.into()));
         Ok(self.objects.clone())
     }

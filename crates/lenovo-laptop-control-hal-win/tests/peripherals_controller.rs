@@ -2,7 +2,9 @@ use std::collections::BTreeMap;
 
 use lenovo_laptop_control_core::{ApplyMode, LightingEffect};
 use lenovo_laptop_control_hal::KeyboardControl;
-use lenovo_laptop_control_hal_win::{WindowsPeripheralController, WmiObject, WmiTransport, WmiValue};
+use lenovo_laptop_control_hal_win::{
+    WindowsPeripheralController, WmiObject, WmiTransport, WmiValue,
+};
 use parking_lot::Mutex;
 
 #[derive(Default)]
@@ -23,7 +25,11 @@ impl FakeWmi {
 }
 
 impl WmiTransport for FakeWmi {
-    fn query(&self, _namespace: &str, wql: &str) -> lenovo_laptop_control_core::Result<Vec<WmiObject>> {
+    fn query(
+        &self,
+        _namespace: &str,
+        wql: &str,
+    ) -> lenovo_laptop_control_core::Result<Vec<WmiObject>> {
         if wql.contains("LENOVO_LIGHTING_DATA") {
             return Ok(vec![BTreeMap::from([
                 ("Lighting_Type".into(), WmiValue::U8(1)),
@@ -50,12 +56,11 @@ impl WmiTransport for FakeWmi {
         self.invocations
             .lock()
             .push((method.to_string(), input.clone()));
-        self.replies
-            .lock()
-            .pop()
-            .ok_or_else(|| lenovo_laptop_control_core::LenovoLaptopControlError::ChannelUnavailable {
+        self.replies.lock().pop().ok_or_else(|| {
+            lenovo_laptop_control_core::LenovoLaptopControlError::ChannelUnavailable {
                 channel: "fake WMI reply exhausted".into(),
-            })
+            }
+        })
     }
 }
 

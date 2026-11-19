@@ -291,8 +291,14 @@ fn touchpad_status_and_recovery_have_distinct_safety_axes() {
     .unwrap();
     assert!(status.axes.read && !status.axes.write);
     assert!(recover.axes.write);
-    assert_eq!(recover.axes.readback, lenovo_laptop_control_core::Readback::Required);
-    assert_eq!(recover.axes.rollback, lenovo_laptop_control_core::Rollback::Unavailable);
+    assert_eq!(
+        recover.axes.readback,
+        lenovo_laptop_control_core::Readback::Required
+    );
+    assert_eq!(
+        recover.axes.rollback,
+        lenovo_laptop_control_core::Rollback::Unavailable
+    );
 }
 
 #[test]
@@ -384,23 +390,38 @@ fn mutations_have_required_readback_and_unsupported_have_honest_axes() {
             row.command.as_str() == "battery.charge-mode" && row.layer == StateLayer::Runtime
         })
         .unwrap();
-    assert_eq!(charge.axes.readback, lenovo_laptop_control_core::Readback::Required);
-    assert_eq!(charge.axes.rollback, lenovo_laptop_control_core::Rollback::Transactional);
+    assert_eq!(
+        charge.axes.readback,
+        lenovo_laptop_control_core::Readback::Required
+    );
+    assert_eq!(
+        charge.axes.rollback,
+        lenovo_laptop_control_core::Rollback::Transactional
+    );
     assert!(charge.axes.write);
     let thresholds = rows
         .iter()
         .find(|row| row.command.as_str() == "battery.thresholds")
         .unwrap();
     assert_eq!(thresholds.status, ObservedStatus::Unsupported);
-    assert_eq!(thresholds.axes.readback, lenovo_laptop_control_core::Readback::Unverified);
-    assert_eq!(thresholds.axes.rollback, lenovo_laptop_control_core::Rollback::Unavailable);
+    assert_eq!(
+        thresholds.axes.readback,
+        lenovo_laptop_control_core::Readback::Unverified
+    );
+    assert_eq!(
+        thresholds.axes.rollback,
+        lenovo_laptop_control_core::Rollback::Unavailable
+    );
 }
 
 #[test]
 fn panel_info_selects_the_read_only_identity_row() {
     let cli = Cli::try_parse_from(["vantage", "panel", "info"]).unwrap();
     let selector = command_selector(&cli.command).unwrap();
-    assert_eq!(selector.command, lenovo_laptop_control_core::CommandId::PANEL_INFO);
+    assert_eq!(
+        selector.command,
+        lenovo_laptop_control_core::CommandId::PANEL_INFO
+    );
     let rows = vantage_cli::evaluate_commands(&FakeHal::new()).unwrap();
     let observed = rows
         .iter()

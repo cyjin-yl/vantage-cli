@@ -71,7 +71,10 @@ fn write_uses_documented_layout_and_rejects_nonzero_status() {
     let error = client
         .write_selector(MsrSelector::PLATFORM_POWER_LIMIT, 0)
         .unwrap_err();
-    assert!(matches!(error, LenovoLaptopControlError::FirmwareRejected { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::FirmwareRejected { .. }
+    ));
 }
 
 #[test]
@@ -110,7 +113,10 @@ fn probe_surfaces_rejection_when_platform_is_not_whitelisted() {
     let client = WinMsrDev::new(&fake);
 
     let error = client.probe().unwrap_err();
-    assert!(matches!(error, LenovoLaptopControlError::FirmwareRejected { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::FirmwareRejected { .. }
+    ));
     assert_eq!(fake.calls.lock().unwrap().len(), 1);
 }
 

@@ -24,9 +24,8 @@ use lenovo_laptop_control_core::{
 use windows_sys::Win32::{
     Foundation::{ERROR_FILE_NOT_FOUND, ERROR_NO_MORE_ITEMS},
     System::Registry::{
-        HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_READ, REG_DWORD, REG_MULTI_SZ,
-        REG_QWORD, REG_SZ, REG_VALUE_TYPE, RegCloseKey, RegEnumKeyExW, RegOpenKeyExW,
-        RegQueryValueExW,
+        HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_READ, REG_DWORD, REG_MULTI_SZ, REG_QWORD,
+        REG_SZ, REG_VALUE_TYPE, RegCloseKey, RegEnumKeyExW, RegOpenKeyExW, RegQueryValueExW,
     },
 };
 
@@ -72,7 +71,11 @@ pub(crate) fn read_camera_consent() -> Result<CameraConsentReport> {
             HKEY_CURRENT_USER,
             non_packaged.as_str(),
         ),
-        (CameraConsentScope::Machine, HKEY_LOCAL_MACHINE, CONSENT_ROOT),
+        (
+            CameraConsentScope::Machine,
+            HKEY_LOCAL_MACHINE,
+            CONSENT_ROOT,
+        ),
         (
             CameraConsentScope::MachineNonPackaged,
             HKEY_LOCAL_MACHINE,
@@ -172,7 +175,11 @@ fn read_policy() -> Result<CameraPrivacyPolicy> {
         return Ok(CameraPrivacyPolicy::default());
     };
     let mut notes = Vec::new();
-    let value = noted(key.dword(LET_APPS_ACCESS_CAMERA), LET_APPS_ACCESS_CAMERA, &mut notes);
+    let value = noted(
+        key.dword(LET_APPS_ACCESS_CAMERA),
+        LET_APPS_ACCESS_CAMERA,
+        &mut notes,
+    );
     Ok(CameraPrivacyPolicy {
         present: true,
         let_apps_access_camera: value.and_then(CameraAppPrivacyPolicy::from_raw),
@@ -191,8 +198,7 @@ impl Key {
     fn open(root: HKEY, path: &str) -> Result<Option<Self>> {
         let path_wide = wide(path);
         let mut handle: HKEY = ptr::null_mut();
-        let status =
-            unsafe { RegOpenKeyExW(root, path_wide.as_ptr(), 0, KEY_READ, &mut handle) };
+        let status = unsafe { RegOpenKeyExW(root, path_wide.as_ptr(), 0, KEY_READ, &mut handle) };
         match status {
             0 => Ok(Some(Self(handle))),
             ERROR_FILE_NOT_FOUND => Ok(None),
@@ -388,7 +394,10 @@ fn decode_utf16(bytes: &[u8]) -> String {
         .chunks_exact(2)
         .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
         .collect();
-    let end = units.iter().position(|unit| *unit == 0).unwrap_or(units.len());
+    let end = units
+        .iter()
+        .position(|unit| *unit == 0)
+        .unwrap_or(units.len());
     String::from_utf16_lossy(&units[..end])
 }
 

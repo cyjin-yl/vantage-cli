@@ -23,8 +23,10 @@ fn native_overlay_api_resolves_and_reports_a_scheme() {
 fn native_hal_records_the_perf_mode_capability() {
     use lenovo_laptop_control_hal::Hal;
 
-    let hal =
-        lenovo_laptop_control_hal_win::NativeWindowsHal::new(lenovo_laptop_control_hal_win::NativeWmi, lenovo_laptop_control_hal_win::NativeIoctl);
+    let hal = lenovo_laptop_control_hal_win::NativeWindowsHal::new(
+        lenovo_laptop_control_hal_win::NativeWmi,
+        lenovo_laptop_control_hal_win::NativeIoctl,
+    );
     let capabilities = hal.capabilities().expect("capabilities must evaluate");
     println!("perf.mode = {:?}", capabilities.get("perf.mode"));
     assert!(

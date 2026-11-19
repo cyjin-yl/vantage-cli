@@ -8,7 +8,9 @@
 //! model the Windows evidence does not support.
 
 use lenovo_laptop_control_core::{ApplyMode, LenovoLaptopControlError, Result};
-use lenovo_laptop_control_hal::{RadioControl, RadioKind, RadioReport, RadioState, RadioTransition};
+use lenovo_laptop_control_hal::{
+    RadioControl, RadioKind, RadioReport, RadioState, RadioTransition,
+};
 
 /// The Linux radio service: every call reports the channel as unsupported.
 #[derive(Clone, Copy, Debug, Default)]
@@ -52,11 +54,19 @@ mod tests {
     #[test]
     fn linux_radio_reports_the_channel_as_unsupported_rather_than_answering() {
         let radio = LinuxRadio::new();
-        let status = radio.radio_status().expect_err("Linux radio status is unsupported");
-        assert!(matches!(status, LenovoLaptopControlError::Unsupported { .. }));
+        let status = radio
+            .radio_status()
+            .expect_err("Linux radio status is unsupported");
+        assert!(matches!(
+            status,
+            LenovoLaptopControlError::Unsupported { .. }
+        ));
         let write = radio
             .radio_set_state(RadioKind::Wifi, RadioState::Off, false, ApplyMode::Commit)
             .expect_err("Linux radio writes are unsupported");
-        assert!(matches!(write, LenovoLaptopControlError::Unsupported { .. }));
+        assert!(matches!(
+            write,
+            LenovoLaptopControlError::Unsupported { .. }
+        ));
     }
 }

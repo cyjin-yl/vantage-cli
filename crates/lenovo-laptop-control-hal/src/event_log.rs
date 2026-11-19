@@ -154,11 +154,7 @@ fn civil_from_days(days: i64) -> (i64, i64, i64) {
     } else {
         month_index - 9
     };
-    (
-        if month <= 2 { year + 1 } else { year },
-        month,
-        day,
-    )
+    (if month <= 2 { year + 1 } else { year }, month, day)
 }
 
 #[cfg(test)]

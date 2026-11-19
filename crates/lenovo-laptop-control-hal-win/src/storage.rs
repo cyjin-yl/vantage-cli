@@ -15,12 +15,12 @@
 //! or structurally unexpected is a `ChannelUnavailable` error so a drive is
 //! never described from a partially decoded structure.
 
-use lenovo_laptop_control_hal::StorageStatusControl;
 use lenovo_laptop_control_core::{
     LenovoLaptopControlError, Result, StorageBusType, StorageCriticalWarning, StorageDevice,
     StorageFieldProvenance, StorageHealth, StorageMediaType, StorageSourceIssue, StorageStatus,
     StorageTemperatureSensor,
 };
+use lenovo_laptop_control_hal::StorageStatusControl;
 
 /// One `IOCTL_STORAGE_QUERY_PROPERTY` request.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -187,12 +187,7 @@ fn read_u32(bytes: &[u8], offset: usize, context: &str) -> Result<u32> {
         .get(offset..offset + 4)
         .and_then(|slice| <[u8; 4]>::try_from(slice).ok())
         .map(u32::from_le_bytes)
-        .ok_or_else(|| {
-            channel(
-                context,
-                format!("reply is shorter than {offset}+4 bytes"),
-            )
-        })
+        .ok_or_else(|| channel(context, format!("reply is shorter than {offset}+4 bytes")))
 }
 
 fn read_u64(bytes: &[u8], offset: usize, context: &str) -> Result<u64> {
@@ -200,12 +195,7 @@ fn read_u64(bytes: &[u8], offset: usize, context: &str) -> Result<u64> {
         .get(offset..offset + 8)
         .and_then(|slice| <[u8; 8]>::try_from(slice).ok())
         .map(u64::from_le_bytes)
-        .ok_or_else(|| {
-            channel(
-                context,
-                format!("reply is shorter than {offset}+8 bytes"),
-            )
-        })
+        .ok_or_else(|| channel(context, format!("reply is shorter than {offset}+8 bytes")))
 }
 
 fn read_u16(bytes: &[u8], offset: usize, context: &str) -> Result<u16> {
@@ -213,12 +203,7 @@ fn read_u16(bytes: &[u8], offset: usize, context: &str) -> Result<u16> {
         .get(offset..offset + 2)
         .and_then(|slice| <[u8; 2]>::try_from(slice).ok())
         .map(u16::from_le_bytes)
-        .ok_or_else(|| {
-            channel(
-                context,
-                format!("reply is shorter than {offset}+2 bytes"),
-            )
-        })
+        .ok_or_else(|| channel(context, format!("reply is shorter than {offset}+2 bytes")))
 }
 
 /// Trim an ASCII field at its first NUL and strip the drive's space padding.
@@ -259,7 +244,10 @@ pub fn decode_device_descriptor(bytes: &[u8]) -> Result<DeviceDescriptorFacts> {
             format!("declared structure version {version} cannot hold a bus type at offset 28"),
         ));
     }
-    if usize::try_from(size).map(|size| size > bytes.len()).unwrap_or(true) {
+    if usize::try_from(size)
+        .map(|size| size > bytes.len())
+        .unwrap_or(true)
+    {
         return Err(channel(
             CONTEXT,
             format!(
@@ -319,7 +307,10 @@ fn protocol_payload<'a>(
     if bytes.len() < DESCRIPTOR_SIZE {
         return Err(channel(
             context,
-            format!("reply is {} bytes, shorter than the 48-byte descriptor", bytes.len()),
+            format!(
+                "reply is {} bytes, shorter than the 48-byte descriptor",
+                bytes.len()
+            ),
         ));
     }
     let version = read_u32(bytes, 0, context)?;
@@ -327,7 +318,9 @@ fn protocol_payload<'a>(
     if version != DESCRIPTOR_SIZE as u32 || size < DESCRIPTOR_SIZE as u32 {
         return Err(channel(
             context,
-            format!("protocol descriptor version {version} / size {size} is not the documented 48/48"),
+            format!(
+                "protocol descriptor version {version} / size {size} is not the documented 48/48"
+            ),
         ));
     }
     let protocol_type = read_u32(bytes, 8, context)?;
@@ -355,7 +348,10 @@ fn protocol_payload<'a>(
     // The offset is measured from the start of `STORAGE_PROTOCOL_SPECIFIC_DATA`,
     // which sits at byte 8 of the descriptor; the live reply echoes 40.
     let start = 8usize
-        .checked_add(usize::try_from(offset).map_err(|_| channel(context, format!("protocol offset {offset} does not fit")))?)
+        .checked_add(
+            usize::try_from(offset)
+                .map_err(|_| channel(context, format!("protocol offset {offset} does not fit")))?,
+        )
         .ok_or_else(|| channel(context, "protocol offset overflows".into()))?;
     let end = start
         .checked_add(expected_length)
@@ -424,7 +420,10 @@ pub fn decode_temperature_descriptor(bytes: &[u8]) -> Result<TemperatureFacts> {
             format!("declared version {version} cannot hold a {HEADER}-byte header"),
         ));
     }
-    if usize::try_from(size).map(|size| size > bytes.len()).unwrap_or(true) {
+    if usize::try_from(size)
+        .map(|size| size > bytes.len())
+        .unwrap_or(true)
+    {
         return Err(channel(
             CONTEXT,
             format!(
@@ -441,7 +440,10 @@ pub fn decode_temperature_descriptor(bytes: &[u8]) -> Result<TemperatureFacts> {
     if required > bytes.len() {
         return Err(channel(
             CONTEXT,
-            format!("{count} entries need {required} bytes but {} were returned", bytes.len()),
+            format!(
+                "{count} entries need {required} bytes but {} were returned",
+                bytes.len()
+            ),
         ));
     }
     let mut sensors = Vec::with_capacity(count);
@@ -476,7 +478,10 @@ pub fn decode_management_status(bytes: &[u8]) -> Result<StorageHealth> {
             format!("declared version {version} cannot hold a health field"),
         ));
     }
-    if usize::try_from(size).map(|size| size > bytes.len()).unwrap_or(true) {
+    if usize::try_from(size)
+        .map(|size| size > bytes.len())
+        .unwrap_or(true)
+    {
         return Err(channel(
             CONTEXT,
             format!(
@@ -567,9 +572,8 @@ where
 
     fn describe(&self, disk: &StorageDisk) -> Result<StorageDevice> {
         let geometry = self.probe.geometry(disk)?;
-        let descriptor = decode_device_descriptor(
-            &self.probe.query(disk, StorageQuery::DeviceDescriptor)?,
-        )?;
+        let descriptor =
+            decode_device_descriptor(&self.probe.query(disk, StorageQuery::DeviceDescriptor)?)?;
         let bus_type = StorageBusType::from_raw(descriptor.bus_type);
         let mut issues = Vec::new();
         let mut device = StorageDevice {
@@ -625,11 +629,14 @@ where
                     Ok(false) => device.media_type = Some(StorageMediaType::SolidState),
                     Err(error) => return Err(error),
                 },
-                Err(LenovoLaptopControlError::Unsupported { .. }) => issues.push(StorageSourceIssue {
-                    source: SRC_MEDIA_SEEK,
-                    detail: "device refused the seek-penalty descriptor; media type is not asserted"
-                        .into(),
-                }),
+                Err(LenovoLaptopControlError::Unsupported { .. }) => {
+                    issues.push(StorageSourceIssue {
+                        source: SRC_MEDIA_SEEK,
+                        detail:
+                            "device refused the seek-penalty descriptor; media type is not asserted"
+                                .into(),
+                    })
+                }
                 Err(error) => return Err(error),
             }
             device.fields.media_type = SRC_MEDIA_SEEK;
@@ -647,10 +654,12 @@ where
                     device.serial_number = Some(identity.serial);
                     device.firmware_version = Some(identity.firmware);
                 }
-                Err(LenovoLaptopControlError::Unsupported { .. }) => issues.push(StorageSourceIssue {
-                    source: SRC_IDENTIFY,
-                    detail: "device refused the Identify Controller request".into(),
-                }),
+                Err(LenovoLaptopControlError::Unsupported { .. }) => {
+                    issues.push(StorageSourceIssue {
+                        source: SRC_IDENTIFY,
+                        detail: "device refused the Identify Controller request".into(),
+                    })
+                }
                 Err(error) => return Err(error),
             }
             match self.probe.query(disk, StorageQuery::NvmeSmartLog) {
@@ -680,7 +689,8 @@ where
             Ok(bytes) => device.health = Some(decode_management_status(&bytes)?),
             Err(LenovoLaptopControlError::Unsupported { .. }) => issues.push(StorageSourceIssue {
                 source: SRC_HEALTH,
-                detail: "device refused the management-status request; health is not reported".into(),
+                detail: "device refused the management-status request; health is not reported"
+                    .into(),
             }),
             Err(error) => return Err(error),
         }
@@ -788,8 +798,8 @@ mod native {
 
     use windows_sys::Win32::{
         Devices::DeviceAndDriverInstallation::{
-            CM_GET_DEVICE_INTERFACE_LIST_PRESENT, CM_Get_Device_Interface_ListW,
-            CM_Get_Device_Interface_List_SizeW,
+            CM_GET_DEVICE_INTERFACE_LIST_PRESENT, CM_Get_Device_Interface_List_SizeW,
+            CM_Get_Device_Interface_ListW,
         },
         Foundation::{CloseHandle, GetLastError, HANDLE, INVALID_HANDLE_VALUE},
         Storage::FileSystem::{CreateFileW, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING},
@@ -819,9 +829,8 @@ mod native {
     const PROTOCOL_DATA_SIZE: usize = 40;
 
     /// `GUID_DEVINTERFACE_DISK`.
-    const DISK_INTERFACE_GUID: windows_sys::core::GUID = windows_sys::core::GUID::from_u128(
-        0x53f5_6307_b6bf_11d0_94f2_00a0c91efb8b,
-    );
+    const DISK_INTERFACE_GUID: windows_sys::core::GUID =
+        windows_sys::core::GUID::from_u128(0x53f5_6307_b6bf_11d0_94f2_00a0c91efb8b);
 
     /// Native storage probe over the disk device interface class.
     #[derive(Clone, Copy, Debug, Default)]
@@ -917,8 +926,9 @@ mod native {
         if size == 0 {
             return Ok(Vec::new());
         }
-        let bytes = usize::try_from(size)
-            .map_err(|_| LenovoLaptopControlError::Io(std::io::Error::other("interface list size overflow")))?;
+        let bytes = usize::try_from(size).map_err(|_| {
+            LenovoLaptopControlError::Io(std::io::Error::other("interface list size overflow"))
+        })?;
         if bytes > MAX_INTERFACE_LIST_BYTES {
             return Err(LenovoLaptopControlError::ChannelUnavailable {
                 channel: format!(
@@ -1032,7 +1042,10 @@ mod native {
             };
             if success == 0 {
                 let error = unsafe { GetLastError() };
-                return Err(map_win_error(error, &format!("{context} IOCTL 0x{code:08x}")));
+                return Err(map_win_error(
+                    error,
+                    &format!("{context} IOCTL 0x{code:08x}"),
+                ));
             }
             let returned = usize::try_from(returned).map_err(|_| {
                 LenovoLaptopControlError::Io(std::io::Error::other(format!(
@@ -1055,7 +1068,10 @@ mod native {
             let bytes = self.ioctl(IOCTL_STORAGE_GET_DEVICE_NUMBER, &[], 12, context)?;
             if bytes.len() < 8 {
                 return Err(LenovoLaptopControlError::ChannelUnavailable {
-                    channel: format!("{context}: STORAGE_DEVICE_NUMBER reply is {} bytes", bytes.len()),
+                    channel: format!(
+                        "{context}: STORAGE_DEVICE_NUMBER reply is {} bytes",
+                        bytes.len()
+                    ),
                 });
             }
             let mut number = [0u8; 4];
@@ -1077,7 +1093,9 @@ mod native {
 mod tests {
     use std::collections::BTreeMap;
 
-    use lenovo_laptop_control_core::{LenovoLaptopControlError, StorageHealth, StorageMediaType, StorageStatus};
+    use lenovo_laptop_control_core::{
+        LenovoLaptopControlError, StorageHealth, StorageMediaType, StorageStatus,
+    };
 
     use super::*;
 
@@ -1146,13 +1164,9 @@ mod tests {
         bytes[8..10].copy_from_slice(&87i16.to_le_bytes());
         bytes[10..12].copy_from_slice(&84i16.to_le_bytes());
         bytes[12..14].copy_from_slice(&3u16.to_le_bytes());
-        for (index, (sensor, celsius, over)) in [
-            (0u16, 28i16, 84i16),
-            (1, 31, -274),
-            (2, 28, -274),
-        ]
-        .into_iter()
-        .enumerate()
+        for (index, (sensor, celsius, over)) in [(0u16, 28i16, 84i16), (1, 31, -274), (2, 28, -274)]
+            .into_iter()
+            .enumerate()
         {
             let base = 24 + index * 16;
             bytes[base..base + 2].copy_from_slice(&sensor.to_le_bytes());
@@ -1181,7 +1195,7 @@ mod tests {
 
     #[derive(Default)]
     struct FakeProbe {
-        answers: BTreeMap<u8, Result<Vec<u8>>>,
+        answers: BTreeMap<u8, Vec<u8>>,
         disks: Vec<StorageDisk>,
     }
 
@@ -1198,17 +1212,12 @@ mod tests {
 
     impl FakeProbe {
         fn answer(mut self, query: StorageQuery, bytes: Vec<u8>) -> Self {
-            self.answers.insert(query_key(query), Ok(bytes));
+            self.answers.insert(query_key(query), bytes);
             self
         }
 
         fn refuse(mut self, query: StorageQuery) -> Self {
-            self.answers.insert(
-                query_key(query),
-                Err(LenovoLaptopControlError::Unsupported {
-                    feature: format!("{query:?}"),
-                }),
-            );
+            self.answers.remove(&query_key(query));
             self
         }
 
@@ -1228,14 +1237,11 @@ mod tests {
         }
 
         fn query(&self, _disk: &StorageDisk, query: StorageQuery) -> Result<Vec<u8>> {
-            self.answers
-                .get(&query_key(query))
-                .cloned()
-                .unwrap_or_else(|| {
-                    Err(LenovoLaptopControlError::Unsupported {
-                        feature: format!("{query:?}"),
-                    })
-                })
+            self.answers.get(&query_key(query)).cloned().ok_or_else(|| {
+                LenovoLaptopControlError::Unsupported {
+                    feature: format!("{query:?}"),
+                }
+            })
         }
 
         fn geometry(&self, _disk: &StorageDisk) -> Result<DiskGeometryFacts> {
@@ -1296,7 +1302,10 @@ mod tests {
     #[test]
     fn short_descriptor_is_channel_unavailable() {
         let error = decode_device_descriptor(&[0x28, 0, 0, 0]).unwrap_err();
-        assert!(matches!(error, LenovoLaptopControlError::ChannelUnavailable { .. }));
+        assert!(matches!(
+            error,
+            LenovoLaptopControlError::ChannelUnavailable { .. }
+        ));
     }
 
     #[test]
@@ -1304,7 +1313,10 @@ mod tests {
         let mut bytes = descriptor(17, "M", "R", "S");
         bytes[4..8].copy_from_slice(&9000u32.to_le_bytes());
         let error = decode_device_descriptor(&bytes).unwrap_err();
-        assert!(matches!(error, LenovoLaptopControlError::ChannelUnavailable { .. }));
+        assert!(matches!(
+            error,
+            LenovoLaptopControlError::ChannelUnavailable { .. }
+        ));
     }
 
     #[test]
@@ -1325,7 +1337,10 @@ mod tests {
         let mut bytes = identify_controller("SN", "MN", "FR");
         bytes[12..16].copy_from_slice(&2u32.to_le_bytes());
         let error = decode_nvme_identify_controller(&bytes).unwrap_err();
-        assert!(matches!(error, LenovoLaptopControlError::ChannelUnavailable { .. }));
+        assert!(matches!(
+            error,
+            LenovoLaptopControlError::ChannelUnavailable { .. }
+        ));
     }
 
     #[test]
@@ -1333,7 +1348,10 @@ mod tests {
         let mut bytes = smart_log(302, 8);
         bytes.truncate(200);
         let error = decode_nvme_smart_log(&bytes).unwrap_err();
-        assert!(matches!(error, LenovoLaptopControlError::ChannelUnavailable { .. }));
+        assert!(matches!(
+            error,
+            LenovoLaptopControlError::ChannelUnavailable { .. }
+        ));
     }
 
     #[test]
@@ -1364,11 +1382,26 @@ mod tests {
 
     #[test]
     fn health_codes_are_not_promoted_to_healthy() {
-        assert_eq!(decode_management_status(&management_status(3)).unwrap(), StorageHealth::Healthy);
-        assert_eq!(decode_management_status(&management_status(2)).unwrap(), StorageHealth::Warning);
-        assert_eq!(decode_management_status(&management_status(1)).unwrap(), StorageHealth::Unhealthy);
-        assert_eq!(decode_management_status(&management_status(0)).unwrap(), StorageHealth::Unknown);
-        assert_eq!(decode_management_status(&management_status(9)).unwrap(), StorageHealth::Unknown);
+        assert_eq!(
+            decode_management_status(&management_status(3)).unwrap(),
+            StorageHealth::Healthy
+        );
+        assert_eq!(
+            decode_management_status(&management_status(2)).unwrap(),
+            StorageHealth::Warning
+        );
+        assert_eq!(
+            decode_management_status(&management_status(1)).unwrap(),
+            StorageHealth::Unhealthy
+        );
+        assert_eq!(
+            decode_management_status(&management_status(0)).unwrap(),
+            StorageHealth::Unknown
+        );
+        assert_eq!(
+            decode_management_status(&management_status(9)).unwrap(),
+            StorageHealth::Unknown
+        );
     }
 
     #[test]
@@ -1383,7 +1416,10 @@ mod tests {
         let mut bytes = geometry();
         bytes[24..32].copy_from_slice(&0u64.to_le_bytes());
         let error = decode_geometry(&bytes).unwrap_err();
-        assert!(matches!(error, LenovoLaptopControlError::ChannelUnavailable { .. }));
+        assert!(matches!(
+            error,
+            LenovoLaptopControlError::ChannelUnavailable { .. }
+        ));
     }
 
     #[test]
@@ -1391,7 +1427,10 @@ mod tests {
         let device = only_device(WindowsStorage::new(nvme_probe()).describe_all().unwrap());
         assert_eq!(device.model.as_deref(), Some("UMIS UPJYJ1TBMNV1QWY"));
         assert_eq!(device.serial_number.as_deref(), Some("FDBS26010EA61912B1"));
-        assert_eq!(device.device_serial.as_deref(), Some("5CDF_B806_1090_9BA5."));
+        assert_eq!(
+            device.device_serial.as_deref(),
+            Some("5CDF_B806_1090_9BA5.")
+        );
         assert_eq!(device.firmware_version.as_deref(), Some("1.0L06D1"));
         assert_eq!(device.bus_type, Some(StorageBusType::Nvme));
         assert_eq!(device.media_type, Some(StorageMediaType::SolidState));
@@ -1436,12 +1475,17 @@ mod tests {
     fn malformed_reply_aborts_instead_of_describing_a_partial_device() {
         let probe = nvme_probe().answer(StorageQuery::DeviceDescriptor, vec![0u8; 8]);
         let error = WindowsStorage::new(probe).describe_all().unwrap_err();
-        assert!(matches!(error, LenovoLaptopControlError::ChannelUnavailable { .. }));
+        assert!(matches!(
+            error,
+            LenovoLaptopControlError::ChannelUnavailable { .. }
+        ));
     }
 
     #[test]
     fn empty_enumeration_is_reported_as_an_issue_not_an_error() {
-        let status = WindowsStorage::new(FakeProbe::default()).describe_all().unwrap();
+        let status = WindowsStorage::new(FakeProbe::default())
+            .describe_all()
+            .unwrap();
         assert!(status.devices.is_empty());
         assert_eq!(status.issues.len(), 1);
         assert_eq!(status.issues[0].source, "GUID_DEVINTERFACE_DISK");
@@ -1454,9 +1498,13 @@ mod tests {
         penalty[4..8].copy_from_slice(&12u32.to_le_bytes());
         let probe = FakeProbe::default()
             .with_disk()
-            .answer(StorageQuery::DeviceDescriptor, descriptor(11, "SATA SSD", "R1", "SN1"))
+            .answer(
+                StorageQuery::DeviceDescriptor,
+                descriptor(11, "SATA SSD", "R1", "SN1"),
+            )
             .answer(StorageQuery::SeekPenalty, penalty)
-            .answer(StorageQuery::DeviceManagementStatus, management_status(3));
+            .answer(StorageQuery::DeviceManagementStatus, management_status(3))
+            .answer(StorageQuery::DeviceTemperature, temperature_descriptor());
         let device = only_device(WindowsStorage::new(probe).describe_all().unwrap());
         assert_eq!(device.bus_type, Some(StorageBusType::Sata));
         assert_eq!(device.media_type, Some(StorageMediaType::SolidState));

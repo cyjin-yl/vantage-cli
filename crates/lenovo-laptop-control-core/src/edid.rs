@@ -351,8 +351,7 @@ pub fn decode_panel_edid(bytes: &[u8], internal: bool) -> Result<PanelIdentity> 
 /// Decode one 18-byte detailed timing descriptor into its pixel geometry and
 /// whole-hertz refresh rate.
 fn decode_timing(descriptor: &[u8], pixel_clock_10khz: u16) -> Result<(PanelResolution, u32)> {
-    let horizontal_active =
-        u32::from(descriptor[2]) | (u32::from(descriptor[4] & 0xf0) << 4);
+    let horizontal_active = u32::from(descriptor[2]) | (u32::from(descriptor[4] & 0xf0) << 4);
     let horizontal_blank = u32::from(descriptor[3]) | (u32::from(descriptor[4] & 0x0f) << 8);
     let vertical_active = u32::from(descriptor[5]) | (u32::from(descriptor[7] & 0xf0) << 4);
     let vertical_blank = u32::from(descriptor[6]) | (u32::from(descriptor[7] & 0x0f) << 8);
@@ -368,8 +367,8 @@ fn decode_timing(descriptor: &[u8], pixel_clock_10khz: u16) -> Result<(PanelReso
     }
     let total_pixels = u64::from(horizontal_active + horizontal_blank)
         * u64::from(vertical_active + vertical_blank);
-    let refresh_hz = (u64::from(pixel_clock_10khz) * 10_000 * 2 + total_pixels)
-        / (2 * total_pixels);
+    let refresh_hz =
+        (u64::from(pixel_clock_10khz) * 10_000 * 2 + total_pixels) / (2 * total_pixels);
     Ok((
         PanelResolution {
             width: horizontal_active,
@@ -616,9 +615,7 @@ mod tests {
         assert_eq!(hex.len() % 2, 0, "hex length");
         (0..hex.len())
             .step_by(2)
-            .map(|index| {
-                u8::from_str_radix(&hex[index..index + 2], 16).expect("hex digit pair")
-            })
+            .map(|index| u8::from_str_radix(&hex[index..index + 2], 16).expect("hex digit pair"))
             .collect()
     }
 
@@ -652,10 +649,7 @@ mod tests {
         );
         assert_eq!(
             identity.edid_version,
-            PanelEdidVersion {
-                major: 1,
-                minor: 4
-            }
+            PanelEdidVersion { major: 1, minor: 4 }
         );
         assert_eq!(
             identity.native_resolution,
@@ -782,7 +776,9 @@ mod tests {
         block.truncate(2 * BLOCK_LEN);
         let error = decode_panel_edid(&block, true).expect_err("declared block missing");
         assert!(
-            error.to_string().contains("declares 3 block(s) but 2 were read"),
+            error
+                .to_string()
+                .contains("declares 3 block(s) but 2 were read"),
             "unexpected error: {error}"
         );
     }

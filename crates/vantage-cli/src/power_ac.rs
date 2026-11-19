@@ -4,7 +4,9 @@
 //! fields stay absent with a recorded reason; no nominal rating, design
 //! voltage, wall-input figure, or cross-source association is synthesized.
 
-use lenovo_laptop_control_core::{AcPowerObservation, BatteryRateState, LenovoLaptopControlError, PowerDrawObservation};
+use lenovo_laptop_control_core::{
+    AcPowerObservation, BatteryRateState, LenovoLaptopControlError, PowerDrawObservation,
+};
 use lenovo_laptop_control_hal::BatteryControl;
 use serde::Serialize;
 use serde_json::{Map, Value};
@@ -59,16 +61,18 @@ pub(crate) fn execute_ac(
         }
         None => None,
     };
-    let observation = AcPowerObservation::from_sources(
-        ac_line_status,
-        ac_line_source,
-        adapter,
-        adapter_source,
-    );
+    let observation =
+        AcPowerObservation::from_sources(ac_line_status, ac_line_source, adapter, adapter_source);
     let mut payload = object(&observation)?;
     payload.insert("source_association".into(), Value::from("unverified"));
-    payload.insert("adapter_error".into(), adapter_error.clone().unwrap_or(Value::Null));
-    payload.insert("system_power_error".into(), system_error.clone().unwrap_or(Value::Null));
+    payload.insert(
+        "adapter_error".into(),
+        adapter_error.clone().unwrap_or(Value::Null),
+    );
+    payload.insert(
+        "system_power_error".into(),
+        system_error.clone().unwrap_or(Value::Null),
+    );
 
     let mut human = String::from(
         "AC/adapter observations (read-only; OS AC-line state and vendor adapter are independent sources):\n",
@@ -78,14 +82,20 @@ pub(crate) fn execute_ac(
         Some(false) => human.push_str("- AC line: on battery\n"),
         None => human.push_str("- AC line: not reported\n"),
     }
-    human.push_str(&format!("- AC line source: {}\n", observation.ac_line_source));
+    human.push_str(&format!(
+        "- AC line source: {}\n",
+        observation.ac_line_source
+    ));
     match &observation.adapter {
         Some(info) => {
             human.push_str(&format!(
                 "- vendor adapter: authentication={}, detail_advertised={}\n",
                 info.authentication, info.has_detail
             ));
-            human.push_str(&format!("- adapter source: {}\n", observation.adapter_source));
+            human.push_str(&format!(
+                "- adapter source: {}\n",
+                observation.adapter_source
+            ));
             match observation.adapter_current_power_w {
                 Some(watts) => human.push_str(&format!(
                     "- adapter reported power: current={watts} W, system requirement={}\n",
@@ -101,10 +111,16 @@ pub(crate) fn execute_ac(
         None => human.push_str("- vendor adapter: unavailable\n"),
     }
     for field in &observation.unavailable {
-        human.push_str(&format!("- unavailable: {} ({})\n", field.field, field.reason));
+        human.push_str(&format!(
+            "- unavailable: {} ({})\n",
+            field.field, field.reason
+        ));
     }
     for issue in &observation.source_issues {
-        human.push_str(&format!("- source issue [{}]: {}\n", issue.source, issue.detail));
+        human.push_str(&format!(
+            "- source issue [{}]: {}\n",
+            issue.source, issue.detail
+        ));
     }
     if let Some(error) = &adapter_error {
         human.push_str(&format!("- adapter error: {error}\n"));
@@ -156,7 +172,10 @@ pub(crate) fn execute_draw(
         Some(false) => human.push_str("- AC line: on battery\n"),
         None => human.push_str("- AC line: not reported\n"),
     }
-    human.push_str(&format!("- AC line source: {}\n", observation.ac_line_source));
+    human.push_str(&format!(
+        "- AC line source: {}\n",
+        observation.ac_line_source
+    ));
     match observation.state {
         BatteryRateState::Discharging => {
             if let Some(rate) = observation.rate_mw {
@@ -185,12 +204,21 @@ pub(crate) fn execute_draw(
         Some(millivolts) => human.push_str(&format!("- pack voltage: {millivolts} mV\n")),
         None => human.push_str("- pack voltage: not reported\n"),
     }
-    human.push_str(&format!("- raw power-state bits: 0x{:08x}\n", observation.power_state_bits));
+    human.push_str(&format!(
+        "- raw power-state bits: 0x{:08x}\n",
+        observation.power_state_bits
+    ));
     for field in &observation.unavailable {
-        human.push_str(&format!("- unavailable: {} ({})\n", field.field, field.reason));
+        human.push_str(&format!(
+            "- unavailable: {} ({})\n",
+            field.field, field.reason
+        ));
     }
     for issue in &observation.source_issues {
-        human.push_str(&format!("- source issue [{}]: {}\n", issue.source, issue.detail));
+        human.push_str(&format!(
+            "- source issue [{}]: {}\n",
+            issue.source, issue.detail
+        ));
     }
     if let Some(error) = &system_error {
         human.push_str(&format!("- system power error: {error}\n"));
@@ -201,7 +229,9 @@ pub(crate) fn execute_draw(
     })
 }
 
-fn optional<T: Serialize>(result: lenovo_laptop_control_core::Result<T>) -> (Option<T>, Option<Value>) {
+fn optional<T: Serialize>(
+    result: lenovo_laptop_control_core::Result<T>,
+) -> (Option<T>, Option<Value>) {
     match result {
         Ok(value) => (Some(value), None),
         Err(error) => {
@@ -214,7 +244,9 @@ fn optional<T: Serialize>(result: lenovo_laptop_control_core::Result<T>) -> (Opt
     }
 }
 
-fn object<T: Serialize>(value: &T) -> std::result::Result<Map<String, Value>, LenovoLaptopControlError> {
+fn object<T: Serialize>(
+    value: &T,
+) -> std::result::Result<Map<String, Value>, LenovoLaptopControlError> {
     match serde_json::to_value(value).map_err(serialization_error)? {
         Value::Object(map) => Ok(map),
         _ => Err(LenovoLaptopControlError::Io(std::io::Error::other(

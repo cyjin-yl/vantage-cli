@@ -116,10 +116,8 @@ pub fn decode_port_connection_information(buffer: &[u8]) -> Option<PortConnectio
         return None;
     }
     let connection = UsbPortConnection::from_raw(read_u32(buffer, PORT_CONNECTION_STATUS_OFFSET)?);
-    let address = u16::from_le_bytes([
-        buffer[PORT_ADDRESS_OFFSET],
-        buffer[PORT_ADDRESS_OFFSET + 1],
-    ]);
+    let address =
+        u16::from_le_bytes([buffer[PORT_ADDRESS_OFFSET], buffer[PORT_ADDRESS_OFFSET + 1]]);
     if !connection.is_connected() {
         // The driver leaves the descriptor area zeroed for every non-connected
         // state; reporting a speed or a vendor id there would be invention.
@@ -175,7 +173,7 @@ pub const fn max_power_ma(raw: u8, bcd_usb: u16) -> u32 {
 /// Render `bcdUSB` the way the USB-IF writes it (`0x0201` → `2.01`).
 #[must_use]
 pub fn format_usb_revision(bcd_usb: u16) -> String {
-    format!("{}.{:02}", bcd_usb >> 8, bcd_usb & 0xff)
+    format!("{:x}.{:02x}", bcd_usb >> 8, bcd_usb & 0xff)
 }
 
 fn read_u16(buffer: &[u8], offset: usize) -> Option<u16> {

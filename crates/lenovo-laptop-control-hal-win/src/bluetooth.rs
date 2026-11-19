@@ -28,9 +28,7 @@ use windows_sys::Win32::{
         BluetoothFindRadioClose, BluetoothGetRadioInfo, HBLUETOOTH_DEVICE_FIND,
         HBLUETOOTH_RADIO_FIND,
     },
-    Foundation::{
-        CloseHandle, ERROR_NO_MORE_ITEMS, FALSE, GetLastError, HANDLE, SYSTEMTIME, TRUE,
-    },
+    Foundation::{CloseHandle, ERROR_NO_MORE_ITEMS, FALSE, GetLastError, HANDLE, SYSTEMTIME, TRUE},
 };
 
 /// Sizes the structures have on the verified contract
@@ -160,10 +158,7 @@ fn devices() -> Result<Vec<BluetoothDeviceRecord>> {
             });
         }
         let record = device_record(&info);
-        if !devices
-            .iter()
-            .any(|known| known.address == record.address)
-        {
+        if !devices.iter().any(|known| known.address == record.address) {
             devices.push(record);
         }
         info = fresh_device_info();

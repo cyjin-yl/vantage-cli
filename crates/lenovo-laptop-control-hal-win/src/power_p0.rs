@@ -1,9 +1,9 @@
 use std::time::Duration;
 
 use lenovo_laptop_control_core::{
-    ApplyMode, ChangeReport, LenovoLaptopControlError, PowerMutation, PowerRangeObservation, PowerScheme,
-    PowerSchemeId, PowerSettingKey, PowerSettingObservation, PowerSettingValue, PowerSource,
-    PowerSourceValues, PowerValueRange, Result, validate_power_write,
+    ApplyMode, ChangeReport, LenovoLaptopControlError, PowerMutation, PowerRangeObservation,
+    PowerScheme, PowerSchemeId, PowerSettingKey, PowerSettingObservation, PowerSettingValue,
+    PowerSource, PowerSourceValues, PowerValueRange, Result, validate_power_write,
 };
 use lenovo_laptop_control_hal::{PowerControl, poll_readback};
 
@@ -92,7 +92,10 @@ where
     fn power_schemes(&self) -> Result<Vec<PowerScheme>> {
         self.api.schemes()
     }
-    fn power_value_range(&self, key: &lenovo_laptop_control_core::PowerSettingKey) -> Result<PowerValueRange> {
+    fn power_value_range(
+        &self,
+        key: &lenovo_laptop_control_core::PowerSettingKey,
+    ) -> Result<PowerValueRange> {
         self.api.range(key)
     }
 
@@ -110,7 +113,8 @@ where
         let range = match self.api.range(key) {
             Ok(range) => PowerRangeObservation::Available { range },
             Err(
-                error @ (LenovoLaptopControlError::Unsupported { .. } | LenovoLaptopControlError::ChannelUnavailable { .. }),
+                error @ (LenovoLaptopControlError::Unsupported { .. }
+                | LenovoLaptopControlError::ChannelUnavailable { .. }),
             ) => PowerRangeObservation::Unavailable {
                 detail: error.to_string(),
             },

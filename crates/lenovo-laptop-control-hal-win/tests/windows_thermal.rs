@@ -4,11 +4,13 @@ use std::collections::BTreeMap;
 
 use lenovo_laptop_control_core::{
     AdapterInfo, ApplyMode, Availability, BatteryElectricalObservation, BatteryTelemetry,
-    ChangeReport, ChargeMode, ChargeModeActual, FanDescriptor, FanId, FanMode, LenovoLaptopControlError, Result,
-    SensorId, TemperatureLocation, TemperatureSource,
+    ChangeReport, ChargeMode, ChargeModeActual, FanDescriptor, FanId, FanMode,
+    LenovoLaptopControlError, Result, SensorId, TemperatureLocation, TemperatureSource,
 };
 use lenovo_laptop_control_hal::{BatteryControl, DbdcControl, FanControl, TemperatureControl};
-use lenovo_laptop_control_hal_win::{PerformanceRegistryReader, WindowsThermal, WmiObject, WmiTransport, WmiValue};
+use lenovo_laptop_control_hal_win::{
+    PerformanceRegistryReader, WindowsThermal, WmiObject, WmiTransport, WmiValue,
+};
 
 /// Scripted PowerSlider reader: `None` models a machine without the dispatcher
 /// key, `Some(value)` the `ITS_FanMode` projection.
@@ -198,7 +200,7 @@ impl WmiTransport for FakeWmi {
             self.esif.get()
         } else if wql.contains("LENOVO_FAN_TEST_DATA") {
             self.fans.get()
-        } else if wql.contains("LENOVO_GAMEZONE_DATA") {
+        } else if wql.contains("LENOVO_GAMEZONE_DATA") || wql.contains("LENOVO_OTHER_METHOD") {
             self.gamezone.get()
         } else if wql.contains("LENOVO_REPORT_DBDC_DATA") {
             self.dbdc.get()
@@ -677,6 +679,45 @@ fn gamezone_instance() -> WmiObject {
 }
 
 #[test]
+fn duty_write_requires_an_observable_tach_response() {
+    for rpm in [0, 1838] {
+        let wmi = FakeWmi::new(
+            WmiReply::Unsupported,
+            WmiReply::Objects(vec![fan_inventory()]),
+        )
+        .with_gamezone(WmiReply::Objects(vec![gamezone_instance()]))
+        .with_invoke_reply("GetFeatureValue", object(&[("value", WmiValue::U32(rpm))]))
+        .with_invoke_reply(
+            "SetFeatureValue",
+            object(&[("ReturnValue", WmiValue::U32(0))]),
+        );
+        let controller = WindowsThermal::new(wmi, FakeBattery::unavailable());
+
+        let error = controller.set_fan_duty(60, ApplyMode::Commit).unwrap_err();
+        if rpm == 0 {
+            assert!(matches!(
+                error,
+                LenovoLaptopControlError::ChannelUnavailable { .. }
+            ));
+        } else {
+            assert!(matches!(
+                error,
+                LenovoLaptopControlError::VerifyMismatch { .. }
+            ));
+        }
+        assert_eq!(
+            controller
+                .wmi()
+                .invocations
+                .lock()
+                .iter()
+                .any(|call| call.ends_with(".SetFeatureValue")),
+            rpm != 0,
+        );
+    }
+}
+
+#[test]
 fn fan_mode_reads_smart_fan_raw_and_maps_semantic_mode() {
     let wmi = FakeWmi::empty()
         .with_gamezone(WmiReply::Objects(vec![gamezone_instance()]))
@@ -738,7 +779,10 @@ fn set_fan_mode_rejects_unknown_semantic_mode_without_touching_wmi() {
     let error = controller
         .set_fan_mode(FanMode::Unknown(9), ApplyMode::Commit)
         .unwrap_err();
-    assert!(matches!(error, LenovoLaptopControlError::InvalidArgument { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::InvalidArgument { .. }
+    ));
     assert!(controller.wmi().invocations.lock().is_empty());
 }
 
@@ -756,7 +800,10 @@ fn set_fan_mode_surfaces_verify_mismatch_when_readback_disagrees() {
     let error = controller
         .set_fan_mode(FanMode::Performance, ApplyMode::Commit)
         .unwrap_err();
-    assert!(matches!(error, LenovoLaptopControlError::VerifyMismatch { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::VerifyMismatch { .. }
+    ));
 }
 
 #[test]
@@ -806,7 +853,10 @@ fn dbdc_profile_rejects_missing_instance() {
     let controller = WindowsThermal::new(wmi, FakeBattery::unavailable());
 
     let error = controller.dbdc_profile().unwrap_err();
-    assert!(matches!(error, LenovoLaptopControlError::ChannelUnavailable { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::ChannelUnavailable { .. }
+    ));
 }
 
 #[test]
@@ -821,5 +871,8 @@ fn dbdc_profile_rejects_inconsistent_arrays() {
     let controller = WindowsThermal::new(wmi, FakeBattery::unavailable());
 
     let error = controller.dbdc_profile().unwrap_err();
-    assert!(matches!(error, LenovoLaptopControlError::ChannelUnavailable { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::ChannelUnavailable { .. }
+    ));
 }

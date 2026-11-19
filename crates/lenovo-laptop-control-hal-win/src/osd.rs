@@ -12,8 +12,8 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{LazyLock, Mutex};
 
-use crate::wide::wide;
 use crate::NativeFnOsd;
+use crate::wide::wide;
 use lenovo_laptop_control_core::Result;
 use lenovo_laptop_control_hal::{FnOsdChange, FnOsdStatus, OsdControl, OsdOutcome};
 use windows_sys::Win32::{

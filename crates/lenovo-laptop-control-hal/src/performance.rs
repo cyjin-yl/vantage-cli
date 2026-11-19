@@ -1,6 +1,6 @@
 use lenovo_laptop_control_core::{
-    ApplyMode, ChangeReport, FanDescriptor, FanId, FanMode, FanTable, ItsPolicy,
-    PerformanceMode, PerformanceState, Result, SensorId,
+    ApplyMode, ChangeReport, FanDescriptor, FanId, FanMode, FanTable, ItsPolicy, PerformanceMode,
+    PerformanceState, Result, SensorId,
 };
 
 pub trait PerformanceControl: Send + Sync {
@@ -52,23 +52,26 @@ pub trait FanControl: Send + Sync {
     /// `0x04030001` (ACPI `WMAE` → `ECCC(0x64)` → `ECRT`), verified live
     /// 2026-11-19 (docs/evidence/re-fan-wmae-channel-20261119.md).
     fn fan_speeds(&self) -> Result<Vec<(FanId, u32)>> {
-        Err(lenovo_laptop_control_core::LenovoLaptopControlError::Unsupported {
-            feature: "perf.fan.rpm".into(),
-        })
+        Err(
+            lenovo_laptop_control_core::LenovoLaptopControlError::Unsupported {
+                feature: "perf.fan.rpm".into(),
+            },
+        )
     }
 
     /// Direct fan-duty override, `duty_pct` = 0..=100.
     ///
-    /// The override latches until the next write or reboot; the firmware
-    /// holds an ~1800 RPM floor at the low end, so a low write cannot stall
-    /// the fan. `previous`/`actual` are estimated from live RPM against the
-    /// inventory bounds — the duty register is write-only
-    /// (docs/evidence/re-fan-wmae-channel-20261119.md §5).
+    /// On 21VG, the firmware only honors this while its manual override is
+    /// armed. A committed result requires an observable tach response.
+    /// `previous` and `actual` are RPM-based estimates because the register
+    /// is write-only (docs/evidence/re-fan-wmae-channel-20261119.md §7).
     fn set_fan_duty(&self, duty_pct: u8, apply: ApplyMode) -> Result<ChangeReport<u8>> {
         let _ = (duty_pct, apply);
-        Err(lenovo_laptop_control_core::LenovoLaptopControlError::Unsupported {
-            feature: "perf.fan.duty.write".into(),
-        })
+        Err(
+            lenovo_laptop_control_core::LenovoLaptopControlError::Unsupported {
+                feature: "perf.fan.duty.write".into(),
+            },
+        )
     }
 }
 

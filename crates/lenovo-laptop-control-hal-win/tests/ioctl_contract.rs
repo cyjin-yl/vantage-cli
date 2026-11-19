@@ -31,7 +31,12 @@ impl FakeIoctl {
 }
 
 impl IoctlTransport for FakeIoctl {
-    fn call(&self, code: u32, input: &[u8], output_len: usize) -> lenovo_laptop_control_core::Result<Vec<u8>> {
+    fn call(
+        &self,
+        code: u32,
+        input: &[u8],
+        output_len: usize,
+    ) -> lenovo_laptop_control_core::Result<Vec<u8>> {
         self.calls.lock().push(Call {
             code,
             input: input.to_vec(),

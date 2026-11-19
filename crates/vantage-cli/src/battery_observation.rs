@@ -113,7 +113,10 @@ mod tests {
     }
 
     impl BatteryControl for Sources {
-        fn battery_telemetry(&self, _: u32) -> lenovo_laptop_control_core::Result<BatteryTelemetry> {
+        fn battery_telemetry(
+            &self,
+            _: u32,
+        ) -> lenovo_laptop_control_core::Result<BatteryTelemetry> {
             self.calls.fetch_add(1, Ordering::SeqCst);
             if !self.available {
                 return unavailable("vendor");
@@ -159,7 +162,9 @@ mod tests {
                 ..Default::default()
             })
         }
-        fn battery_electrical(&self) -> lenovo_laptop_control_core::Result<BatteryElectricalObservation> {
+        fn battery_electrical(
+            &self,
+        ) -> lenovo_laptop_control_core::Result<BatteryElectricalObservation> {
             self.calls.fetch_add(1, Ordering::SeqCst);
             if !self.available {
                 return unavailable("native-electrical");

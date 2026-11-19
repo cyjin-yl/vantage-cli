@@ -13,7 +13,8 @@ mod native {
     use std::{mem, ptr};
 
     use lenovo_laptop_control_core::{
-        LenovoLaptopControlError, MagicBayDevice, MagicBayInventory, Result, merge_magicbay_interfaces,
+        LenovoLaptopControlError, MagicBayDevice, MagicBayInventory, Result,
+        merge_magicbay_interfaces,
     };
     use lenovo_laptop_control_hal::MagicBayControl;
     use windows_sys::{
@@ -156,7 +157,10 @@ mod native {
                 channel: format!("SetupDi device instance id length {required} is invalid"),
             })?;
         String::from_utf16(&buffer[..length]).map_err(|error| {
-            LenovoLaptopControlError::Io(std::io::Error::new(std::io::ErrorKind::InvalidData, error))
+            LenovoLaptopControlError::Io(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                error,
+            ))
         })
     }
 

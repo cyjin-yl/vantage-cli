@@ -174,8 +174,14 @@ fn resources_take_their_version_from_the_revision_hardware_id() {
     let revisionless = &status.resources[1];
     assert_eq!(revisionless.current_version, None);
     let json = serde_json::to_value(revisionless).expect("serializable resource");
-    assert!(json.get("current_version").is_some_and(serde_json::Value::is_null));
-    assert!(json.get("stored_version").is_some_and(serde_json::Value::is_null));
+    assert!(
+        json.get("current_version")
+            .is_some_and(serde_json::Value::is_null)
+    );
+    assert!(
+        json.get("stored_version")
+            .is_some_and(serde_json::Value::is_null)
+    );
 }
 
 #[test]

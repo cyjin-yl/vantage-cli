@@ -1,6 +1,8 @@
 #![cfg(windows)]
 // Windows-only integration test: the HAL only exposes this API on Windows.
-use lenovo_laptop_control_core::{ApplyMode, LenovoLaptopControlError, NoiseCancellationMode, Result};
+use lenovo_laptop_control_core::{
+    ApplyMode, LenovoLaptopControlError, NoiseCancellationMode, Result,
+};
 use lenovo_laptop_control_hal::NoiseCancelControl;
 use lenovo_laptop_control_hal_win::{ElevocRpc, WindowsNoiseCancel};
 use parking_lot::Mutex;
@@ -110,7 +112,10 @@ fn endpoint_rejection_is_unsupported() {
     let error = control
         .set_noise_cancel_mode(NoiseCancellationMode::Spatial, ApplyMode::Commit)
         .expect_err("rejection surfaces");
-    assert!(matches!(error, LenovoLaptopControlError::Unsupported { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::Unsupported { .. }
+    ));
 }
 
 #[test]
@@ -123,7 +128,10 @@ fn voice_id_without_enrollment_is_invalid_argument() {
     let error = control
         .set_noise_cancel_mode(NoiseCancellationMode::VoiceId, ApplyMode::Commit)
         .expect_err("gate surfaces");
-    assert!(matches!(error, LenovoLaptopControlError::InvalidArgument { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::InvalidArgument { .. }
+    ));
 }
 
 #[test]

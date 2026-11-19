@@ -10,7 +10,9 @@ use gpui::{
     App, Application, Bounds, Context, IntoElement, Render, Window, WindowBounds, WindowOptions,
     div, prelude::*, px, rgb, size,
 };
-use lenovo_laptop_control_core::{Availability, CapabilitySet, HardwareInfo, LenovoLaptopControlError, Platform, Result};
+use lenovo_laptop_control_core::{
+    Availability, CapabilitySet, HardwareInfo, LenovoLaptopControlError, Platform, Result,
+};
 use lenovo_laptop_control_hal::Hal;
 
 // Palette tokens: a cool instrument-panel base, with one signal color and one

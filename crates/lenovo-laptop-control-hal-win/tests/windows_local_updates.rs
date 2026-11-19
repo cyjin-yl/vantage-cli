@@ -194,7 +194,10 @@ impl lenovo_laptop_control_hal_win::LocalDriverUpdateApi for FakeApi {
         })
     }
 
-    fn installed_driver(&self, _device: &str) -> lenovo_laptop_control_core::Result<Option<InstalledDriver>> {
+    fn installed_driver(
+        &self,
+        _device: &str,
+    ) -> lenovo_laptop_control_core::Result<Option<InstalledDriver>> {
         self.record(Call::Read);
         let state = self.state.lock();
         if state.install_done {
@@ -210,7 +213,11 @@ impl lenovo_laptop_control_hal_win::LocalDriverUpdateApi for FakeApi {
         Ok(state.current.clone())
     }
 
-    fn install_driver(&self, _inf: &Path, _hardware_id: &str) -> lenovo_laptop_control_core::Result<bool> {
+    fn install_driver(
+        &self,
+        _inf: &Path,
+        _hardware_id: &str,
+    ) -> lenovo_laptop_control_core::Result<bool> {
         self.record(Call::Install);
         let mut state = self.state.lock();
         if let Some(error) = state.install_error.take() {
@@ -417,7 +424,10 @@ fn failed_install_readback_is_semantic_and_does_not_fake_success() {
     let error = controller
         .apply_local_driver_update(&update_request(&inf), ApplyMode::Commit)
         .unwrap_err();
-    assert!(matches!(error, LenovoLaptopControlError::VerifyMismatch { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::VerifyMismatch { .. }
+    ));
     assert_eq!(error.exit_code(), 7);
 }
 
@@ -467,7 +477,10 @@ fn rollback_without_documented_previous_point_and_bad_readback_refuse() {
     let error = controller
         .rollback_local_driver(&rollback_request(2, 3), ApplyMode::Commit)
         .unwrap_err();
-    assert!(matches!(error, LenovoLaptopControlError::Unsupported { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::Unsupported { .. }
+    ));
 
     let api = FakeApi::valid(&inf);
     {
@@ -585,7 +598,10 @@ fn policy_json_rejects_unknown_credential_fields_without_persisting_them() {
     let error = store.load().unwrap_err();
     assert!(!error.to_string().contains("hunter2"));
     assert!(!error.to_string().contains("user:secret"));
-    assert!(matches!(error, LenovoLaptopControlError::InvalidArgument { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::InvalidArgument { .. }
+    ));
     let text = std::fs::read_to_string(&path).unwrap();
     assert!(text.contains("hunter2"));
     std::fs::remove_dir_all(&root).unwrap();

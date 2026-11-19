@@ -102,8 +102,11 @@ pub fn run_at(endpoint: &Path, events: Receiver<DaemonEvent>) -> Result<()> {
         fs::create_dir_all(parent).map_err(LenovoLaptopControlError::Io)?;
     }
     let listener = UnixListener::bind(endpoint).map_err(LenovoLaptopControlError::Io)?;
-    fs::set_permissions(endpoint, fs::Permissions::from_mode(0o600)).map_err(LenovoLaptopControlError::Io)?;
-    listener.set_nonblocking(true).map_err(LenovoLaptopControlError::Io)?;
+    fs::set_permissions(endpoint, fs::Permissions::from_mode(0o600))
+        .map_err(LenovoLaptopControlError::Io)?;
+    listener
+        .set_nonblocking(true)
+        .map_err(LenovoLaptopControlError::Io)?;
     let _cleanup = SocketCleanup(endpoint.to_path_buf());
 
     let started_at_unix_ms = started_at_unix_ms();
@@ -129,7 +132,8 @@ pub fn run_at(endpoint: &Path, events: Receiver<DaemonEvent>) -> Result<()> {
             stream
                 .set_read_timeout(Some(Duration::from_secs(2)))
                 .map_err(LenovoLaptopControlError::Io)?;
-            let mut reader = BufReader::new(stream.try_clone().map_err(LenovoLaptopControlError::Io)?);
+            let mut reader =
+                BufReader::new(stream.try_clone().map_err(LenovoLaptopControlError::Io)?);
             let request_line = match read_limited_line(&mut reader) {
                 Ok(Some(line)) => line,
                 Ok(None) => continue,
@@ -249,15 +253,17 @@ fn broadcast(subscribers: &mut Vec<SyncSender<DaemonEvent>>, event: DaemonEvent)
 }
 
 fn write_line<T: serde::Serialize>(stream: &mut UnixStream, value: &T) -> Result<()> {
-    let mut bytes =
-        serde_json::to_vec(value).map_err(|error| LenovoLaptopControlError::Io(std::io::Error::other(error)))?;
+    let mut bytes = serde_json::to_vec(value)
+        .map_err(|error| LenovoLaptopControlError::Io(std::io::Error::other(error)))?;
     bytes.push(b'\n');
     if bytes.len() > MAX_MESSAGE_BYTES {
         return Err(protocol_error(format!(
             "response exceeds {MAX_MESSAGE_BYTES} bytes"
         )));
     }
-    stream.write_all(&bytes).map_err(LenovoLaptopControlError::Io)?;
+    stream
+        .write_all(&bytes)
+        .map_err(LenovoLaptopControlError::Io)?;
     stream.flush().map_err(LenovoLaptopControlError::Io)
 }
 fn verify_peer(stream: &UnixStream) -> Result<()> {

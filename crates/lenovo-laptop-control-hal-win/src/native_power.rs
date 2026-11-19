@@ -1,7 +1,8 @@
 use std::{ffi::c_void, ptr};
 
 use lenovo_laptop_control_core::{
-    LenovoLaptopControlError, PowerScheme, PowerSchemeId, PowerSettingKey, PowerSource, PowerValueRange, Result,
+    LenovoLaptopControlError, PowerScheme, PowerSchemeId, PowerSettingKey, PowerSource,
+    PowerValueRange, Result,
 };
 use windows_sys::{
     Win32::{
@@ -228,8 +229,10 @@ fn friendly_name(guid: &GUID) -> Result<String> {
         .iter()
         .position(|value| *value == 0)
         .unwrap_or(buffer.len());
-    String::from_utf16(&buffer[..length]).map_err(|error| LenovoLaptopControlError::ChannelUnavailable {
-        channel: format!("PowerReadFriendlyName returned invalid UTF-16: {error}"),
+    String::from_utf16(&buffer[..length]).map_err(|error| {
+        LenovoLaptopControlError::ChannelUnavailable {
+            channel: format!("PowerReadFriendlyName returned invalid UTF-16: {error}"),
+        }
     })
 }
 
@@ -280,8 +283,10 @@ fn parse_guid(text: &str) -> Result<GUID> {
             detail: format!("power identifier is not a GUID: {text:?}"),
         });
     }
-    let raw = u128::from_str_radix(&compact, 16).map_err(|_| LenovoLaptopControlError::InvalidArgument {
-        detail: format!("power identifier is not a GUID: {text:?}"),
+    let raw = u128::from_str_radix(&compact, 16).map_err(|_| {
+        LenovoLaptopControlError::InvalidArgument {
+            detail: format!("power identifier is not a GUID: {text:?}"),
+        }
     })?;
     Ok(GUID::from_u128(raw))
 }

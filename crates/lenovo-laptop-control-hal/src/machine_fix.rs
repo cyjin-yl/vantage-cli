@@ -1,4 +1,6 @@
-use lenovo_laptop_control_core::{ApplyMode, FixLedger, FixObservation, FixReport, FixRule, Result};
+use lenovo_laptop_control_core::{
+    ApplyMode, FixLedger, FixObservation, FixReport, FixRule, Result,
+};
 
 /// Transparent, rollback-capable MachineFix control.
 ///

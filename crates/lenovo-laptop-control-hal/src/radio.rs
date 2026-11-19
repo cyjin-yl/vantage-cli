@@ -440,12 +440,14 @@ pub fn parse_remote_session(
 
 /// Validate a requested state for a radio write.
 pub fn validate_requested_state(state: RadioState) -> Result<RadioState> {
-    state.requested().ok_or_else(|| LenovoLaptopControlError::InvalidArgument {
-        detail: format!(
-            "radio state \"{}\" is an observation, not a request: use \"on\" or \"off\"",
-            state.as_str()
-        ),
-    })
+    state
+        .requested()
+        .ok_or_else(|| LenovoLaptopControlError::InvalidArgument {
+            detail: format!(
+                "radio state \"{}\" is an observation, not a request: use \"on\" or \"off\"",
+                state.as_str()
+            ),
+        })
 }
 
 #[cfg(test)]
@@ -480,7 +482,12 @@ mod tests {
     #[test]
     fn session_local_address_on_the_wifi_interface_refuses_and_names_it() {
         let interfaces = [
-            interface("Tailscale", InterfaceKind::Other, &["100.74.217.107"], false),
+            interface(
+                "Tailscale",
+                InterfaceKind::Other,
+                &["100.74.217.107"],
+                false,
+            ),
             interface("WLAN", InterfaceKind::Wifi, &["10.135.66.206"], true),
         ];
         let refusal = radio_session_cut(
@@ -498,7 +505,12 @@ mod tests {
     #[test]
     fn a_tunnel_session_still_refuses_when_the_wifi_interface_holds_the_default_route() {
         let interfaces = [
-            interface("Tailscale", InterfaceKind::Other, &["100.74.217.107"], false),
+            interface(
+                "Tailscale",
+                InterfaceKind::Other,
+                &["100.74.217.107"],
+                false,
+            ),
             interface("WLAN", InterfaceKind::Wifi, &["10.135.66.206"], true),
         ];
         let refusal = radio_session_cut(
@@ -517,12 +529,14 @@ mod tests {
             interface("Ethernet", InterfaceKind::Other, &["192.168.5.240"], true),
             interface("WLAN 2", InterfaceKind::Wifi, &["169.254.91.136"], false),
         ];
-        assert!(radio_session_cut(
-            RadioKind::Wifi,
-            &interfaces,
-            Some(&session("192.168.5.240")),
-        )
-        .is_none());
+        assert!(
+            radio_session_cut(
+                RadioKind::Wifi,
+                &interfaces,
+                Some(&session("192.168.5.240")),
+            )
+            .is_none()
+        );
     }
 
     #[test]
@@ -544,14 +558,24 @@ mod tests {
 
     #[test]
     fn a_local_session_is_not_guarded() {
-        let interfaces = [interface("WLAN", InterfaceKind::Wifi, &["10.135.66.206"], true)];
+        let interfaces = [interface(
+            "WLAN",
+            InterfaceKind::Wifi,
+            &["10.135.66.206"],
+            true,
+        )];
         assert!(radio_session_cut(RadioKind::Wifi, &interfaces, None).is_none());
     }
 
     #[test]
     fn wwan_is_guarded_by_its_own_interface_class() {
         let interfaces = [
-            interface("Cellular", InterfaceKind::MobileBroadband, &["10.1.2.3"], true),
+            interface(
+                "Cellular",
+                InterfaceKind::MobileBroadband,
+                &["10.1.2.3"],
+                true,
+            ),
             interface("WLAN", InterfaceKind::Wifi, &["10.135.66.206"], false),
         ];
         let refusal = radio_session_cut(

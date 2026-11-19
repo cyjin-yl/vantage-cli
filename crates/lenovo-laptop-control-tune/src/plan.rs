@@ -1,5 +1,6 @@
 use lenovo_laptop_control_core::{
-    ApplyMode, Availability, CapabilitySet, HardwareInfo, LenovoLaptopControlError, Platform, Result,
+    ApplyMode, Availability, CapabilitySet, HardwareInfo, LenovoLaptopControlError, Platform,
+    Result,
 };
 
 use crate::model::{

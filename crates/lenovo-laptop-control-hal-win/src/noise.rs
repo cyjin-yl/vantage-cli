@@ -34,7 +34,8 @@ use std::ffi::c_void;
 use std::time::Duration;
 
 use lenovo_laptop_control_core::{
-    ApplyMode, ChangeReport, LenovoLaptopControlError, NoiseCancelState, NoiseCancellationMode, Result,
+    ApplyMode, ChangeReport, LenovoLaptopControlError, NoiseCancelState, NoiseCancellationMode,
+    Result,
 };
 use lenovo_laptop_control_hal::NoiseCancelControl;
 use lenovo_laptop_control_hal::poll_readback;
@@ -964,12 +965,11 @@ fn exchange_json(
         buf[index] = unit;
     }
     invoke(&mut buf)?;
-    let len = buf
-        .iter()
-        .position(|c| *c == 0)
-        .ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
+    let len = buf.iter().position(|c| *c == 0).ok_or_else(|| {
+        LenovoLaptopControlError::ChannelUnavailable {
             channel: "Elevoc RPC returned an unterminated response".to_string(),
-        })?;
+        }
+    })?;
     if len == 0 {
         return Err(LenovoLaptopControlError::ChannelUnavailable {
             channel: "Elevoc RPC returned an empty response".to_string(),
@@ -1031,9 +1031,10 @@ impl NativeElevocRpc {
         env.string("user", "");
         let body = env.finish();
         let resp = self.request(&body)?;
-        let content = content_object(&resp).ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
-            channel: "Elevoc GetAuthorizedTokens returned no Content".to_string(),
-        })?;
+        let content =
+            content_object(&resp).ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
+                channel: "Elevoc GetAuthorizedTokens returned no Content".to_string(),
+            })?;
         let authorized = json_bool(content, "auth_status") == Some(true)
             || !json_string_array(content, "tokens").is_empty();
         if !authorized {
@@ -1079,9 +1080,10 @@ impl NativeElevocRpc {
         env.opt_endpoint(endpoint);
         let body = env.seal(&make_token());
         let resp = self.request(&body)?;
-        let content = content_object(&resp).ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
-            channel: "Elevoc GetMode returned no Content".to_string(),
-        })?;
+        let content =
+            content_object(&resp).ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
+                channel: "Elevoc GetMode returned no Content".to_string(),
+            })?;
         let mode_name = json_string(content, "mode").unwrap_or("environmental");
         let mut mode = MODE_NAMES
             .iter()
@@ -1146,9 +1148,10 @@ impl NativeElevocRpc {
         }
         let body = env.seal(&make_token());
         let resp = self.request(&body)?;
-        let content = content_object(&resp).ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
-            channel: "Elevoc IsVoiceidSetted returned no Content".to_string(),
-        })?;
+        let content =
+            content_object(&resp).ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
+                channel: "Elevoc IsVoiceidSetted returned no Content".to_string(),
+            })?;
         Ok(
             if json_bool(content, "is_voiceid_setted") == Some(true)
                 || json_int(content, "is_voiceid_setted") == Some(2)
@@ -1168,9 +1171,10 @@ impl NativeElevocRpc {
         env.opt_endpoint(endpoint);
         let body = env.seal(&make_token());
         let resp = self.request(&body)?;
-        let content = content_object(&resp).ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
-            channel: "Elevoc GetFunctionsByEndpoint returned no Content".to_string(),
-        })?;
+        let content =
+            content_object(&resp).ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
+                channel: "Elevoc GetFunctionsByEndpoint returned no Content".to_string(),
+            })?;
         Ok(json_string_array(content, "supported_functions"))
     }
 
@@ -1179,9 +1183,10 @@ impl NativeElevocRpc {
         let mut env = Envelope::new("GetFunctions");
         let body = env.seal(&make_token());
         let resp = self.request(&body)?;
-        let content = content_object(&resp).ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
-            channel: "Elevoc GetFunctions returned no Content".to_string(),
-        })?;
+        let content =
+            content_object(&resp).ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
+                channel: "Elevoc GetFunctions returned no Content".to_string(),
+            })?;
         Ok(json_string_array(content, "supported_functions"))
     }
 }
@@ -1373,7 +1378,10 @@ mod tests {
             panic!("oversized request reached RPC")
         })
         .expect_err("reserve one UTF-16 unit for the request terminator");
-        assert!(matches!(error, LenovoLaptopControlError::InvalidArgument { .. }));
+        assert!(matches!(
+            error,
+            LenovoLaptopControlError::InvalidArgument { .. }
+        ));
     }
 
     #[test]
@@ -1383,7 +1391,10 @@ mod tests {
             Ok(())
         })
         .expect_err("missing terminator must not be accepted as a full response");
-        assert!(matches!(error, LenovoLaptopControlError::ChannelUnavailable { .. }));
+        assert!(matches!(
+            error,
+            LenovoLaptopControlError::ChannelUnavailable { .. }
+        ));
     }
 
     #[test]

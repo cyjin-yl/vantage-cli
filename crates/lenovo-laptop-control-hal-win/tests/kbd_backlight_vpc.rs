@@ -7,7 +7,9 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 
-use lenovo_laptop_control_core::{ApplyMode, BacklightState, LenovoLaptopControlError, LightingEffect};
+use lenovo_laptop_control_core::{
+    ApplyMode, BacklightState, ChangeReport, LenovoLaptopControlError, LightingEffect,
+};
 use lenovo_laptop_control_hal::KeyboardControl;
 use lenovo_laptop_control_hal_win::{
     IOCTL_VPC_KBLC, IoctlTransport, KblcLayout, WindowsKeyboardBacklight, WindowsKeyboardSources,
@@ -52,8 +54,7 @@ impl IoctlTransport for FakeIoctl {
         input: &[u8],
         output_len: usize,
     ) -> lenovo_laptop_control_core::Result<Vec<u8>> {
-        let [a, b, c, d] =
-            <[u8; 4]>::try_from(input).expect("the KBLC argument is four bytes");
+        let [a, b, c, d] = <[u8; 4]>::try_from(input).expect("the KBLC argument is four bytes");
         let argument = u32::from_le_bytes([a, b, c, d]);
         self.calls.lock().push((code, argument));
         let reply = self.replies.lock().pop_front().ok_or_else(|| {
@@ -351,9 +352,11 @@ impl KeyboardControl for ScriptedKeyboard {
             ScriptedOutcome::Unsupported => Err(LenovoLaptopControlError::Unsupported {
                 feature: "kbd.backlight".into(),
             }),
-            ScriptedOutcome::ChannelUnavailable => Err(LenovoLaptopControlError::ChannelUnavailable {
-                channel: "EnergyDrv KBLC".into(),
-            }),
+            ScriptedOutcome::ChannelUnavailable => {
+                Err(LenovoLaptopControlError::ChannelUnavailable {
+                    channel: "EnergyDrv KBLC".into(),
+                })
+            }
             ScriptedOutcome::InvalidArgument => Err(LenovoLaptopControlError::InvalidArgument {
                 detail: "ACPI KBLC returned no status for keyboard group 3".into(),
             }),
@@ -365,7 +368,8 @@ impl KeyboardControl for ScriptedKeyboard {
         level: u8,
         effect: LightingEffect,
         apply: ApplyMode,
-    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::ChangeReport<BacklightState>> {
+    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::ChangeReport<BacklightState>>
+    {
         let previous = self.backlight_state()?;
         let requested = BacklightState::new(level, 3, effect)?;
         Ok(match apply {

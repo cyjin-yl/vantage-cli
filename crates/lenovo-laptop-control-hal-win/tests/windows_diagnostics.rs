@@ -10,8 +10,8 @@ use std::{
 
 use lenovo_laptop_control_core::{
     DiagnosticCancellationReason, DiagnosticCancellationToken, DiagnosticKind, DiagnosticOutcome,
-    DiagnosticReason, DiagnosticRunOptions, DiagnosticRunState, DiagnosticValue, LenovoLaptopControlError,
-    UpdateCapability,
+    DiagnosticReason, DiagnosticRunOptions, DiagnosticRunState, DiagnosticValue,
+    LenovoLaptopControlError, UpdateCapability,
 };
 use lenovo_laptop_control_hal::{DiagnosticsControl, UpdateControl};
 use lenovo_laptop_control_hal_win::{WindowsSystemInventory, WmiObject, WmiTransport, WmiValue};
@@ -75,7 +75,11 @@ impl FakeWmi {
 }
 
 impl WmiTransport for FakeWmi {
-    fn query(&self, namespace: &str, wql: &str) -> lenovo_laptop_control_core::Result<Vec<WmiObject>> {
+    fn query(
+        &self,
+        namespace: &str,
+        wql: &str,
+    ) -> lenovo_laptop_control_core::Result<Vec<WmiObject>> {
         assert!(namespace == "ROOT\\CIMV2" || namespace == "ROOT\\WMI");
         assert!(wql.starts_with("SELECT "));
         self.queries.fetch_add(1, Ordering::SeqCst);
@@ -113,7 +117,10 @@ fn object(entries: &[(&str, WmiValue)]) -> WmiObject {
         .collect::<BTreeMap<_, _>>()
 }
 
-fn run(kind: DiagnosticKind, entries: &[(&str, WmiValue)]) -> lenovo_laptop_control_core::DiagnosticResult {
+fn run(
+    kind: DiagnosticKind,
+    entries: &[(&str, WmiValue)],
+) -> lenovo_laptop_control_core::DiagnosticResult {
     WindowsSystemInventory::new(FakeWmi::objects(vec![object(entries)]))
         .run_diagnostics(&[kind], DiagnosticRunOptions::default())
         .unwrap()

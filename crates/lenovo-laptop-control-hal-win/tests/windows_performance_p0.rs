@@ -2,7 +2,9 @@
 // Windows-only integration test: the HAL only exposes this API on Windows.
 use parking_lot::Mutex;
 
-use lenovo_laptop_control_core::{ApplyMode, DispatcherVersion, LenovoLaptopControlError, PerformanceMode};
+use lenovo_laptop_control_core::{
+    ApplyMode, DispatcherVersion, LenovoLaptopControlError, PerformanceMode,
+};
 use lenovo_laptop_control_hal::PerformanceControl;
 use lenovo_laptop_control_hal_win::{
     OverlayGuid, PerformanceRegistryReader, PowerOverlayControl, WindowsPerformanceP0,
@@ -294,7 +296,10 @@ fn readback_mismatch_restores_the_previous_scheme() {
         .set_performance_mode(PerformanceMode::Quiet, ApplyMode::Commit)
         .expect_err("a provider that ignores the write must not report success");
 
-    assert!(matches!(error, LenovoLaptopControlError::VerifyMismatch { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::VerifyMismatch { .. }
+    ));
     assert_eq!(
         overlay.writes(),
         vec![OverlayGuid::POWER_EFFICIENCY, OverlayGuid::BALANCED]
@@ -316,7 +321,10 @@ fn an_unowned_current_scheme_is_refused_before_writing() {
         .set_performance_mode(PerformanceMode::Performance, ApplyMode::Commit)
         .expect_err("an unrollbackable scheme must be refused");
 
-    assert!(matches!(error, LenovoLaptopControlError::ChannelUnavailable { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::ChannelUnavailable { .. }
+    ));
     assert!(overlay.writes().is_empty());
 }
 
@@ -404,7 +412,10 @@ fn its_readback_mismatch_rolls_back_tier_and_overlay() {
         .set_performance_mode(PerformanceMode::Performance, ApplyMode::Commit)
         .expect_err("an ITS readback that never confirms must roll back");
 
-    assert!(matches!(error, LenovoLaptopControlError::VerifyMismatch { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::VerifyMismatch { .. }
+    ));
     // Overlay restored to the prior scheme.
     assert_eq!(
         overlay.writes(),

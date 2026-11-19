@@ -179,7 +179,9 @@ where
 
 fn require_array<const N: usize>(output: Vec<u8>, operation: &str) -> Result<[u8; N]> {
     let actual = output.len();
-    output.try_into().map_err(|_| LenovoLaptopControlError::FirmwareRejected {
-        detail: format!("EnergyDrv {operation} returned {actual} bytes; expected {N}"),
-    })
+    output
+        .try_into()
+        .map_err(|_| LenovoLaptopControlError::FirmwareRejected {
+            detail: format!("EnergyDrv {operation} returned {actual} bytes; expected {N}"),
+        })
 }

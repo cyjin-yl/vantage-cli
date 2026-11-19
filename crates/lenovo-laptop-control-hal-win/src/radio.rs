@@ -31,8 +31,9 @@ use windows_sys::Win32::NetworkManagement::IpHelper::{
 use windows_sys::Win32::NetworkManagement::Ndis::IfOperStatusUp;
 use windows_sys::Win32::NetworkManagement::WiFi::{
     WLAN_INTERFACE_INFO, WLAN_INTERFACE_INFO_LIST, WlanCloseHandle, WlanEnumInterfaces,
-    WlanFreeMemory, WlanOpenHandle, WlanQueryInterface, dot11_radio_state_off, dot11_radio_state_on,
-    dot11_radio_state_unknown, wlan_intf_opcode_interface_state, wlan_intf_opcode_radio_state,
+    WlanFreeMemory, WlanOpenHandle, WlanQueryInterface, dot11_radio_state_off,
+    dot11_radio_state_on, dot11_radio_state_unknown, wlan_intf_opcode_interface_state,
+    wlan_intf_opcode_radio_state,
 };
 use windows_sys::Win32::Networking::WinSock::{AF_INET, AF_INET6, AF_UNSPEC, SOCKET_ADDRESS};
 use windows_sys::core::GUID;
@@ -224,8 +225,9 @@ fn ensure_allowed(access: RadioAccess) -> Result<()> {
                 .to_owned(),
         }),
         RadioAccess::Unspecified => Err(LenovoLaptopControlError::ChannelUnavailable {
-            channel: "Windows radio access status was not reported (RadioAccessStatus::Unspecified)"
-                .to_owned(),
+            channel:
+                "Windows radio access status was not reported (RadioAccessStatus::Unspecified)"
+                    .to_owned(),
         }),
     }
 }
@@ -259,8 +261,7 @@ mod winrt {
     /// The host thread was already initialized into an apartment (observed live on the target).
     const RPC_E_CHANGED_MODE: i32 = 0x8001_0106u32 as i32;
 
-    const IID_IRADIO_STATICS: GUID =
-        GUID::from_u128(0x5fb6_a12e_67cb_46ae_aae9_65919f86eff4);
+    const IID_IRADIO_STATICS: GUID = GUID::from_u128(0x5fb6_a12e_67cb_46ae_aae9_65919f86eff4);
     const IID_IRADIO: GUID = GUID::from_u128(0x2521_18df_b33e_416a_875f_1cf38ae2d83e);
     const IID_IASYNC_INFO: GUID = GUID::from_u128(0x0000_0036_0000_0000_c000_000000000046);
 
@@ -278,11 +279,7 @@ mod winrt {
     unsafe extern "system" {
         fn RoInitialize(init_type: u32) -> i32;
         fn RoUninitialize();
-        fn WindowsCreateString(
-            source: *const u16,
-            length: u32,
-            string: *mut *mut c_void,
-        ) -> i32;
+        fn WindowsCreateString(source: *const u16, length: u32, string: *mut *mut c_void) -> i32;
         fn WindowsDeleteString(string: *mut c_void) -> i32;
         fn WindowsGetStringRawBuffer(string: *mut c_void, length: *mut u32) -> *const u16;
         fn RoGetActivationFactory(
@@ -450,7 +447,8 @@ mod winrt {
     impl HString {
         fn create(value: &str) -> Result<Self> {
             let wide: Vec<u16> = value.encode_utf16().collect();
-            let length = u32::try_from(wide.len()).map_err(|_| unsupported("class name too long"))?;
+            let length =
+                u32::try_from(wide.len()).map_err(|_| unsupported("class name too long"))?;
             let mut raw: *mut c_void = ptr::null_mut();
             let result = unsafe { WindowsCreateString(wide.as_ptr(), length, &mut raw) };
             check(result, "WindowsCreateString")?;
@@ -515,7 +513,11 @@ mod winrt {
     /// Wait for an `IAsyncOperation` by polling `IAsyncInfo::get_Status`, which is the documented
     /// interface for an operation's status. No completion handler is installed, so no delegate
     /// vtable has to be synthesized.
-    fn await_operation(operation: &Interface, deadline: Duration, context: &'static str) -> Result<()> {
+    fn await_operation(
+        operation: &Interface,
+        deadline: Duration,
+        context: &'static str,
+    ) -> Result<()> {
         let info = operation.query(&IID_IASYNC_INFO, "QueryInterface(IAsyncInfo)")?;
         let started = Instant::now();
         loop {
@@ -551,7 +553,9 @@ mod winrt {
             }
             if started.elapsed() >= deadline {
                 return Err(LenovoLaptopControlError::ChannelUnavailable {
-                    channel: format!("{context}: the asynchronous operation did not complete in time"),
+                    channel: format!(
+                        "{context}: the asynchronous operation did not complete in time"
+                    ),
                 });
             }
             thread::sleep(ASYNC_POLL_INTERVAL);
@@ -559,10 +563,7 @@ mod winrt {
     }
 
     /// `IAsyncOperation<T>::GetResults` for an interface-typed result.
-    fn results_interface(
-        operation: &Interface,
-        context: &'static str,
-    ) -> Result<Interface> {
+    fn results_interface(operation: &Interface, context: &'static str) -> Result<Interface> {
         let mut raw: *mut c_void = ptr::null_mut();
         let result = unsafe {
             let async_operation = vtable::<AsyncOperationVtbl>(operation.raw);
@@ -603,7 +604,10 @@ mod winrt {
             let mut raw: *mut c_void = ptr::null_mut();
             let result =
                 unsafe { RoGetActivationFactory(class.raw, &IID_IRADIO_STATICS, &mut raw) };
-            check(result, "RoGetActivationFactory(Windows.Devices.Radios.Radio)")?;
+            check(
+                result,
+                "RoGetActivationFactory(Windows.Devices.Radios.Radio)",
+            )?;
             let factory = Interface::new(raw, "RoGetActivationFactory")?;
             // The activation factory itself rejects `GetRuntimeClassName` with E_ILLEGAL_METHOD_CALL
             // (observed live), so the factory's identity cannot be asserted this way; the returned
@@ -756,10 +760,7 @@ mod winrt {
                 RadioState::Off => 2,
                 RadioState::Disabled | RadioState::Unknown => {
                     return Err(LenovoLaptopControlError::InvalidArgument {
-                        detail: format!(
-                            "radio state \"{}\" cannot be requested",
-                            state.as_str()
-                        ),
+                        detail: format!("radio state \"{}\" cannot be requested", state.as_str()),
                     });
                 }
             };
@@ -784,7 +785,6 @@ mod winrt {
                 }
             })
         }
-
     }
 }
 
@@ -873,7 +873,8 @@ mod wlan {
                     link_state_raw: -1,
                     phys: Vec::new(),
                 };
-                interface.link_state_raw = self.query_i32(&interface.guid, wlan_intf_opcode_interface_state)?;
+                interface.link_state_raw =
+                    self.query_i32(&interface.guid, wlan_intf_opcode_interface_state)?;
                 interface.phys = self.query_phys(&interface.guid)?;
                 interfaces.push(interface);
             }
@@ -982,12 +983,10 @@ mod wlan {
                 // Safety: `4 + index * 12 + 12 <= size` was just checked.
                 let entry = unsafe { base.add(4 + (index as usize) * 12) };
                 let phy_index = unsafe { ptr::read_unaligned(entry.cast::<u32>()) };
-                let software = radio_switch(unsafe {
-                    ptr::read_unaligned(entry.add(4).cast::<i32>())
-                });
-                let hardware = radio_switch(unsafe {
-                    ptr::read_unaligned(entry.add(8).cast::<i32>())
-                });
+                let software =
+                    radio_switch(unsafe { ptr::read_unaligned(entry.add(4).cast::<i32>()) });
+                let hardware =
+                    radio_switch(unsafe { ptr::read_unaligned(entry.add(8).cast::<i32>()) });
                 phys.push(PhyRadioState {
                     phy_index,
                     software,
@@ -1211,7 +1210,10 @@ mod tests {
 
     #[test]
     fn adapter_classification_uses_the_interface_type_and_bluetooth_description() {
-        assert_eq!(adapters::classify(IF_TYPE_IEEE80211, "Intel Wi-Fi"), InterfaceKind::Wifi);
+        assert_eq!(
+            adapters::classify(IF_TYPE_IEEE80211, "Intel Wi-Fi"),
+            InterfaceKind::Wifi
+        );
         assert_eq!(
             adapters::classify(IF_TYPE_WWANPP, "Fibocom modem"),
             InterfaceKind::MobileBroadband
@@ -1224,14 +1226,20 @@ mod tests {
             adapters::classify(6, "Bluetooth Device (Personal Area Network) #2"),
             InterfaceKind::BluetoothPan
         );
-        assert_eq!(adapters::classify(6, "Intel Ethernet"), InterfaceKind::Other);
+        assert_eq!(
+            adapters::classify(6, "Intel Ethernet"),
+            InterfaceKind::Other
+        );
     }
 
     #[test]
     fn unknown_dot11_switch_values_are_never_promoted_to_a_named_state() {
         assert_eq!(wlan::radio_switch(dot11_radio_state_on), RadioSwitch::On);
         assert_eq!(wlan::radio_switch(dot11_radio_state_off), RadioSwitch::Off);
-        assert_eq!(wlan::radio_switch(dot11_radio_state_unknown), RadioSwitch::Unknown);
+        assert_eq!(
+            wlan::radio_switch(dot11_radio_state_unknown),
+            RadioSwitch::Unknown
+        );
         assert_eq!(wlan::radio_switch(99), RadioSwitch::Unknown);
     }
 

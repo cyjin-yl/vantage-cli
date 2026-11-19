@@ -354,7 +354,10 @@ mod native {
                 EventCancellation::new(),
                 |_| -> Result<Option<RawResultStream<'static>>> { Ok(None) },
             );
-            assert!(matches!(result, Err(LenovoLaptopControlError::Unsupported { .. })));
+            assert!(matches!(
+                result,
+                Err(LenovoLaptopControlError::Unsupported { .. })
+            ));
         }
 
         #[test]

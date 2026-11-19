@@ -1,7 +1,8 @@
 use parking_lot::Mutex;
 
 use lenovo_laptop_control_core::{
-    AdapterAuthentication, AdapterStatus, ApplyMode, ChargeMode, ChargeModeActual, LenovoLaptopControlError,
+    AdapterAuthentication, AdapterStatus, ApplyMode, ChargeMode, ChargeModeActual,
+    LenovoLaptopControlError,
 };
 use lenovo_laptop_control_hal::BatteryControl;
 use lenovo_laptop_control_hal_win::{
@@ -33,7 +34,12 @@ impl FakeIoctl {
 }
 
 impl IoctlTransport for FakeIoctl {
-    fn call(&self, code: u32, input: &[u8], output_len: usize) -> lenovo_laptop_control_core::Result<Vec<u8>> {
+    fn call(
+        &self,
+        code: u32,
+        input: &[u8],
+        output_len: usize,
+    ) -> lenovo_laptop_control_core::Result<Vec<u8>> {
         self.calls.lock().push(Call {
             code,
             input: input.into(),
@@ -154,7 +160,12 @@ fn conservation_transition_and_restore_follow_device_subtype() {
     }
 
     impl IoctlTransport for Device {
-        fn call(&self, code: u32, input: &[u8], _: usize) -> lenovo_laptop_control_core::Result<Vec<u8>> {
+        fn call(
+            &self,
+            code: u32,
+            input: &[u8],
+            _: usize,
+        ) -> lenovo_laptop_control_core::Result<Vec<u8>> {
             assert_eq!(code, IOCTL_GBMD);
             match input {
                 [0xff] => return Ok(self.state.load(Ordering::SeqCst).to_le_bytes().to_vec()),
@@ -327,7 +338,12 @@ fn first_write_failure_after_effect_restores_prior_mode() {
     }
 
     impl IoctlTransport for AppliedThenFailed {
-        fn call(&self, code: u32, input: &[u8], _: usize) -> lenovo_laptop_control_core::Result<Vec<u8>> {
+        fn call(
+            &self,
+            code: u32,
+            input: &[u8],
+            _: usize,
+        ) -> lenovo_laptop_control_core::Result<Vec<u8>> {
             assert_eq!(code, IOCTL_GBMD);
             match input {
                 [0xff] => return Ok(0_u32.to_le_bytes().to_vec()),
@@ -382,7 +398,12 @@ fn failed_recovery_keeps_both_errors_and_does_not_claim_restoration() {
     struct FailingIoctl(Arc<AtomicU32>);
 
     impl IoctlTransport for FailingIoctl {
-        fn call(&self, code: u32, input: &[u8], _: usize) -> lenovo_laptop_control_core::Result<Vec<u8>> {
+        fn call(
+            &self,
+            code: u32,
+            input: &[u8],
+            _: usize,
+        ) -> lenovo_laptop_control_core::Result<Vec<u8>> {
             assert_eq!(code, IOCTL_GBMD);
             match input {
                 [0xff] => Ok(0_u32.to_le_bytes().to_vec()),
@@ -430,7 +451,12 @@ fn gbmd_reader_decodes_the_vendor_status_bitmask() {
     struct StatusOnly(Arc<AtomicU32>);
 
     impl IoctlTransport for StatusOnly {
-        fn call(&self, code: u32, input: &[u8], _: usize) -> lenovo_laptop_control_core::Result<Vec<u8>> {
+        fn call(
+            &self,
+            code: u32,
+            input: &[u8],
+            _: usize,
+        ) -> lenovo_laptop_control_core::Result<Vec<u8>> {
             assert_eq!(code, IOCTL_GBMD);
             assert_eq!(input, [0xff]);
             Ok(self.0.load(Ordering::SeqCst).to_le_bytes().to_vec())

@@ -20,7 +20,11 @@ impl Hal for FakeHal {
 
     fn capabilities(&self) -> lenovo_laptop_control_core::Result<CapabilitySet> {
         let mut set = CapabilitySet::new(Platform::Linux);
-        let _ = set.record("battery.status", lenovo_laptop_control_core::Availability::Available, None);
+        let _ = set.record(
+            "battery.status",
+            lenovo_laptop_control_core::Availability::Available,
+            None,
+        );
         Ok(set)
     }
 }

@@ -252,10 +252,7 @@ mod tests {
     #[test]
     fn connection_states_keep_failure_codes_distinct_from_empty_ports() {
         assert_eq!(UsbPortConnection::from_raw(0), UsbPortConnection::Empty);
-        assert_eq!(
-            UsbPortConnection::from_raw(1),
-            UsbPortConnection::Connected
-        );
+        assert_eq!(UsbPortConnection::from_raw(1), UsbPortConnection::Connected);
         assert_eq!(
             UsbPortConnection::from_raw(2),
             UsbPortConnection::Other(2),

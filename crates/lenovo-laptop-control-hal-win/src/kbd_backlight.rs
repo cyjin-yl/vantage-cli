@@ -27,7 +27,9 @@
 
 use std::time::Duration;
 
-use lenovo_laptop_control_core::{ApplyMode, BacklightState, ChangeReport, LenovoLaptopControlError, LightingEffect, Result};
+use lenovo_laptop_control_core::{
+    ApplyMode, BacklightState, ChangeReport, LenovoLaptopControlError, LightingEffect, Result,
+};
 use lenovo_laptop_control_hal::{KeyboardControl, poll_readback};
 
 use crate::{IoctlTransport, codec::decode_u32_exact};
@@ -156,10 +158,7 @@ where
     }
 
     fn read_state(&self, layout: KblcLayout) -> Result<BacklightState> {
-        let word = evaluate(
-            &self.ioctl,
-            (layout.group() << GROUP_SHIFT) | COMMAND_GET,
-        )?;
+        let word = evaluate(&self.ioctl, (layout.group() << GROUP_SHIFT) | COMMAND_GET)?;
         if word == NO_STATUS {
             return Err(LenovoLaptopControlError::InvalidArgument {
                 detail: format!(
@@ -268,7 +267,8 @@ impl<A, B> WindowsKeyboardSources<A, B> {
 fn channel_absent(error: &LenovoLaptopControlError) -> bool {
     matches!(
         error,
-        LenovoLaptopControlError::Unsupported { .. } | LenovoLaptopControlError::ChannelUnavailable { .. }
+        LenovoLaptopControlError::Unsupported { .. }
+            | LenovoLaptopControlError::ChannelUnavailable { .. }
     )
 }
 

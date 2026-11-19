@@ -301,7 +301,7 @@ enum FakeError {
 }
 
 impl FakeError {
-    fn into_lenovo-laptop-control(self) -> LenovoLaptopControlError {
+    fn into_control_error(self) -> LenovoLaptopControlError {
         match self {
             Self::Permission => LenovoLaptopControlError::PermissionDenied {
                 need: "administrator".into(),
@@ -350,7 +350,10 @@ impl FakeRuntimeDeviceApi {
 }
 
 impl RuntimeDeviceApi for FakeRuntimeDeviceApi {
-    fn devices(&self, class: RuntimeDeviceClass) -> lenovo_laptop_control_core::Result<Vec<RuntimeDevice>> {
+    fn devices(
+        &self,
+        class: RuntimeDeviceClass,
+    ) -> lenovo_laptop_control_core::Result<Vec<RuntimeDevice>> {
         self.calls.lock().push(Call::Devices(class));
         Ok(self
             .devices
@@ -365,12 +368,16 @@ impl RuntimeDeviceApi for FakeRuntimeDeviceApi {
         let mut count = self.status_calls.lock();
         *count += 1;
         if let Some(error) = self.status_errors.get(&*count) {
-            return Err(error.into_lenovo-laptop-control());
+            return Err(error.into_control_error());
         }
         Ok(*self.status.lock())
     }
 
-    fn set_state(&self, instance_id: &str, state: DeviceState) -> lenovo_laptop_control_core::Result<()> {
+    fn set_state(
+        &self,
+        instance_id: &str,
+        state: DeviceState,
+    ) -> lenovo_laptop_control_core::Result<()> {
         self.calls
             .lock()
             .push(Call::Write(instance_id.into(), state));
@@ -384,7 +391,7 @@ impl RuntimeDeviceApi for FakeRuntimeDeviceApi {
             };
         }
         if let Some(error) = self.write_errors.get(&*count) {
-            return Err(error.into_lenovo-laptop-control());
+            return Err(error.into_control_error());
         }
         Ok(())
     }
@@ -627,7 +634,10 @@ impl FakeGroupApi {
 }
 
 impl RuntimeDeviceApi for FakeGroupApi {
-    fn devices(&self, class: RuntimeDeviceClass) -> lenovo_laptop_control_core::Result<Vec<RuntimeDevice>> {
+    fn devices(
+        &self,
+        class: RuntimeDeviceClass,
+    ) -> lenovo_laptop_control_core::Result<Vec<RuntimeDevice>> {
         let states = self.states.lock();
         Ok(self
             .devices
@@ -653,7 +663,11 @@ impl RuntimeDeviceApi for FakeGroupApi {
         }
     }
 
-    fn set_state(&self, instance_id: &str, state: DeviceState) -> lenovo_laptop_control_core::Result<()> {
+    fn set_state(
+        &self,
+        instance_id: &str,
+        state: DeviceState,
+    ) -> lenovo_laptop_control_core::Result<()> {
         let mut count = self.write_calls.lock();
         *count += 1;
         self.writes.lock().push((instance_id.to_owned(), state));
@@ -662,7 +676,7 @@ impl RuntimeDeviceApi for FakeGroupApi {
                 if self.failed_write_takes_effect {
                     self.states.lock().insert(instance_id.to_owned(), state);
                 }
-                return Err(error.into_lenovo-laptop-control());
+                return Err(error.into_control_error());
             }
         }
         self.states.lock().insert(instance_id.to_owned(), state);
@@ -671,7 +685,10 @@ impl RuntimeDeviceApi for FakeGroupApi {
 }
 
 impl RuntimeDeviceApi for &FakeGroupApi {
-    fn devices(&self, class: RuntimeDeviceClass) -> lenovo_laptop_control_core::Result<Vec<RuntimeDevice>> {
+    fn devices(
+        &self,
+        class: RuntimeDeviceClass,
+    ) -> lenovo_laptop_control_core::Result<Vec<RuntimeDevice>> {
         (**self).devices(class)
     }
 
@@ -679,7 +696,11 @@ impl RuntimeDeviceApi for &FakeGroupApi {
         (**self).status(instance_id)
     }
 
-    fn set_state(&self, instance_id: &str, state: DeviceState) -> lenovo_laptop_control_core::Result<()> {
+    fn set_state(
+        &self,
+        instance_id: &str,
+        state: DeviceState,
+    ) -> lenovo_laptop_control_core::Result<()> {
         (**self).set_state(instance_id, state)
     }
 }
@@ -822,7 +843,12 @@ fn touchpad_recovery_cycles_every_input_leaf_when_all_are_enabled() {
         ],
         "each admitted input leaf is restarted exactly once"
     );
-    for untouched in ["ACPI\\PAD\\0", "HID\\PAD&COL03", "HID\\PAD&COL04", "HID\\OTHER-MOUSE"] {
+    for untouched in [
+        "ACPI\\PAD\\0",
+        "HID\\PAD&COL03",
+        "HID\\PAD&COL04",
+        "HID\\OTHER-MOUSE",
+    ] {
         assert_eq!(
             api.states.lock()[untouched],
             DeviceState::Enabled,
@@ -1100,6 +1126,9 @@ fn camera_group_prewrite_permission_error_keeps_the_primary_error() {
         .set_camera(DeviceState::Disabled, ApplyMode::Commit)
         .unwrap_err();
 
-    assert!(matches!(error, LenovoLaptopControlError::PermissionDenied { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::PermissionDenied { .. }
+    ));
     assert_eq!(controller.api().writes.lock().len(), 1);
 }

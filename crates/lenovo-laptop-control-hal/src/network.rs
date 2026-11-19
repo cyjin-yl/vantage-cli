@@ -584,9 +584,18 @@ mod status_tests {
 
     #[test]
     fn band_comes_from_center_frequency_not_channel_numbers() {
-        assert_eq!(WifiBand::from_center_frequency_khz(2_437_000), WifiBand::Ghz2);
-        assert_eq!(WifiBand::from_center_frequency_khz(5_180_000), WifiBand::Ghz5);
-        assert_eq!(WifiBand::from_center_frequency_khz(5_955_000), WifiBand::Ghz6);
+        assert_eq!(
+            WifiBand::from_center_frequency_khz(2_437_000),
+            WifiBand::Ghz2
+        );
+        assert_eq!(
+            WifiBand::from_center_frequency_khz(5_180_000),
+            WifiBand::Ghz5
+        );
+        assert_eq!(
+            WifiBand::from_center_frequency_khz(5_955_000),
+            WifiBand::Ghz6
+        );
         assert_eq!(
             WifiBand::from_center_frequency_khz(60_480_000),
             WifiBand::Ghz60
@@ -648,7 +657,10 @@ mod status_tests {
     #[test]
     fn ssid_decoding_keeps_bytes_and_reports_hidden_networks() {
         assert_eq!(decode_ssid(b"BUAA-Mobile"), Some("BUAA-Mobile".into()));
-        assert_eq!(decode_ssid(b"BUAA-Mobile\0\0\0"), Some("BUAA-Mobile".into()));
+        assert_eq!(
+            decode_ssid(b"BUAA-Mobile\0\0\0"),
+            Some("BUAA-Mobile".into())
+        );
         assert_eq!(decode_ssid(b""), None);
         assert_eq!(decode_ssid(&[0, 0, 0]), None);
         // A non-UTF-8 SSID is replaced, not dropped.

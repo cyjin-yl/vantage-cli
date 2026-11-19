@@ -9,8 +9,10 @@ fn main() {
 
 #[cfg(windows)]
 fn main() {
-    let hal =
-        lenovo_laptop_control_hal_win::NativeWindowsHal::new(lenovo_laptop_control_hal_win::NativeWmi, lenovo_laptop_control_hal_win::NativeIoctl);
+    let hal = lenovo_laptop_control_hal_win::NativeWindowsHal::new(
+        lenovo_laptop_control_hal_win::NativeWmi,
+        lenovo_laptop_control_hal_win::NativeIoctl,
+    );
     launch(snapshot_or_unavailable(&hal, Platform::Windows));
 }
 
@@ -22,7 +24,10 @@ fn main() {
     ));
 }
 
-fn snapshot_or_unavailable(hal: &dyn lenovo_laptop_control_hal::Hal, platform: Platform) -> DashboardSnapshot {
+fn snapshot_or_unavailable(
+    hal: &dyn lenovo_laptop_control_hal::Hal,
+    platform: Platform,
+) -> DashboardSnapshot {
     match DashboardSnapshot::from_hal(hal) {
         Ok(snapshot) => snapshot,
         Err(error) => {

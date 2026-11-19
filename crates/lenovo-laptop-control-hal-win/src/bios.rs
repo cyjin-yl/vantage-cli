@@ -2,7 +2,8 @@ use std::collections::BTreeMap;
 
 use lenovo_laptop_control_core::{
     BiosAssistantCapabilities, BiosAssistantValue, BiosChange, BiosItem, BiosPasswordStatus,
-    LenovoLaptopControlError, Result, is_success, parse_current_setting, parse_selections, save_parameter,
+    LenovoLaptopControlError, Result, is_success, parse_current_setting, parse_selections,
+    save_parameter,
 };
 use lenovo_laptop_control_hal::{BiosAssistantControl, BiosControl};
 
@@ -139,9 +140,11 @@ where
             "SELECT MinLength, MaxLength, PasswordMode, PasswordState, SupportedEncodings, SupportedKeyboard FROM {BIOS_PASSWORD_CLASS}"
         );
         let objects = self.transport.query(ROOT_WMI, &query)?;
-        let object = objects.first().ok_or_else(|| LenovoLaptopControlError::Unsupported {
-            feature: "bios.password.status".into(),
-        })?;
+        let object = objects
+            .first()
+            .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                feature: "bios.password.status".into(),
+            })?;
         Ok(BiosPasswordStatus::from_raw_metadata(
             required_u32(object, "MinLength")?,
             required_u32(object, "MaxLength")?,

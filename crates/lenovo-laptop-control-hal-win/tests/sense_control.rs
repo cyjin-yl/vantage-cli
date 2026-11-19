@@ -1,6 +1,8 @@
 #![cfg(windows)]
 // Windows-only integration test: the HAL only exposes this API on Windows.
-use lenovo_laptop_control_core::{ApplyMode, LenovoLaptopControlError, Result, SenseDistance, SenseState, SenseWait};
+use lenovo_laptop_control_core::{
+    ApplyMode, LenovoLaptopControlError, Result, SenseDistance, SenseState, SenseWait,
+};
 use lenovo_laptop_control_hal::{SenseControl, SenseFeature};
 use lenovo_laptop_control_hal_win::{HpdRpc, HpdSettingsStore, SensePipe, WindowsSenseControl};
 use parking_lot::Mutex;
@@ -193,7 +195,10 @@ fn rejected_pipe_result_is_firmware_rejected() {
     let error = control
         .set_sense_feature(SenseFeature::PrivacyAlert(true), ApplyMode::Commit)
         .expect_err("rejection surfaces");
-    assert!(matches!(error, LenovoLaptopControlError::FirmwareRejected { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::FirmwareRejected { .. }
+    ));
 }
 
 #[test]
@@ -202,7 +207,10 @@ fn pipe_exception_is_channel_unavailable() {
     let error = control
         .set_sense_feature(SenseFeature::PrivacyAlert(true), ApplyMode::Commit)
         .expect_err("exception surfaces");
-    assert!(matches!(error, LenovoLaptopControlError::ChannelUnavailable { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::ChannelUnavailable { .. }
+    ));
 }
 
 #[test]
@@ -211,7 +219,10 @@ fn nonzero_rpc_status_does_not_fall_back_to_pipe() {
     let error = control
         .set_sense_feature(SenseFeature::WakeOnApproach(true), ApplyMode::Commit)
         .expect_err("server failure surfaces");
-    assert!(matches!(error, LenovoLaptopControlError::FirmwareRejected { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::FirmwareRejected { .. }
+    ));
     assert_eq!(rpc.calls.lock().as_slice(), &[(8, 1)]);
     assert!(pipe.calls.lock().is_empty());
 }
@@ -223,7 +234,10 @@ fn unadvertised_rpc_feature_is_rejected_before_write() {
     let error = control
         .set_sense_feature(SenseFeature::PauseVideo(true), ApplyMode::Commit)
         .expect_err("missing capability is not a writable false value");
-    assert!(matches!(error, LenovoLaptopControlError::Unsupported { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::Unsupported { .. }
+    ));
     assert!(rpc.calls.lock().is_empty());
     assert!(pipe.calls.lock().is_empty());
 }

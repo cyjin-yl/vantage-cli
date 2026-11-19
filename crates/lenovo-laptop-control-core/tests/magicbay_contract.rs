@@ -58,8 +58,7 @@ fn lte_kind_predicate_covers_both_mobile_broadband_accessories() {
 #[test]
 fn composite_parent_and_mbim_interface_coalesce_into_one_accessory() {
     let parent = parse_magicbay_device_id(r"USB\VID_17EF&PID_7005\SERIAL").unwrap();
-    let interface =
-        parse_magicbay_device_id(r"USB\VID_17EF&PID_7005&MI_00\SERIAL&0000").unwrap();
+    let interface = parse_magicbay_device_id(r"USB\VID_17EF&PID_7005&MI_00\SERIAL&0000").unwrap();
     assert_eq!(interface.interfaces, vec!["mbim"]);
 
     let devices = coalesce_magicbay_devices(vec![interface, parent]);

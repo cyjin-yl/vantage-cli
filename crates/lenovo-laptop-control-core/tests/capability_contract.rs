@@ -1,4 +1,6 @@
-use lenovo_laptop_control_core::{Availability, Capability, CapabilitySet, LenovoLaptopControlError, Platform};
+use lenovo_laptop_control_core::{
+    Availability, Capability, CapabilitySet, LenovoLaptopControlError, Platform,
+};
 
 #[test]
 fn new_sets_platform_and_empty_features() {
@@ -71,12 +73,18 @@ fn record_rejects_empty_and_whitespace_only_feature_ids() {
     let whitespace = set.record("   ", Availability::Available, None);
     let tabs = set.record("\t\n", Availability::Available, None);
 
-    assert!(matches!(empty, Err(LenovoLaptopControlError::InvalidArgument { .. })));
+    assert!(matches!(
+        empty,
+        Err(LenovoLaptopControlError::InvalidArgument { .. })
+    ));
     assert!(matches!(
         whitespace,
         Err(LenovoLaptopControlError::InvalidArgument { .. })
     ));
-    assert!(matches!(tabs, Err(LenovoLaptopControlError::InvalidArgument { .. })));
+    assert!(matches!(
+        tabs,
+        Err(LenovoLaptopControlError::InvalidArgument { .. })
+    ));
     assert_eq!(set.features.len(), original_len);
 }
 

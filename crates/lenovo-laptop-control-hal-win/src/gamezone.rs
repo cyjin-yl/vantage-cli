@@ -180,7 +180,13 @@ where
         let mut input = WmiObject::new();
         input.insert("IDs".into(), WmiValue::U32(ids.raw()));
         let output = self.invoke(OTHER_METHOD_CLASS, "GetFeatureValue", input)?;
-        first_u32(&output, "GetFeatureValue")
+        let value = ["value", "Value", "Data", "data"]
+            .iter()
+            .find_map(|key| output.get(*key))
+            .ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
+                channel: format!("{OTHER_METHOD_CLASS}.GetFeatureValue returned no feature value"),
+            })?;
+        numeric(value, "GetFeatureValue")
     }
 
     /// Generic feature-plane write, used by firmware without dedicated setters
@@ -209,10 +215,9 @@ where
     }
 
     /// Direct fan-duty override, `duty_hundredths` = percent × 100
-    /// (6000 = 60%). Firmware divides by 0x64 and clamps the u8 result; the
-    /// override latches until the next write or reboot, with an EC-held
-    /// ~1800 RPM floor at the low end
-    /// (docs/evidence/re-fan-wmae-channel-20261119.md §4).
+    /// (6000 = 60%). Firmware applies the write only while the EC override
+    /// is armed. The caller must verify the response through the tachometer
+    /// (docs/evidence/re-fan-wmae-channel-20261119.md §7).
     pub fn set_fan_duty(&self, duty_hundredths: u32) -> Result<()> {
         self.set_feature_value(FeatureId::FAN_DUTY, duty_hundredths)
     }
@@ -303,11 +308,9 @@ impl SupportProbe {
 /// Extract the first numeric output property. Prefer the conventional Lenovo
 /// payload names, then any unsigned integer; fall back to signed values.
 fn first_u32(output: &WmiObject, method: &str) -> Result<u32> {
-    // `LENOVO_OTHER_METHOD.GetFeatureValue` names its result `value` (lowercase);
-    // without it the fallback below would return `ReturnValue` (always 0).
     for key in [
-        "Data", "data", "Mode", "mode", "Status", "status", "Value", "value",
-        "Result", "result", "Output", "output",
+        "Data", "data", "Mode", "mode", "Status", "status", "Value", "value", "Result", "result",
+        "Output", "output",
     ] {
         if let Some(value) = output.get(key) {
             return numeric(value, method);

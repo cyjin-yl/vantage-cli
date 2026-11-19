@@ -1,6 +1,8 @@
 use std::collections::BTreeMap;
 
-use lenovo_laptop_control_core::{BiosChange, BiosItem, BiosPasswordStatus, LenovoLaptopControlError};
+use lenovo_laptop_control_core::{
+    BiosChange, BiosItem, BiosPasswordStatus, LenovoLaptopControlError,
+};
 use lenovo_laptop_control_hal::BiosControl;
 use lenovo_laptop_control_hal_win::{WindowsBiosController, WmiObject, WmiTransport, WmiValue};
 use parking_lot::Mutex;
@@ -38,7 +40,11 @@ impl WmiTransport for FakeWmi {
         true
     }
 
-    fn query(&self, namespace: &str, wql: &str) -> lenovo_laptop_control_core::Result<Vec<WmiObject>> {
+    fn query(
+        &self,
+        namespace: &str,
+        wql: &str,
+    ) -> lenovo_laptop_control_core::Result<Vec<WmiObject>> {
         self.queries
             .lock()
             .push((namespace.to_string(), wql.to_string()));
@@ -75,12 +81,11 @@ impl WmiTransport for FakeWmi {
             method: method.to_string(),
             input: input.clone(),
         });
-        self.method_replies
-            .lock()
-            .pop()
-            .ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
+        self.method_replies.lock().pop().ok_or_else(|| {
+            LenovoLaptopControlError::ChannelUnavailable {
                 channel: "fake WMI reply exhausted".into(),
-            })
+            }
+        })
     }
 }
 

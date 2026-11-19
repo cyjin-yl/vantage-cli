@@ -8,9 +8,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use lenovo_laptop_control_core::{
     AdapterAuthentication, ApplyMode, Availability, BatteryHealth, ChargeMode, ChargeModeActual,
-    ChargeStatus, DeviceState, DiagnosticKind, DiagnosticOutcome, FanMode, LenovoLaptopControlError,
-    LightingEffect, MagicBayKind, PerformanceMode, Platform, PowerGuid, PowerMutation,
-    PowerSchemeId, PowerSettingKey, TemperatureLocation, UpdateCapability,
+    ChargeStatus, DeviceState, DiagnosticKind, DiagnosticOutcome, FanMode,
+    LenovoLaptopControlError, LightingEffect, MagicBayKind, PerformanceMode, Platform, PowerGuid,
+    PowerMutation, PowerSchemeId, PowerSettingKey, TemperatureLocation, UpdateCapability,
 };
 use lenovo_laptop_control_hal::{
     BatteryControl, ControlConflictDetection, DiagnosticsControl, FanControl, Hal, KeyboardControl,
@@ -521,7 +521,10 @@ fn battery_numeric_overflow_is_rejected_instead_of_wrapping() {
     tree.write("sys/class/power_supply/BAT0/energy_now", "4294967296000\n");
 
     let error = tree.hal().battery_telemetry(0).unwrap_err();
-    assert!(matches!(error, LenovoLaptopControlError::FirmwareRejected { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::FirmwareRejected { .. }
+    ));
 }
 
 #[test]
@@ -777,7 +780,10 @@ fn charge_mode_preserves_unknown_sysfs_combinations_without_writing() {
         .hal()
         .set_charge_mode(ChargeMode::Normal, ApplyMode::Commit)
         .unwrap_err();
-    assert!(matches!(error, LenovoLaptopControlError::FirmwareRejected { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::FirmwareRejected { .. }
+    ));
     assert_eq!(
         fs::read_to_string(tree.path("sys/devices/platform/ideapad/conservation_mode")).unwrap(),
         "2\n"
@@ -930,7 +936,10 @@ fn msr_channel_maps_missing_node_to_unsupported() {
         msr.read(MsrAddress::THERM_STATUS),
         Err(LenovoLaptopControlError::Unsupported { .. })
     ));
-    assert!(matches!(msr.probe(), Err(LenovoLaptopControlError::Unsupported { .. })));
+    assert!(matches!(
+        msr.probe(),
+        Err(LenovoLaptopControlError::Unsupported { .. })
+    ));
 }
 
 #[test]

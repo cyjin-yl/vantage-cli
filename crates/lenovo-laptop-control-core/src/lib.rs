@@ -52,9 +52,7 @@ pub use command_capability::{
     CommandAxes, CommandDependency, CommandId, CommandSelector, Dependency, DependencyUse,
     HardwarePresence, HardwareRequirement, Readback, Rollback, StateLayer, optional, required,
 };
-pub use cpu::{
-    CpuClockCluster, CpuClockSource, CpuStatus, derive_current_clock_mhz,
-};
+pub use cpu::{CpuClockCluster, CpuClockSource, CpuStatus, derive_current_clock_mhz};
 pub use diagnostics::{
     CatalogPackage, DEFAULT_DIAGNOSTIC_ITEM_DEADLINE, DiagnosticCancellationReason,
     DiagnosticCancellationToken, DiagnosticKind, DiagnosticMeasurement, DiagnosticOutcome,
@@ -65,13 +63,13 @@ pub use diagnostics::{
 };
 pub use display::{
     ActiveColorMode, ColorStateSource, DisplayColorEncoding, DisplayColorState, DisplayConnection,
-    DisplayPathState, DisplayScope, DisplayScaling, DisplayScalingObservation, DisplaySession,
+    DisplayPathState, DisplayScaling, DisplayScalingObservation, DisplayScope, DisplaySession,
     HdrCapabilityObservation, MonitorColorState, MonitorColorStore, ScalingSource, SessionDesktop,
 };
 pub use edid::{
-    PanelConnection, PanelEdidVersion, PanelIdentity, PanelInput, PanelManufacture,
-    PanelHdrCapability, PanelPhysicalSize, PanelRangeLimits, PanelResolution,
-    decode_panel_edid, decode_panel_hdr_capability,
+    PanelConnection, PanelEdidVersion, PanelHdrCapability, PanelIdentity, PanelInput,
+    PanelManufacture, PanelPhysicalSize, PanelRangeLimits, PanelResolution, decode_panel_edid,
+    decode_panel_hdr_capability,
 };
 pub use error::{ErrorReport, LenovoLaptopControlError, Result};
 pub use firmware::{
@@ -85,10 +83,10 @@ pub use inventory::{
     ProductInventory, SystemIdentity,
 };
 pub use keyboard::{
-    BacklightState, DeviceState, LightingEffect, LockState, TouchpadRecoveryLeaf,
-    TouchpadAxis, TouchpadButtonType, TouchpadButtons, TouchpadCapabilities, TouchpadContacts,
-    TouchpadDerivedSize, TouchpadIdentity, TouchpadRecoveryReport, TouchpadRecoveryStrategy,
-    TouchpadReports, TouchpadSupportBits, TouchpadSurface, TouchpadUsage,
+    BacklightState, DeviceState, LightingEffect, LockState, TouchpadAxis, TouchpadButtonType,
+    TouchpadButtons, TouchpadCapabilities, TouchpadContacts, TouchpadDerivedSize, TouchpadIdentity,
+    TouchpadRecoveryLeaf, TouchpadRecoveryReport, TouchpadRecoveryStrategy, TouchpadReports,
+    TouchpadSupportBits, TouchpadSurface, TouchpadUsage,
 };
 pub use machine_fix::{
     FixIssue, FixLedger, FixLedgerEntry, FixObservation, FixRepairKind, FixReport, FixRule,
@@ -152,8 +150,8 @@ pub use update::{
     MAX_LOCAL_UPDATE_HISTORY, MAX_LOCAL_UPDATE_IGNORES, MAX_LOCAL_UPDATE_PACKAGE_FILES,
     MAX_LOCAL_UPDATE_POLICY_BYTES, MAX_WINDOWS_DEVICE_ID_UTF16, PresentPnpDevice, SignedDriverFile,
     UpdateHistoryEntry, UpdateHistoryOperation, UpdateSchedule, UpdateWeekday, is_firmware_class,
-    is_firmware_update, validate_device_instance_id, validate_hardware_id, validate_local_directory,
-    validate_local_path,
+    is_firmware_update, validate_device_instance_id, validate_hardware_id,
+    validate_local_directory, validate_local_path,
 };
 pub use usb::{
     PowerDeliveryReport, UsbController, UsbControllerKind, UsbHub, UsbPdController, UsbPort,

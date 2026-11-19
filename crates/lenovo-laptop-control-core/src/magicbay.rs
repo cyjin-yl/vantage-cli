@@ -322,7 +322,8 @@ impl MagicBayLteInterface {
 
 fn is_global_address(address: &str) -> bool {
     let lower = address.to_ascii_lowercase();
-    !(lower == "::" || lower == "::1"
+    !(lower == "::"
+        || lower == "::1"
         || lower.starts_with("fe80:")
         || lower.starts_with("127.")
         || lower.starts_with("169.254."))

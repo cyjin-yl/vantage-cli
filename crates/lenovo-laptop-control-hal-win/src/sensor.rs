@@ -30,9 +30,10 @@ use std::ffi::c_void;
 use std::ptr;
 
 use lenovo_laptop_control_core::{
-    LenovoLaptopControlError, Result, SensorDescriptor, SensorField, SensorFreshness, SensorGuid, SensorInventory,
-    SensorReading, SensorState, SensorValue, category_name, data_field_name, format_utc_millis,
-    match_sensor, sensor_type_name, unix_millis_from_filetime, unix_millis_from_utc,
+    LenovoLaptopControlError, Result, SensorDescriptor, SensorField, SensorFreshness, SensorGuid,
+    SensorInventory, SensorReading, SensorState, SensorValue, category_name, data_field_name,
+    format_utc_millis, match_sensor, sensor_type_name, unix_millis_from_filetime,
+    unix_millis_from_utc,
 };
 use lenovo_laptop_control_hal::SensorControl;
 
@@ -60,8 +61,7 @@ const IID_ISENSOR_DATA_REPORT: GUID = GUID::from_u128(0x0ab9df9b_c4b5_4796_8898_
 /// `SENSOR_CATEGORY_ALL`: every category the platform can enumerate.
 const SENSOR_CATEGORY_ALL: GUID = GUID::from_u128(0xc317c286_c468_4288_9975_d4c4587c442c);
 /// `SENSOR_PROPERTY_COMMON_GUID`: every `SENSOR_PROPERTY_*` key shares this FMTID.
-const SENSOR_PROPERTY_COMMON_GUID: GUID =
-    GUID::from_u128(0x7f8383ec_d3ec_495c_a8cf_b8bbe85c2920);
+const SENSOR_PROPERTY_COMMON_GUID: GUID = GUID::from_u128(0x7f8383ec_d3ec_495c_a8cf_b8bbe85c2920);
 
 /// `SENSOR_PROPERTY_MANUFACTURER`.
 const SENSOR_PROPERTY_MANUFACTURER: PROPERTYKEY = property_key(6);
@@ -168,7 +168,10 @@ impl SensorControl for WindowsSensors {
                 fields,
             }),
             Err(status) => Err(LenovoLaptopControlError::Unsupported {
-                feature: format!("sensor '{}' returned no data report ({status})", descriptor.label()),
+                feature: format!(
+                    "sensor '{}' returned no data report ({status})",
+                    descriptor.label()
+                ),
             }),
         }
     }
@@ -192,9 +195,7 @@ impl Apartment {
     fn enter() -> Result<Self> {
         let result = unsafe { CoInitializeEx(ptr::null(), COINIT_APARTMENTTHREADED as u32) };
         match result {
-            0 => Ok(Self {
-                uninitialize: true,
-            }),
+            0 => Ok(Self { uninitialize: true }),
             1 | RPC_E_CHANGED_MODE => Ok(Self {
                 uninitialize: false,
             }),
@@ -270,7 +271,8 @@ struct SensorVtbl {
     get_category: unsafe extern "system" fn(*mut c_void, *mut GUID) -> i32,
     get_type: unsafe extern "system" fn(*mut c_void, *mut GUID) -> i32,
     get_friendly_name: unsafe extern "system" fn(*mut c_void, *mut *mut u16) -> i32,
-    get_property: unsafe extern "system" fn(*mut c_void, *const PROPERTYKEY, *mut PropVariant) -> i32,
+    get_property:
+        unsafe extern "system" fn(*mut c_void, *const PROPERTYKEY, *mut PropVariant) -> i32,
     get_properties: Slot,
     get_supported_data_fields: unsafe extern "system" fn(*mut c_void, *mut *mut c_void) -> i32,
     set_properties: Slot,
@@ -370,9 +372,8 @@ impl PropVariant {
                 value: f64::from_bits(self.payload[0]),
             },
             // VT_BSTR
-            8 => wide_string(self.pointer().cast()).map_or(SensorValue::Empty, |value| {
-                SensorValue::Text { value }
-            }),
+            8 => wide_string(self.pointer().cast())
+                .map_or(SensorValue::Empty, |value| SensorValue::Text { value }),
             // VT_BOOL
             11 => SensorValue::Boolean {
                 value: (self.payload[0] as u16) != 0,
@@ -395,23 +396,20 @@ impl PropVariant {
                 value: self.payload[0] as i64,
             },
             // VT_LPSTR
-            30 => ansi_string(self.pointer().cast()).map_or(SensorValue::Empty, |value| {
-                SensorValue::Text { value }
-            }),
+            30 => ansi_string(self.pointer().cast())
+                .map_or(SensorValue::Empty, |value| SensorValue::Text { value }),
             // VT_LPWSTR
-            31 => wide_string(self.pointer().cast()).map_or(SensorValue::Empty, |value| {
-                SensorValue::Text { value }
-            }),
+            31 => wide_string(self.pointer().cast())
+                .map_or(SensorValue::Empty, |value| SensorValue::Text { value }),
             // VT_FILETIME
             64 => {
                 let filetime = self.payload[0];
-                unix_millis_from_filetime(filetime).map_or(
-                    SensorValue::Empty,
-                    |millis| SensorValue::Timestamp {
+                unix_millis_from_filetime(filetime).map_or(SensorValue::Empty, |millis| {
+                    SensorValue::Timestamp {
                         utc: format_utc_millis(millis),
                         filetime,
-                    },
-                )
+                    }
+                })
             }
             // VT_CLSID
             72 => {
@@ -754,7 +752,11 @@ impl Sensor {
         for index in 0..count {
             let mut key = PROPERTYKEY::default();
             let result = unsafe {
-                (vtable::<KeyCollectionVtbl>(collection.raw).get_at)(collection.raw, index, &mut key)
+                (vtable::<KeyCollectionVtbl>(collection.raw).get_at)(
+                    collection.raw,
+                    index,
+                    &mut key,
+                )
             };
             check(result, "IPortableDeviceKeyCollection::GetAt")?;
             keys.push(key);

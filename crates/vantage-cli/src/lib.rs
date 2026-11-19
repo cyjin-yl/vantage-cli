@@ -20,33 +20,27 @@ use lenovo_laptop_control_core::{
     ApplyMode, Availability, BacklightState, BiosChange, Capability, CapabilitySet, ChargeMode,
     ChargeModeActual, DeviceState, DiagnosticKind, DolbyProfile, DolbyState, DriverIdentity,
     DriverVersion, FanMode, HardwareInfo, LenovoLaptopControlError, LocalDriverRollbackRequest,
-    LocalDriverUpdateRequest, LocalPackageInstallRequest, NoiseCancelState,
-    NoiseCancellationMode, PerformanceMode, Platform,
-    PowerGuid, PowerMutation, PowerRangeObservation, PowerSchemeId, PowerSettingKey,
-    PowerSettingValue, PowerSource, PowerSourceValues, ProcessPolicy, ProcessSnapshot,
-    ProcessTarget, ProcessorBoostMode, SceneAction, SensorDescriptor, SensorGuid, SensorInventory,
-    SensorReading, SensorValue, SystemIdentity, UpdateCapability,
+    LocalDriverUpdateRequest, LocalPackageInstallRequest, NoiseCancelState, NoiseCancellationMode,
+    PerformanceMode, Platform, PowerGuid, PowerMutation, PowerRangeObservation, PowerSchemeId,
+    PowerSettingKey, PowerSettingValue, PowerSource, PowerSourceValues, ProcessPolicy,
+    ProcessSnapshot, ProcessTarget, ProcessorBoostMode, SceneAction, SensorDescriptor, SensorGuid,
+    SensorInventory, SensorReading, SensorValue, SystemIdentity, UpdateCapability,
     UpdateHistoryLedger,
 };
 use lenovo_laptop_control_hal::ScenePolicyControl;
 use lenovo_laptop_control_hal::{
-    AudioControl, AudioEndpointControl, BatteryControl, BiosControl, BluetoothControl,
-    BluetoothInventory, BluetoothMajorClass, ControlConflictDetection, DbdcControl,
-    DiagnosticsControl, EventLogControl, FanControl, GpuOcControl, Hal, HotkeyControl,
-    ItsPolicyControl,
-    FirmwareControl,
-    KeyboardControl, LocalPackageInstallControl, LocalUpdateControl, MachineFixControl,
-    MagicBayControl, MobileBroadbandControl, NoiseCancelControl, OsdControl,
-    DisplayStatusControl, PanelBrightnessControl, PanelControl, PanelFeaturesControl,
-    PanelIdentityControl,
+    AudioControl, AudioEndpointControl, BatteryControl, BiosControl, BitLockerState,
+    BitLockerVolume, BluetoothControl, BluetoothInventory, BluetoothMajorClass,
+    ControlConflictDetection, DbdcControl, DiagnosticsControl, DisplayStatusControl,
+    EventLogControl, FanControl, FirmwareControl, GpuOcControl, Hal, HotkeyControl,
+    ItsPolicyControl, KeyboardControl, LocalPackageInstallControl, LocalUpdateControl,
+    MachineFixControl, MagicBayControl, MobileBroadbandControl, NoiseCancelControl, OsdControl,
+    PanelBrightnessControl, PanelControl, PanelFeaturesControl, PanelIdentityControl,
     PerformanceControl, PowerControl, PowerLimitKind, PrivacyControl, ProcessControl,
-    ProcessorPowerControl, RadioControl, RadioKind, RadioState, SenseControl, SenseFeature,
-    BitLockerState, BitLockerVolume, SecureBootState, SecurityControl, SecuritySource,
-    SensorControl,
-    SecurityStatusReport, StorageStatusControl, TemperatureControl, TouchpadControl,
-    TuningControl, UpdateControl,
-    UsbControl, WifiBand, WifiSecurityControl, WifiStatusControl, WifiStatusReport,
-    TpmState,
+    ProcessorPowerControl, RadioControl, RadioKind, RadioState, SecureBootState, SecurityControl,
+    SecuritySource, SecurityStatusReport, SenseControl, SenseFeature, SensorControl,
+    StorageStatusControl, TemperatureControl, TouchpadControl, TpmState, TuningControl,
+    UpdateControl, UsbControl, WifiBand, WifiSecurityControl, WifiStatusControl, WifiStatusReport,
 };
 use serde::{Deserialize, Serialize};
 
@@ -190,10 +184,7 @@ impl<'a> CommandServices<'a> {
     }
 
     #[must_use]
-    pub fn with_audio_endpoints(
-        mut self,
-        audio_endpoints: &'a dyn AudioEndpointControl,
-    ) -> Self {
+    pub fn with_audio_endpoints(mut self, audio_endpoints: &'a dyn AudioEndpointControl) -> Self {
         self.audio_endpoints = Some(audio_endpoints);
         self
     }
@@ -289,7 +280,10 @@ impl<'a> CommandServices<'a> {
     }
 
     #[must_use]
-    pub fn with_mobile_broadband(mut self, mobile_broadband: &'a dyn MobileBroadbandControl) -> Self {
+    pub fn with_mobile_broadband(
+        mut self,
+        mobile_broadband: &'a dyn MobileBroadbandControl,
+    ) -> Self {
         self.mobile_broadband = Some(mobile_broadband);
         self
     }
@@ -366,7 +360,10 @@ impl<'a> CommandServices<'a> {
     }
 
     #[must_use]
-    pub fn with_usb_ports(mut self, usb_ports: &'a dyn lenovo_laptop_control_hal::UsbPortInventoryControl) -> Self {
+    pub fn with_usb_ports(
+        mut self,
+        usb_ports: &'a dyn lenovo_laptop_control_hal::UsbPortInventoryControl,
+    ) -> Self {
         self.usb_ports = Some(usb_ports);
         self
     }
@@ -401,10 +398,7 @@ impl<'a> CommandServices<'a> {
     }
 
     #[must_use]
-    pub fn with_local_package(
-        mut self,
-        local_package: &'a dyn LocalPackageInstallControl,
-    ) -> Self {
+    pub fn with_local_package(mut self, local_package: &'a dyn LocalPackageInstallControl) -> Self {
         self.local_package = Some(local_package);
         self
     }
@@ -817,9 +811,7 @@ pub enum FixCommand {
     ///
     /// `--dry-run` is the root-level global flag; the handler consumes the
     /// resolved `ApplyMode` instead of a second local declaration.
-    Run {
-        issue: String,
-    },
+    Run { issue: String },
     /// Show the local ledger of applied fixes and their rollbacks.
     Track,
 }
@@ -989,10 +981,13 @@ pub enum FanCommand {
     Manual,
     Fullspeed,
     Smart,
-    Curve { source: String },
-    /// Direct EC duty override 0..=100 (%); latched until overwritten or
-    /// reboot — the EC keeps an ~1800 RPM floor, it cannot stall the fan.
-    Duty { pct: u8 },
+    Curve {
+        source: String,
+    },
+    /// Request EC fan duty (0–100%) while the firmware's manual override is armed.
+    Duty {
+        pct: u8,
+    },
 }
 
 #[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
@@ -1044,12 +1039,8 @@ pub enum TuneCommand {
 #[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
 pub enum ProfileCommand {
     List,
-    Show {
-        name: String,
-    },
-    Apply {
-        name: String,
-    },
+    Show { name: String },
+    Apply { name: String },
 }
 
 /// Keyboard command tree.
@@ -1282,8 +1273,12 @@ pub enum SenseCommand {
 /// Audio command tree.
 #[derive(Clone, Debug, Subcommand, PartialEq, Eq)]
 pub enum AudioCommand {
-    Dolby { profile: DolbyProfileArg },
-    NoiseCancel { mode: NoiseCancelArg },
+    Dolby {
+        profile: DolbyProfileArg,
+    },
+    NoiseCancel {
+        mode: NoiseCancelArg,
+    },
     /// List the OS audio endpoints through the MMDevice API.
     Endpoints {
         /// Include disabled, unplugged, and not-present endpoints.
@@ -2370,10 +2365,8 @@ fn command_is_mutating(command: &Command) -> bool {
                 AudioCommand::Volume {
                     percent: Some(_),
                     ..
-                } | AudioCommand::Mute {
-                    state: Some(_),
-                    ..
-                } | AudioCommand::Dolby { .. }
+                } | AudioCommand::Mute { state: Some(_), .. }
+                    | AudioCommand::Dolby { .. }
                     | AudioCommand::NoiseCancel { .. },
             )
         } | Command::Usb {
@@ -2586,7 +2579,10 @@ fn execute_doctor(services: &CommandServices<'_>) -> CommandResult {
     )
 }
 
-fn doctor_check<T>(channel: &'static str, result: lenovo_laptop_control_core::Result<T>) -> DoctorCheck {
+fn doctor_check<T>(
+    channel: &'static str,
+    result: lenovo_laptop_control_core::Result<T>,
+) -> DoctorCheck {
     match result {
         Ok(_) => DoctorCheck {
             channel,
@@ -2635,7 +2631,9 @@ fn execute_battery_adapter(battery: Option<&dyn BatteryControl>) -> CommandResul
     structured_output(&payload, human)
 }
 
-fn capture_optional<T>(result: lenovo_laptop_control_core::Result<T>) -> (Option<T>, Option<Value>) {
+fn capture_optional<T>(
+    result: lenovo_laptop_control_core::Result<T>,
+) -> (Option<T>, Option<Value>) {
     match result {
         Ok(value) => (Some(value), None),
         Err(error) => (
@@ -2785,12 +2783,11 @@ fn execute_power_limit(
     let tuning = tuning.ok_or_else(|| LenovoLaptopControlError::Unsupported {
         feature: "tune.rapl".into(),
     })?;
-    let microwatts =
-        u64::from(watts)
-            .checked_mul(1_000_000)
-            .ok_or_else(|| LenovoLaptopControlError::InvalidArgument {
-                detail: format!("power limit {watts} W overflows µW"),
-            })?;
+    let microwatts = u64::from(watts).checked_mul(1_000_000).ok_or_else(|| {
+        LenovoLaptopControlError::InvalidArgument {
+            detail: format!("power limit {watts} W overflows µW"),
+        }
+    })?;
     let report = tuning.set_power_limit(kind, microwatts, apply)?;
     let restore = if auto_restore && apply == ApplyMode::Commit {
         let restored = tuning.set_power_limit(kind, *report.previous(), ApplyMode::Commit)?;
@@ -2857,9 +2854,11 @@ fn execute_tune_power_limits(
             let previous = match kind {
                 PowerLimitKind::Pl1 => current_pl1,
                 PowerLimitKind::Pl2 => current_pl2,
-                PowerLimitKind::Tau => current_tau.ok_or_else(|| LenovoLaptopControlError::FirmwareRejected {
-                    detail: "tau restore snapshot missing".into(),
-                })?,
+                PowerLimitKind::Tau => {
+                    current_tau.ok_or_else(|| LenovoLaptopControlError::FirmwareRejected {
+                        detail: "tau restore snapshot missing".into(),
+                    })?
+                }
             };
             tuning.set_power_limit(*kind, previous, ApplyMode::Commit)?;
             restored.push(format!("{kind:?}={}", previous / 1_000_000));
@@ -3054,9 +3053,11 @@ fn execute_tune_epp(
         "balance-performance" | "balance_performance" => 128,
         "balance-power" | "balance_power" => 192,
         "power" => 255,
-        raw => raw.parse::<u8>().map_err(|_| LenovoLaptopControlError::InvalidArgument {
-            detail: format!("invalid EPP value {raw:?}"),
-        })?,
+        raw => raw
+            .parse::<u8>()
+            .map_err(|_| LenovoLaptopControlError::InvalidArgument {
+                detail: format!("invalid EPP value {raw:?}"),
+            })?,
     };
     let report = tuning.set_epp(value, apply)?;
     let restore = if auto_restore && apply == ApplyMode::Commit {
@@ -3600,7 +3601,10 @@ fn restore_night_charge(
     Ok(format!("restored night charge: enabled={}", actual.enabled))
 }
 
-fn restore_usb_ac(usb: &dyn UsbControl, previous: bool) -> lenovo_laptop_control_core::Result<String> {
+fn restore_usb_ac(
+    usb: &dyn UsbControl,
+    previous: bool,
+) -> lenovo_laptop_control_core::Result<String> {
     usb.set_usb_ac_charging(previous, ApplyMode::Commit)?;
     let actual = usb.usb_charging()?;
     if actual.ac_enabled != previous {
@@ -3617,7 +3621,10 @@ fn restore_usb_ac(usb: &dyn UsbControl, previous: bool) -> lenovo_laptop_control
     ))
 }
 
-fn restore_usb_battery(usb: &dyn UsbControl, previous: bool) -> lenovo_laptop_control_core::Result<String> {
+fn restore_usb_battery(
+    usb: &dyn UsbControl,
+    previous: bool,
+) -> lenovo_laptop_control_core::Result<String> {
     usb.set_usb_battery_charging(previous, ApplyMode::Commit)?;
     let actual = usb.usb_charging()?;
     if actual.battery_enabled != previous {
@@ -3659,9 +3666,7 @@ fn execute_audio(
 ) -> CommandResult {
     match command {
         Some(AudioCommand::Dolby { profile }) => execute_dolby(audio, profile, apply, auto_restore),
-        Some(AudioCommand::Endpoints { all }) => {
-            execute_audio_endpoints(audio_endpoints, all)
-        }
+        Some(AudioCommand::Endpoints { all }) => execute_audio_endpoints(audio_endpoints, all),
         Some(AudioCommand::Volume { percent, device }) => execute_audio_volume(
             audio_endpoints,
             device.as_deref(),
@@ -3787,9 +3792,10 @@ fn format_endpoint_volume_change(
         "volume ({mode}): previous {}, requested {}%, actual {}",
         report.previous(),
         report.requested().percent,
-        report
-            .actual()
-            .map_or_else(|| "unread".to_string(), |actual| format!("{}%", actual.percent)),
+        report.actual().map_or_else(
+            || "unread".to_string(),
+            |actual| format!("{}%", actual.percent)
+        ),
     );
     text.push('\n');
     text
@@ -3808,9 +3814,10 @@ fn format_endpoint_mute_change(
         "mute ({mode}): previous {}, requested {}, actual {}",
         report.previous(),
         mute(report.requested().mute),
-        report
-            .actual()
-            .map_or_else(|| "unread".to_string(), |actual| mute(actual.mute).to_string()),
+        report.actual().map_or_else(
+            || "unread".to_string(),
+            |actual| mute(actual.mute).to_string()
+        ),
     );
     text.push('\n');
     text
@@ -3853,7 +3860,10 @@ fn restore_endpoint_mute(
             ),
         });
     }
-    Ok(format!("restored mute: {}", if actual.mute { "on" } else { "off" }))
+    Ok(format!(
+        "restored mute: {}",
+        if actual.mute { "on" } else { "off" }
+    ))
 }
 
 fn execute_noise_cancel(
@@ -3885,7 +3895,9 @@ fn execute_noise_cancel(
     )
 }
 
-fn format_noise_cancel_change(report: &lenovo_laptop_control_core::ChangeReport<NoiseCancelState>) -> String {
+fn format_noise_cancel_change(
+    report: &lenovo_laptop_control_core::ChangeReport<NoiseCancelState>,
+) -> String {
     let mode = if report.mode() == ApplyMode::DryRun {
         "dry run"
     } else {
@@ -4067,15 +4079,23 @@ fn required_sense<'a>(
     })
 }
 
-fn sense_distance(raw: u32) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::SenseDistance> {
-    lenovo_laptop_control_core::SenseDistance::from_raw(raw).ok_or_else(|| LenovoLaptopControlError::InvalidArgument {
-        detail: format!("distance must be 0 (near), 1 (middle), or 2 (far), got {raw}"),
+fn sense_distance(
+    raw: u32,
+) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::SenseDistance> {
+    lenovo_laptop_control_core::SenseDistance::from_raw(raw).ok_or_else(|| {
+        LenovoLaptopControlError::InvalidArgument {
+            detail: format!("distance must be 0 (near), 1 (middle), or 2 (far), got {raw}"),
+        }
     })
 }
 
-fn sense_wait(raw: u32) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::SenseWait> {
-    lenovo_laptop_control_core::SenseWait::from_raw(raw).ok_or_else(|| LenovoLaptopControlError::InvalidArgument {
-        detail: format!("wait must be 0 (short), 1 (middle), or 2 (long), got {raw}"),
+fn sense_wait(
+    raw: u32,
+) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::SenseWait> {
+    lenovo_laptop_control_core::SenseWait::from_raw(raw).ok_or_else(|| {
+        LenovoLaptopControlError::InvalidArgument {
+            detail: format!("wait must be 0 (short), 1 (middle), or 2 (long), got {raw}"),
+        }
     })
 }
 
@@ -4282,7 +4302,9 @@ fn restore_sense_features(
 /// `usb ports`: the read-only inventory path. It shares no service with the
 /// charging switches, because those only toggle a power gate and hold no port
 /// or power-delivery data.
-fn execute_usb_ports(usb_ports: Option<&dyn lenovo_laptop_control_hal::UsbPortInventoryControl>) -> CommandResult {
+fn execute_usb_ports(
+    usb_ports: Option<&dyn lenovo_laptop_control_hal::UsbPortInventoryControl>,
+) -> CommandResult {
     let usb_ports = usb_ports.ok_or_else(|| LenovoLaptopControlError::Unsupported {
         feature: "usb.ports".into(),
     })?;
@@ -4407,7 +4429,10 @@ fn format_usb_ports(inventory: &lenovo_laptop_control_core::UsbPortInventory) ->
             } else {
                 "self-powered"
             };
-            let _ = writeln!(output, "  hub {hub_id}: {port_count} port(s), {power_source}");
+            let _ = writeln!(
+                output,
+                "  hub {hub_id}: {port_count} port(s), {power_source}"
+            );
             for port in &hub.ports {
                 let number = port.number;
                 let facts = format_usb_port(port);
@@ -4534,6 +4559,11 @@ fn execute_fan(
             feature: "perf.fan.curve.kernel-interface".into(),
         }),
         FanCommand::Duty { pct } => {
+            if auto_restore && apply == ApplyMode::Commit {
+                return Err(LenovoLaptopControlError::InvalidArgument {
+                    detail: "perf fan duty cannot restore a write-only duty setting".into(),
+                });
+            }
             let report = fan.set_fan_duty(pct, apply)?;
             structured_output(
                 &report,
@@ -4544,8 +4574,8 @@ fn execute_fan(
                         report.previous()
                     ),
                     ApplyMode::Commit => format!(
-                        "fan duty: requested {pct}%, applied≈{}% \
-                         (latched until overwritten; ~1800 RPM EC floor)\n",
+                        "fan duty: requested {pct}%, tach response observed \
+                         (RPM-based estimate {}%)\n",
                         report.actual().unwrap_or(report.previous())
                     ),
                 },
@@ -4566,7 +4596,10 @@ fn execute_panel_info(identity: Option<&dyn PanelIdentityControl>) -> CommandRes
         })?
         .identity()?;
     let mut human = String::new();
-    let model = identity.model_name.as_deref().unwrap_or("no name descriptor");
+    let model = identity
+        .model_name
+        .as_deref()
+        .unwrap_or("no name descriptor");
     let _ = writeln!(
         human,
         "panel: {}{:04X} ({model})",
@@ -4627,9 +4660,8 @@ fn execute_panel_info(identity: Option<&dyn PanelIdentityControl>) -> CommandRes
     }
     match identity.physical_size {
         Some(size) => {
-            let diagonal = (f64::from(size.width_mm).powi(2)
-                + f64::from(size.height_mm).powi(2))
-            .sqrt();
+            let diagonal =
+                (f64::from(size.width_mm).powi(2) + f64::from(size.height_mm).powi(2)).sqrt();
             let _ = writeln!(
                 human,
                 "physical size: {}x{} mm ({:.1} in diagonal)",
@@ -5011,11 +5043,7 @@ fn encoding_name(encoding: lenovo_laptop_control_core::DisplayColorEncoding) -> 
 }
 
 fn yes_no(value: bool) -> &'static str {
-    if value {
-        "yes"
-    } else {
-        "no"
-    }
+    if value { "yes" } else { "no" }
 }
 
 fn tri_state(value: Option<bool>) -> &'static str {
@@ -5249,9 +5277,11 @@ fn execute_power_saver_once(
     apply: ApplyMode,
     auto_restore: bool,
 ) -> CommandResult {
-    let power = services.power.ok_or_else(|| LenovoLaptopControlError::Unsupported {
-        feature: "power.saver-once: no power control service".into(),
-    })?;
+    let power = services
+        .power
+        .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+            feature: "power.saver-once: no power control service".into(),
+        })?;
 
     const PROCTHROTTLEMAX: &str = "bc5038f7-23e0-4960-96da-33abaf5935ec";
     const PROCESSOR_SUBGROUP: &str = "54533251-82be-4824-96c1-47b60b740d00";
@@ -5695,10 +5725,12 @@ fn execute_magicbay_detect(magicbay: Option<&dyn MagicBayControl>) -> CommandRes
 fn execute_magicbay_lte_status(
     mobile_broadband: Option<&dyn MobileBroadbandControl>,
 ) -> CommandResult {
-    let mobile_broadband = mobile_broadband.ok_or_else(|| LenovoLaptopControlError::Unsupported {
-        feature: "magicbay.lte: no Mobile Broadband status service is attached on this platform"
-            .into(),
-    })?;
+    let mobile_broadband =
+        mobile_broadband.ok_or_else(|| LenovoLaptopControlError::Unsupported {
+            feature:
+                "magicbay.lte: no Mobile Broadband status service is attached on this platform"
+                    .into(),
+        })?;
     let status = mobile_broadband.lte_status()?;
     let human = format!(
         "{} MagicBay LTE module(s), {} WWAN interface(s), data session {}\n",
@@ -5731,7 +5763,8 @@ fn execute_completions(shell: Shell) -> CommandResult {
     })
 }
 
-fn load_profile_catalog() -> lenovo_laptop_control_core::Result<lenovo_laptop_control_tune::ProfileCatalog> {
+fn load_profile_catalog()
+-> lenovo_laptop_control_core::Result<lenovo_laptop_control_tune::ProfileCatalog> {
     let system_dir = env::var_os("VANTAGE_SYSTEM_PROFILE_DIR")
         .map(PathBuf::from)
         .or_else(default_system_profile_dir);
@@ -5777,7 +5810,11 @@ fn load_profile_layer(
         Err(error) => return Err(LenovoLaptopControlError::Io(error)),
     };
     let mut paths = entries
-        .map(|entry| entry.map(|entry| entry.path()).map_err(LenovoLaptopControlError::Io))
+        .map(|entry| {
+            entry
+                .map(|entry| entry.path())
+                .map_err(LenovoLaptopControlError::Io)
+        })
         .collect::<lenovo_laptop_control_core::Result<Vec<_>>>()?;
     paths.retain(|path| {
         path.extension()
@@ -5811,19 +5848,21 @@ fn execute_tune_profile(
             structured_output(&profiles, format!("{} tuning profile(s)\n", profiles.len()))
         }
         ProfileCommand::Show { name } => {
-            let profile = catalog
-                .get(&name)
-                .ok_or_else(|| LenovoLaptopControlError::InvalidArgument {
-                    detail: format!("tuning profile {name:?} was not found"),
-                })?;
+            let profile =
+                catalog
+                    .get(&name)
+                    .ok_or_else(|| LenovoLaptopControlError::InvalidArgument {
+                        detail: format!("tuning profile {name:?} was not found"),
+                    })?;
             structured_output(profile, format!("tuning profile: {name}\n"))
         }
         ProfileCommand::Apply { name } => {
-            let profile = catalog
-                .get(&name)
-                .ok_or_else(|| LenovoLaptopControlError::InvalidArgument {
-                    detail: format!("tuning profile {name:?} was not found"),
-                })?;
+            let profile =
+                catalog
+                    .get(&name)
+                    .ok_or_else(|| LenovoLaptopControlError::InvalidArgument {
+                        detail: format!("tuning profile {name:?} was not found"),
+                    })?;
             let mode = global_apply;
             let hardware = services.hal.hardware_info()?;
             let capabilities = services.hal.capabilities()?;
@@ -5902,11 +5941,12 @@ fn snapshot_tune_plan(
         .iter()
         .map(|setting| match setting {
             lenovo_laptop_control_tune::TuneSetting::EcMode(_) => {
-                let service = services
-                    .performance
-                    .ok_or_else(|| LenovoLaptopControlError::Unsupported {
-                        feature: "perf.mode".into(),
-                    })?;
+                let service =
+                    services
+                        .performance
+                        .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                            feature: "perf.mode".into(),
+                        })?;
                 let state = service.performance_state()?;
                 state
                     .active
@@ -5917,9 +5957,12 @@ fn snapshot_tune_plan(
                     })
             }
             lenovo_laptop_control_tune::TuneSetting::ChargeMode(_) => {
-                let service = services.battery.ok_or_else(|| LenovoLaptopControlError::Unsupported {
-                    feature: "battery.charge_mode".into(),
-                })?;
+                let service =
+                    services
+                        .battery
+                        .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                            feature: "battery.charge_mode".into(),
+                        })?;
                 let mode = match service.charge_mode()? {
                     ChargeModeActual::Normal => ChargeMode::Normal,
                     ChargeModeActual::Conservation => ChargeMode::Conservation,
@@ -5933,43 +5976,61 @@ fn snapshot_tune_plan(
                 Ok(TuneRollback::Battery(mode))
             }
             lenovo_laptop_control_tune::TuneSetting::Backlight(_) => {
-                let service = services.keyboard.ok_or_else(|| LenovoLaptopControlError::Unsupported {
-                    feature: "kbd.backlight".into(),
-                })?;
+                let service =
+                    services
+                        .keyboard
+                        .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                            feature: "kbd.backlight".into(),
+                        })?;
                 service.backlight_state().map(TuneRollback::Backlight)
             }
             lenovo_laptop_control_tune::TuneSetting::FanMode(_) => {
-                let service = services.fan.ok_or_else(|| LenovoLaptopControlError::Unsupported {
-                    feature: "perf.fan.mode".into(),
-                })?;
+                let service =
+                    services
+                        .fan
+                        .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                            feature: "perf.fan.mode".into(),
+                        })?;
                 service.fan_mode().map(TuneRollback::Fan)
             }
             lenovo_laptop_control_tune::TuneSetting::Epp(_) => {
-                let service = services.tuning.ok_or_else(|| LenovoLaptopControlError::Unsupported {
-                    feature: "tune.epp".into(),
-                })?;
+                let service =
+                    services
+                        .tuning
+                        .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                            feature: "tune.epp".into(),
+                        })?;
                 service.epp().map(TuneRollback::Epp)
             }
             lenovo_laptop_control_tune::TuneSetting::Pl1(_) => {
-                let service = services.tuning.ok_or_else(|| LenovoLaptopControlError::Unsupported {
-                    feature: "tune.pl1".into(),
-                })?;
+                let service =
+                    services
+                        .tuning
+                        .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                            feature: "tune.pl1".into(),
+                        })?;
                 service
                     .power_limit(PowerLimitKind::Pl1)
                     .map(|value| TuneRollback::PowerLimit(PowerLimitKind::Pl1, value))
             }
             lenovo_laptop_control_tune::TuneSetting::Pl2(_) => {
-                let service = services.tuning.ok_or_else(|| LenovoLaptopControlError::Unsupported {
-                    feature: "tune.pl2".into(),
-                })?;
+                let service =
+                    services
+                        .tuning
+                        .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                            feature: "tune.pl2".into(),
+                        })?;
                 service
                     .power_limit(PowerLimitKind::Pl2)
                     .map(|value| TuneRollback::PowerLimit(PowerLimitKind::Pl2, value))
             }
             lenovo_laptop_control_tune::TuneSetting::Tau(_) => {
-                let service = services.tuning.ok_or_else(|| LenovoLaptopControlError::Unsupported {
-                    feature: "tune.tau".into(),
-                })?;
+                let service =
+                    services
+                        .tuning
+                        .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                            feature: "tune.tau".into(),
+                        })?;
                 service
                     .power_limit(PowerLimitKind::Tau)
                     .map(|value| TuneRollback::PowerLimit(PowerLimitKind::Tau, value))
@@ -6029,9 +6090,11 @@ fn write_tune_state(
     status: &str,
 ) -> lenovo_laptop_control_core::Result<()> {
     let path = tune_state_path()?;
-    let parent = path.parent().ok_or_else(|| LenovoLaptopControlError::InvalidArgument {
-        detail: format!("state path {} has no parent", path.display()),
-    })?;
+    let parent = path
+        .parent()
+        .ok_or_else(|| LenovoLaptopControlError::InvalidArgument {
+            detail: format!("state path {} has no parent", path.display()),
+        })?;
     fs::create_dir_all(parent).map_err(LenovoLaptopControlError::Io)?;
     let hardware = serialize_change(&services.hal.hardware_info()?)?;
     let platform = platform_label(services.hal.platform()).to_owned();
@@ -6094,10 +6157,11 @@ fn read_tune_state() -> lenovo_laptop_control_core::Result<(PathBuf, TuneState)>
             LenovoLaptopControlError::Io(error)
         }
     })?;
-    let state: TuneState =
-        serde_json::from_str(&source).map_err(|error| LenovoLaptopControlError::InvalidArgument {
+    let state: TuneState = serde_json::from_str(&source).map_err(|error| {
+        LenovoLaptopControlError::InvalidArgument {
             detail: format!("invalid tuning state {}: {error}", path.display()),
-        })?;
+        }
+    })?;
     if state.version != 1 {
         return Err(LenovoLaptopControlError::InvalidArgument {
             detail: format!("unsupported tuning state version {}", state.version),
@@ -6114,7 +6178,9 @@ fn read_tune_state() -> lenovo_laptop_control_core::Result<(PathBuf, TuneState)>
     Ok((path, state))
 }
 
-fn saved_tune_rollback(saved: SavedTuneSetting) -> lenovo_laptop_control_core::Result<TuneRollback> {
+fn saved_tune_rollback(
+    saved: SavedTuneSetting,
+) -> lenovo_laptop_control_core::Result<TuneRollback> {
     match saved {
         SavedTuneSetting::Battery { mode } => Ok(TuneRollback::Battery(match mode.as_str() {
             "normal" => ChargeMode::Normal,
@@ -6194,9 +6260,12 @@ fn snapshot_tune_rollback(
 ) -> lenovo_laptop_control_core::Result<TuneRollback> {
     match desired {
         TuneRollback::Battery(_) => {
-            let service = services.battery.ok_or_else(|| LenovoLaptopControlError::Unsupported {
-                feature: "battery.charge_mode.restore".into(),
-            })?;
+            let service =
+                services
+                    .battery
+                    .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                        feature: "battery.charge_mode.restore".into(),
+                    })?;
             let mode = match service.charge_mode()? {
                 ChargeModeActual::Normal => ChargeMode::Normal,
                 ChargeModeActual::Conservation => ChargeMode::Conservation,
@@ -6224,11 +6293,12 @@ fn snapshot_tune_rollback(
             .fan_mode()
             .map(TuneRollback::Fan),
         TuneRollback::Performance(_) => {
-            let service = services
-                .performance
-                .ok_or_else(|| LenovoLaptopControlError::Unsupported {
-                    feature: "perf.mode.restore".into(),
-                })?;
+            let service =
+                services
+                    .performance
+                    .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                        feature: "perf.mode.restore".into(),
+                    })?;
             let state = service.performance_state()?;
             state
                 .active
@@ -6261,41 +6331,54 @@ fn restore_tune_setting(
 ) -> lenovo_laptop_control_core::Result<Value> {
     match rollback {
         TuneRollback::Battery(mode) => {
-            let service = services.battery.ok_or_else(|| LenovoLaptopControlError::Unsupported {
-                feature: "battery.charge_mode.restore".into(),
-            })?;
+            let service =
+                services
+                    .battery
+                    .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                        feature: "battery.charge_mode.restore".into(),
+                    })?;
             serialize_change(&service.set_charge_mode(mode, apply)?)
         }
         TuneRollback::Backlight(state) => {
-            let service = services.keyboard.ok_or_else(|| LenovoLaptopControlError::Unsupported {
-                feature: "kbd.backlight.restore".into(),
-            })?;
+            let service =
+                services
+                    .keyboard
+                    .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                        feature: "kbd.backlight.restore".into(),
+                    })?;
             serialize_change(&service.set_backlight(state.level, state.effect, apply)?)
         }
         TuneRollback::Fan(mode) => {
-            let service = services.fan.ok_or_else(|| LenovoLaptopControlError::Unsupported {
-                feature: "perf.fan.mode.restore".into(),
-            })?;
+            let service = services
+                .fan
+                .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                    feature: "perf.fan.mode.restore".into(),
+                })?;
             serialize_change(&service.set_fan_mode(mode, apply)?)
         }
         TuneRollback::Performance(mode) => {
-            let service = services
-                .performance
-                .ok_or_else(|| LenovoLaptopControlError::Unsupported {
-                    feature: "perf.mode.restore".into(),
-                })?;
+            let service =
+                services
+                    .performance
+                    .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                        feature: "perf.mode.restore".into(),
+                    })?;
             serialize_change(&service.set_performance_mode(mode, apply)?)
         }
         TuneRollback::Epp(value) => {
-            let service = services.tuning.ok_or_else(|| LenovoLaptopControlError::Unsupported {
-                feature: "tune.epp.restore".into(),
-            })?;
+            let service = services
+                .tuning
+                .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                    feature: "tune.epp.restore".into(),
+                })?;
             serialize_change(&service.set_epp(value, apply)?)
         }
         TuneRollback::PowerLimit(kind, value) => {
-            let service = services.tuning.ok_or_else(|| LenovoLaptopControlError::Unsupported {
-                feature: format!("tune.{}.restore", power_limit_kind_name(kind)),
-            })?;
+            let service = services
+                .tuning
+                .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                    feature: format!("tune.{}.restore", power_limit_kind_name(kind)),
+                })?;
             serialize_change(&service.set_power_limit(kind, value, apply)?)
         }
     }
@@ -6505,7 +6588,10 @@ fn capture_managed_snapshot(services: &CommandServices<'_>) -> ManagedSnapshot {
     }
 }
 
-fn replace_file_atomic(temporary: &Path, destination: &Path) -> lenovo_laptop_control_core::Result<()> {
+fn replace_file_atomic(
+    temporary: &Path,
+    destination: &Path,
+) -> lenovo_laptop_control_core::Result<()> {
     #[cfg(windows)]
     {
         use std::os::windows::ffi::OsStrExt;
@@ -6536,11 +6622,15 @@ fn replace_file_atomic(temporary: &Path, destination: &Path) -> lenovo_laptop_co
     fs::rename(temporary, destination).map_err(LenovoLaptopControlError::Io)
 }
 
-fn write_managed_snapshot(snapshot: &ManagedSnapshot) -> lenovo_laptop_control_core::Result<PathBuf> {
+fn write_managed_snapshot(
+    snapshot: &ManagedSnapshot,
+) -> lenovo_laptop_control_core::Result<PathBuf> {
     let path = managed_snapshot_path()?;
-    let parent = path.parent().ok_or_else(|| LenovoLaptopControlError::InvalidArgument {
-        detail: format!("snapshot path {} has no parent", path.display()),
-    })?;
+    let parent = path
+        .parent()
+        .ok_or_else(|| LenovoLaptopControlError::InvalidArgument {
+            detail: format!("snapshot path {} has no parent", path.display()),
+        })?;
     fs::create_dir_all(parent).map_err(LenovoLaptopControlError::Io)?;
     let bytes = serde_json::to_vec_pretty(snapshot)
         .map_err(|error| LenovoLaptopControlError::Io(std::io::Error::other(error)))?;
@@ -6567,10 +6657,11 @@ fn read_managed_snapshot() -> lenovo_laptop_control_core::Result<ManagedSnapshot
             LenovoLaptopControlError::Io(error)
         }
     })?;
-    let snapshot: ManagedSnapshot =
-        serde_json::from_str(&source).map_err(|error| LenovoLaptopControlError::InvalidArgument {
+    let snapshot: ManagedSnapshot = serde_json::from_str(&source).map_err(|error| {
+        LenovoLaptopControlError::InvalidArgument {
             detail: format!("invalid snapshot {}: {error}", path.display()),
-        })?;
+        }
+    })?;
     if snapshot.version != 1 {
         return Err(LenovoLaptopControlError::InvalidArgument {
             detail: format!("unsupported snapshot version {}", snapshot.version),
@@ -6708,9 +6799,11 @@ fn restore_managed_snapshot(
         && let Some(mode) = baseline.charge_mode.as_deref()
     {
         let mode = parse_saved_charge_mode(mode)?;
-        let service = services.battery.ok_or_else(|| LenovoLaptopControlError::Unsupported {
-            feature: "snapshot.restore.charge_mode".into(),
-        })?;
+        let service = services
+            .battery
+            .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                feature: "snapshot.restore.charge_mode".into(),
+            })?;
         apply_change!(
             service.set_charge_mode(mode, apply),
             |report: &lenovo_laptop_control_core::ChangeReport<ChargeMode>| {
@@ -6722,11 +6815,12 @@ fn restore_managed_snapshot(
         && let Some(mode) = baseline.performance_mode.as_deref()
     {
         let mode = parse_saved_performance_mode(mode)?;
-        let service = services
-            .performance
-            .ok_or_else(|| LenovoLaptopControlError::Unsupported {
-                feature: "snapshot.restore.performance_mode".into(),
-            })?;
+        let service =
+            services
+                .performance
+                .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                    feature: "snapshot.restore.performance_mode".into(),
+                })?;
         apply_change!(
             service.set_performance_mode(mode, apply),
             |report: &lenovo_laptop_control_core::ChangeReport<PerformanceMode>| {
@@ -6738,9 +6832,11 @@ fn restore_managed_snapshot(
         && let Some(mode) = baseline.fan_mode.as_deref()
     {
         let mode = parse_saved_fan_mode(mode)?;
-        let service = services.fan.ok_or_else(|| LenovoLaptopControlError::Unsupported {
-            feature: "snapshot.restore.fan_mode".into(),
-        })?;
+        let service = services
+            .fan
+            .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                feature: "snapshot.restore.fan_mode".into(),
+            })?;
         apply_change!(
             service.set_fan_mode(mode, apply),
             |report: &lenovo_laptop_control_core::ChangeReport<FanMode>| {
@@ -6751,12 +6847,16 @@ fn restore_managed_snapshot(
     if baseline.epp != current.epp
         && let Some(value) = baseline.epp
     {
-        let service = services.tuning.ok_or_else(|| LenovoLaptopControlError::Unsupported {
-            feature: "snapshot.restore.epp".into(),
-        })?;
+        let service = services
+            .tuning
+            .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                feature: "snapshot.restore.epp".into(),
+            })?;
         apply_change!(
             service.set_epp(value, apply),
-            |report: &lenovo_laptop_control_core::ChangeReport<u8>| ManagedRollback::Epp(*report.previous())
+            |report: &lenovo_laptop_control_core::ChangeReport<u8>| ManagedRollback::Epp(
+                *report.previous()
+            )
         );
     }
     for (kind, baseline_value, current_value) in [
@@ -6766,9 +6866,12 @@ fn restore_managed_snapshot(
     ] {
         if baseline_value != current_value {
             if let Some(value) = baseline_value {
-                let service = services.tuning.ok_or_else(|| LenovoLaptopControlError::Unsupported {
-                    feature: format!("snapshot.restore.{}", power_limit_kind_name(kind)),
-                })?;
+                let service =
+                    services
+                        .tuning
+                        .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                            feature: format!("snapshot.restore.{}", power_limit_kind_name(kind)),
+                        })?;
                 apply_change!(
                     service.set_power_limit(kind, value, apply),
                     |report: &lenovo_laptop_control_core::ChangeReport<u64>| {
@@ -6781,9 +6884,11 @@ fn restore_managed_snapshot(
     if baseline.backlight != current.backlight
         && let Some(backlight) = &baseline.backlight
     {
-        let service = services.keyboard.ok_or_else(|| LenovoLaptopControlError::Unsupported {
-            feature: "snapshot.restore.backlight".into(),
-        })?;
+        let service = services
+            .keyboard
+            .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                feature: "snapshot.restore.backlight".into(),
+            })?;
         apply_change!(
             service.set_backlight(
                 backlight.level,
@@ -6799,9 +6904,11 @@ fn restore_managed_snapshot(
         && let Some(state) = baseline.touchpad.as_deref()
     {
         let state = parse_saved_device_state(state)?;
-        let service = services.touchpad.ok_or_else(|| LenovoLaptopControlError::Unsupported {
-            feature: "snapshot.restore.touchpad".into(),
-        })?;
+        let service = services
+            .touchpad
+            .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                feature: "snapshot.restore.touchpad".into(),
+            })?;
         apply_change!(
             service.set_touchpad(state, apply),
             |report: &lenovo_laptop_control_core::ChangeReport<DeviceState>| {
@@ -6813,9 +6920,11 @@ fn restore_managed_snapshot(
         && let Some(state) = baseline.runtime_camera.as_deref()
     {
         let state = parse_saved_device_state(state)?;
-        let service = services.privacy.ok_or_else(|| LenovoLaptopControlError::Unsupported {
-            feature: "snapshot.restore.runtime_camera".into(),
-        })?;
+        let service = services
+            .privacy
+            .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                feature: "snapshot.restore.runtime_camera".into(),
+            })?;
         apply_change!(
             service.set_camera(state, apply),
             |report: &lenovo_laptop_control_core::ChangeReport<DeviceState>| {
@@ -6826,9 +6935,11 @@ fn restore_managed_snapshot(
     if baseline.power_scheme != current.power_scheme
         && let Some(id) = baseline.power_scheme.as_deref()
     {
-        let service = services.power.ok_or_else(|| LenovoLaptopControlError::Unsupported {
-            feature: "snapshot.restore.power_scheme".into(),
-        })?;
+        let service = services
+            .power
+            .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                feature: "snapshot.restore.power_scheme".into(),
+            })?;
         let previous_id = service.active_power_scheme()?.id;
         apply_change!(
             service.apply_power_mutation(PowerMutation::Activate(PowerSchemeId::new(id)?), apply,),
@@ -6851,7 +6962,9 @@ fn parse_saved_charge_mode(value: &str) -> lenovo_laptop_control_core::Result<Ch
     }
 }
 
-fn parse_saved_performance_mode(value: &str) -> lenovo_laptop_control_core::Result<PerformanceMode> {
+fn parse_saved_performance_mode(
+    value: &str,
+) -> lenovo_laptop_control_core::Result<PerformanceMode> {
     match value {
         "balanced" => Ok(PerformanceMode::Balanced),
         "quiet" => Ok(PerformanceMode::Quiet),
@@ -7000,11 +7113,12 @@ fn apply_tune_setting(
 ) -> lenovo_laptop_control_core::Result<(Value, TuneRollback)> {
     match setting {
         lenovo_laptop_control_tune::TuneSetting::EcMode(mode) => {
-            let service = services
-                .performance
-                .ok_or_else(|| LenovoLaptopControlError::Unsupported {
-                    feature: "perf.mode".into(),
-                })?;
+            let service =
+                services
+                    .performance
+                    .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                        feature: "perf.mode".into(),
+                    })?;
             let requested = match mode {
                 lenovo_laptop_control_tune::EcMode::Smart => PerformanceMode::Balanced,
                 lenovo_laptop_control_tune::EcMode::PowerSave => PerformanceMode::Quiet,
@@ -7018,17 +7132,23 @@ fn apply_tune_setting(
             ))
         }
         lenovo_laptop_control_tune::TuneSetting::ChargeMode(mode) => {
-            let service = services.battery.ok_or_else(|| LenovoLaptopControlError::Unsupported {
-                feature: "battery.charge_mode".into(),
-            })?;
+            let service =
+                services
+                    .battery
+                    .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                        feature: "battery.charge_mode".into(),
+                    })?;
             let report = service.set_charge_mode(*mode, ApplyMode::Commit)?;
             let previous = *report.previous();
             Ok((serialize_change(&report)?, TuneRollback::Battery(previous)))
         }
         lenovo_laptop_control_tune::TuneSetting::Backlight(level) => {
-            let service = services.keyboard.ok_or_else(|| LenovoLaptopControlError::Unsupported {
-                feature: "kbd.backlight".into(),
-            })?;
+            let service =
+                services
+                    .keyboard
+                    .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                        feature: "kbd.backlight".into(),
+                    })?;
             let report = service.set_backlight(
                 *level,
                 lenovo_laptop_control_core::LightingEffect::Static,
@@ -7041,15 +7161,18 @@ fn apply_tune_setting(
             ))
         }
         lenovo_laptop_control_tune::TuneSetting::FanMode(mode) => {
-            let service = services.fan.ok_or_else(|| LenovoLaptopControlError::Unsupported {
-                feature: "perf.fan.mode".into(),
-            })?;
+            let service = services
+                .fan
+                .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                    feature: "perf.fan.mode".into(),
+                })?;
             let requested = match mode {
-                lenovo_laptop_control_tune::FanMode::Auto | lenovo_laptop_control_tune::FanMode::Smart => FanMode::Standard,
-                lenovo_laptop_control_tune::FanMode::Fullspeed | lenovo_laptop_control_tune::FanMode::Performance => {
-                    FanMode::Performance
-                }
-                lenovo_laptop_control_tune::FanMode::Manual | lenovo_laptop_control_tune::FanMode::Off => {
+                lenovo_laptop_control_tune::FanMode::Auto
+                | lenovo_laptop_control_tune::FanMode::Smart => FanMode::Standard,
+                lenovo_laptop_control_tune::FanMode::Fullspeed
+                | lenovo_laptop_control_tune::FanMode::Performance => FanMode::Performance,
+                lenovo_laptop_control_tune::FanMode::Manual
+                | lenovo_laptop_control_tune::FanMode::Off => {
                     return Err(LenovoLaptopControlError::Unsupported {
                         feature: format!("perf.fan.mode.{mode}"),
                     });
@@ -7060,12 +7183,16 @@ fn apply_tune_setting(
             Ok((serialize_change(&report)?, TuneRollback::Fan(previous)))
         }
         lenovo_laptop_control_tune::TuneSetting::Epp(value) => {
-            let service = services.tuning.ok_or_else(|| LenovoLaptopControlError::Unsupported {
-                feature: "tune.epp".into(),
-            })?;
-            let requested = value.raw().ok_or_else(|| LenovoLaptopControlError::Unsupported {
-                feature: "tune.epp.preset".into(),
-            })?;
+            let service = services
+                .tuning
+                .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                    feature: "tune.epp".into(),
+                })?;
+            let requested = value
+                .raw()
+                .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                    feature: "tune.epp.preset".into(),
+                })?;
             let report = service.set_epp(requested, ApplyMode::Commit)?;
             let previous = *report.previous();
             Ok((serialize_change(&report)?, TuneRollback::Epp(previous)))
@@ -7090,9 +7217,11 @@ fn apply_tune_limit(
     kind: PowerLimitKind,
     value: u64,
 ) -> lenovo_laptop_control_core::Result<(Value, TuneRollback)> {
-    let service = services.tuning.ok_or_else(|| LenovoLaptopControlError::Unsupported {
-        feature: format!("tune.{}", power_limit_kind_name(kind)),
-    })?;
+    let service = services
+        .tuning
+        .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+            feature: format!("tune.{}", power_limit_kind_name(kind)),
+        })?;
     let report = service.set_power_limit(kind, value, ApplyMode::Commit)?;
     let previous = *report.previous();
     Ok((
@@ -7102,7 +7231,8 @@ fn apply_tune_limit(
 }
 
 fn serialize_change<T: Serialize>(change: &T) -> lenovo_laptop_control_core::Result<Value> {
-    serde_json::to_value(change).map_err(|error| LenovoLaptopControlError::Io(std::io::Error::other(error)))
+    serde_json::to_value(change)
+        .map_err(|error| LenovoLaptopControlError::Io(std::io::Error::other(error)))
 }
 
 fn rollback_tune_changes(
@@ -7272,11 +7402,7 @@ fn execute_update_history(update: &dyn UpdateControl) -> CommandResult {
         UpdateHistoryLedger::InstallEvents => "install event(s)",
         UpdateHistoryLedger::PackageStatus => "package status row(s)",
     };
-    let mut human = format!(
-        "{} {unit} from {}\n",
-        report.entries.len(),
-        report.source
-    );
+    let mut human = format!("{} {unit} from {}\n", report.entries.len(), report.source);
     for entry in &report.entries {
         let name = entry.name.as_deref().unwrap_or(&entry.id);
         let version = entry.version.as_deref().unwrap_or("unknown version");
@@ -7313,9 +7439,8 @@ fn execute_local_package(
             "  payload {} sha256 {}\n",
             payload.file, payload.sha256
         )),
-        None => human.push_str(
-            "  the package script validates its own payload (no pinned hash declared)\n",
-        ),
+        None => human
+            .push_str("  the package script validates its own payload (no pinned hash declared)\n"),
     }
     human.push_str(&format!("  signer {}\n", report.signer));
     match report.exit_code {
@@ -7399,7 +7524,9 @@ fn local_driver_apply_message(report: &lenovo_laptop_control_core::DriverUpdateR
     }
 }
 
-fn local_driver_rollback_message(report: &lenovo_laptop_control_core::DriverRollbackReport) -> String {
+fn local_driver_rollback_message(
+    report: &lenovo_laptop_control_core::DriverRollbackReport,
+) -> String {
     match &report.actual {
         Some(actual) => format!(
             "local driver rollback for {} restored {}",
@@ -7558,7 +7685,11 @@ fn format_security_status(report: &SecurityStatusReport) -> String {
             "  secure boot variable: {}",
             yes_no_optional(secure_boot.secure_boot_variable)
         );
-        let _ = writeln!(text, "  setup mode: {}", yes_no_optional(secure_boot.setup_mode));
+        let _ = writeln!(
+            text,
+            "  setup mode: {}",
+            yes_no_optional(secure_boot.setup_mode)
+        );
         let _ = writeln!(
             text,
             "  platform key: {}",
@@ -7623,11 +7754,7 @@ fn format_security_status(report: &SecurityStatusReport) -> String {
         security_source_detail(bitlocker.source)
     );
     if bitlocker.state == BitLockerState::Observed {
-        let _ = writeln!(
-            text,
-            "  {} encryptable volume(s)",
-            bitlocker.volumes.len()
-        );
+        let _ = writeln!(text, "  {} encryptable volume(s)", bitlocker.volumes.len());
         for volume in &bitlocker.volumes {
             text.push_str(&format_bitlocker_volume(volume));
         }
@@ -7641,7 +7768,10 @@ fn format_security_status(report: &SecurityStatusReport) -> String {
 
 fn format_bitlocker_volume(volume: &BitLockerVolume) -> String {
     let mut text = String::new();
-    let label = volume.drive_letter.as_deref().unwrap_or("(no drive letter)");
+    let label = volume
+        .drive_letter
+        .as_deref()
+        .unwrap_or("(no drive letter)");
     let _ = writeln!(
         text,
         "  {label}: protection={} ({}) conversion={} ({}) method={} ({}) lock={} ({}) progress={}",
@@ -8066,7 +8196,10 @@ fn execute_radio(
                         &mut human,
                         "  wlan {} ({}): link {} [{}], {} physical layer(s)",
                         detail.interface_guid,
-                        detail.interface_description.as_deref().unwrap_or("no description"),
+                        detail
+                            .interface_description
+                            .as_deref()
+                            .unwrap_or("no description"),
                         wlan_link_state_name(detail.link_state),
                         detail.link_state_raw,
                         detail.phys.len(),
@@ -8359,7 +8492,11 @@ fn execute_osd(
 fn toggle_fn_osd(osd: &dyn OsdControl, enabled: bool, dry_run: bool) -> CommandResult {
     let change = osd.set_fn_osd(enabled, dry_run)?;
     // Enabling never leaves an overlay behind, and a dry-run paints nothing.
-    let overlay_hidden = if enabled || dry_run { false } else { osd.hide()? };
+    let overlay_hidden = if enabled || dry_run {
+        false
+    } else {
+        osd.hide()?
+    };
     let mut human = String::new();
     if dry_run {
         human.push_str("osd dry-run: no control code sent to LenovoFnAndFunctionKeys\n");
@@ -8453,7 +8590,10 @@ fn render_hotkey_status(status: &lenovo_laptop_control_hal::HotkeyStatus) -> Str
         } else {
             "not running"
         },
-        status.utility_version.as_deref().unwrap_or("version unknown"),
+        status
+            .utility_version
+            .as_deref()
+            .unwrap_or("version unknown"),
     );
     let _ = writeln!(
         text,
@@ -8720,7 +8860,10 @@ fn format_touchpad_caps(caps: &lenovo_laptop_control_core::TouchpadCapabilities)
         (caps.support.pressure, "pressure"),
         (caps.support.palm_confidence, "palm-confidence"),
         (caps.support.haptic_intensity, "haptic-intensity"),
-        (caps.support.button_press_threshold, "button-press-threshold"),
+        (
+            caps.support.button_press_threshold,
+            "button-press-threshold",
+        ),
     ] {
         if declared {
             bits.push(label);
@@ -8767,9 +8910,11 @@ fn execute_fnlock(
     let mut previous = Vec::with_capacity(requested_values.len());
     let mut requested = Vec::with_capacity(requested_values.len());
     for (name, value) in requested_values {
-        let current = bios.get(name)?.ok_or_else(|| LenovoLaptopControlError::Unsupported {
-            feature: format!("bios.setting.{name}"),
-        })?;
+        let current = bios
+            .get(name)?
+            .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                feature: format!("bios.setting.{name}"),
+            })?;
         validate_bios_selection(bios, name, value)?;
         previous.push(BiosChange::new(current.name, current.value)?);
         requested.push(BiosChange::new(name, value)?);
@@ -8778,7 +8923,9 @@ fn execute_fnlock(
         let reports = previous
             .into_iter()
             .zip(requested)
-            .map(|(previous, requested)| lenovo_laptop_control_core::ChangeReport::dry_run(previous, requested))
+            .map(|(previous, requested)| {
+                lenovo_laptop_control_core::ChangeReport::dry_run(previous, requested)
+            })
             .collect::<Vec<_>>();
         return structured_output(&reports, "FnLock BIOS dry run validated\n".into());
     }
@@ -9009,7 +9156,10 @@ enum PrivacyLayer {
     Persistent,
 }
 
-fn privacy_layer(runtime: bool, persistent: bool) -> lenovo_laptop_control_core::Result<PrivacyLayer> {
+fn privacy_layer(
+    runtime: bool,
+    persistent: bool,
+) -> lenovo_laptop_control_core::Result<PrivacyLayer> {
     match (runtime, persistent) {
         (true, false) => Ok(PrivacyLayer::Runtime),
         (false, true) => Ok(PrivacyLayer::Persistent),
@@ -9041,8 +9191,9 @@ fn execute_camera_status(
             feature: "privacy.cam.status".into(),
         });
     }
-    let (runtime_state, runtime_error) =
-        privacy.map_or((None, None), |service| capture_optional(service.camera_state()));
+    let (runtime_state, runtime_error) = privacy.map_or((None, None), |service| {
+        capture_optional(service.camera_state())
+    });
     let (devices, devices_error) = privacy.map_or((Vec::new(), None), |service| {
         let (devices, error) = capture_optional(service.camera_devices());
         (devices.unwrap_or_default(), error)
@@ -9186,9 +9337,13 @@ fn render_camera_consent(report: &lenovo_laptop_control_core::CameraConsentRepor
 const fn scope_name(scope: lenovo_laptop_control_core::CameraConsentScope) -> &'static str {
     match scope {
         lenovo_laptop_control_core::CameraConsentScope::CurrentUser => "current_user",
-        lenovo_laptop_control_core::CameraConsentScope::CurrentUserNonPackaged => "current_user_non_packaged",
+        lenovo_laptop_control_core::CameraConsentScope::CurrentUserNonPackaged => {
+            "current_user_non_packaged"
+        }
         lenovo_laptop_control_core::CameraConsentScope::Machine => "machine",
-        lenovo_laptop_control_core::CameraConsentScope::MachineNonPackaged => "machine_non_packaged",
+        lenovo_laptop_control_core::CameraConsentScope::MachineNonPackaged => {
+            "machine_non_packaged"
+        }
     }
 }
 
@@ -9284,9 +9439,11 @@ fn execute_persistent_bios_toggle(
     let bios = bios.ok_or_else(|| LenovoLaptopControlError::Unsupported {
         feature: format!("bios.{name}"),
     })?;
-    let current = bios.get(name)?.ok_or_else(|| LenovoLaptopControlError::Unsupported {
-        feature: format!("bios.setting.{name}"),
-    })?;
+    let current = bios
+        .get(name)?
+        .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+            feature: format!("bios.setting.{name}"),
+        })?;
     let requested_value = match state {
         Toggle::On => "Enable",
         Toggle::Off => "Disable",
@@ -9349,7 +9506,8 @@ fn execute_persistent_bios_toggle(
             },
         ));
     }
-    let report = lenovo_laptop_control_core::ChangeReport::committed(previous.clone(), requested, actual);
+    let report =
+        lenovo_laptop_control_core::ChangeReport::committed(previous.clone(), requested, actual);
     let restore = if auto_restore {
         Some(restore_bios_change(bios, &previous)?)
     } else {
@@ -9406,7 +9564,9 @@ fn confirm_risky_change(
     eprint!("Proceed with this BIOS write? [y/N] ");
     io::stderr().flush().map_err(LenovoLaptopControlError::Io)?;
     let mut response = String::new();
-    stdin.read_line(&mut response).map_err(LenovoLaptopControlError::Io)?;
+    stdin
+        .read_line(&mut response)
+        .map_err(LenovoLaptopControlError::Io)?;
     if matches!(response.trim().to_ascii_lowercase().as_str(), "y" | "yes") {
         Ok(())
     } else {
@@ -9459,7 +9619,10 @@ fn recover_bios_changes(
     original
 }
 
-fn stage_and_save(bios: &dyn BiosControl, change: BiosChange) -> lenovo_laptop_control_core::Result<()> {
+fn stage_and_save(
+    bios: &dyn BiosControl,
+    change: BiosChange,
+) -> lenovo_laptop_control_core::Result<()> {
     stage_and_save_many(bios, std::slice::from_ref(&change))
 }
 
@@ -9470,20 +9633,22 @@ fn restore_bios_change(
     bios: &dyn BiosControl,
     previous: &BiosChange,
 ) -> lenovo_laptop_control_core::Result<String> {
-    stage_and_save(bios, previous.clone()).map_err(|error| LenovoLaptopControlError::FirmwareRejected {
-        detail: format!(
-            "BIOS auto-restore failed to re-stage {}: {error}",
-            previous.name
-        ),
+    stage_and_save(bios, previous.clone()).map_err(|error| {
+        LenovoLaptopControlError::FirmwareRejected {
+            detail: format!(
+                "BIOS auto-restore failed to re-stage {}: {error}",
+                previous.name
+            ),
+        }
     })?;
-    let actual = bios
-        .get(previous.name.as_str())?
-        .ok_or_else(|| LenovoLaptopControlError::FirmwareRejected {
+    let actual = bios.get(previous.name.as_str())?.ok_or_else(|| {
+        LenovoLaptopControlError::FirmwareRejected {
             detail: format!(
                 "BIOS auto-restore: {} vanished after restore",
                 previous.name
             ),
-        })?;
+        }
+    })?;
     if actual.value != previous.value.as_str() {
         return Err(LenovoLaptopControlError::FirmwareRejected {
             detail: format!(
@@ -9498,7 +9663,10 @@ fn restore_bios_change(
     ))
 }
 
-fn stage_and_save_many(bios: &dyn BiosControl, changes: &[BiosChange]) -> lenovo_laptop_control_core::Result<()> {
+fn stage_and_save_many(
+    bios: &dyn BiosControl,
+    changes: &[BiosChange],
+) -> lenovo_laptop_control_core::Result<()> {
     bios.require_staging_contract()?;
     for change in changes {
         if let Err(error) = bios.stage(change.clone()) {
@@ -9511,7 +9679,10 @@ fn stage_and_save_many(bios: &dyn BiosControl, changes: &[BiosChange]) -> lenovo
     Ok(())
 }
 
-fn discard_after_bios_failure(bios: &dyn BiosControl, error: LenovoLaptopControlError) -> lenovo_laptop_control_core::Result<()> {
+fn discard_after_bios_failure(
+    bios: &dyn BiosControl,
+    error: LenovoLaptopControlError,
+) -> lenovo_laptop_control_core::Result<()> {
     match bios.discard() {
         Ok(()) => Err(error),
         Err(discard) => Err(LenovoLaptopControlError::FirmwareRejected {
@@ -9589,7 +9760,6 @@ fn format_event_log(report: &lenovo_laptop_control_hal::LenovoEventLogReport) ->
     text
 }
 
-
 /// Execute `storage status`: enumerate the physical drives read-only.
 ///
 /// The report is the observation itself, so a drive that refused a field shows
@@ -9640,9 +9810,10 @@ fn format_storage_status(status: &lenovo_laptop_control_core::StorageStatus) -> 
         text.push_str(&format!("  bus: {bus} ({})\n", device.fields.bus_type));
         text.push_str(&format!(
             "  media: {} ({})\n",
-            device
-                .media_type
-                .map_or("not reported", lenovo_laptop_control_core::StorageMediaType::as_str),
+            device.media_type.map_or(
+                "not reported",
+                lenovo_laptop_control_core::StorageMediaType::as_str
+            ),
             device.fields.media_type
         ));
         match (device.size_bytes, device.logical_sector_size) {
@@ -9664,18 +9835,28 @@ fn format_storage_status(status: &lenovo_laptop_control_core::StorageStatus) -> 
         }
         text.push_str(&format!(
             "  health: {} ({})\n",
-            device
-                .health
-                .map_or("not reported", lenovo_laptop_control_core::StorageHealth::as_str),
+            device.health.map_or(
+                "not reported",
+                lenovo_laptop_control_core::StorageHealth::as_str
+            ),
             device.fields.health
         ));
         if let Some(warning) = device.critical_warning {
             let asserted: Vec<&str> = [
-                (warning.available_spare_below_threshold, "spare below threshold"),
-                (warning.temperature_above_threshold, "temperature above threshold"),
+                (
+                    warning.available_spare_below_threshold,
+                    "spare below threshold",
+                ),
+                (
+                    warning.temperature_above_threshold,
+                    "temperature above threshold",
+                ),
                 (warning.reliability_degraded, "reliability degraded"),
                 (warning.media_read_only, "media read-only"),
-                (warning.volatile_memory_backup_failed, "volatile-memory backup failed"),
+                (
+                    warning.volatile_memory_backup_failed,
+                    "volatile-memory backup failed",
+                ),
                 (
                     warning.persistent_memory_region_read_only,
                     "persistent-memory region read-only",
@@ -9718,12 +9899,12 @@ fn format_storage_status(status: &lenovo_laptop_control_core::StorageStatus) -> 
             ),
             (
                 "available spare",
-                device
-                    .available_spare_percent
-                    .map(|spare| match device.available_spare_threshold_percent {
+                device.available_spare_percent.map(|spare| {
+                    match device.available_spare_threshold_percent {
                         Some(threshold) => format!("{spare}% (threshold {threshold}%)"),
                         None => format!("{spare}%"),
-                    }),
+                    }
+                }),
                 device.fields.percentage_used,
             ),
             (
@@ -9777,7 +9958,10 @@ fn execute_firmware_status(firmware: &dyn FirmwareControl) -> CommandResult {
     let status = firmware.firmware_status()?;
     let identity = &status.identity;
     let vendor = identity.vendor.as_deref().unwrap_or("vendor not reported");
-    let version = identity.version.as_deref().unwrap_or("version not reported");
+    let version = identity
+        .version
+        .as_deref()
+        .unwrap_or("version not reported");
     let mut human = format!("{} firmware: {vendor} {version}", identity.firmware_type);
     if let Some(date) = &identity.release_date {
         human.push_str(&format!(", dated {date}"));
@@ -9793,7 +9977,10 @@ fn execute_firmware_status(firmware: &dyn FirmwareControl) -> CommandResult {
         }
     }
     if !identity.version_strings.is_empty() {
-        human.push_str(&format!("  version strings: {}\n", identity.version_strings.join(", ")));
+        human.push_str(&format!(
+            "  version strings: {}\n",
+            identity.version_strings.join(", ")
+        ));
     }
     human.push_str(&format!("ESRT entries: {}\n", status.resources.len()));
     for resource in &status.resources {
@@ -9888,11 +10075,11 @@ fn execute_bios(
             structured_output(&items, format!("{} BIOS setting(s)\n", items.len()))
         }
         BiosCommand::Get { name } => {
-            let item = bios
-                .get(&name)?
-                .ok_or_else(|| LenovoLaptopControlError::InvalidArgument {
-                    detail: format!("BIOS setting {name:?} was not found"),
-                })?;
+            let item =
+                bios.get(&name)?
+                    .ok_or_else(|| LenovoLaptopControlError::InvalidArgument {
+                        detail: format!("BIOS setting {name:?} was not found"),
+                    })?;
             structured_output(&item, format!("{}={}\n", item.name, item.value))
         }
         BiosCommand::Set { name, value, save } => {
@@ -9902,11 +10089,11 @@ fn execute_bios(
                         .into(),
                 });
             }
-            let current = bios
-                .get(&name)?
-                .ok_or_else(|| LenovoLaptopControlError::InvalidArgument {
-                    detail: format!("BIOS setting {name:?} was not found"),
-                })?;
+            let current =
+                bios.get(&name)?
+                    .ok_or_else(|| LenovoLaptopControlError::InvalidArgument {
+                        detail: format!("BIOS setting {name:?} was not found"),
+                    })?;
             validate_bios_selection(bios, &name, &value)?;
             let previous = BiosChange::new(current.name, current.value)?;
             let requested = BiosChange::new(name.clone(), value.clone())?;
@@ -9965,7 +10152,11 @@ fn execute_bios(
                     },
                 ));
             }
-            let report = lenovo_laptop_control_core::ChangeReport::committed(previous.clone(), requested, actual);
+            let report = lenovo_laptop_control_core::ChangeReport::committed(
+                previous.clone(),
+                requested,
+                actual,
+            );
             let restore = if auto_restore {
                 Some(restore_bios_change(bios, &previous)?)
             } else {
@@ -10104,10 +10295,7 @@ fn format_info(
             ("model (mtm)", identity.product.model.as_deref()),
             // Marketing product version (Win32_ComputerSystemProduct.Version).
             ("product version", identity.product.version.as_deref()),
-            (
-                "serial",
-                identity.product.identifying_number.as_deref(),
-            ),
+            ("serial", identity.product.identifying_number.as_deref()),
             // Win32_BaseBoard.Product: Lenovo's internal board id, not the MTM.
             ("baseboard", identity.motherboard.product.as_deref()),
             ("baseboard version", identity.motherboard.version.as_deref()),
@@ -10159,7 +10347,9 @@ fn availability_label(availability: Availability) -> &'static str {
 /// The registry gates the accessory-only rows on this observation: without an
 /// attached accessory they are `not_applicable` rather than a failed probe, and
 /// a failed inventory stays `unknown` instead of being read as absence.
-fn magicbay_hardware(magicbay: Option<&dyn MagicBayControl>) -> lenovo_laptop_control_hal::HardwareObservation {
+fn magicbay_hardware(
+    magicbay: Option<&dyn MagicBayControl>,
+) -> lenovo_laptop_control_hal::HardwareObservation {
     let Some(magicbay) = magicbay else {
         return lenovo_laptop_control_hal::HardwareObservation::default();
     };
@@ -10299,7 +10489,8 @@ fn processor_setting_range(
     match power.power_value_range(&key) {
         Ok(range) => Ok(PowerRangeObservation::Available { range }),
         Err(
-            error @ (LenovoLaptopControlError::Unsupported { .. } | LenovoLaptopControlError::ChannelUnavailable { .. }),
+            error @ (LenovoLaptopControlError::Unsupported { .. }
+            | LenovoLaptopControlError::ChannelUnavailable { .. }),
         ) => Ok(PowerRangeObservation::Unavailable {
             detail: format!("{setting}: {error}"),
         }),
@@ -10414,7 +10605,10 @@ fn format_cpu_status(
 fn format_power_range(range: &PowerRangeObservation) -> String {
     match range {
         PowerRangeObservation::Available { range } => {
-            format!("range: {}..={} (increment: {})", range.min, range.max, range.increment)
+            format!(
+                "range: {}..={} (increment: {})",
+                range.min, range.max, range.increment
+            )
         }
         PowerRangeObservation::Unavailable { detail } => format!("range: unavailable ({detail})"),
     }
@@ -10544,7 +10738,8 @@ fn unsupported_reason(command: &Command) -> &'static str {
         Command::Magicbay {
             command:
                 Some(MagicbayCommand::Lte {
-                    command: Some(LteCommand::Connect | LteCommand::Disconnect | LteCommand::Apn { .. }),
+                    command:
+                        Some(LteCommand::Connect | LteCommand::Disconnect | LteCommand::Apn { .. }),
                 }),
         } => {
             "modem session control has no bindable API on this build: mbnapi.dll is absent and the WWAN Service API is COM-only, with its interface contract (WDK wwanapi.h) unavailable and no module attached to exercise it (docs/evidence/re-magicbay-20261105.md §3.2)"
@@ -10657,7 +10852,9 @@ fn command_feature(command: &Command) -> String {
         Command::Bluetooth { command } => {
             prefixed("bluetooth", command.as_ref().map(BluetoothCommand::feature))
         }
-        Command::Radio { command } => prefixed("radio", command.as_ref().map(RadioCommand::feature)),
+        Command::Radio { command } => {
+            prefixed("radio", command.as_ref().map(RadioCommand::feature))
+        }
         Command::Sensor { command } => {
             prefixed("sensor", command.as_ref().map(SensorCommand::feature))
         }

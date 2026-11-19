@@ -165,9 +165,11 @@ mod imp {
     use std::ffi::{CStr, CString, c_char, c_int, c_void};
     use std::path::{Path, PathBuf};
 
-    use lenovo_laptop_control_core::{LenovoLaptopControlError, Result, UpdateHistoryLedger, UpdateHistoryReport};
-    use windows_sys::Win32::Foundation::HMODULE;
+    use lenovo_laptop_control_core::{
+        LenovoLaptopControlError, Result, UpdateHistoryLedger, UpdateHistoryReport,
+    };
     use windows_sys::Win32::Foundation::FreeLibrary;
+    use windows_sys::Win32::Foundation::HMODULE;
     use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryW};
 
     use super::ledger::{
@@ -283,7 +285,12 @@ mod imp {
             })
         }
 
-        fn error_text(&self, db: SqliteHandle, context: &str, code: c_int) -> LenovoLaptopControlError {
+        fn error_text(
+            &self,
+            db: SqliteHandle,
+            context: &str,
+            code: c_int,
+        ) -> LenovoLaptopControlError {
             let message = if db.is_null() {
                 String::new()
             } else {
@@ -436,10 +443,13 @@ pub use imp::read_history;
 
 /// Non-Windows build: the Lenovo add-in ledger only exists on Windows.
 #[cfg(not(windows))]
-pub fn read_history() -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::UpdateHistoryReport> {
-    Err(lenovo_laptop_control_core::LenovoLaptopControlError::Unsupported {
-        feature: "update.history.ledger".into(),
-    })
+pub fn read_history()
+-> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::UpdateHistoryReport> {
+    Err(
+        lenovo_laptop_control_core::LenovoLaptopControlError::Unsupported {
+            feature: "update.history.ledger".into(),
+        },
+    )
 }
 
 #[cfg(test)]

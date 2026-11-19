@@ -95,7 +95,10 @@ mod tests {
     }
 
     impl BatteryControl for Fake {
-        fn battery_telemetry(&self, _: u32) -> lenovo_laptop_control_core::Result<BatteryTelemetry> {
+        fn battery_telemetry(
+            &self,
+            _: u32,
+        ) -> lenovo_laptop_control_core::Result<BatteryTelemetry> {
             Ok(BatteryTelemetry {
                 design_capacity_mwh: Some(99_900),
                 full_charge_capacity_mwh: Some(93_810),
@@ -138,7 +141,9 @@ mod tests {
             })
         }
 
-        fn battery_electrical(&self) -> lenovo_laptop_control_core::Result<BatteryElectricalObservation> {
+        fn battery_electrical(
+            &self,
+        ) -> lenovo_laptop_control_core::Result<BatteryElectricalObservation> {
             Err(LenovoLaptopControlError::Unsupported {
                 feature: "battery.electrical-observation".into(),
             })
@@ -210,7 +215,10 @@ mod tests {
         let output = execute(Some(&fake)).expect("a refusal is still an observation");
         assert!(output.json["capacity_wear"]["wear_percent"].is_null());
         assert!(output.json["capacity_wear"]["capacity_ratio_percent"].is_null());
-        assert_eq!(output.json["capacity_wear"]["full_charge_capacity_mwh"], 93_810);
+        assert_eq!(
+            output.json["capacity_wear"]["full_charge_capacity_mwh"],
+            93_810
+        );
         assert_eq!(output.json["capacity_wear"]["cycle_count"], 233);
         let issues = output.json["capacity_wear"]["issues"]
             .as_array()
@@ -255,8 +263,10 @@ mod tests {
         let issues = output.json["capacity_wear"]["issues"]
             .as_array()
             .expect("issues array");
-        assert!(issues
-            .iter()
-            .any(|issue| issue["source"] == "BatteryStaticData"));
+        assert!(
+            issues
+                .iter()
+                .any(|issue| issue["source"] == "BatteryStaticData")
+        );
     }
 }

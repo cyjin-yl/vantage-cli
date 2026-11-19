@@ -26,8 +26,8 @@ use lenovo_laptop_control_hal::{
 };
 use windows_sys::Win32::{
     Foundation::{
-        CloseHandle, ERROR_FILE_NOT_FOUND, ERROR_NO_MORE_ITEMS, HANDLE, HWND,
-        INVALID_HANDLE_VALUE, LPARAM, LRESULT, WPARAM,
+        CloseHandle, ERROR_FILE_NOT_FOUND, ERROR_NO_MORE_ITEMS, HANDLE, HWND, INVALID_HANDLE_VALUE,
+        LPARAM, LRESULT, WPARAM,
     },
     System::Diagnostics::ToolHelp::{
         CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW,
@@ -52,8 +52,7 @@ use windows_sys::Win32::{
 /// The hotkey package service and the registry keys it owns.
 const HOTKEY_SERVICE: &str = "LenovoFnAndFunctionKeys";
 const SERVICE_KEY: &str = r"SYSTEM\CurrentControlSet\Services\LenovoFnAndFunctionKeys";
-const CAPABILITY_KEY: &str =
-    r"SYSTEM\CurrentControlSet\Services\LenovoFnAndFunctionKeys\Capbility";
+const CAPABILITY_KEY: &str = r"SYSTEM\CurrentControlSet\Services\LenovoFnAndFunctionKeys\Capbility";
 /// Per-model hotkey tables: the user copy and the machine-wide mic-mute subset.
 const USER_HOTKEY_KEY: &str = r"SOFTWARE\Lenovo\Hotkey";
 const MACHINE_HOTKEY_KEY: &str = r"SOFTWARE\Lenovo\LenovoFnHotkey\HIDKBMicMuteLED";
@@ -316,8 +315,12 @@ fn capability_flag(name: &str, notes: &mut Vec<String>) -> bool {
 fn renderer_state(notes: &mut Vec<String>) -> (bool, bool) {
     match running_images() {
         Ok(images) => (
-            images.iter().any(|image| image.eq_ignore_ascii_case(RENDERER_EXE)),
-            images.iter().any(|image| image.eq_ignore_ascii_case(CAPS_LED_EXE)),
+            images
+                .iter()
+                .any(|image| image.eq_ignore_ascii_case(RENDERER_EXE)),
+            images
+                .iter()
+                .any(|image| image.eq_ignore_ascii_case(CAPS_LED_EXE)),
         ),
         Err(error) => {
             notes.push(format!("process snapshot: {error}"));
@@ -466,7 +469,9 @@ fn fn_ctrl_swap_switch(settings: &[BiosItem]) -> HotkeySwitch {
         ),
         None => (
             HotkeySwitchState::Unknown,
-            format!("neither {FN_CTRL_SWAP} nor {FN_CTRL_SWAP_SIBLING} is exposed by this firmware"),
+            format!(
+                "neither {FN_CTRL_SWAP} nor {FN_CTRL_SWAP_SIBLING} is exposed by this firmware"
+            ),
         ),
     };
     HotkeySwitch {
@@ -652,9 +657,11 @@ fn read_dword(key: &str, value: &str) -> Result<Option<u32>> {
     };
     match status {
         0 if bytes == 4 => Ok(Some(data)),
-        0 => Err(lenovo_laptop_control_core::LenovoLaptopControlError::ChannelUnavailable {
-            channel: format!("HKLM\\{key}\\{value} is {bytes} bytes; expected 4"),
-        }),
+        0 => Err(
+            lenovo_laptop_control_core::LenovoLaptopControlError::ChannelUnavailable {
+                channel: format!("HKLM\\{key}\\{value} is {bytes} bytes; expected 4"),
+            },
+        ),
         ERROR_FILE_NOT_FOUND => Ok(None),
         status => Err(map_win_error(status, &format!("HKLM\\{key}\\{value}"))),
     }

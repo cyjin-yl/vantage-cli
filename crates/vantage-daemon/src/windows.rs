@@ -379,17 +379,18 @@ fn read_message(handle: HANDLE) -> Result<Vec<u8>> {
 }
 
 fn write_value<T: serde::Serialize>(handle: HANDLE, value: &T) -> Result<()> {
-    let mut bytes =
-        serde_json::to_vec(value).map_err(|error| LenovoLaptopControlError::Io(std::io::Error::other(error)))?;
+    let mut bytes = serde_json::to_vec(value)
+        .map_err(|error| LenovoLaptopControlError::Io(std::io::Error::other(error)))?;
     bytes.push(b'\n');
     if bytes.len() > BUFFER_SIZE as usize {
         return Err(LenovoLaptopControlError::InvalidArgument {
             detail: format!("daemon IPC message exceeds {BUFFER_SIZE} bytes"),
         });
     }
-    let length = u32::try_from(bytes.len()).map_err(|_| LenovoLaptopControlError::InvalidArgument {
-        detail: "daemon IPC message exceeds u32 length".into(),
-    })?;
+    let length =
+        u32::try_from(bytes.len()).map_err(|_| LenovoLaptopControlError::InvalidArgument {
+            detail: "daemon IPC message exceeds u32 length".into(),
+        })?;
     let mut written = 0u32;
     let success = unsafe {
         WriteFile(

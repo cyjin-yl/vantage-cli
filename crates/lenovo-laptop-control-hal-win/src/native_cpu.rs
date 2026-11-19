@@ -65,8 +65,12 @@ impl CpuRegistryReader for NativeCpuRegistry {
             .iter()
             .position(|unit| *unit == 0)
             .unwrap_or(units);
-        String::from_utf16(&buffer[..end]).map_err(|error| LenovoLaptopControlError::ChannelUnavailable {
-            channel: format!("CentralProcessor registry value {value:?} is not UTF-16: {error}"),
+        String::from_utf16(&buffer[..end]).map_err(|error| {
+            LenovoLaptopControlError::ChannelUnavailable {
+                channel: format!(
+                    "CentralProcessor registry value {value:?} is not UTF-16: {error}"
+                ),
+            }
         })
     }
 

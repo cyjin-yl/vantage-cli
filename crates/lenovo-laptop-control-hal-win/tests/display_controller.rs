@@ -3,11 +3,13 @@
 use std::collections::{BTreeMap, VecDeque};
 
 use lenovo_laptop_control_core::{
-    ApplyMode, LenovoLaptopControlError, PanelAdapterId, PanelMode, PanelRefreshRequest, PanelRotation,
-    PanelTarget, RefreshMode, Result,
+    ApplyMode, LenovoLaptopControlError, PanelAdapterId, PanelMode, PanelRefreshRequest,
+    PanelRotation, PanelTarget, RefreshMode, Result,
 };
 use lenovo_laptop_control_hal::PanelControl;
-use lenovo_laptop_control_hal_win::{DisplayApi, WindowsPanelController, WmiObject, WmiTransport, WmiValue};
+use lenovo_laptop_control_hal_win::{
+    DisplayApi, WindowsPanelController, WmiObject, WmiTransport, WmiValue,
+};
 use parking_lot::Mutex;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -475,7 +477,10 @@ fn recovery_restores_layout_after_state_returns_to_requested_mode() {
         .set_refresh_rate(PanelRefreshRequest::Fixed(120), ApplyMode::Commit)
         .unwrap_err();
 
-    assert!(matches!(error, LenovoLaptopControlError::VerifyMismatch { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::VerifyMismatch { .. }
+    ));
     assert_eq!(apply_rates(controller.display()), vec![120, 60]);
     assert_eq!(&*controller.display().current.lock(), &previous);
 }

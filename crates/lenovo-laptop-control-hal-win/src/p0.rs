@@ -170,9 +170,11 @@ where
 
     fn night_charge(&self) -> Result<lenovo_laptop_control_core::NightChargeState> {
         let driver = EnergyDriver::new(&self.ioctl);
-        let mut state = lenovo_laptop_control_core::NightChargeState::from_probe(driver.night_charge_probe()?);
-        state.enabled =
-            lenovo_laptop_control_core::NightChargeState::enabled_from_status(driver.night_charge_status()?);
+        let mut state =
+            lenovo_laptop_control_core::NightChargeState::from_probe(driver.night_charge_probe()?);
+        state.enabled = lenovo_laptop_control_core::NightChargeState::enabled_from_status(
+            driver.night_charge_status()?,
+        );
         Ok(state)
     }
 
@@ -186,9 +188,11 @@ where
         let result = (|| {
             EnergyDriver::new(&self.ioctl).write_night_charge(enabled)?;
             poll_readback(&enabled, 10, Duration::from_millis(50), || {
-                Ok(lenovo_laptop_control_core::NightChargeState::enabled_from_status(
-                    EnergyDriver::new(&self.ioctl).night_charge_status()?,
-                ))
+                Ok(
+                    lenovo_laptop_control_core::NightChargeState::enabled_from_status(
+                        EnergyDriver::new(&self.ioctl).night_charge_status()?,
+                    ),
+                )
             })
         })();
         match result {
@@ -206,7 +210,9 @@ where
 
     fn temporary_charge(&self) -> Result<lenovo_laptop_control_core::TemporaryChargeState> {
         let driver = EnergyDriver::new(&self.ioctl);
-        let state = lenovo_laptop_control_core::TemporaryChargeState::from_probe(driver.temporary_charge_probe()?);
+        let state = lenovo_laptop_control_core::TemporaryChargeState::from_probe(
+            driver.temporary_charge_probe()?,
+        );
         // The native getter returns "no mode" without a status query when the
         // probe reports no temporary-mode support.
         if !state.supported {

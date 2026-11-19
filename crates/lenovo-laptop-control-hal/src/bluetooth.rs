@@ -214,14 +214,17 @@ mod tests {
     #[test]
     fn never_seen_times_stay_absent() {
         assert_eq!(BluetoothTime::new(0, 0, 0, 0, 0, 0), None);
-        assert_eq!(BluetoothTime::new(2026, 11, 4, 0, 0, 0), Some(BluetoothTime {
-            year: 2026,
-            month: 11,
-            day: 4,
-            hour: 0,
-            minute: 0,
-            second: 0,
-        }));
+        assert_eq!(
+            BluetoothTime::new(2026, 11, 4, 0, 0, 0),
+            Some(BluetoothTime {
+                year: 2026,
+                month: 11,
+                day: 4,
+                hour: 0,
+                minute: 0,
+                second: 0,
+            })
+        );
         // Out-of-range components are rejected instead of being normalized.
         assert_eq!(BluetoothTime::new(2026, 13, 4, 0, 0, 0), None);
         assert_eq!(BluetoothTime::new(2026, 11, 4, 24, 0, 0), None);

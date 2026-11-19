@@ -7,7 +7,9 @@
 use std::{collections::HashSet, thread, time::Duration};
 
 use crate::{WmiObject, WmiTransport, WmiValue, wmi_contract::ROOT_WMI};
-use lenovo_laptop_control_core::{ApplyMode, ChangeReport, LenovoLaptopControlError, PanelBrightness, Result};
+use lenovo_laptop_control_core::{
+    ApplyMode, ChangeReport, LenovoLaptopControlError, PanelBrightness, Result,
+};
 use lenovo_laptop_control_hal::PanelBrightnessControl;
 
 const BRIGHTNESS: &str = "WmiMonitorBrightness";
@@ -106,17 +108,27 @@ fn unavailable(detail: &str) -> LenovoLaptopControlError {
 fn transport_error(operation: &str, error: LenovoLaptopControlError) -> LenovoLaptopControlError {
     let context = format!("panel brightness {operation} failed");
     match error {
-        LenovoLaptopControlError::Unsupported { .. } => LenovoLaptopControlError::Unsupported { feature: context },
+        LenovoLaptopControlError::Unsupported { .. } => {
+            LenovoLaptopControlError::Unsupported { feature: context }
+        }
         LenovoLaptopControlError::ChannelUnavailable { .. } => {
             LenovoLaptopControlError::ChannelUnavailable { channel: context }
         }
-        LenovoLaptopControlError::PermissionDenied { .. } => LenovoLaptopControlError::PermissionDenied { need: context },
-        LenovoLaptopControlError::FirmwareRejected { .. } => LenovoLaptopControlError::FirmwareRejected { detail: context },
-        LenovoLaptopControlError::InvalidArgument { .. } => LenovoLaptopControlError::InvalidArgument { detail: context },
-        LenovoLaptopControlError::VerifyMismatch { .. } => LenovoLaptopControlError::VerifyMismatch {
-            requested: context,
-            actual: "redacted transport mismatch".into(),
-        },
+        LenovoLaptopControlError::PermissionDenied { .. } => {
+            LenovoLaptopControlError::PermissionDenied { need: context }
+        }
+        LenovoLaptopControlError::FirmwareRejected { .. } => {
+            LenovoLaptopControlError::FirmwareRejected { detail: context }
+        }
+        LenovoLaptopControlError::InvalidArgument { .. } => {
+            LenovoLaptopControlError::InvalidArgument { detail: context }
+        }
+        LenovoLaptopControlError::VerifyMismatch { .. } => {
+            LenovoLaptopControlError::VerifyMismatch {
+                requested: context,
+                actual: "redacted transport mismatch".into(),
+            }
+        }
         LenovoLaptopControlError::Io(error) => {
             let detail = match error.raw_os_error() {
                 Some(code) => format!("{context} (OS error {code})"),

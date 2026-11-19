@@ -19,15 +19,16 @@
 //! write.
 
 use lenovo_laptop_control_core::{
-    DisplayColorState, DisplayConnection, DisplayPathState, DisplayScope, DisplayScalingObservation,
-    DisplaySession, HdrCapabilityObservation, LenovoLaptopControlError, MonitorColorState, MonitorColorStore,
-    PanelTarget, Result, SessionDesktop, decode_panel_hdr_capability,
+    DisplayColorState, DisplayConnection, DisplayPathState, DisplayScalingObservation,
+    DisplayScope, DisplaySession, HdrCapabilityObservation, LenovoLaptopControlError,
+    MonitorColorState, MonitorColorStore, PanelTarget, Result, SessionDesktop,
+    decode_panel_hdr_capability,
 };
 use lenovo_laptop_control_hal::DisplayStatusControl;
 
+use crate::PanelRegistry;
 use crate::display::DisplayApi;
 use crate::wmi_contract::{ROOT_WMI, WmiObject, WmiTransport, WmiValue};
-use crate::PanelRegistry;
 
 /// Every connected PnP monitor with its OS output-technology classification.
 /// This class is readable without an interactive desktop session, unlike the
@@ -142,7 +143,9 @@ where
                 None if target.internal => DisplayConnection::Internal,
                 None => DisplayConnection::External,
             };
-            let scaling = self.state.effective_dpi_at(mode.position_x, mode.position_y)?;
+            let scaling = self
+                .state
+                .effective_dpi_at(mode.position_x, mode.position_y)?;
             displays.push(DisplayPathState {
                 scope: DisplayScope::Session,
                 device_name: target.device_name.clone(),
@@ -230,13 +233,15 @@ fn is_active(object: &WmiObject) -> bool {
 
 fn output_technology(object: &WmiObject) -> Result<DisplayConnection> {
     let raw = match object.get("VideoOutputTechnology") {
-        Some(value) => numeric(value).ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
-            channel: format!("VideoOutputTechnology is not numeric: {value:?}"),
-        })?,
+        Some(value) => {
+            numeric(value).ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
+                channel: format!("VideoOutputTechnology is not numeric: {value:?}"),
+            })?
+        }
         None => {
             return Err(LenovoLaptopControlError::ChannelUnavailable {
                 channel: "WmiMonitorConnectionParams omitted VideoOutputTechnology".into(),
-            })
+            });
         }
     };
     if raw == VOT_INTERNAL_UNSIGNED || raw == VOT_INTERNAL_SIGNED {
@@ -255,7 +260,9 @@ fn output_technology(object: &WmiObject) -> Result<DisplayConnection> {
 fn device_instance(instance: &str) -> Result<String> {
     let device = match instance.rsplit_once('_') {
         Some((device, index))
-            if !device.is_empty() && !index.is_empty() && index.chars().all(|c| c.is_ascii_digit()) =>
+            if !device.is_empty()
+                && !index.is_empty()
+                && index.chars().all(|c| c.is_ascii_digit()) =>
         {
             device
         }
@@ -308,9 +315,9 @@ mod native {
     use std::sync::LazyLock;
 
     use lenovo_laptop_control_core::{
-        ActiveColorMode, ColorStateSource, DisplayColorEncoding, DisplayColorState,
-        DisplayScaling, DisplayScalingObservation, DisplayScope, DisplaySession, PanelTarget,
-        Result, SessionDesktop,
+        ActiveColorMode, ColorStateSource, DisplayColorEncoding, DisplayColorState, DisplayScaling,
+        DisplayScalingObservation, DisplayScope, DisplaySession, PanelTarget, Result,
+        SessionDesktop,
     };
     use windows_sys::Win32::{
         Devices::Display::{
@@ -319,9 +326,7 @@ mod native {
             DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO, DISPLAYCONFIG_SDR_WHITE_LEVEL,
             DisplayConfigGetDeviceInfo,
         },
-        Foundation::{
-            ERROR_INVALID_PARAMETER, ERROR_NOT_SUPPORTED, LUID, LPARAM, RECT,
-        },
+        Foundation::{ERROR_INVALID_PARAMETER, ERROR_NOT_SUPPORTED, LPARAM, LUID, RECT},
         Graphics::Gdi::{EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, MONITORINFOEXW},
         System::RemoteDesktop::{ProcessIdToSessionId, WTSGetActiveConsoleSessionId},
         System::Threading::GetCurrentProcessId,
@@ -441,10 +446,12 @@ mod native {
         fn effective_dpi_at(&self, x: i32, y: i32) -> Result<DisplayScalingObservation> {
             let aware = *PER_MONITOR_AWARE;
             let snapshots = self.session_monitors()?;
-            Ok(match snapshots.iter().find(|snapshot| snapshot.contains(x, y)) {
-                Some(snapshot) => scaling_of(snapshot, aware),
-                None => DisplayScalingObservation::NoMonitor,
-            })
+            Ok(
+                match snapshots.iter().find(|snapshot| snapshot.contains(x, y)) {
+                    Some(snapshot) => scaling_of(snapshot, aware),
+                    None => DisplayScalingObservation::NoMonitor,
+                },
+            )
         }
     }
 
@@ -460,9 +467,9 @@ mod native {
             info.header.adapterId = luid(target);
             info.header.id = target.target_id;
             let status = unsafe { DisplayConfigGetDeviceInfo(&mut info.header) };
-            if u32::try_from(status).is_ok_and(|code| {
-                code == ERROR_NOT_SUPPORTED || code == ERROR_INVALID_PARAMETER
-            }) {
+            if u32::try_from(status)
+                .is_ok_and(|code| code == ERROR_NOT_SUPPORTED || code == ERROR_INVALID_PARAMETER)
+            {
                 return Ok(None);
             }
             if status != 0 {
@@ -553,9 +560,9 @@ mod native {
             };
             if ok == 0 {
                 return Err(display_access_error(
-                    std::io::Error::last_os_error().raw_os_error().map_or(0, |code| {
-                        u32::try_from(code).unwrap_or(0)
-                    }),
+                    std::io::Error::last_os_error()
+                        .raw_os_error()
+                        .map_or(0, |code| u32::try_from(code).unwrap_or(0)),
                     "EnumDisplayMonitors",
                 ));
             }
@@ -588,7 +595,8 @@ mod native {
         }
         let mut dpi_x = 0u32;
         let mut dpi_y = 0u32;
-        let status = unsafe { GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi_x, &mut dpi_y) };
+        let status =
+            unsafe { GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi_x, &mut dpi_y) };
         let (dpi_x, dpi_y) = if status == 0 { (dpi_x, dpi_y) } else { (0, 0) };
         snapshots.push(MonitorSnapshot {
             device_name: info.szDevice,
@@ -623,7 +631,10 @@ mod native {
         }
     }
 
-    fn display_config_error(status: i32, context: &str) -> lenovo_laptop_control_core::LenovoLaptopControlError {
+    fn display_config_error(
+        status: i32,
+        context: &str,
+    ) -> lenovo_laptop_control_core::LenovoLaptopControlError {
         // `DisplayConfigGetDeviceInfo` returns a Win32 error code.
         display_access_error(u32::try_from(status).unwrap_or(0), context)
     }
@@ -632,7 +643,10 @@ mod native {
     /// administrator rights: a service or SSH logon cannot read the console
     /// session's topology, and saying "administrator" would send the operator to
     /// the wrong fix.
-    fn display_access_error(code: u32, context: &str) -> lenovo_laptop_control_core::LenovoLaptopControlError {
+    fn display_access_error(
+        code: u32,
+        context: &str,
+    ) -> lenovo_laptop_control_core::LenovoLaptopControlError {
         if code == windows_sys::Win32::Foundation::ERROR_ACCESS_DENIED {
             return lenovo_laptop_control_core::LenovoLaptopControlError::PermissionDenied {
                 need: "access to the active Windows desktop session".into(),
@@ -642,7 +656,10 @@ mod native {
     }
 
     fn utf16_string(raw: &[u16]) -> String {
-        let length = raw.iter().position(|value| *value == 0).unwrap_or(raw.len());
+        let length = raw
+            .iter()
+            .position(|value| *value == 0)
+            .unwrap_or(raw.len());
         String::from_utf16_lossy(&raw[..length])
     }
 
@@ -672,9 +689,9 @@ mod registry {
     };
 
     use super::{MONITOR_DATA_STORE, MonitorColorStoreReader};
+    use crate::PanelRegistry;
     use crate::map_win_error;
     use crate::panel_identity::NativePanelRegistry;
-    use crate::PanelRegistry;
 
     /// `ERROR_FILE_NOT_FOUND` (2): the value does not exist.
     const ERROR_FILE_NOT_FOUND: u32 = 2;
@@ -781,7 +798,10 @@ mod registry {
                 )
             };
             if status != 0 {
-                return Err(map_win_error(status, "RegQueryInfoKeyW monitor colour store"));
+                return Err(map_win_error(
+                    status,
+                    "RegQueryInfoKeyW monitor colour store",
+                ));
             }
             if count > MAX_STORE_ENTRIES || max_name > MAX_STORE_NAME as u32 {
                 return Err(LenovoLaptopControlError::ChannelUnavailable {
@@ -813,11 +833,11 @@ mod registry {
                 names.push(String::from_utf16_lossy(
                     &buffer[..usize::try_from(length).unwrap_or(0)],
                 ));
-                index = index
-                    .checked_add(1)
-                    .ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
+                index = index.checked_add(1).ok_or_else(|| {
+                    LenovoLaptopControlError::ChannelUnavailable {
                         channel: "driver colour store subkey index overflow".into(),
-                    })?;
+                    }
+                })?;
             }
             Ok(names)
         }

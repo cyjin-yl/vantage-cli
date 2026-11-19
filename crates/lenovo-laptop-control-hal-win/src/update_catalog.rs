@@ -454,9 +454,10 @@ mod imp {
     /// Returns the report or an `Unsupported`/`Unavailable` error, never a
     /// fabricated package set.
     pub fn check_updates_impl(mtm: &str) -> Result<UpdateCheckReport> {
-        let config = read_config()?.ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
-            channel: "UDC LastUpdateConfig is not synced in the registry".into(),
-        })?;
+        let config =
+            read_config()?.ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
+                channel: "UDC LastUpdateConfig is not synced in the registry".into(),
+            })?;
         let org = read_sz(UDC_KEY, "registration-account")?
             .unwrap_or_default()
             .trim()
@@ -488,10 +489,11 @@ mod imp {
             Some(json) if !json.trim().is_empty() => json,
             _ => return Ok(None),
         };
-        let config: UpdateConfig =
-            serde_json::from_str(&json).map_err(|error| LenovoLaptopControlError::ChannelUnavailable {
+        let config: UpdateConfig = serde_json::from_str(&json).map_err(|error| {
+            LenovoLaptopControlError::ChannelUnavailable {
                 channel: format!("UDC LastUpdateConfig is not parseable JSON: {error}"),
-            })?;
+            }
+        })?;
         Ok(Some(config))
     }
 
@@ -557,6 +559,7 @@ mod tests {
 
     fn package(filter_json: &str, orgs: &[&str], all: bool) -> RawPackage {
         RawPackage {
+            package_id: None,
             package_name: Some("pkg".into()),
             package_version: Some("1.0".into()),
             package_type: None,

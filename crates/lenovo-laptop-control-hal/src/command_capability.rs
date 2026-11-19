@@ -380,7 +380,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Capability("battery.night-charge"),
         ServiceBinding::One(ServiceRole::Battery),
-        &[lenovo_laptop_control_core::required(Dependency::EnergyDriver)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::EnergyDriver,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -388,7 +390,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandAxes::read_only(StateLayer::Runtime),
         FeatureBinding::Capability("battery.temporary-mode"),
         ServiceBinding::One(ServiceRole::Battery),
-        &[lenovo_laptop_control_core::required(Dependency::EnergyDriver)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::EnergyDriver,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -412,7 +416,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Capability("usb.charging"),
         ServiceBinding::One(ServiceRole::Usb),
-        &[lenovo_laptop_control_core::required(Dependency::EnergyDriver)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::EnergyDriver,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -424,7 +430,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Capability("bios"),
         ServiceBinding::One(ServiceRole::Bios),
-        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LenovoFirmwareWmi,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -436,7 +444,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Capability("usb.charging"),
         ServiceBinding::One(ServiceRole::Usb),
-        &[lenovo_laptop_control_core::required(Dependency::EnergyDriver)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::EnergyDriver,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -448,7 +458,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Capability("bios"),
         ServiceBinding::One(ServiceRole::Bios),
-        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LenovoFirmwareWmi,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -456,7 +468,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandAxes::read_only(StateLayer::Runtime),
         FeatureBinding::Capability("usb.ports"),
         ServiceBinding::One(ServiceRole::Usb),
-        &[lenovo_laptop_control_core::required(Dependency::Win32SetupApi)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::Win32SetupApi,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -497,7 +511,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandAxes::read_only(StateLayer::OsPersistent),
         FeatureBinding::Capability("power.scheme.setting.read"),
         ServiceBinding::One(ServiceRole::Power),
-        &[lenovo_laptop_control_core::required(Dependency::Win32PowerApi)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::Win32PowerApi,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -773,7 +789,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandAxes::read_only(StateLayer::Runtime),
         FeatureBinding::Capability("perf.dbdc"),
         ServiceBinding::One(ServiceRole::Performance),
-        &[lenovo_laptop_control_core::required(Dependency::LenovoVendorWmi)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LenovoVendorWmi,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -781,7 +799,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandAxes::read_only(StateLayer::Runtime),
         FeatureBinding::Capability("perf.gpu"),
         ServiceBinding::One(ServiceRole::Performance),
-        &[lenovo_laptop_control_core::required(Dependency::LenovoVendorWmi)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LenovoVendorWmi,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -815,7 +835,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Capability("perf.boost"),
         ServiceBinding::One(ServiceRole::Process),
-        &[lenovo_laptop_control_core::required(Dependency::Win32ProcessApi)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::Win32ProcessApi,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -827,7 +849,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Capability("perf.throttle"),
         ServiceBinding::One(ServiceRole::Process),
-        &[lenovo_laptop_control_core::required(Dependency::Win32ProcessApi)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::Win32ProcessApi,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -835,7 +859,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandAxes::read_only(StateLayer::LocalPersistent),
         FeatureBinding::LocalOnly,
         ServiceBinding::Local,
-        &[lenovo_laptop_control_core::required(Dependency::LocalFilesystem)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LocalFilesystem,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -843,7 +869,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandAxes::read_only(StateLayer::LocalPersistent),
         FeatureBinding::LocalOnly,
         ServiceBinding::Local,
-        &[lenovo_laptop_control_core::required(Dependency::LocalFilesystem)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LocalFilesystem,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -870,7 +898,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             ServiceRole::Tuning,
             ServiceRole::Keyboard,
         ]),
-        &[lenovo_laptop_control_core::required(Dependency::LocalFilesystem)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LocalFilesystem,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -942,7 +972,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             ServiceRole::Tuning,
             ServiceRole::Keyboard,
         ]),
-        &[lenovo_laptop_control_core::required(Dependency::LocalFilesystem)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LocalFilesystem,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -1006,7 +1038,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Capability("kbd.fnlock"),
         ServiceBinding::One(ServiceRole::Bios),
-        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LenovoFirmwareWmi,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -1018,7 +1052,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Capability("kbd.fn-ctrl-swap"),
         ServiceBinding::One(ServiceRole::Bios),
-        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LenovoFirmwareWmi,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -1030,7 +1066,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Capability("wmi.gamezone.methods"),
         ServiceBinding::Unsupported,
-        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LenovoFirmwareWmi,
+        )],
         DispatchSupport::Unsupported(
             "firmware rejects the Win-key methods: LENOVO_GAMEZONE_DATA.GetWinKeyStatus/SetWinKeyStatus return WBEM_E_INVALID_OBJECT on this SKU (docs/evidence/wmi-capability-exhaustion-20261104.md §4)",
         ),
@@ -1070,7 +1108,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Capability("touchpad.recover"),
         ServiceBinding::One(ServiceRole::Touchpad),
-        &[lenovo_laptop_control_core::required(Dependency::Win32DeviceManagement)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::Win32DeviceManagement,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -1078,7 +1118,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandAxes::read_only(StateLayer::Runtime),
         FeatureBinding::Capability("touchpad.caps"),
         ServiceBinding::One(ServiceRole::Touchpad),
-        &[lenovo_laptop_control_core::required(Dependency::Win32DeviceManagement)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::Win32DeviceManagement,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -1113,7 +1155,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandAxes::read_only(StateLayer::Runtime),
         FeatureBinding::Capability("panel.brightness.status"),
         ServiceBinding::One(ServiceRole::PanelBrightness),
-        &[lenovo_laptop_control_core::required(Dependency::PublicWin32Cim)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::PublicWin32Cim,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -1125,7 +1169,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Capability("panel.brightness.set"),
         ServiceBinding::One(ServiceRole::PanelBrightness),
-        &[lenovo_laptop_control_core::required(Dependency::PublicWin32Cim)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::PublicWin32Cim,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -1217,7 +1263,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Capability("privacy.camera"),
         ServiceBinding::One(ServiceRole::Bios),
-        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LenovoFirmwareWmi,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -1245,7 +1293,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Capability("privacy.microphone"),
         ServiceBinding::One(ServiceRole::Bios),
-        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LenovoFirmwareWmi,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -1257,7 +1307,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Capability("privacy.fingerprint"),
         ServiceBinding::One(ServiceRole::Bios),
-        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LenovoFirmwareWmi,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -1430,7 +1482,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Capability("audio.dolby"),
         ServiceBinding::One(ServiceRole::Audio),
-        &[lenovo_laptop_control_core::required(Dependency::DolbyAudioSdk)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::DolbyAudioSdk,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -1442,7 +1496,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Capability("audio.noise-cancel"),
         ServiceBinding::One(ServiceRole::Audio),
-        &[lenovo_laptop_control_core::required(Dependency::NoiseCancellationSdk)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::NoiseCancellationSdk,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -1450,7 +1506,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandAxes::read_only(StateLayer::Runtime),
         FeatureBinding::Capability("audio.endpoints"),
         ServiceBinding::One(ServiceRole::Audio),
-        &[lenovo_laptop_control_core::required(Dependency::WindowsAudio)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::WindowsAudio,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -1462,7 +1520,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Capability("audio.volume"),
         ServiceBinding::One(ServiceRole::Audio),
-        &[lenovo_laptop_control_core::required(Dependency::WindowsAudio)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::WindowsAudio,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -1474,7 +1534,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Capability("audio.mute"),
         ServiceBinding::One(ServiceRole::Audio),
-        &[lenovo_laptop_control_core::required(Dependency::WindowsAudio)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::WindowsAudio,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -1482,7 +1544,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandAxes::read_only(StateLayer::BiosPersistent),
         FeatureBinding::Capability("bios"),
         ServiceBinding::One(ServiceRole::Bios),
-        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LenovoFirmwareWmi,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -1490,7 +1554,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandAxes::read_only(StateLayer::BiosPersistent),
         FeatureBinding::Capability("bios"),
         ServiceBinding::One(ServiceRole::Bios),
-        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LenovoFirmwareWmi,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -1502,7 +1568,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Capability("bios"),
         ServiceBinding::One(ServiceRole::Bios),
-        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LenovoFirmwareWmi,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -1514,7 +1582,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Unprobed("bios.save.global-buffer"),
         ServiceBinding::One(ServiceRole::Bios),
-        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LenovoFirmwareWmi,
+        )],
         DispatchSupport::Unsupported("standalone global BIOS-buffer save is not supported"),
     ),
     CommandCapability::new(
@@ -1526,7 +1596,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Capability("bios.discard"),
         ServiceBinding::One(ServiceRole::Bios),
-        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LenovoFirmwareWmi,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -1538,7 +1610,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Capability("bios.defaults"),
         ServiceBinding::One(ServiceRole::Bios),
-        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LenovoFirmwareWmi,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -1546,7 +1620,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandAxes::read_only(StateLayer::BiosPersistent),
         FeatureBinding::Capability("bios.password.status"),
         ServiceBinding::One(ServiceRole::Bios),
-        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LenovoFirmwareWmi,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -1558,7 +1634,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Unprobed("bios.password.set"),
         ServiceBinding::One(ServiceRole::Bios),
-        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LenovoFirmwareWmi,
+        )],
         DispatchSupport::Unsupported(
             "BIOS password writes stay refused by the documented no-password-write boundary (docs/interfaces.md §0)",
         ),
@@ -1572,7 +1650,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Unprobed("bios.password.clear"),
         ServiceBinding::One(ServiceRole::Bios),
-        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LenovoFirmwareWmi,
+        )],
         DispatchSupport::Unsupported(
             "BIOS password writes stay refused by the documented no-password-write boundary (docs/interfaces.md §0)",
         ),
@@ -1582,7 +1662,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandAxes::read_only(StateLayer::BiosPersistent),
         FeatureBinding::Capability("bios.password.verify"),
         ServiceBinding::One(ServiceRole::Bios),
-        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LenovoFirmwareWmi,
+        )],
         DispatchSupport::Implemented,
     ),
     // Firmware inventory reads the platform's own firmware projection
@@ -1617,7 +1699,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandAxes::read_only(StateLayer::Runtime),
         FeatureBinding::Capability("magicbay.lte"),
         ServiceBinding::One(ServiceRole::MobileBroadband),
-        &[lenovo_laptop_control_core::required(Dependency::PublicWin32Cim)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::PublicWin32Cim,
+        )],
         DispatchSupport::Implemented,
     )
     .with_hardware(HardwareRequirement::MagicBay),
@@ -1761,7 +1845,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandAxes::read_only(StateLayer::Runtime),
         FeatureBinding::Capability("hotkey.list"),
         ServiceBinding::One(ServiceRole::Hotkey),
-        &[lenovo_laptop_control_core::required(Dependency::LocalDaemon)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LocalDaemon,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -1784,7 +1870,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Capability("hotkey.register"),
         ServiceBinding::One(ServiceRole::Hotkey),
-        &[lenovo_laptop_control_core::required(Dependency::LocalDaemon)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LocalDaemon,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -1792,7 +1880,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandAxes::action(StateLayer::Runtime),
         FeatureBinding::Capability("hotkey.trigger"),
         ServiceBinding::One(ServiceRole::Hotkey),
-        &[lenovo_laptop_control_core::required(Dependency::LocalDaemon)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LocalDaemon,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -1804,7 +1894,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Capability("hotkey.unregister"),
         ServiceBinding::One(ServiceRole::Hotkey),
-        &[lenovo_laptop_control_core::required(Dependency::LocalDaemon)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LocalDaemon,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -1887,7 +1979,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandAxes::read_only(StateLayer::LocalPersistent),
         FeatureBinding::Capability("update.local_driver.policy"),
         ServiceBinding::One(ServiceRole::Update),
-        &[lenovo_laptop_control_core::required(Dependency::LocalFilesystem)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LocalFilesystem,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -1899,7 +1993,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Capability("update.local_driver.policy"),
         ServiceBinding::One(ServiceRole::Update),
-        &[lenovo_laptop_control_core::required(Dependency::LocalFilesystem)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LocalFilesystem,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -1911,7 +2007,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Capability("update.local_driver.policy"),
         ServiceBinding::One(ServiceRole::Update),
-        &[lenovo_laptop_control_core::required(Dependency::LocalFilesystem)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LocalFilesystem,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -1952,7 +2050,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         // add-in wrote; no catalogue, network, or vendor service is involved.
         FeatureBinding::Unprobed("update.history.ledger"),
         ServiceBinding::One(ServiceRole::Update),
-        &[lenovo_laptop_control_core::required(Dependency::LocalFilesystem)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LocalFilesystem,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -1964,7 +2064,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Unprobed("update.ignore.without-catalog"),
         ServiceBinding::One(ServiceRole::Update),
-        &[lenovo_laptop_control_core::required(Dependency::LocalFilesystem)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LocalFilesystem,
+        )],
         DispatchSupport::Unsupported("no remote update catalog is attached"),
     ),
     CommandCapability::new(
@@ -1991,7 +2093,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Unprobed("update.schedule.without-catalog"),
         ServiceBinding::One(ServiceRole::Update),
-        &[lenovo_laptop_control_core::required(Dependency::LocalFilesystem)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LocalFilesystem,
+        )],
         DispatchSupport::Unsupported("no remote update catalog is attached"),
     ),
     CommandCapability::new(
@@ -2021,7 +2125,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandAxes::read_only(StateLayer::NotApplicable),
         FeatureBinding::Capability("wifi.security"),
         ServiceBinding::One(ServiceRole::Wifi),
-        &[lenovo_laptop_control_core::required(Dependency::Win32ProcessApi)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::Win32ProcessApi,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -2032,7 +2138,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         // "no current capability probe" claim is no longer true.
         FeatureBinding::Capability("wifi.status"),
         ServiceBinding::One(ServiceRole::Wifi),
-        &[lenovo_laptop_control_core::required(Dependency::Win32WlanApi)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::Win32WlanApi,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -2042,7 +2150,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         // (`WindowsBluetooth::bluetooth_devices`).
         FeatureBinding::Capability("bluetooth.list"),
         ServiceBinding::One(ServiceRole::Bluetooth),
-        &[lenovo_laptop_control_core::required(Dependency::Win32BluetoothApi)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::Win32BluetoothApi,
+        )],
         DispatchSupport::Implemented,
     ),
     // Both sensor verbs are decided by the platform's own enumeration, so the
@@ -2054,7 +2164,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandAxes::read_only(StateLayer::NotApplicable),
         FeatureBinding::Capability("sensor.list"),
         ServiceBinding::One(ServiceRole::Sensor),
-        &[lenovo_laptop_control_core::required(Dependency::Win32SensorApi)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::Win32SensorApi,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -2062,7 +2174,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandAxes::read_only(StateLayer::NotApplicable),
         FeatureBinding::Capability("sensor.list"),
         ServiceBinding::One(ServiceRole::Sensor),
-        &[lenovo_laptop_control_core::required(Dependency::Win32SensorApi)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::Win32SensorApi,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -2155,7 +2269,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandAxes::read_only(StateLayer::LocalPersistent),
         FeatureBinding::Capability("machinefix.track"),
         ServiceBinding::One(ServiceRole::MachineFix),
-        &[lenovo_laptop_control_core::required(Dependency::LocalFilesystem)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LocalFilesystem,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -2186,7 +2302,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandAxes::read_only(StateLayer::LocalPersistent),
         FeatureBinding::Capability("scene.track"),
         ServiceBinding::One(ServiceRole::ScenePolicy),
-        &[lenovo_laptop_control_core::required(Dependency::LocalFilesystem)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LocalFilesystem,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -2198,7 +2316,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Dynamic(SNAPSHOT_FEATURES),
         ServiceBinding::Composite(SNAPSHOT_SERVICES),
-        &[lenovo_laptop_control_core::required(Dependency::LocalFilesystem)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LocalFilesystem,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -2206,7 +2326,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandAxes::read_only(StateLayer::Composite),
         FeatureBinding::Dynamic(SNAPSHOT_FEATURES),
         ServiceBinding::Composite(SNAPSHOT_SERVICES),
-        &[lenovo_laptop_control_core::required(Dependency::LocalFilesystem)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LocalFilesystem,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -2218,7 +2340,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::Dynamic(SNAPSHOT_FEATURES),
         ServiceBinding::Composite(SNAPSHOT_SERVICES),
-        &[lenovo_laptop_control_core::required(Dependency::LocalFilesystem)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LocalFilesystem,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -2230,7 +2354,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::ServiceOnly,
         ServiceBinding::External,
-        &[lenovo_laptop_control_core::required(Dependency::LocalDaemon)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LocalDaemon,
+        )],
         DispatchSupport::External,
     ),
     // `storage status` reads the drive through
@@ -2243,7 +2369,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandAxes::read_only(StateLayer::NotApplicable),
         FeatureBinding::Capability("storage.status"),
         ServiceBinding::One(ServiceRole::Storage),
-        &[lenovo_laptop_control_core::required(Dependency::Win32SetupApi)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::Win32SetupApi,
+        )],
         DispatchSupport::Implemented,
     ),
     CommandCapability::new(
@@ -2255,7 +2383,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         ),
         FeatureBinding::ServiceOnly,
         ServiceBinding::External,
-        &[lenovo_laptop_control_core::required(Dependency::LocalDaemon)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LocalDaemon,
+        )],
         DispatchSupport::External,
     ),
     CommandCapability::new(
@@ -2263,7 +2393,9 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandAxes::read_only(StateLayer::Runtime),
         FeatureBinding::ServiceOnly,
         ServiceBinding::External,
-        &[lenovo_laptop_control_core::required(Dependency::LocalDaemon)],
+        &[lenovo_laptop_control_core::required(
+            Dependency::LocalDaemon,
+        )],
         DispatchSupport::External,
     ),
     CommandCapability::new(
@@ -2348,11 +2480,9 @@ pub fn minimal_dependency_checklist(selected: &[CommandSelector]) -> Vec<Depende
         let Some(entry) = command_capability_for(*selector) else {
             continue;
         };
-        let Some(&usage) = entry
-            .dependencies
-            .iter()
-            .find(|item| item.dependency.platform() == Some(lenovo_laptop_control_core::Platform::Windows))
-        else {
+        let Some(&usage) = entry.dependencies.iter().find(|item| {
+            item.dependency.platform() == Some(lenovo_laptop_control_core::Platform::Windows)
+        }) else {
             continue;
         };
         let Some(switch) = switches.get_mut(&usage.dependency) else {

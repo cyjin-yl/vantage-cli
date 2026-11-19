@@ -166,9 +166,10 @@ impl EnergyDriverHandle {
         output_len: usize,
         context: &str,
     ) -> Result<Vec<u8>> {
-        let input_len = u32::try_from(input.len()).map_err(|_| LenovoLaptopControlError::InvalidArgument {
-            detail: format!("{context} input exceeds u32 buffer length"),
-        })?;
+        let input_len =
+            u32::try_from(input.len()).map_err(|_| LenovoLaptopControlError::InvalidArgument {
+                detail: format!("{context} input exceeds u32 buffer length"),
+            })?;
         let requested_output =
             u32::try_from(output_len).map_err(|_| LenovoLaptopControlError::InvalidArgument {
                 detail: format!("{context} output exceeds u32 buffer length"),

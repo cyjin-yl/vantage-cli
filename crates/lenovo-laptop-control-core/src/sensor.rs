@@ -130,18 +130,36 @@ impl SensorState {
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum SensorValue {
-    Real { value: f64 },
-    Integer { value: i64 },
-    Unsigned { value: u64 },
-    Boolean { value: bool },
-    Text { value: String },
+    Real {
+        value: f64,
+    },
+    Integer {
+        value: i64,
+    },
+    Unsigned {
+        value: u64,
+    },
+    Boolean {
+        value: bool,
+    },
+    Text {
+        value: String,
+    },
     /// UTC timestamp rendered from a `VT_FILETIME` value.
-    Timestamp { utc: String, filetime: u64 },
-    Guid { value: SensorGuid },
+    Timestamp {
+        utc: String,
+        filetime: u64,
+    },
+    Guid {
+        value: SensorGuid,
+    },
     /// The platform returned `VT_EMPTY`/`VT_NULL` for a supported field.
     Empty,
     /// A vartype this build does not decode; `raw_hex` is the 16-byte payload.
-    Unsupported { vartype: u32, raw_hex: String },
+    Unsupported {
+        vartype: u32,
+        raw_hex: String,
+    },
 }
 
 /// One supported data field of a sensor, keyed by the platform's property key.
@@ -355,18 +373,54 @@ const CUSTOM_VALUE_NAMES: [&str; 25] = [
 pub fn category_name(category: SensorGuid) -> Option<&'static str> {
     let category = u128::from_be_bytes(category.bytes());
     const NAMES: [(u128, &str); 12] = [
-        (0xc317c286_c468_4288_9975_d4c4587c442c, "SENSOR_CATEGORY_ALL"),
-        (0xca19690f_a2c7_477d_a99e_99ec6e2b5648, "SENSOR_CATEGORY_BIOMETRIC"),
-        (0xfb73fcd8_fc4a_483c_ac58_27b691c6beff, "SENSOR_CATEGORY_ELECTRICAL"),
-        (0x323439aa_7f66_492b_ba0c_73e9aa0a65d5, "SENSOR_CATEGORY_ENVIRONMENTAL"),
-        (0x17a665c0_9063_4216_b202_5c7a255e18ce, "SENSOR_CATEGORY_LIGHT"),
-        (0xbfa794e4_f964_4fdb_90f6_51056bfe4b44, "SENSOR_CATEGORY_LOCATION"),
-        (0x8d131d68_8ef7_4656_80b5_cccbd93791c5, "SENSOR_CATEGORY_MECHANICAL"),
-        (0xcd09daf1_3b2e_4c3d_b598_b5e5ff93fd46, "SENSOR_CATEGORY_MOTION"),
-        (0x9e6c04b6_96fe_4954_b726_68682a473f69, "SENSOR_CATEGORY_ORIENTATION"),
-        (0x2c90e7a9_f4c9_4fa2_af37_56d471fe5a3d, "SENSOR_CATEGORY_OTHER"),
-        (0xb000e77e_f5b5_420f_815d_0270a726f270, "SENSOR_CATEGORY_SCANNER"),
-        (0x2beae7fa_19b0_48c5_a1f6_b5480dc206b0, "SENSOR_CATEGORY_UNSUPPORTED"),
+        (
+            0xc317c286_c468_4288_9975_d4c4587c442c,
+            "SENSOR_CATEGORY_ALL",
+        ),
+        (
+            0xca19690f_a2c7_477d_a99e_99ec6e2b5648,
+            "SENSOR_CATEGORY_BIOMETRIC",
+        ),
+        (
+            0xfb73fcd8_fc4a_483c_ac58_27b691c6beff,
+            "SENSOR_CATEGORY_ELECTRICAL",
+        ),
+        (
+            0x323439aa_7f66_492b_ba0c_73e9aa0a65d5,
+            "SENSOR_CATEGORY_ENVIRONMENTAL",
+        ),
+        (
+            0x17a665c0_9063_4216_b202_5c7a255e18ce,
+            "SENSOR_CATEGORY_LIGHT",
+        ),
+        (
+            0xbfa794e4_f964_4fdb_90f6_51056bfe4b44,
+            "SENSOR_CATEGORY_LOCATION",
+        ),
+        (
+            0x8d131d68_8ef7_4656_80b5_cccbd93791c5,
+            "SENSOR_CATEGORY_MECHANICAL",
+        ),
+        (
+            0xcd09daf1_3b2e_4c3d_b598_b5e5ff93fd46,
+            "SENSOR_CATEGORY_MOTION",
+        ),
+        (
+            0x9e6c04b6_96fe_4954_b726_68682a473f69,
+            "SENSOR_CATEGORY_ORIENTATION",
+        ),
+        (
+            0x2c90e7a9_f4c9_4fa2_af37_56d471fe5a3d,
+            "SENSOR_CATEGORY_OTHER",
+        ),
+        (
+            0xb000e77e_f5b5_420f_815d_0270a726f270,
+            "SENSOR_CATEGORY_SCANNER",
+        ),
+        (
+            0x2beae7fa_19b0_48c5_a1f6_b5480dc206b0,
+            "SENSOR_CATEGORY_UNSUPPORTED",
+        ),
     ];
     NAMES
         .iter()
@@ -378,70 +432,211 @@ pub fn category_name(category: SensorGuid) -> Option<&'static str> {
 pub fn sensor_type_name(sensor_type: SensorGuid) -> Option<&'static str> {
     let sensor_type = u128::from_be_bytes(sensor_type.bytes());
     const NAMES: [(u128, &str); 55] = [
-        (0xc04d2387_7340_4cc2_991e_3b18cb8ef2f4, "SENSOR_TYPE_ACCELEROMETER_1D"),
-        (0xb2c517a8_f6b5_4ba6_a423_5df560b4cc07, "SENSOR_TYPE_ACCELEROMETER_2D"),
-        (0xc2fb0f5f_e2d2_4c78_bcd0_352a9582819d, "SENSOR_TYPE_ACCELEROMETER_3D"),
-        (0xcdb5d8f7_3cfd_41c8_8542_cce622cf5d6e, "SENSOR_TYPE_AGGREGATED_DEVICE_ORIENTATION"),
-        (0x9f81f1af_c4ab_4307_9904_c828bfb90829, "SENSOR_TYPE_AGGREGATED_QUADRANT_ORIENTATION"),
+        (
+            0xc04d2387_7340_4cc2_991e_3b18cb8ef2f4,
+            "SENSOR_TYPE_ACCELEROMETER_1D",
+        ),
+        (
+            0xb2c517a8_f6b5_4ba6_a423_5df560b4cc07,
+            "SENSOR_TYPE_ACCELEROMETER_2D",
+        ),
+        (
+            0xc2fb0f5f_e2d2_4c78_bcd0_352a9582819d,
+            "SENSOR_TYPE_ACCELEROMETER_3D",
+        ),
+        (
+            0xcdb5d8f7_3cfd_41c8_8542_cce622cf5d6e,
+            "SENSOR_TYPE_AGGREGATED_DEVICE_ORIENTATION",
+        ),
+        (
+            0x9f81f1af_c4ab_4307_9904_c828bfb90829,
+            "SENSOR_TYPE_AGGREGATED_QUADRANT_ORIENTATION",
+        ),
         (
             0x86a19291_0482_402c_bf4c_addac52b1c39,
             "SENSOR_TYPE_AGGREGATED_SIMPLE_DEVICE_ORIENTATION",
         ),
-        (0x97f115c8_599a_4153_8894_d2d12899918a, "SENSOR_TYPE_AMBIENT_LIGHT"),
-        (0x990b3d8f_85bb_45ff_914d_998c04f372df, "SENSOR_TYPE_BARCODE_SCANNER"),
-        (0x9c7e371f_1041_460b_8d5c_71e4752e350c, "SENSOR_TYPE_BOOLEAN_SWITCH"),
-        (0x545c8ba5_b143_4545_868f_ca7fd986b4f6, "SENSOR_TYPE_BOOLEAN_SWITCH_ARRAY"),
-        (0xca2ffb1c_2317_49c0_a0b4_b63ce63461a0, "SENSOR_TYPE_CAPACITANCE"),
-        (0xa415f6c5_cb50_49d0_8e62_a8270bd7a26c, "SENSOR_TYPE_COMPASS_1D"),
-        (0x15655cc0_997a_4d30_84db_57caba3648bb, "SENSOR_TYPE_COMPASS_2D"),
-        (0x76b5ce0d_17dd_414d_93a1_e127f40bdf6e, "SENSOR_TYPE_COMPASS_3D"),
-        (0x5adc9fce_15a0_4bbe_a1ad_2d38a9ae831c, "SENSOR_TYPE_CURRENT"),
+        (
+            0x97f115c8_599a_4153_8894_d2d12899918a,
+            "SENSOR_TYPE_AMBIENT_LIGHT",
+        ),
+        (
+            0x990b3d8f_85bb_45ff_914d_998c04f372df,
+            "SENSOR_TYPE_BARCODE_SCANNER",
+        ),
+        (
+            0x9c7e371f_1041_460b_8d5c_71e4752e350c,
+            "SENSOR_TYPE_BOOLEAN_SWITCH",
+        ),
+        (
+            0x545c8ba5_b143_4545_868f_ca7fd986b4f6,
+            "SENSOR_TYPE_BOOLEAN_SWITCH_ARRAY",
+        ),
+        (
+            0xca2ffb1c_2317_49c0_a0b4_b63ce63461a0,
+            "SENSOR_TYPE_CAPACITANCE",
+        ),
+        (
+            0xa415f6c5_cb50_49d0_8e62_a8270bd7a26c,
+            "SENSOR_TYPE_COMPASS_1D",
+        ),
+        (
+            0x15655cc0_997a_4d30_84db_57caba3648bb,
+            "SENSOR_TYPE_COMPASS_2D",
+        ),
+        (
+            0x76b5ce0d_17dd_414d_93a1_e127f40bdf6e,
+            "SENSOR_TYPE_COMPASS_3D",
+        ),
+        (
+            0x5adc9fce_15a0_4bbe_a1ad_2d38a9ae831c,
+            "SENSOR_TYPE_CURRENT",
+        ),
         (0xe83af229_8640_4d18_a213_e22675ebb2c3, "SENSOR_TYPE_CUSTOM"),
-        (0x5f14ab2f_1407_4306_a93f_b1dbabe4f9c0, "SENSOR_TYPE_DISTANCE_1D"),
-        (0x5cf9a46c_a9a2_4e55_b6a1_a04aafa95a92, "SENSOR_TYPE_DISTANCE_2D"),
-        (0xa20cae31_0e25_4772_9fe5_96608a1354b2, "SENSOR_TYPE_DISTANCE_3D"),
-        (0x212f10f5_14ab_4376_9a43_a7794098c2fe, "SENSOR_TYPE_ELECTRICAL_POWER"),
+        (
+            0x5f14ab2f_1407_4306_a93f_b1dbabe4f9c0,
+            "SENSOR_TYPE_DISTANCE_1D",
+        ),
+        (
+            0x5cf9a46c_a9a2_4e55_b6a1_a04aafa95a92,
+            "SENSOR_TYPE_DISTANCE_2D",
+        ),
+        (
+            0xa20cae31_0e25_4772_9fe5_96608a1354b2,
+            "SENSOR_TYPE_DISTANCE_3D",
+        ),
+        (
+            0x212f10f5_14ab_4376_9a43_a7794098c2fe,
+            "SENSOR_TYPE_ELECTRICAL_POWER",
+        ),
         (
             0x0e903829_ff8a_4a93_97df_3dcbde402288,
             "SENSOR_TYPE_ENVIRONMENTAL_ATMOSPHERIC_PRESSURE",
         ),
-        (0x5c72bf67_bd7e_4257_990b_98a3ba3b400a, "SENSOR_TYPE_ENVIRONMENTAL_HUMIDITY"),
-        (0x04fd0ec4_d5da_45fa_95a9_5db38ee19306, "SENSOR_TYPE_ENVIRONMENTAL_TEMPERATURE"),
+        (
+            0x5c72bf67_bd7e_4257_990b_98a3ba3b400a,
+            "SENSOR_TYPE_ENVIRONMENTAL_HUMIDITY",
+        ),
+        (
+            0x04fd0ec4_d5da_45fa_95a9_5db38ee19306,
+            "SENSOR_TYPE_ENVIRONMENTAL_TEMPERATURE",
+        ),
         (
             0x9ef57a35_9306_434d_af09_37fa5a9c00bd,
             "SENSOR_TYPE_ENVIRONMENTAL_WIND_DIRECTION",
         ),
-        (0xdd50607b_a45f_42cd_8efd_ec61761c4226, "SENSOR_TYPE_ENVIRONMENTAL_WIND_SPEED"),
+        (
+            0xdd50607b_a45f_42cd_8efd_ec61761c4226,
+            "SENSOR_TYPE_ENVIRONMENTAL_WIND_SPEED",
+        ),
         (0xc2ab2b02_1a1c_4778_a81b_954a1788cc75, "SENSOR_TYPE_FORCE"),
-        (0x8cd2cbb6_73e6_4640_a709_72ae8fb60d7f, "SENSOR_TYPE_FREQUENCY"),
-        (0xfa088734_f552_4584_8324_edfaf649652c, "SENSOR_TYPE_GYROMETER_1D"),
-        (0x31ef4f83_919b_48bf_8de0_5d7a9d240556, "SENSOR_TYPE_GYROMETER_2D"),
-        (0x09485f5a_759e_42c2_bd4b_a349b75c8643, "SENSOR_TYPE_GYROMETER_3D"),
-        (0xc138c12b_ad52_451c_9375_87f518ff10c6, "SENSOR_TYPE_HUMAN_PRESENCE"),
-        (0x5220dae9_3179_4430_9f90_06266d2a34de, "SENSOR_TYPE_HUMAN_PROXIMITY"),
-        (0xb96f98c5_7a75_4ba7_94e9_ac868c966dd8, "SENSOR_TYPE_INCLINOMETER_1D"),
-        (0xab140f6d_83eb_4264_b70b_b16a5b256a01, "SENSOR_TYPE_INCLINOMETER_2D"),
-        (0xb84919fb_ea85_4976_8444_6f6f5c6d31db, "SENSOR_TYPE_INCLINOMETER_3D"),
-        (0xdc1d933f_c435_4c7d_a2fe_607192a524d3, "SENSOR_TYPE_INDUCTANCE"),
-        (0xd26988cf_5162_4039_bb17_4c58b698e44a, "SENSOR_TYPE_LOCATION_BROADCAST"),
-        (0x1a37d538_f28b_42da_9fce_a9d0a2a6d829, "SENSOR_TYPE_LOCATION_DEAD_RECKONING"),
-        (0xed4ca589_327a_4ff9_a560_91da4b48275e, "SENSOR_TYPE_LOCATION_GPS"),
-        (0x3b2eae4a_72ce_436d_96d2_3c5b8570e987, "SENSOR_TYPE_LOCATION_LOOKUP"),
-        (0x9b2d0566_0368_4f71_b88d_533f132031de, "SENSOR_TYPE_LOCATION_OTHER"),
-        (0x095f8184_0fa9_4445_8e6e_b70f320b6b4c, "SENSOR_TYPE_LOCATION_STATIC"),
-        (0x691c341a_5406_4fe1_942f_2246cbeb39e0, "SENSOR_TYPE_LOCATION_TRIANGULATION"),
-        (0x5c7c1a12_30a5_43b9_a4b2_cf09ec5b7be8, "SENSOR_TYPE_MOTION_DETECTOR"),
-        (0xb3ee4d76_37a4_4402_b25e_99c60a775fa1, "SENSOR_TYPE_MULTIVALUE_SWITCH"),
-        (0x2b3681a9_cadc_45aa_a6ff_54957c8bb440, "SENSOR_TYPE_POTENTIOMETER"),
-        (0x26d31f34_6352_41cf_b793_ea0713d53d77, "SENSOR_TYPE_PRESSURE"),
-        (0x9993d2c8_c157_4a52_a7b5_195c76037231, "SENSOR_TYPE_RESISTANCE"),
-        (0x44328ef5_02dd_4e8d_ad5d_9249832b2eca, "SENSOR_TYPE_RFID_SCANNER"),
+        (
+            0x8cd2cbb6_73e6_4640_a709_72ae8fb60d7f,
+            "SENSOR_TYPE_FREQUENCY",
+        ),
+        (
+            0xfa088734_f552_4584_8324_edfaf649652c,
+            "SENSOR_TYPE_GYROMETER_1D",
+        ),
+        (
+            0x31ef4f83_919b_48bf_8de0_5d7a9d240556,
+            "SENSOR_TYPE_GYROMETER_2D",
+        ),
+        (
+            0x09485f5a_759e_42c2_bd4b_a349b75c8643,
+            "SENSOR_TYPE_GYROMETER_3D",
+        ),
+        (
+            0xc138c12b_ad52_451c_9375_87f518ff10c6,
+            "SENSOR_TYPE_HUMAN_PRESENCE",
+        ),
+        (
+            0x5220dae9_3179_4430_9f90_06266d2a34de,
+            "SENSOR_TYPE_HUMAN_PROXIMITY",
+        ),
+        (
+            0xb96f98c5_7a75_4ba7_94e9_ac868c966dd8,
+            "SENSOR_TYPE_INCLINOMETER_1D",
+        ),
+        (
+            0xab140f6d_83eb_4264_b70b_b16a5b256a01,
+            "SENSOR_TYPE_INCLINOMETER_2D",
+        ),
+        (
+            0xb84919fb_ea85_4976_8444_6f6f5c6d31db,
+            "SENSOR_TYPE_INCLINOMETER_3D",
+        ),
+        (
+            0xdc1d933f_c435_4c7d_a2fe_607192a524d3,
+            "SENSOR_TYPE_INDUCTANCE",
+        ),
+        (
+            0xd26988cf_5162_4039_bb17_4c58b698e44a,
+            "SENSOR_TYPE_LOCATION_BROADCAST",
+        ),
+        (
+            0x1a37d538_f28b_42da_9fce_a9d0a2a6d829,
+            "SENSOR_TYPE_LOCATION_DEAD_RECKONING",
+        ),
+        (
+            0xed4ca589_327a_4ff9_a560_91da4b48275e,
+            "SENSOR_TYPE_LOCATION_GPS",
+        ),
+        (
+            0x3b2eae4a_72ce_436d_96d2_3c5b8570e987,
+            "SENSOR_TYPE_LOCATION_LOOKUP",
+        ),
+        (
+            0x9b2d0566_0368_4f71_b88d_533f132031de,
+            "SENSOR_TYPE_LOCATION_OTHER",
+        ),
+        (
+            0x095f8184_0fa9_4445_8e6e_b70f320b6b4c,
+            "SENSOR_TYPE_LOCATION_STATIC",
+        ),
+        (
+            0x691c341a_5406_4fe1_942f_2246cbeb39e0,
+            "SENSOR_TYPE_LOCATION_TRIANGULATION",
+        ),
+        (
+            0x5c7c1a12_30a5_43b9_a4b2_cf09ec5b7be8,
+            "SENSOR_TYPE_MOTION_DETECTOR",
+        ),
+        (
+            0xb3ee4d76_37a4_4402_b25e_99c60a775fa1,
+            "SENSOR_TYPE_MULTIVALUE_SWITCH",
+        ),
+        (
+            0x2b3681a9_cadc_45aa_a6ff_54957c8bb440,
+            "SENSOR_TYPE_POTENTIOMETER",
+        ),
+        (
+            0x26d31f34_6352_41cf_b793_ea0713d53d77,
+            "SENSOR_TYPE_PRESSURE",
+        ),
+        (
+            0x9993d2c8_c157_4a52_a7b5_195c76037231,
+            "SENSOR_TYPE_RESISTANCE",
+        ),
+        (
+            0x44328ef5_02dd_4e8d_ad5d_9249832b2eca,
+            "SENSOR_TYPE_RFID_SCANNER",
+        ),
         (0xc06dd92c_7feb_438e_9bf6_82207fff5bb8, "SENSOR_TYPE_SCALE"),
-        (0x6bd73c1f_0bb4_4310_81b2_dfc18a52bf94, "SENSOR_TYPE_SPEEDOMETER"),
+        (
+            0x6bd73c1f_0bb4_4310_81b2_dfc18a52bf94,
+            "SENSOR_TYPE_SPEEDOMETER",
+        ),
         (0xc6d1ec0e_6803_4361_ad3d_85bcc58c6d29, "SENSOR_TYPE_STRAIN"),
         (0x17db3018_06c4_4f7d_81af_9274b7599c27, "SENSOR_TYPE_TOUCH"),
-        (0x10ba83e3_ef4f_41ed_9885_a87d6435a8e1, "SENSOR_TYPE_UNKNOWN"),
-        (0xc5484637_4fb7_4953_98b8_a56d8aa1fb1e, "SENSOR_TYPE_VOLTAGE"),
+        (
+            0x10ba83e3_ef4f_41ed_9885_a87d6435a8e1,
+            "SENSOR_TYPE_UNKNOWN",
+        ),
+        (
+            0xc5484637_4fb7_4953_98b8_a56d8aa1fb1e,
+            "SENSOR_TYPE_VOLTAGE",
+        ),
     ];
     NAMES
         .iter()
@@ -464,9 +659,12 @@ pub fn match_sensor(descriptors: &[SensorDescriptor], target: &str) -> Result<us
         });
     }
     if target.bytes().all(|byte| byte.is_ascii_digit()) {
-        let index: usize = target.parse().map_err(|_| LenovoLaptopControlError::InvalidArgument {
-            detail: format!("sensor index '{target}' does not fit a list index"),
-        })?;
+        let index: usize =
+            target
+                .parse()
+                .map_err(|_| LenovoLaptopControlError::InvalidArgument {
+                    detail: format!("sensor index '{target}' does not fit a list index"),
+                })?;
         return descriptors
             .iter()
             .position(|descriptor| descriptor.index == index)
@@ -626,4 +824,3 @@ pub fn format_utc_millis(millis: i64) -> String {
     let millisecond = within_day % 1_000;
     format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}.{millisecond:03}Z")
 }
-

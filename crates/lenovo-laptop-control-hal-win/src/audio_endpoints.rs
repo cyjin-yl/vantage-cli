@@ -172,7 +172,8 @@ unsafe extern "system" {
 /// `IUnknown`, slots 0-2 of every interface below.
 #[repr(C)]
 struct UnknownVtbl {
-    query_interface: unsafe extern "system" fn(*mut c_void, *const Guid, *mut *mut c_void) -> Hresult,
+    query_interface:
+        unsafe extern "system" fn(*mut c_void, *const Guid, *mut *mut c_void) -> Hresult,
     add_ref: unsafe extern "system" fn(*mut c_void) -> u32,
     release: unsafe extern "system" fn(*mut c_void) -> u32,
 }
@@ -228,7 +229,8 @@ struct PropertyStoreVtbl {
     base: UnknownVtbl,
     get_count: unsafe extern "system" fn(*mut c_void, *mut u32) -> Hresult,
     get_at: unsafe extern "system" fn(*mut c_void, u32, *mut PropertyKey) -> Hresult,
-    get_value: unsafe extern "system" fn(*mut c_void, *const PropertyKey, *mut PropVariant) -> Hresult,
+    get_value:
+        unsafe extern "system" fn(*mut c_void, *const PropertyKey, *mut PropVariant) -> Hresult,
     set_value:
         unsafe extern "system" fn(*mut c_void, *const PropertyKey, *const PropVariant) -> Hresult,
     commit: unsafe extern "system" fn(*mut c_void) -> Hresult,
@@ -428,7 +430,11 @@ fn collection_item(collection: *mut c_void, index: u32) -> Result<ComPtr> {
         )));
     }
     let device = ComPtr(device);
-    require_interface(device.as_ptr(), &IID_IMM_DEVICE, "IMMDevice::QueryInterface")?;
+    require_interface(
+        device.as_ptr(),
+        &IID_IMM_DEVICE,
+        "IMMDevice::QueryInterface",
+    )?;
     Ok(device)
 }
 
@@ -446,7 +452,12 @@ fn enum_endpoints(
     // SAFETY: `enumerator` is live; the out-pointer is valid.
     let vtbl = unsafe { vtbl::<MmDeviceEnumeratorVtbl>(enumerator) };
     let hr = unsafe {
-        ((*vtbl).enum_audio_endpoints)(enumerator, data_flow_code(flow), state_mask, &mut collection)
+        ((*vtbl).enum_audio_endpoints)(
+            enumerator,
+            data_flow_code(flow),
+            state_mask,
+            &mut collection,
+        )
     };
     if hr < 0 {
         return Err(channel_error("IMMDeviceEnumerator::EnumAudioEndpoints", hr));
@@ -489,7 +500,11 @@ fn default_endpoint(enumerator: *mut c_void, flow: AudioDataFlow) -> Result<ComP
         )));
     }
     let device = ComPtr(device);
-    require_interface(device.as_ptr(), &IID_IMM_DEVICE, "IMMDevice::QueryInterface")?;
+    require_interface(
+        device.as_ptr(),
+        &IID_IMM_DEVICE,
+        "IMMDevice::QueryInterface",
+    )?;
     Ok(device)
 }
 
@@ -518,7 +533,11 @@ fn get_device(enumerator: *mut c_void, id: &str) -> Result<ComPtr> {
         )));
     }
     let device = ComPtr(device);
-    require_interface(device.as_ptr(), &IID_IMM_DEVICE, "IMMDevice::QueryInterface")?;
+    require_interface(
+        device.as_ptr(),
+        &IID_IMM_DEVICE,
+        "IMMDevice::QueryInterface",
+    )?;
     Ok(device)
 }
 
@@ -662,7 +681,10 @@ fn activate_volume(device: *mut c_void) -> Result<ComPtr> {
         )
     };
     if hr < 0 {
-        return Err(channel_error("IMMDevice::Activate(IAudioEndpointVolume)", hr));
+        return Err(channel_error(
+            "IMMDevice::Activate(IAudioEndpointVolume)",
+            hr,
+        ));
     }
     if volume.is_null() {
         return Err(channel_unavailable(
@@ -798,8 +820,10 @@ impl MmDeviceApi for NativeMmDeviceApi {
     }
 
     fn set_master_volume(&self, device_id: EndpointSelector<'_>, percent: u8) -> Result<()> {
-        let scalar = percent_to_scalar(percent).ok_or_else(|| LenovoLaptopControlError::InvalidArgument {
-            detail: format!("volume percent {percent} is outside 0..=100"),
+        let scalar = percent_to_scalar(percent).ok_or_else(|| {
+            LenovoLaptopControlError::InvalidArgument {
+                detail: format!("volume percent {percent} is outside 0..=100"),
+            }
         })?;
         com_apartment(|| {
             let resolved = resolve_device(device_id)?;
@@ -811,7 +835,10 @@ impl MmDeviceApi for NativeMmDeviceApi {
                 ((*vtbl).set_master_volume_level_scalar)(volume.as_ptr(), scalar, std::ptr::null())
             };
             if hr < 0 {
-                return Err(channel_error("IAudioEndpointVolume::SetMasterVolumeLevelScalar", hr));
+                return Err(channel_error(
+                    "IAudioEndpointVolume::SetMasterVolumeLevelScalar",
+                    hr,
+                ));
             }
             Ok(())
         })
@@ -823,9 +850,8 @@ impl MmDeviceApi for NativeMmDeviceApi {
             let volume = activate_volume(resolved.device.as_ptr())?;
             // SAFETY: `volume` is live; BOOL is a 32-bit int, context is null.
             let vtbl = unsafe { vtbl::<EndpointVolumeVtbl>(volume.as_ptr()) };
-            let hr = unsafe {
-                ((*vtbl).set_mute)(volume.as_ptr(), i32::from(mute), std::ptr::null())
-            };
+            let hr =
+                unsafe { ((*vtbl).set_mute)(volume.as_ptr(), i32::from(mute), std::ptr::null()) };
             if hr < 0 {
                 return Err(channel_error("IAudioEndpointVolume::SetMute", hr));
             }
@@ -1051,11 +1077,7 @@ mod tests {
             Ok(self.state.lock().unwrap().clone())
         }
 
-        fn set_master_volume(
-            &self,
-            _device_id: EndpointSelector<'_>,
-            percent: u8,
-        ) -> Result<()> {
+        fn set_master_volume(&self, _device_id: EndpointSelector<'_>, percent: u8) -> Result<()> {
             self.volume_writes.lock().unwrap().push(percent);
             let stored = match self.quantization {
                 Some(quantum) => percent / quantum * quantum,
@@ -1119,7 +1141,10 @@ mod tests {
         let error = audio
             .set_endpoint_volume(None, 43, ApplyMode::Commit)
             .expect_err("mismatch");
-        assert!(matches!(error, LenovoLaptopControlError::VerifyMismatch { .. }));
+        assert!(matches!(
+            error,
+            LenovoLaptopControlError::VerifyMismatch { .. }
+        ));
         assert_eq!(&*audio.api().volume_writes.lock().unwrap(), &[43, 32]);
         assert_eq!(audio.api().state.lock().unwrap().percent, 32);
     }
@@ -1142,7 +1167,10 @@ mod tests {
         let error = audio
             .set_endpoint_volume(None, 101, ApplyMode::Commit)
             .expect_err("invalid");
-        assert!(matches!(error, LenovoLaptopControlError::InvalidArgument { .. }));
+        assert!(matches!(
+            error,
+            LenovoLaptopControlError::InvalidArgument { .. }
+        ));
         assert!(audio.api().volume_writes.lock().unwrap().is_empty());
     }
 }

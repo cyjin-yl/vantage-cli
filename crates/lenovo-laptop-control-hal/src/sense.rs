@@ -1,4 +1,6 @@
-use lenovo_laptop_control_core::{ApplyMode, ChangeReport, Result, SenseDistance, SenseState, SenseWait};
+use lenovo_laptop_control_core::{
+    ApplyMode, ChangeReport, Result, SenseDistance, SenseState, SenseWait,
+};
 
 /// One SmartSense setting. HPD settings use the recovered RPC interface;
 /// privacy alert and attention tracking retain their separate legacy pipe.

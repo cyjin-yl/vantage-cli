@@ -11,7 +11,9 @@ use std::mem::MaybeUninit;
 use std::ptr;
 use std::sync::{LazyLock, Mutex};
 
-use lenovo_laptop_control_core::{LenovoLaptopControlError, Result, SenseDistance, SenseState, SenseWait};
+use lenovo_laptop_control_core::{
+    LenovoLaptopControlError, Result, SenseDistance, SenseState, SenseWait,
+};
 use lenovo_laptop_control_hal::SenseFeature;
 use windows_sys::Win32::System::Diagnostics::Debug::{
     AddVectoredExceptionHandler, CONTEXT, EXCEPTION_POINTERS, RtlCaptureContext, RtlRestoreContext,
@@ -66,12 +68,12 @@ impl NativeHpdRpc {
     }
 
     fn with_session<T>(&self, call: impl FnOnce(&mut Session) -> Result<T>) -> Result<T> {
-        let mut slot = self
-            .session
-            .lock()
-            .map_err(|_| LenovoLaptopControlError::ChannelUnavailable {
-                channel: "HPD RPC session lock is poisoned".into(),
-            })?;
+        let mut slot =
+            self.session
+                .lock()
+                .map_err(|_| LenovoLaptopControlError::ChannelUnavailable {
+                    channel: "HPD RPC session lock is poisoned".into(),
+                })?;
         if slot.is_none() {
             *slot = Some(Session::connect()?);
         }
@@ -130,11 +132,12 @@ impl HpdRpc for NativeHpdRpc {
         if let Some(op) = feature.context_only_rpc() {
             return self.with_session(|session| session.no_arg_call(op));
         }
-        let (op, value) = feature
-            .rpc_command()
-            .ok_or_else(|| LenovoLaptopControlError::Unsupported {
-                feature: format!("HPD RPC has no recovered setter for {feature:?}"),
-            })?;
+        let (op, value) =
+            feature
+                .rpc_command()
+                .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                    feature: format!("HPD RPC has no recovered setter for {feature:?}"),
+                })?;
         self.with_session(|session| session.set_value(op, value))
     }
 }
@@ -605,7 +608,7 @@ fn rpc_guarded(operation: &str, call: impl FnOnce()) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{project_state, SETTINGS_SCALARS};
+    use super::{SETTINGS_SCALARS, project_state};
     use lenovo_laptop_control_core::LenovoLaptopControlError;
 
     fn values() -> [u32; SETTINGS_SCALARS] {

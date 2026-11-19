@@ -38,9 +38,9 @@ mod machine_fix;
 mod magicbay;
 mod mobile_broadband;
 mod msr;
+mod native_battery_electrical;
 #[cfg(windows)]
 mod native_cpu;
-mod native_battery_electrical;
 #[cfg(windows)]
 #[cfg(windows)]
 mod native_ioctl;
@@ -82,6 +82,7 @@ mod process;
 mod radio;
 #[cfg(windows)]
 mod runtime_devices;
+mod security;
 #[cfg(windows)]
 #[cfg(windows)]
 mod sense;
@@ -89,7 +90,6 @@ mod sense;
 mod sense_rpc;
 #[cfg(windows)]
 mod sensor;
-mod security;
 mod storage;
 mod system_inventory;
 mod thermal;
@@ -110,13 +110,11 @@ mod usb_port_decode;
 mod usb_ports;
 
 #[cfg(windows)]
-pub use audio_endpoints::{
-    MmDeviceApi, NativeMmDeviceApi, WindowsAudioEndpoints,
-};
+pub use audio_endpoints::{MmDeviceApi, NativeMmDeviceApi, WindowsAudioEndpoints};
 pub use battery_sources::WindowsBatterySources;
+pub use bios::WindowsBiosController;
 #[cfg(windows)]
 pub use bluetooth::WindowsBluetooth;
-pub use bios::WindowsBiosController;
 #[cfg(windows)]
 pub use brightness::WindowsPanelBrightness;
 pub use codec::{
@@ -127,11 +125,10 @@ pub use codec::{
 };
 pub use conflict::WindowsControlConflictDetector;
 pub use cpu::{
-    CpuRegistryReader, IDENTIFIER_VALUE, PROCESSOR_NAME_VALUE, VENDOR_IDENTIFIER_VALUE,
-    APPROXIMATE_CLOCK_VALUE, cpu_status,
+    APPROXIMATE_CLOCK_VALUE, CpuRegistryReader, IDENTIFIER_VALUE, PROCESSOR_NAME_VALUE,
+    VENDOR_IDENTIFIER_VALUE, cpu_status,
 };
 pub use diagnostics::WindowsSystemInventory;
-pub use firmware::WindowsFirmware;
 #[cfg(windows)]
 #[cfg(windows)]
 pub use display::NativeDisplayApi;
@@ -151,6 +148,7 @@ pub use event_log::WindowsEventLog;
 pub use events::DOCUMENTED_LENOVO_EVENT_CLASSES;
 #[cfg(windows)]
 pub use events::{NativeWmiEventReader, NativeWmiEventSource};
+pub use firmware::WindowsFirmware;
 pub use gamezone::{FeatureId, GameZone, SupportProbe};
 pub use gpu_oc::WindowsGpuOc;
 pub use ioctl_contract::{EnergyDriver, IoctlTransport};
@@ -198,6 +196,14 @@ pub use fn_osd::NativeFnOsd;
 mod hotkey;
 #[cfg(windows)]
 pub use hotkey::{NativeHotkey, take_last_hotkey};
+#[cfg(windows)]
+pub use its_policy::{CURVE_SLOTS, POWER_BUCKET_SLOTS, read_policy, record_its_policy_capability};
+#[cfg(windows)]
+pub use local_package::NativeLocalPackageApi;
+pub use local_package::{
+    AdmittedPackage, LocalPackageApi, LogFile, PackageBinding, RunOutcome, ScriptContract,
+    WindowsLocalPackageInstaller, parse_script_contract, udc_package_from_dir,
+};
 pub use native_battery_electrical::NativeBatteryElectrical;
 #[cfg(windows)]
 #[cfg(windows)]
@@ -228,15 +234,9 @@ pub use panel_features::{
     identity_lut,
 };
 #[cfg(windows)]
-pub use panel_identity::{
-    NativePanelRegistry, PanelRegistry, WindowsPanelIdentity,
-};
+pub use panel_identity::{NativePanelRegistry, PanelRegistry, WindowsPanelIdentity};
 #[cfg(windows)]
 pub use performance_p0::{PerformanceRegistryReader, WindowsPerformanceP0, read_effective_mode};
-#[cfg(windows)]
-pub use its_policy::{
-    CURVE_SLOTS, POWER_BUCKET_SLOTS, read_policy, record_its_policy_capability,
-};
 pub use peripherals::WindowsPeripheralController;
 #[cfg(windows)]
 pub use power_overlay::{
@@ -264,6 +264,9 @@ pub use runtime_devices::{
 #[cfg(windows)]
 pub use runtime_devices::{NativeRuntimeDeviceApi, NativeWindowsRuntimeDevices};
 #[cfg(windows)]
+pub use security::NativeFirmwareEnvironment;
+pub use security::{FirmwareEnvironment, FirmwareVariableState, WindowsSecurity, observe_security};
+#[cfg(windows)]
 #[cfg(windows)]
 pub use sense::{
     HpdSettingsStore, NativeHpdStore, NativeSensePipe, SensePipe, WindowsSenseControl,
@@ -272,19 +275,10 @@ pub use sense::{
 pub use sense_rpc::{HpdRpc, NativeHpdRpc};
 #[cfg(windows)]
 pub use sensor::WindowsSensors;
-pub use security::{FirmwareEnvironment, FirmwareVariableState, WindowsSecurity, observe_security};
-#[cfg(windows)]
-pub use security::NativeFirmwareEnvironment;
-pub use local_package::{
-    AdmittedPackage, LocalPackageApi, LogFile, PackageBinding, RunOutcome, ScriptContract,
-    WindowsLocalPackageInstaller, parse_script_contract, udc_package_from_dir,
-};
-#[cfg(windows)]
-pub use local_package::NativeLocalPackageApi;
-pub use system_inventory::WindowsInventory;
 pub use storage::{DiskGeometryFacts, StorageDisk, StorageProbeApi, StorageQuery, WindowsStorage};
 #[cfg(windows)]
 pub use storage::{NativeStorageProbe, probe_storage};
+pub use system_inventory::WindowsInventory;
 pub use thermal::WindowsThermal;
 pub use touchpad_caps::{
     ButtonCap as HidButtonCap, CapabilityReport as HidCapabilityReport,

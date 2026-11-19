@@ -29,13 +29,13 @@ use lenovo_laptop_control_core::{
     AdapterAuthentication, AdapterInfo, AdapterStatus, ApplyMode, Availability, BacklightState,
     BatteryFieldProvenance, BatteryHealth, BatteryTelemetry, BatteryWearReport, CapabilitySet,
     ChangeReport, ChargeMode, ChargeModeActual, ChargePrimitive, ChargeStatus, DeviceState,
-    DiagnosticKind, DiagnosticOutcome,
-    DiagnosticResult, DispatcherVersion, FanDescriptor, FanId, FanMode, FanTable, HardwareInfo,
-    LenovoLaptopControlError, LightingEffect, MagicBayDevice, MagicBayInventory, MagicBayKind,
-    PerformanceCapabilities, PerformanceMode, PerformanceState, Platform, PowerMutation,
-    PowerScheme, PowerSchemeId, PowerSettingKey, PowerSettingObservation, PowerValueRange, Result,
-    SensorId, TemperatureLocation, TemperatureSensor, TemperatureSensorMetadata, TemperatureSource,
-    UpdateCapability, identify_magicbay, plan_charge_mode,
+    DiagnosticKind, DiagnosticOutcome, DiagnosticResult, DispatcherVersion, FanDescriptor, FanId,
+    FanMode, FanTable, HardwareInfo, LenovoLaptopControlError, LightingEffect, MagicBayDevice,
+    MagicBayInventory, MagicBayKind, PerformanceCapabilities, PerformanceMode, PerformanceState,
+    Platform, PowerMutation, PowerScheme, PowerSchemeId, PowerSettingKey, PowerSettingObservation,
+    PowerValueRange, Result, SensorId, TemperatureLocation, TemperatureSensor,
+    TemperatureSensorMetadata, TemperatureSource, UpdateCapability, identify_magicbay,
+    plan_charge_mode,
 };
 use lenovo_laptop_control_hal::{
     BatteryControl, ControlConflictDetection, DiagnosticsControl, FanControl, Hal, KeyboardControl,
@@ -427,10 +427,11 @@ impl LinuxHal {
         let mut value: Option<u8> = None;
         for path in paths {
             let token = fs::read_to_string(path).map_err(map_io_error)?;
-            let raw =
-                epp_raw_for_token(token.trim()).ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
+            let raw = epp_raw_for_token(token.trim()).ok_or_else(|| {
+                LenovoLaptopControlError::ChannelUnavailable {
                     channel: format!("unrecognized Linux EPP value {:?}", token.trim()),
-                })?;
+                }
+            })?;
             if value.is_some_and(|current| current != raw) {
                 return Err(LenovoLaptopControlError::ChannelUnavailable {
                     channel: "CPU policies report different EPP values".into(),
@@ -586,10 +587,11 @@ impl LinuxHal {
         let mut active: Option<&'static str> = None;
         for path in paths {
             let raw = fs::read_to_string(path).map_err(map_io_error)?;
-            let scheme =
-                epp_scheme_for_token(raw.trim()).ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
+            let scheme = epp_scheme_for_token(raw.trim()).ok_or_else(|| {
+                LenovoLaptopControlError::ChannelUnavailable {
                     channel: format!("unrecognized Linux EPP value {:?}", raw.trim()),
-                })?;
+                }
+            })?;
             if active.is_some_and(|current| current != scheme) {
                 return Err(LenovoLaptopControlError::ChannelUnavailable {
                     channel: "CPU policies report different EPP power schemes".into(),
@@ -597,9 +599,11 @@ impl LinuxHal {
             }
             active = Some(scheme);
         }
-        PowerSchemeId::new(active.ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
-            channel: "no CPU EPP policy was readable".into(),
-        })?)
+        PowerSchemeId::new(
+            active.ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
+                channel: "no CPU EPP policy was readable".into(),
+            })?,
+        )
     }
 }
 
@@ -962,7 +966,10 @@ impl PowerControl for LinuxHal {
             })
     }
 
-    fn power_value_range(&self, _key: &lenovo_laptop_control_core::PowerSettingKey) -> Result<PowerValueRange> {
+    fn power_value_range(
+        &self,
+        _key: &lenovo_laptop_control_core::PowerSettingKey,
+    ) -> Result<PowerValueRange> {
         Err(LenovoLaptopControlError::Unsupported {
             feature: "power.scheme.setting".into(),
         })
@@ -1156,11 +1163,12 @@ impl TuningControl for LinuxHal {
 
     fn set_epp(&self, value: u8, apply: ApplyMode) -> Result<ChangeReport<u8>> {
         let previous = self.epp_raw()?;
-        let token = epp_token_for_raw(value).ok_or_else(|| LenovoLaptopControlError::InvalidArgument {
-            detail: format!(
-                "Linux EPP value {value} has no verified sysfs token; use 0, 128, 192, or 255"
-            ),
-        })?;
+        let token =
+            epp_token_for_raw(value).ok_or_else(|| LenovoLaptopControlError::InvalidArgument {
+                detail: format!(
+                    "Linux EPP value {value} has no verified sysfs token; use 0, 128, 192, or 255"
+                ),
+            })?;
         if apply == ApplyMode::DryRun {
             return Ok(ChangeReport::dry_run(previous, value));
         }
@@ -1448,9 +1456,11 @@ impl BatteryControl for LinuxHal {
     }
 
     fn adapter_info(&self) -> Result<AdapterInfo> {
-        let connected = self.ac_online()?.ok_or_else(|| LenovoLaptopControlError::Unsupported {
-            feature: "battery.adapter".into(),
-        })?;
+        let connected = self
+            .ac_online()?
+            .ok_or_else(|| LenovoLaptopControlError::Unsupported {
+                feature: "battery.adapter".into(),
+            })?;
         // Linux power_supply has no portable equivalent of the Lenovo GBMD
         // authentication or connector-type words. Preserve those as unknown.
         Ok(AdapterInfo {
@@ -1498,7 +1508,9 @@ impl BatteryControl for LinuxHal {
         })();
         match result {
             Ok(actual) => Ok(ChangeReport::committed(previous, mode, actual)),
-            Err(error) if matches!(&error, LenovoLaptopControlError::PermissionDenied { .. }) => Err(error),
+            Err(error) if matches!(&error, LenovoLaptopControlError::PermissionDenied { .. }) => {
+                Err(error)
+            }
             Err(error) => match self.commit_charge_mode(previous) {
                 Ok(_) => Err(error),
                 Err(rollback) => Err(LenovoLaptopControlError::FirmwareRejected {
@@ -2023,7 +2035,9 @@ impl DiagnosticsControl for LinuxHal {
                         DiagnosticOutcome::Cancelled,
                         "diagnostic cancelled",
                     )
-                    .with_reason(lenovo_laptop_control_core::DiagnosticReason::Cancelled { reason }));
+                    .with_reason(
+                        lenovo_laptop_control_core::DiagnosticReason::Cancelled { reason },
+                    ));
                 }
                 let started = std::time::Instant::now();
                 let result = run_diagnostic(self, kind)?;
@@ -2033,7 +2047,9 @@ impl DiagnosticsControl for LinuxHal {
                         DiagnosticOutcome::Cancelled,
                         "diagnostic cancelled",
                     )
-                    .with_reason(lenovo_laptop_control_core::DiagnosticReason::Cancelled { reason }));
+                    .with_reason(
+                        lenovo_laptop_control_core::DiagnosticReason::Cancelled { reason },
+                    ));
                 }
                 if started.elapsed() >= options.per_item_deadline {
                     return Ok(DiagnosticResult::new(
@@ -2227,7 +2243,10 @@ fn peripheral_write_with_rollback(
         ),
     }
 }
-fn power_write_with_rollback(error: LenovoLaptopControlError, previous: &[(PathBuf, String)]) -> LenovoLaptopControlError {
+fn power_write_with_rollback(
+    error: LenovoLaptopControlError,
+    previous: &[(PathBuf, String)],
+) -> LenovoLaptopControlError {
     for (path, value) in previous.iter().rev() {
         if let Err(rollback) = fs::write(path, value).map_err(map_io_error) {
             return rollback_failure(

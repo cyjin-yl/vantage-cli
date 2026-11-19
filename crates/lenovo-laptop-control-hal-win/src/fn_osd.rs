@@ -259,7 +259,10 @@ fn indicator_status(
                 format!("{CAPABILITY_KEY}\\{SUPPORT_NUMLK_VALUE}=0 on this machine")
             }
             (_, false, _) => format!("{SERVICE_NAME} is not running"),
-            _ => format!("{VANTAGE_TOAST_KEY}\\{} does not exist", indicator.value_name),
+            _ => format!(
+                "{VANTAGE_TOAST_KEY}\\{} does not exist",
+                indicator.value_name
+            ),
         },
         _ => format!(
             "{}={}; control codes {} (on) / {} (off)",
@@ -306,10 +309,7 @@ fn read_dword(key: &str, value: &str) -> Result<Option<u32>> {
             channel: format!("HKLM\\{key}\\{value} is {bytes} bytes; expected 4"),
         }),
         ERROR_FILE_NOT_FOUND => Ok(None),
-        status => Err(map_win_error(
-            status,
-            &format!("HKLM\\{key}\\{value}"),
-        )),
+        status => Err(map_win_error(status, &format!("HKLM\\{key}\\{value}"))),
     }
 }
 
@@ -352,8 +352,7 @@ fn control_service(code: u32) -> Result<()> {
 type ScHandle = *mut c_void;
 
 fn open_service(access: u32) -> std::result::Result<(ScHandle, ScHandle), u32> {
-    let manager =
-        unsafe { OpenSCManagerW(std::ptr::null(), std::ptr::null(), SC_MANAGER_CONNECT) };
+    let manager = unsafe { OpenSCManagerW(std::ptr::null(), std::ptr::null(), SC_MANAGER_CONNECT) };
     if manager.is_null() {
         return Err(last_error());
     }
@@ -374,4 +373,3 @@ fn last_error() -> u32 {
 fn wide(value: &str) -> Vec<u16> {
     value.encode_utf16().chain(Some(0)).collect()
 }
-

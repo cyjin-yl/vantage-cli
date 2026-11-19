@@ -1,7 +1,7 @@
 use lenovo_laptop_control_core::{
     AdapterAuthentication, AdapterInfo, ApplyMode, BatteryElectricalObservation, BatteryTelemetry,
-    ChangeReport, ChargeMode, ChargeModeActual, LenovoLaptopControlError, OsBatterySnapshot, Result,
-    SystemPowerStatus,
+    ChangeReport, ChargeMode, ChargeModeActual, LenovoLaptopControlError, OsBatterySnapshot,
+    Result, SystemPowerStatus,
 };
 use lenovo_laptop_control_hal::{BatteryControl, BatteryElectricalSource};
 use lenovo_laptop_control_hal_win::{OsBatteryChannel, WindowsBatterySources};

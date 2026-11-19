@@ -2,8 +2,9 @@ use std::collections::BTreeMap;
 
 use lenovo_laptop_control_core::{
     BiosInventory, CpuInventory, DiskInventory, FirmwareInventory, GpuInventory, InventoryDiff,
-    InventoryField, InventoryModuleDiff, InventorySnapshot, LenovoLaptopControlError, MemoryModuleInventory,
-    MotherboardInventory, NetworkAdapterInventory, OperatingSystemInventory, ProductInventory,
+    InventoryField, InventoryModuleDiff, InventorySnapshot, LenovoLaptopControlError,
+    MemoryModuleInventory, MotherboardInventory, NetworkAdapterInventory, OperatingSystemInventory,
+    ProductInventory,
 };
 use lenovo_laptop_control_hal_win::{WindowsInventory, WmiObject, WmiTransport, WmiValue};
 use parking_lot::Mutex;
@@ -48,7 +49,11 @@ impl FakeWmi {
 }
 
 impl WmiTransport for FakeWmi {
-    fn query(&self, namespace: &str, wql: &str) -> lenovo_laptop_control_core::Result<Vec<WmiObject>> {
+    fn query(
+        &self,
+        namespace: &str,
+        wql: &str,
+    ) -> lenovo_laptop_control_core::Result<Vec<WmiObject>> {
         self.queries.lock().push(Query {
             namespace: namespace.into(),
             wql: wql.into(),
@@ -89,15 +94,18 @@ impl IdentityOnlyWmi {
 }
 
 impl WmiTransport for IdentityOnlyWmi {
-    fn query(&self, _namespace: &str, wql: &str) -> lenovo_laptop_control_core::Result<Vec<WmiObject>> {
+    fn query(
+        &self,
+        _namespace: &str,
+        wql: &str,
+    ) -> lenovo_laptop_control_core::Result<Vec<WmiObject>> {
         let (_, tail) = wql.split_once(" FROM ").expect("identity SELECT query");
         let class = tail.split_whitespace().next().expect("CIM class");
-        self.replies
-            .get(class)
-            .cloned()
-            .ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
+        self.replies.get(class).cloned().ok_or_else(|| {
+            LenovoLaptopControlError::ChannelUnavailable {
                 channel: format!("identity capture queried {class}"),
-            })
+            }
+        })
     }
 
     fn invoke_instance(
@@ -733,12 +741,18 @@ fn identity_capture_reads_only_product_baseboard_and_bios() {
     // `Win32_BIOS.Version` ("LENOVO - 1") is kept as delivered but is not the
     // reported firmware version.
     assert_eq!(identity.bios.version.as_deref(), Some("LENOVO - 1"));
-    assert_eq!(identity.bios.smbios_bios_version.as_deref(), Some("SWCN22WW"));
+    assert_eq!(
+        identity.bios.smbios_bios_version.as_deref(),
+        Some("SWCN22WW")
+    );
     assert_eq!(
         identity.bios.release_date.as_deref(),
         Some("20260715000000.000000+000")
     );
-    assert_eq!(identity.bios.embedded_controller_version().as_deref(), Some("1.22"));
+    assert_eq!(
+        identity.bios.embedded_controller_version().as_deref(),
+        Some("1.22")
+    );
     assert!(!identity.is_empty());
 }
 
@@ -765,5 +779,8 @@ fn embedded_controller_version_requires_both_provider_fields() {
         embedded_controller_minor_version: Some(22),
         ..BiosInventory::default()
     };
-    assert_eq!(complete.embedded_controller_version().as_deref(), Some("1.22"));
+    assert_eq!(
+        complete.embedded_controller_version().as_deref(),
+        Some("1.22")
+    );
 }

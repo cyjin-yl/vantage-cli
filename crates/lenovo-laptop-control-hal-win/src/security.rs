@@ -23,8 +23,8 @@ use lenovo_laptop_control_core::{FirmwareType, Result};
 use lenovo_laptop_control_hal::{
     BitLockerConversionStatus, BitLockerEncryptionMethod, BitLockerLockStatus,
     BitLockerProtectionStatus, BitLockerReport, BitLockerState, BitLockerVolume,
-    BitLockerVolumeType, MAX_BITLOCKER_VOLUMES, SecureBootReport, SecureBootState,
-    SecurityControl, SecuritySource, SecurityStatusReport, TpmReport, TpmState,
+    BitLockerVolumeType, MAX_BITLOCKER_VOLUMES, SecureBootReport, SecureBootState, SecurityControl,
+    SecuritySource, SecurityStatusReport, TpmReport, TpmState,
 };
 
 use crate::{WmiObject, WmiTransport, WmiValue};
@@ -505,7 +505,9 @@ mod native {
         AdjustTokenPrivileges, LUID_AND_ATTRIBUTES, LookupPrivilegeValueW, SE_PRIVILEGE_ENABLED,
         SE_SYSTEM_ENVIRONMENT_NAME, TOKEN_ADJUST_PRIVILEGES, TOKEN_PRIVILEGES, TOKEN_QUERY,
     };
-    use windows_sys::Win32::System::Registry::{HKEY_LOCAL_MACHINE, RRF_RT_REG_DWORD, RegGetValueW};
+    use windows_sys::Win32::System::Registry::{
+        HKEY_LOCAL_MACHINE, RRF_RT_REG_DWORD, RegGetValueW,
+    };
     use windows_sys::Win32::System::SystemInformation::{
         FIRMWARE_TYPE, FirmwareTypeBios, FirmwareTypeUefi, GetFirmwareType,
     };
@@ -574,7 +576,9 @@ mod native {
                     )),
                 };
             }
-            let length = usize::try_from(length).unwrap_or(buffer.len()).min(buffer.len());
+            let length = usize::try_from(length)
+                .unwrap_or(buffer.len())
+                .min(buffer.len());
             Ok(FirmwareVariableState::Present {
                 length: Some(length),
                 first_byte: buffer.first().copied(),
@@ -645,14 +649,8 @@ mod native {
                 Luid: luid,
                 Attributes: SE_PRIVILEGE_ENABLED,
             };
-            let adjusted = AdjustTokenPrivileges(
-                token,
-                0,
-                &privileges,
-                0,
-                ptr::null_mut(),
-                ptr::null_mut(),
-            );
+            let adjusted =
+                AdjustTokenPrivileges(token, 0, &privileges, 0, ptr::null_mut(), ptr::null_mut());
             let error = GetLastError();
             CloseHandle(token);
             if adjusted == 0 {

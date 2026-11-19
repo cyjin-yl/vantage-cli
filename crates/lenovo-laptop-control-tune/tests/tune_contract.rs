@@ -1,4 +1,6 @@
-use lenovo_laptop_control_core::{ApplyMode, Availability, CapabilitySet, LenovoLaptopControlError, Platform};
+use lenovo_laptop_control_core::{
+    ApplyMode, Availability, CapabilitySet, LenovoLaptopControlError, Platform,
+};
 use lenovo_laptop_control_tune::{
     EcMode, FanMode, PanelRefresh, Planner, ProfileCatalog, ProfileOrigin, TriggerClass,
     TuneSetting, parse_profile_toml,
@@ -311,5 +313,7 @@ fn unavailable_targets_are_skipped_in_dry_run_and_fail_in_commit() {
         ApplyMode::Commit,
     )
     .unwrap_err();
-    assert!(matches!(error, LenovoLaptopControlError::Unsupported { feature } if feature.contains("pl1_w")));
+    assert!(
+        matches!(error, LenovoLaptopControlError::Unsupported { feature } if feature.contains("pl1_w"))
+    );
 }

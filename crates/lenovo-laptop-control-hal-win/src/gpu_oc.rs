@@ -9,7 +9,9 @@
 //! Lenovo WMI setter to wrap: this module exposes the read only and never
 //! invents an OC parameter that the firmware did not publish.
 
-use lenovo_laptop_control_core::{GpuOcParameter, GpuOcStatus, GpuOcSupportProbe, LenovoLaptopControlError, Result};
+use lenovo_laptop_control_core::{
+    GpuOcParameter, GpuOcStatus, GpuOcSupportProbe, LenovoLaptopControlError, Result,
+};
 use lenovo_laptop_control_hal::GpuOcControl;
 
 use crate::{GameZone, SupportProbe, WmiObject, WmiTransport, WmiValue, wmi_contract::ROOT_WMI};
@@ -57,9 +59,11 @@ where
                 ),
             });
         }
-        let row = rows.pop().ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
-            channel: "LENOVO_GAMEZONE_GPU_OC_DATA returned no instance".into(),
-        })?;
+        let row = rows
+            .pop()
+            .ok_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
+                channel: "LENOVO_GAMEZONE_GPU_OC_DATA returned no instance".into(),
+            })?;
         Ok(GpuOcParameter {
             capability: required(&row, "Capability")?,
             clock_id: required(&row, "ClockID")?,

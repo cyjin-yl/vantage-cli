@@ -114,11 +114,13 @@ fn execute_daemon_command(command: &DaemonCommand, dry_run: bool) -> CommandResu
 fn daemon_request(request: vantage_daemon::DaemonRequest, human: &str) -> CommandResult {
     let response = vantage_daemon::request(&request)?;
     if !response.ok {
-        return Err(lenovo_laptop_control_core::LenovoLaptopControlError::ChannelUnavailable {
-            channel: response
-                .error
-                .unwrap_or_else(|| "daemon rejected request".into()),
-        });
+        return Err(
+            lenovo_laptop_control_core::LenovoLaptopControlError::ChannelUnavailable {
+                channel: response
+                    .error
+                    .unwrap_or_else(|| "daemon rejected request".into()),
+            },
+        );
     }
     Ok(CommandOutput {
         human: format!("{human}\n"),
@@ -169,8 +171,7 @@ fn daemon_status() -> CommandResult {
             if let Some(event) = status.last_events.last() {
                 human.push_str(&format!(
                     "  last event: {} at {} (unix ms)\n",
-                    event.kind,
-                    event.ts_unix_ms
+                    event.kind, event.ts_unix_ms
                 ));
                 last_event = Some(serde_json::to_value(event).map_err(serialization_error)?);
             }
@@ -193,9 +194,11 @@ fn daemon_status() -> CommandResult {
             observed_error = Some(detail);
         }
         StatusProbe::Fault { detail } => {
-            return Err(lenovo_laptop_control_core::LenovoLaptopControlError::ChannelUnavailable {
-                channel: format!("daemon status: {detail}"),
-            });
+            return Err(
+                lenovo_laptop_control_core::LenovoLaptopControlError::ChannelUnavailable {
+                    channel: format!("daemon status: {detail}"),
+                },
+            );
         }
     }
     human.push_str(&autostart.human());
@@ -219,7 +222,9 @@ fn daemon_status() -> CommandResult {
     })
 }
 
-fn serialization_error(error: serde_json::Error) -> lenovo_laptop_control_core::LenovoLaptopControlError {
+fn serialization_error(
+    error: serde_json::Error,
+) -> lenovo_laptop_control_core::LenovoLaptopControlError {
     lenovo_laptop_control_core::LenovoLaptopControlError::Io(std::io::Error::other(error))
 }
 
@@ -353,9 +358,11 @@ fn daemon_config_root() -> lenovo_laptop_control_core::Result<PathBuf> {
     std::env::var_os("XDG_CONFIG_HOME")
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".config")))
-        .ok_or_else(|| lenovo_laptop_control_core::LenovoLaptopControlError::ChannelUnavailable {
-            channel: "HOME or XDG_CONFIG_HOME".into(),
-        })
+        .ok_or_else(
+            || lenovo_laptop_control_core::LenovoLaptopControlError::ChannelUnavailable {
+                channel: "HOME or XDG_CONFIG_HOME".into(),
+            },
+        )
 }
 
 /// Unit file name shared by `daemon install` and `daemon status`.
@@ -377,7 +384,9 @@ fn daemon_unit_path() -> lenovo_laptop_control_core::Result<PathBuf> {
 /// The `systemctl --user enable` symlink the unit's `WantedBy=` creates.
 #[cfg(target_os = "linux")]
 fn daemon_unit_enable_link() -> lenovo_laptop_control_core::Result<PathBuf> {
-    Ok(daemon_unit_dir()?.join("default.target.wants").join(DAEMON_UNIT_NAME))
+    Ok(daemon_unit_dir()?
+        .join("default.target.wants")
+        .join(DAEMON_UNIT_NAME))
 }
 
 /// Task name registered by `schtasks` and reported by `daemon status`.
@@ -399,7 +408,8 @@ fn daemon_binary() -> lenovo_laptop_control_core::Result<PathBuf> {
     if let Some(path) = std::env::var_os("VANTAGE_DAEMON_BINARY") {
         return Ok(PathBuf::from(path));
     }
-    let executable = std::env::current_exe().map_err(lenovo_laptop_control_core::LenovoLaptopControlError::Io)?;
+    let executable = std::env::current_exe()
+        .map_err(lenovo_laptop_control_core::LenovoLaptopControlError::Io)?;
     let name = if cfg!(windows) {
         "vantaged.exe"
     } else {
@@ -408,15 +418,19 @@ fn daemon_binary() -> lenovo_laptop_control_core::Result<PathBuf> {
     let path = executable
         .parent()
         .map(|parent| parent.join(name))
-        .ok_or_else(|| lenovo_laptop_control_core::LenovoLaptopControlError::ChannelUnavailable {
-            channel: "current executable has no parent directory".into(),
+        .ok_or_else(|| {
+            lenovo_laptop_control_core::LenovoLaptopControlError::ChannelUnavailable {
+                channel: "current executable has no parent directory".into(),
+            }
         })?;
     if path.is_file() {
         Ok(path)
     } else {
-        Err(lenovo_laptop_control_core::LenovoLaptopControlError::ChannelUnavailable {
-            channel: format!("daemon binary not found at {}", path.display()),
-        })
+        Err(
+            lenovo_laptop_control_core::LenovoLaptopControlError::ChannelUnavailable {
+                channel: format!("daemon binary not found at {}", path.display()),
+            },
+        )
     }
 }
 
@@ -442,7 +456,9 @@ fn start_daemon(dry_run: bool) -> CommandResult {
         .stdout(Stdio::null())
         .stderr(Stdio::null());
     configure_detached(&mut process);
-    process.spawn().map_err(lenovo_laptop_control_core::LenovoLaptopControlError::Io)?;
+    process
+        .spawn()
+        .map_err(lenovo_laptop_control_core::LenovoLaptopControlError::Io)?;
 
     let mut last_error = None;
     for _ in 0..40 {
@@ -458,12 +474,14 @@ fn start_daemon(dry_run: bool) -> CommandResult {
         }
         thread::sleep(Duration::from_millis(50));
     }
-    Err(lenovo_laptop_control_core::LenovoLaptopControlError::ChannelUnavailable {
-        channel: format!(
-            "daemon did not become ready: {}",
-            last_error.unwrap_or_else(|| "no status response".into())
-        ),
-    })
+    Err(
+        lenovo_laptop_control_core::LenovoLaptopControlError::ChannelUnavailable {
+            channel: format!(
+                "daemon did not become ready: {}",
+                last_error.unwrap_or_else(|| "no status response".into())
+            ),
+        },
+    )
 }
 
 #[cfg(unix)]
@@ -490,16 +508,19 @@ fn install_daemon_platform(binary: &Path, dry_run: bool) -> CommandResult {
     let unit_path = daemon_unit_path()?;
     let binary_text = binary.to_string_lossy();
     if binary_text.contains(['\n', '\r', '"']) {
-        return Err(lenovo_laptop_control_core::LenovoLaptopControlError::InvalidArgument {
-            detail: "daemon binary path contains unsupported systemd quoting characters".into(),
-        });
+        return Err(
+            lenovo_laptop_control_core::LenovoLaptopControlError::InvalidArgument {
+                detail: "daemon binary path contains unsupported systemd quoting characters".into(),
+            },
+        );
     }
     let unit = format!(
         "[Unit]\nDescription=vantage hardware event daemon\n\n[Service]\nType=simple\nExecStart=\"{binary_text}\"\nRestart=on-failure\nNoNewPrivileges=true\n\n[Install]\nWantedBy=default.target\n"
     );
     if !dry_run {
         if let Some(parent) = unit_path.parent() {
-            std::fs::create_dir_all(parent).map_err(lenovo_laptop_control_core::LenovoLaptopControlError::Io)?;
+            std::fs::create_dir_all(parent)
+                .map_err(lenovo_laptop_control_core::LenovoLaptopControlError::Io)?;
         }
         write_atomic(&unit_path, unit.as_bytes())?;
         run_checked("systemctl", &["--user", "daemon-reload"])?;
@@ -543,13 +564,15 @@ fn install_daemon_platform(binary: &Path, dry_run: bool) -> CommandResult {
             .output()
             .map_err(lenovo_laptop_control_core::LenovoLaptopControlError::Io)?;
         if !output.status.success() {
-            return Err(lenovo_laptop_control_core::LenovoLaptopControlError::ChannelUnavailable {
-                channel: format!(
-                    "schtasks.exe exited with {}: {}",
-                    output.status,
-                    String::from_utf8_lossy(&output.stderr).trim()
-                ),
-            });
+            return Err(
+                lenovo_laptop_control_core::LenovoLaptopControlError::ChannelUnavailable {
+                    channel: format!(
+                        "schtasks.exe exited with {}: {}",
+                        output.status,
+                        String::from_utf8_lossy(&output.stderr).trim()
+                    ),
+                },
+            );
         }
     }
     Ok(CommandOutput {
@@ -571,16 +594,20 @@ fn install_daemon_platform(binary: &Path, dry_run: bool) -> CommandResult {
 
 #[cfg(not(any(target_os = "linux", windows)))]
 fn install_daemon_platform(_binary: &Path, _dry_run: bool) -> CommandResult {
-    Err(lenovo_laptop_control_core::LenovoLaptopControlError::Unsupported {
-        feature: "daemon.install".into(),
-    })
+    Err(
+        lenovo_laptop_control_core::LenovoLaptopControlError::Unsupported {
+            feature: "daemon.install".into(),
+        },
+    )
 }
 
 #[cfg(target_os = "linux")]
 fn write_atomic(path: &Path, contents: &[u8]) -> lenovo_laptop_control_core::Result<()> {
     let temporary = path.with_extension(format!("tmp-{}", std::process::id()));
-    std::fs::write(&temporary, contents).map_err(lenovo_laptop_control_core::LenovoLaptopControlError::Io)?;
-    std::fs::rename(temporary, path).map_err(lenovo_laptop_control_core::LenovoLaptopControlError::Io)
+    std::fs::write(&temporary, contents)
+        .map_err(lenovo_laptop_control_core::LenovoLaptopControlError::Io)?;
+    std::fs::rename(temporary, path)
+        .map_err(lenovo_laptop_control_core::LenovoLaptopControlError::Io)
 }
 
 #[cfg(target_os = "linux")]
@@ -592,13 +619,15 @@ fn run_checked(program: &str, args: &[&str]) -> lenovo_laptop_control_core::Resu
     if output.status.success() {
         Ok(())
     } else {
-        Err(lenovo_laptop_control_core::LenovoLaptopControlError::ChannelUnavailable {
-            channel: format!(
-                "{program} exited with {}: {}",
-                output.status,
-                String::from_utf8_lossy(&output.stderr).trim()
-            ),
-        })
+        Err(
+            lenovo_laptop_control_core::LenovoLaptopControlError::ChannelUnavailable {
+                channel: format!(
+                    "{program} exited with {}: {}",
+                    output.status,
+                    String::from_utf8_lossy(&output.stderr).trim()
+                ),
+            },
+        )
     }
 }
 
@@ -649,13 +678,17 @@ fn main() {
     if handle_daemon_command(&cli, json) {
         return;
     }
-    let hal =
-        lenovo_laptop_control_hal_win::NativeWindowsHal::new(lenovo_laptop_control_hal_win::NativeWmi, lenovo_laptop_control_hal_win::NativeIoctl);
+    let hal = lenovo_laptop_control_hal_win::NativeWindowsHal::new(
+        lenovo_laptop_control_hal_win::NativeWmi,
+        lenovo_laptop_control_hal_win::NativeIoctl,
+    );
     // The charge mode is read back through the GBMD status word, so a
     // write is verified against the firmware instead of being assumed.
     let vendor_battery = lenovo_laptop_control_hal_win::WindowsBatteryP0::new(
         lenovo_laptop_control_hal_win::NativeIoctl,
-        lenovo_laptop_control_hal_win::GbmdChargeModeReader::new(lenovo_laptop_control_hal_win::NativeIoctl),
+        lenovo_laptop_control_hal_win::GbmdChargeModeReader::new(
+            lenovo_laptop_control_hal_win::NativeIoctl,
+        ),
     );
     let os_battery = lenovo_laptop_control_hal_win::WindowsOsBattery::new(
         lenovo_laptop_control_hal_win::NativeWmi,
@@ -666,28 +699,45 @@ fn main() {
         os_battery,
         lenovo_laptop_control_hal_win::NativeBatteryElectrical,
     );
-    let conflicts = lenovo_laptop_control_hal_win::WindowsControlConflictDetector::new(lenovo_laptop_control_hal_win::NativeWmi);
-    let bios = lenovo_laptop_control_hal_win::WindowsBiosController::new(lenovo_laptop_control_hal_win::NativeWmi);
+    let conflicts = lenovo_laptop_control_hal_win::WindowsControlConflictDetector::new(
+        lenovo_laptop_control_hal_win::NativeWmi,
+    );
+    let bios = lenovo_laptop_control_hal_win::WindowsBiosController::new(
+        lenovo_laptop_control_hal_win::NativeWmi,
+    );
     // Firmware inventory is a read of the platform's own ESRT projection and
     // firmware-update record; nothing here can flash a capsule.
-    let firmware = lenovo_laptop_control_hal_win::WindowsFirmware::new(lenovo_laptop_control_hal_win::NativeWmi);
-    let performance =
-        lenovo_laptop_control_hal_win::WindowsPerformanceP0::new(lenovo_laptop_control_hal_win::NativePerformanceRegistry);
-    let system_inventory = lenovo_laptop_control_hal_win::WindowsSystemInventory::new(lenovo_laptop_control_hal_win::NativeWmi);
+    let firmware = lenovo_laptop_control_hal_win::WindowsFirmware::new(
+        lenovo_laptop_control_hal_win::NativeWmi,
+    );
+    let performance = lenovo_laptop_control_hal_win::WindowsPerformanceP0::new(
+        lenovo_laptop_control_hal_win::NativePerformanceRegistry,
+    );
+    let system_inventory = lenovo_laptop_control_hal_win::WindowsSystemInventory::new(
+        lenovo_laptop_control_hal_win::NativeWmi,
+    );
     let magicbay = lenovo_laptop_control_hal_win::NativeMagicBay;
-    let mobile_broadband = lenovo_laptop_control_hal_win::WindowsMobileBroadband::new(lenovo_laptop_control_hal_win::NativeWmi);
+    let mobile_broadband = lenovo_laptop_control_hal_win::WindowsMobileBroadband::new(
+        lenovo_laptop_control_hal_win::NativeWmi,
+    );
     // The keyboard backlight follows the ACPI `KBLC` method the Lenovo virtual
     // power controller re-exposes on `\\.\EnergyDrv`; the WMI lighting plane
     // stays attached for models that publish it instead.
     let keyboard = lenovo_laptop_control_hal_win::WindowsKeyboardSources::new(
-        lenovo_laptop_control_hal_win::WindowsKeyboardBacklight::new(lenovo_laptop_control_hal_win::NativeIoctl),
-        lenovo_laptop_control_hal_win::WindowsPeripheralController::new(lenovo_laptop_control_hal_win::NativeWmi),
+        lenovo_laptop_control_hal_win::WindowsKeyboardBacklight::new(
+            lenovo_laptop_control_hal_win::NativeIoctl,
+        ),
+        lenovo_laptop_control_hal_win::WindowsPeripheralController::new(
+            lenovo_laptop_control_hal_win::NativeWmi,
+        ),
     );
     let panel = lenovo_laptop_control_hal_win::WindowsPanelController::new(
         lenovo_laptop_control_hal_win::NativeDisplayApi,
         lenovo_laptop_control_hal_win::NativeWmi,
     );
-    let panel_brightness = lenovo_laptop_control_hal_win::WindowsPanelBrightness::new(lenovo_laptop_control_hal_win::NativeWmi);
+    let panel_brightness = lenovo_laptop_control_hal_win::WindowsPanelBrightness::new(
+        lenovo_laptop_control_hal_win::NativeWmi,
+    );
     // Panel identity joins the OS monitor-connection classification with the
     // per-instance EDID registry value; both are read-only.
     let panel_identity = lenovo_laptop_control_hal_win::WindowsPanelIdentity::new(
@@ -702,9 +752,15 @@ fn main() {
         lenovo_laptop_control_hal_win::NativeWmi,
         lenovo_laptop_control_hal_win::NativeMonitorColorStore,
     );
-    let power = lenovo_laptop_control_hal_win::WindowsPowerP0::new(lenovo_laptop_control_hal_win::NativePowerApi);
-    let thermal = lenovo_laptop_control_hal_win::WindowsThermal::new(lenovo_laptop_control_hal_win::NativeWmi, &battery);
-    let gpu_oc = lenovo_laptop_control_hal_win::WindowsGpuOc::new(lenovo_laptop_control_hal_win::NativeWmi);
+    let power = lenovo_laptop_control_hal_win::WindowsPowerP0::new(
+        lenovo_laptop_control_hal_win::NativePowerApi,
+    );
+    let thermal = lenovo_laptop_control_hal_win::WindowsThermal::new(
+        lenovo_laptop_control_hal_win::NativeWmi,
+        &battery,
+    );
+    let gpu_oc =
+        lenovo_laptop_control_hal_win::WindowsGpuOc::new(lenovo_laptop_control_hal_win::NativeWmi);
     let runtime_devices = lenovo_laptop_control_hal_win::NativeWindowsRuntimeDevices::default();
     let wifi_security = lenovo_laptop_control_hal_win::WindowsWifiSecurity::default();
     // The link-state verb binds the WLAN API directly (no scan), and the
@@ -726,8 +782,9 @@ fn main() {
         lenovo_laptop_control_hal_win::NativeWmi,
         lenovo_laptop_control_hal_win::NativeFirmwareEnvironment,
     );
-    let local_update =
-        lenovo_laptop_control_hal_win::WindowsLocalUpdateController::new(lenovo_laptop_control_hal_win::NativeLocalDriverUpdateApi);
+    let local_update = lenovo_laptop_control_hal_win::WindowsLocalUpdateController::new(
+        lenovo_laptop_control_hal_win::NativeLocalDriverUpdateApi,
+    );
     // A package the UDC service already downloaded is installed by its own
     // Lenovo-signed `install.ps1`; nothing here downloads, schedules, flashes
     // firmware, or reboots.
@@ -742,11 +799,15 @@ fn main() {
     // own wevtapi handles per call, so it is attached unconditionally and
     // reports ChannelUnavailable if the log itself refuses the query.
     let event_log = lenovo_laptop_control_hal_win::WindowsEventLog;
-    let usb_power = lenovo_laptop_control_hal_win::WindowsUsbPower::new(lenovo_laptop_control_hal_win::NativeIoctl);
+    let usb_power = lenovo_laptop_control_hal_win::WindowsUsbPower::new(
+        lenovo_laptop_control_hal_win::NativeIoctl,
+    );
     let usb_ports = lenovo_laptop_control_hal_win::WindowsUsbPorts::new();
     // The storage service holds no state: each call enumerates the disk device
     // interface class and queries the devices on a zero-access handle.
-    let storage = lenovo_laptop_control_hal_win::WindowsStorage::new(lenovo_laptop_control_hal_win::NativeStorageProbe);
+    let storage = lenovo_laptop_control_hal_win::WindowsStorage::new(
+        lenovo_laptop_control_hal_win::NativeStorageProbe,
+    );
     // The Dolby client speaks the DAX contract over rpcrt4 (no Lenovo
     // payload dependency). `load()` only composes the binding; a missing
     // DAX3API surfaces when the first command runs, so the service is
@@ -768,8 +829,9 @@ fn main() {
     // The OS endpoint surface is the MMDevice API, so it is attached
     // unconditionally: a missing vendor audio stack cannot disable it and the
     // per-call path reports ChannelUnavailable if the audio services are down.
-    let audio_endpoints =
-        lenovo_laptop_control_hal_win::WindowsAudioEndpoints::new(lenovo_laptop_control_hal_win::NativeMmDeviceApi);
+    let audio_endpoints = lenovo_laptop_control_hal_win::WindowsAudioEndpoints::new(
+        lenovo_laptop_control_hal_win::NativeMmDeviceApi,
+    );
     let services = vantage_cli::CommandServices::new(&hal)
         .with_battery(&battery)
         .with_conflict_detection(&conflicts)
@@ -827,9 +889,8 @@ fn main() {
     // so it is attached independently of IGCL.
     let panel_features = match lenovo_laptop_control_hal_win::IntelControlLib::load() {
         Ok(ctl) => Some(
-            lenovo_laptop_control_hal_win::WindowsPanelFeatures::new(ctl).with_gamma_ramp(Box::new(
-                lenovo_laptop_control_hal_win::NativeGammaRamp,
-            )),
+            lenovo_laptop_control_hal_win::WindowsPanelFeatures::new(ctl)
+                .with_gamma_ramp(Box::new(lenovo_laptop_control_hal_win::NativeGammaRamp)),
         ),
         Err(error) => {
             debug_note(&format!("panel features channel unavailable: {error}"));
@@ -852,15 +913,18 @@ fn main() {
     // Process telemetry and per-process policy control use the public Win32
     // process APIs; every mutation re-verifies the process identity and is
     // read back independently before it is reported as applied.
-    let process =
-        lenovo_laptop_control_hal_win::WindowsProcessController::new(lenovo_laptop_control_hal_win::NativeProcessApi::default());
+    let process = lenovo_laptop_control_hal_win::WindowsProcessController::new(
+        lenovo_laptop_control_hal_win::NativeProcessApi::default(),
+    );
     let services = services.with_sense(&sense).with_process(&process);
     run(cli, services);
 }
 
 #[cfg(not(any(target_os = "linux", windows)))]
 fn main() {
-    use lenovo_laptop_control_core::{CapabilitySet, HardwareInfo, LenovoLaptopControlError, Platform};
+    use lenovo_laptop_control_core::{
+        CapabilitySet, HardwareInfo, LenovoLaptopControlError, Platform,
+    };
     use lenovo_laptop_control_hal::Hal;
 
     #[derive(Debug, Default)]

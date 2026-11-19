@@ -1,13 +1,16 @@
 use lenovo_laptop_control_core::{
-    LenovoLaptopControlError, PowerGuid, PowerMutation, PowerRangeObservation, PowerScheme, PowerSchemeId,
-    PowerSettingKey, PowerSettingObservation, PowerSettingValue, PowerSource, PowerSourceValues,
-    PowerValueRange, validate_power_write,
+    LenovoLaptopControlError, PowerGuid, PowerMutation, PowerRangeObservation, PowerScheme,
+    PowerSchemeId, PowerSettingKey, PowerSettingObservation, PowerSettingValue, PowerSource,
+    PowerSourceValues, PowerValueRange, validate_power_write,
 };
 
 #[test]
 fn scheme_id_rejects_empty() {
     let error = PowerSchemeId::new("").unwrap_err();
-    assert!(matches!(error, LenovoLaptopControlError::InvalidArgument { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::InvalidArgument { .. }
+    ));
 }
 #[test]
 fn identifiers_reject_whitespace_only() {
@@ -24,7 +27,10 @@ fn identifiers_reject_whitespace_only() {
 #[test]
 fn scheme_id_rejects_nul() {
     let error = PowerSchemeId::new("balanced\0").unwrap_err();
-    assert!(matches!(error, LenovoLaptopControlError::InvalidArgument { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::InvalidArgument { .. }
+    ));
 }
 
 #[test]

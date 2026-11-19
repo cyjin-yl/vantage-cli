@@ -15,7 +15,11 @@ struct FakeWmi {
 }
 
 impl WmiTransport for FakeWmi {
-    fn query(&self, namespace: &str, wql: &str) -> lenovo_laptop_control_core::Result<Vec<WmiObject>> {
+    fn query(
+        &self,
+        namespace: &str,
+        wql: &str,
+    ) -> lenovo_laptop_control_core::Result<Vec<WmiObject>> {
         self.queries.lock().push(format!("{namespace}:{wql}"));
         let object = if wql.contains("Win32_ComputerSystemProduct") {
             WmiObject::from([("Name".into(), WmiValue::String("21VG".into()))])
@@ -64,7 +68,12 @@ struct FakeIoctl {
 }
 
 impl IoctlTransport for FakeIoctl {
-    fn call(&self, code: u32, input: &[u8], output_len: usize) -> lenovo_laptop_control_core::Result<Vec<u8>> {
+    fn call(
+        &self,
+        code: u32,
+        input: &[u8],
+        output_len: usize,
+    ) -> lenovo_laptop_control_core::Result<Vec<u8>> {
         self.calls.lock().push((code, input.to_vec(), output_len));
         Ok(0x0086_0004_u32.to_le_bytes().to_vec())
     }
@@ -229,16 +238,22 @@ struct ElectricalTemperature(Option<u32>, bool);
 struct ThermalWmi(Option<WmiValue>);
 
 impl WmiTransport for ThermalWmi {
-    fn query(&self, namespace: &str, wql: &str) -> lenovo_laptop_control_core::Result<Vec<WmiObject>> {
+    fn query(
+        &self,
+        namespace: &str,
+        wql: &str,
+    ) -> lenovo_laptop_control_core::Result<Vec<WmiObject>> {
         if wql.contains("MSAcpi_ThermalZoneTemperature") {
             return match &self.0 {
                 Some(value) => Ok(vec![WmiObject::from([(
                     "CurrentTemperature".into(),
                     value.clone(),
                 )])]),
-                None => Err(lenovo_laptop_control_core::LenovoLaptopControlError::PermissionDenied {
-                    need: "ACPI access denied".into(),
-                }),
+                None => Err(
+                    lenovo_laptop_control_core::LenovoLaptopControlError::PermissionDenied {
+                        need: "ACPI access denied".into(),
+                    },
+                ),
             };
         }
         FakeWmi::default().query(namespace, wql)
@@ -294,10 +309,15 @@ struct FailedElectrical(bool);
 struct AbsentElectrical;
 
 impl lenovo_laptop_control_hal::BatteryElectricalSource for AbsentElectrical {
-    fn read_electrical(&self) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::BatteryElectricalObservation> {
-        Err(lenovo_laptop_control_core::LenovoLaptopControlError::Unsupported {
-            feature: "Windows battery class".into(),
-        })
+    fn read_electrical(
+        &self,
+    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::BatteryElectricalObservation>
+    {
+        Err(
+            lenovo_laptop_control_core::LenovoLaptopControlError::Unsupported {
+                feature: "Windows battery class".into(),
+            },
+        )
     }
 }
 
@@ -316,15 +336,22 @@ fn optional_native_absence_does_not_hide_acpi_temperature() {
 }
 
 impl lenovo_laptop_control_hal::BatteryElectricalSource for FailedElectrical {
-    fn read_electrical(&self) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::BatteryElectricalObservation> {
+    fn read_electrical(
+        &self,
+    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::BatteryElectricalObservation>
+    {
         if self.0 {
-            Err(lenovo_laptop_control_core::LenovoLaptopControlError::PermissionDenied {
-                need: "native temperature denied".into(),
-            })
+            Err(
+                lenovo_laptop_control_core::LenovoLaptopControlError::PermissionDenied {
+                    need: "native temperature denied".into(),
+                },
+            )
         } else {
-            Err(lenovo_laptop_control_core::LenovoLaptopControlError::ChannelUnavailable {
-                channel: "native temperature failed".into(),
-            })
+            Err(
+                lenovo_laptop_control_core::LenovoLaptopControlError::ChannelUnavailable {
+                    channel: "native temperature failed".into(),
+                },
+            )
         }
     }
 }
@@ -383,7 +410,12 @@ fn native_temperature_does_not_hide_fatal_acpi_source_errors() {
 }
 
 impl IoctlTransport for ReadableVendorBattery {
-    fn call(&self, _code: u32, _input: &[u8], output_len: usize) -> lenovo_laptop_control_core::Result<Vec<u8>> {
+    fn call(
+        &self,
+        _code: u32,
+        _input: &[u8],
+        output_len: usize,
+    ) -> lenovo_laptop_control_core::Result<Vec<u8>> {
         if output_len == 83 {
             Ok(vec![0; 83])
         } else {
@@ -411,7 +443,10 @@ fn readable_vendor_telemetry_does_not_establish_temperature_capability() {
 }
 
 impl lenovo_laptop_control_hal::BatteryElectricalSource for ElectricalTemperature {
-    fn read_electrical(&self) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::BatteryElectricalObservation> {
+    fn read_electrical(
+        &self,
+    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::BatteryElectricalObservation>
+    {
         Ok(lenovo_laptop_control_core::BatteryElectricalObservation {
             voltage_mv: None,
             rate_mw: None,

@@ -1,6 +1,6 @@
 use lenovo_laptop_control_core::{
-    ApplyMode, BacklightState, ChangeReport, EyeCareLevel, PanelMode, PanelRefreshCapability,
-    PanelIdentity, PanelRefreshRequest, RefreshMode, Result,
+    ApplyMode, BacklightState, ChangeReport, EyeCareLevel, PanelIdentity, PanelMode,
+    PanelRefreshCapability, PanelRefreshRequest, RefreshMode, Result,
 };
 
 pub trait KeyboardControl: Send + Sync {
@@ -25,10 +25,15 @@ pub trait TouchpadControl: Send + Sync {
     /// interrupted transition left disabled, or disable and re-enable them when
     /// every leaf is already enabled but the pad does not serve input. A
     /// platform without a verified input-leaf channel reports `Unsupported`.
-    fn recover_touchpad(&self, _apply: ApplyMode) -> Result<lenovo_laptop_control_core::TouchpadRecoveryReport> {
-        Err(lenovo_laptop_control_core::LenovoLaptopControlError::Unsupported {
-            feature: "touchpad.recover".into(),
-        })
+    fn recover_touchpad(
+        &self,
+        _apply: ApplyMode,
+    ) -> Result<lenovo_laptop_control_core::TouchpadRecoveryReport> {
+        Err(
+            lenovo_laptop_control_core::LenovoLaptopControlError::Unsupported {
+                feature: "touchpad.recover".into(),
+            },
+        )
     }
 
     /// Read the HID capability descriptor of the admitted touchpad: top-level
@@ -36,9 +41,11 @@ pub trait TouchpadControl: Send + Sync {
     /// collection declares. Read-only: a platform without a verified
     /// capability channel reports `Unsupported` instead of synthesising values.
     fn touchpad_caps(&self) -> Result<lenovo_laptop_control_core::TouchpadCapabilities> {
-        Err(lenovo_laptop_control_core::LenovoLaptopControlError::Unsupported {
-            feature: "touchpad.caps".into(),
-        })
+        Err(
+            lenovo_laptop_control_core::LenovoLaptopControlError::Unsupported {
+                feature: "touchpad.caps".into(),
+            },
+        )
     }
 }
 
@@ -57,9 +64,11 @@ pub trait PrivacyControl: Send + Sync {
     /// see which collection is off. Platforms without a verified per-devnode
     /// read keep the channel closed instead of inventing one.
     fn camera_devices(&self) -> Result<Vec<lenovo_laptop_control_core::PrivacyDeviceState>> {
-        Err(lenovo_laptop_control_core::LenovoLaptopControlError::Unsupported {
-            feature: "privacy.cam.devices".into(),
-        })
+        Err(
+            lenovo_laptop_control_core::LenovoLaptopControlError::Unsupported {
+                feature: "privacy.cam.devices".into(),
+            },
+        )
     }
 
     /// What the platform's capability-consent store has *recorded* about camera
@@ -70,9 +79,11 @@ pub trait PrivacyControl: Send + Sync {
     /// such a store keep the channel closed rather than fabricating an empty
     /// success.
     fn camera_consent(&self) -> Result<lenovo_laptop_control_core::CameraConsentReport> {
-        Err(lenovo_laptop_control_core::LenovoLaptopControlError::Unsupported {
-            feature: "privacy.cam.inuse".into(),
-        })
+        Err(
+            lenovo_laptop_control_core::LenovoLaptopControlError::Unsupported {
+                feature: "privacy.cam.inuse".into(),
+            },
+        )
     }
 
     /// Runtime microphone mute through the same PnP channel as the camera.

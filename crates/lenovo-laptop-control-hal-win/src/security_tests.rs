@@ -12,9 +12,8 @@ use std::sync::Mutex;
 use lenovo_laptop_control_core::{FirmwareType, LenovoLaptopControlError, Result};
 use lenovo_laptop_control_hal::{
     BitLockerConversionStatus, BitLockerEncryptionMethod, BitLockerLockStatus,
-    BitLockerProtectionStatus, BitLockerState, BitLockerVolumeType,
-    MAX_BITLOCKER_VOLUMES, SecureBootState, SecurityAvailability, SecurityControl, SecuritySource,
-    TpmState,
+    BitLockerProtectionStatus, BitLockerState, BitLockerVolumeType, MAX_BITLOCKER_VOLUMES,
+    SecureBootState, SecurityAvailability, SecurityControl, SecuritySource, TpmState,
 };
 
 use super::{
@@ -154,7 +153,10 @@ fn volume_object() -> BTreeMap<String, WmiValue> {
             "DeviceID".to_string(),
             WmiValue::String(r"\\?\Volume{abc}\".to_string()),
         ),
-        ("DriveLetter".to_string(), WmiValue::String("C:".to_string())),
+        (
+            "DriveLetter".to_string(),
+            WmiValue::String("C:".to_string()),
+        ),
         ("ProtectionStatus".to_string(), WmiValue::U32(0)),
         ("ConversionStatus".to_string(), WmiValue::U32(0)),
         ("EncryptionMethod".to_string(), WmiValue::U32(6)),
@@ -173,7 +175,10 @@ fn unlocked_output() -> BTreeMap<String, WmiValue> {
 fn conversion_output(percentage: u32) -> BTreeMap<String, WmiValue> {
     BTreeMap::from([
         ("ConversionStatus".to_string(), WmiValue::U32(1)),
-        ("EncryptionPercentage".to_string(), WmiValue::U32(percentage)),
+        (
+            "EncryptionPercentage".to_string(),
+            WmiValue::U32(percentage),
+        ),
     ])
 }
 
@@ -209,10 +214,9 @@ fn secure_boot_enabled_reports_every_corroborating_read() {
 #[test]
 fn secure_boot_disabled_and_not_uefi_are_distinct_states() {
     let mut firmware = secure_firmware();
-    firmware.variables.insert(
-        SECURE_BOOT_VARIABLE.to_string(),
-        byte_variable(0),
-    );
+    firmware
+        .variables
+        .insert(SECURE_BOOT_VARIABLE.to_string(), byte_variable(0));
     let report = observe_security(&FakeWmi::default(), &firmware);
     assert_eq!(report.secure_boot.state, SecureBootState::Disabled);
     assert_eq!(report.secure_boot.secure_boot_variable, Some(false));
@@ -349,7 +353,10 @@ fn bitlocker_volume_decodes_mof_maps_and_getter_values() {
     assert_eq!(report.bitlocker.volumes.len(), 1);
     let volume = &report.bitlocker.volumes[0];
     assert_eq!(volume.drive_letter.as_deref(), Some("C:"));
-    assert_eq!(volume.protection_status, Some(BitLockerProtectionStatus::Unprotected));
+    assert_eq!(
+        volume.protection_status,
+        Some(BitLockerProtectionStatus::Unprotected)
+    );
     assert_eq!(volume.protection_status_raw, Some(0));
     assert_eq!(
         volume.conversion_status,
@@ -429,7 +436,9 @@ fn bitlocker_query_failure_is_unavailable_with_no_volumes() {
 #[test]
 fn bitlocker_read_is_bounded_and_reports_truncation() {
     let wmi = FakeWmi {
-        volumes: (0..MAX_BITLOCKER_VOLUMES + 3).map(|_| volume_object()).collect(),
+        volumes: (0..MAX_BITLOCKER_VOLUMES + 3)
+            .map(|_| volume_object())
+            .collect(),
         method_outputs: BTreeMap::from([
             ("GetLockStatus".to_string(), unlocked_output()),
             ("GetConversionStatus".to_string(), conversion_output(0)),

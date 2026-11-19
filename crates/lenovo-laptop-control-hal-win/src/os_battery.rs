@@ -2,7 +2,9 @@
 //! Aggregate system power status is deliberately separate from per-pack data.
 
 use crate::{WmiObject, WmiTransport, WmiValue, wmi_contract::ROOT_WMI};
-use lenovo_laptop_control_core::{BatterySourceIssue, LenovoLaptopControlError, OsBatterySnapshot, Result, SystemPowerStatus};
+use lenovo_laptop_control_core::{
+    BatterySourceIssue, LenovoLaptopControlError, OsBatterySnapshot, Result, SystemPowerStatus,
+};
 
 const SYSTEM_BATTERY: u32 = 0x8000_0000;
 const CAPACITY_RELATIVE: u32 = 0x4000_0000;

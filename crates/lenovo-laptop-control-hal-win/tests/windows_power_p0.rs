@@ -1,8 +1,8 @@
 use parking_lot::Mutex;
 
 use lenovo_laptop_control_core::{
-    ApplyMode, LenovoLaptopControlError, PowerGuid, PowerMutation, PowerRangeObservation, PowerScheme,
-    PowerSchemeId, PowerSettingKey, PowerSettingValue, PowerSource, PowerSourceValues,
+    ApplyMode, LenovoLaptopControlError, PowerGuid, PowerMutation, PowerRangeObservation,
+    PowerScheme, PowerSchemeId, PowerSettingKey, PowerSettingValue, PowerSource, PowerSourceValues,
     PowerValueRange,
 };
 use lenovo_laptop_control_hal::PowerControl;
@@ -76,7 +76,11 @@ impl PowerApi for FakePowerApi {
         PowerValueRange::new(0, 100, 10)
     }
 
-    fn policy_overridden(&self, _: &PowerSettingKey, _: PowerSource) -> lenovo_laptop_control_core::Result<bool> {
+    fn policy_overridden(
+        &self,
+        _: &PowerSettingKey,
+        _: PowerSource,
+    ) -> lenovo_laptop_control_core::Result<bool> {
         unreachable!()
     }
 
@@ -210,7 +214,10 @@ fn activation_failure_does_not_overwrite_an_external_third_scheme() {
         ) -> lenovo_laptop_control_core::Result<u32> {
             unreachable!()
         }
-        fn range(&self, _: &PowerSettingKey) -> lenovo_laptop_control_core::Result<PowerValueRange> {
+        fn range(
+            &self,
+            _: &PowerSettingKey,
+        ) -> lenovo_laptop_control_core::Result<PowerValueRange> {
             unreachable!()
         }
         fn policy_overridden(
@@ -323,7 +330,10 @@ fn scheme_switch_after_snapshot_never_writes_a_different_scheme() {
             Ok(value)
         }
 
-        fn range(&self, _: &PowerSettingKey) -> lenovo_laptop_control_core::Result<PowerValueRange> {
+        fn range(
+            &self,
+            _: &PowerSettingKey,
+        ) -> lenovo_laptop_control_core::Result<PowerValueRange> {
             PowerValueRange::new(0, 100, 10)
         }
 
@@ -347,7 +357,10 @@ fn scheme_switch_after_snapshot_never_writes_a_different_scheme() {
             Ok(())
         }
 
-        fn apply_if_active(&self, scheme: &PowerSchemeId) -> lenovo_laptop_control_core::Result<bool> {
+        fn apply_if_active(
+            &self,
+            scheme: &PowerSchemeId,
+        ) -> lenovo_laptop_control_core::Result<bool> {
             Ok(&*self.active.lock() == scheme)
         }
     }
@@ -392,7 +405,10 @@ fn scheme_switch_after_write_restores_only_original_scheme_without_reactivating_
         ) -> lenovo_laptop_control_core::Result<u32> {
             Ok(self.values.lock()[usize::from(scheme.as_str() == "performance")])
         }
-        fn range(&self, _: &PowerSettingKey) -> lenovo_laptop_control_core::Result<PowerValueRange> {
+        fn range(
+            &self,
+            _: &PowerSettingKey,
+        ) -> lenovo_laptop_control_core::Result<PowerValueRange> {
             PowerValueRange::new(0, 100, 10)
         }
         fn policy_overridden(
@@ -417,7 +433,10 @@ fn scheme_switch_after_write_restores_only_original_scheme_without_reactivating_
             }
             Ok(())
         }
-        fn apply_if_active(&self, scheme: &PowerSchemeId) -> lenovo_laptop_control_core::Result<bool> {
+        fn apply_if_active(
+            &self,
+            scheme: &PowerSchemeId,
+        ) -> lenovo_laptop_control_core::Result<bool> {
             Ok(&*self.active.lock() == scheme)
         }
     }
@@ -472,7 +491,10 @@ fn rollback_does_not_overwrite_a_distinct_concurrent_value() {
         ) -> lenovo_laptop_control_core::Result<u32> {
             Ok(*self.value.lock())
         }
-        fn range(&self, _: &PowerSettingKey) -> lenovo_laptop_control_core::Result<PowerValueRange> {
+        fn range(
+            &self,
+            _: &PowerSettingKey,
+        ) -> lenovo_laptop_control_core::Result<PowerValueRange> {
             PowerValueRange::new(0, 100, 10)
         }
         fn policy_overridden(
@@ -641,9 +663,11 @@ impl PowerApi for ObservationApi {
                     channel: "numeric range not present".into(),
                 })
             }
-            ObservationFailure::RangePermission => Err(LenovoLaptopControlError::PermissionDenied {
-                need: "range access".into(),
-            }),
+            ObservationFailure::RangePermission => {
+                Err(LenovoLaptopControlError::PermissionDenied {
+                    need: "range access".into(),
+                })
+            }
             ObservationFailure::RangeInvalid => PowerValueRange::new(100, 0, 10),
             ObservationFailure::RangeIo => Err(std::io::Error::other("range I/O failed").into()),
             _ => PowerValueRange::new(0, 100, 10),

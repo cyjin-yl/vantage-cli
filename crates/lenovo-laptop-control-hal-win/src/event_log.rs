@@ -119,7 +119,9 @@ mod event_log_pure {
 mod native {
     use std::ffi::c_void;
 
-    use lenovo_laptop_control_core::{Availability, CapabilitySet, LenovoLaptopControlError, Result};
+    use lenovo_laptop_control_core::{
+        Availability, CapabilitySet, LenovoLaptopControlError, Result,
+    };
     use lenovo_laptop_control_hal::{
         EventLevel, EventLogControl, LenovoEventLogReport, LenovoEventRecord, format_utc_millis,
         normalize_event_log_limit,
@@ -141,7 +143,7 @@ mod native {
     };
 
     use super::event_log_pure::{
-        dedup_provider_names, is_lenovo_path, image_stem, provider_xpath, unix_ms_from_filetime,
+        dedup_provider_names, image_stem, is_lenovo_path, provider_xpath, unix_ms_from_filetime,
     };
     use super::{MAX_DISCOVERED_PROVIDERS, MAX_KEY_NAMES};
     use crate::map_win_error;
@@ -565,7 +567,11 @@ mod native {
             }
             Err(error) => {
                 let detail = error.to_string();
-                capabilities.record("events.log", Availability::Unavailable, Some(detail.clone()))?;
+                capabilities.record(
+                    "events.log",
+                    Availability::Unavailable,
+                    Some(detail.clone()),
+                )?;
                 capabilities.record("channel.events", Availability::Unavailable, Some(detail))?;
             }
         }
@@ -576,8 +582,7 @@ mod native {
         let providers = discover_providers()?;
         let channel = wide("Application");
         let query = wide("*");
-        let handle =
-            unsafe { EvtQuery(0, channel.as_ptr(), query.as_ptr(), EvtQueryChannelPath) };
+        let handle = unsafe { EvtQuery(0, channel.as_ptr(), query.as_ptr(), EvtQueryChannelPath) };
         if handle == 0 {
             return Err(map_event_log_error(
                 unsafe { GetLastError() },
@@ -610,7 +615,13 @@ mod native {
         let path_wide = wide(path);
         let mut key: HKEY = std::ptr::null_mut();
         let status = unsafe {
-            RegOpenKeyExW(HKEY_LOCAL_MACHINE, path_wide.as_ptr(), 0, KEY_READ, &mut key)
+            RegOpenKeyExW(
+                HKEY_LOCAL_MACHINE,
+                path_wide.as_ptr(),
+                0,
+                KEY_READ,
+                &mut key,
+            )
         };
         if status != 0 {
             return Err(map_win_error(status, &format!("open HKLM\\{path}")));
@@ -725,8 +736,12 @@ mod tests {
         assert!(is_lenovo_path(
             r"C:\WINDOWS\System32\DriverStore\FileRepository\lenovofnandfunctionkeys.inf_amd64_5e21bf389d23855a\LenovoUtilityService.exe"
         ));
-        assert!(is_lenovo_path(r"C:\WINDOWS\System32\drivers\Lenovo\udc\Service\UDClientService.exe"));
-        assert!(!is_lenovo_path(r"C:\Windows\System32\svchost.exe -k netsvcs"));
+        assert!(is_lenovo_path(
+            r"C:\WINDOWS\System32\drivers\Lenovo\udc\Service\UDClientService.exe"
+        ));
+        assert!(!is_lenovo_path(
+            r"C:\Windows\System32\svchost.exe -k netsvcs"
+        ));
         assert!(!is_lenovo_path(""));
     }
 
@@ -752,10 +767,15 @@ mod tests {
 
     #[test]
     fn provider_xpath_filters_on_the_provider_name() {
-        let names = vec!["LenovoPcManagerService".to_string(), "LNVDispatcherService".into()];
+        let names = vec![
+            "LenovoPcManagerService".to_string(),
+            "LNVDispatcherService".into(),
+        ];
         assert_eq!(
             provider_xpath(&names).as_deref(),
-            Some("*[System[Provider[@Name='LenovoPcManagerService'] or Provider[@Name='LNVDispatcherService']]]")
+            Some(
+                "*[System[Provider[@Name='LenovoPcManagerService'] or Provider[@Name='LNVDispatcherService']]]"
+            )
         );
         assert!(provider_xpath(&[]).is_none());
         assert!(provider_xpath(&["bad'name".to_string()]).is_none());
@@ -769,8 +789,14 @@ mod tests {
             "LNVDispatcherService".into(),
         ];
         let deduped = dedup_provider_names(names, 8);
-        assert_eq!(deduped, vec!["LenovoPcManagerService", "LNVDispatcherService"]);
-        assert_eq!(dedup_provider_names(vec!["A".into(), "B".into()], 1).len(), 1);
+        assert_eq!(
+            deduped,
+            vec!["LenovoPcManagerService", "LNVDispatcherService"]
+        );
+        assert_eq!(
+            dedup_provider_names(vec!["A".into(), "B".into()], 1).len(),
+            1
+        );
     }
 
     #[test]

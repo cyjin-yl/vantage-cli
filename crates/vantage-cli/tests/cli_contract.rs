@@ -6,15 +6,15 @@ use parking_lot::Mutex;
 
 use lenovo_laptop_control_core::{
     AdapterInfo, ApplyMode, Availability, BiosInventory, CapabilitySet, ChangeReport, ChargeMode,
-    ChargeModeActual, DeviceState, DolbyProfile, DolbyState, HardwareInfo, LenovoLaptopControlError,
-    MagicBayDevice, MagicBayKind, MagicBayLteInterface, MagicBayLteMediaState,
-    MagicBayLteOperational, MagicBayLteStatus, MotherboardInventory, Platform, ProductInventory,
-    SenseDistance, SenseState, SystemIdentity,
+    ChargeModeActual, DeviceState, DolbyProfile, DolbyState, HardwareInfo,
+    LenovoLaptopControlError, MagicBayDevice, MagicBayKind, MagicBayLteInterface,
+    MagicBayLteMediaState, MagicBayLteOperational, MagicBayLteStatus, MotherboardInventory,
+    Platform, ProductInventory, SenseDistance, SenseState, SystemIdentity,
 };
 use lenovo_laptop_control_hal::{
-    AudioControl, BatteryControl, BiosControl, ControlConflictDetection, DbdcControl,
-    GpuOcControl, Hal, MobileBroadbandControl, PanelBrightnessControl, PerformanceControl,
-    PowerControl, PrivacyControl, SenseControl, SenseFeature, TemperatureControl, UsbControl,
+    AudioControl, BatteryControl, BiosControl, ControlConflictDetection, DbdcControl, GpuOcControl,
+    Hal, MobileBroadbandControl, PanelBrightnessControl, PerformanceControl, PowerControl,
+    PrivacyControl, SenseControl, SenseFeature, TemperatureControl, UsbControl,
 };
 use serde_json::json;
 use vantage_cli::{
@@ -184,7 +184,10 @@ fn info_reports_identity_modules_next_to_unchanged_hardware_keys() {
         output.json["identity"]["product"]["identifying_number"],
         "PRODUCT-SERIAL"
     );
-    assert_eq!(output.json["identity"]["motherboard"]["product"], "LNVNB161216");
+    assert_eq!(
+        output.json["identity"]["motherboard"]["product"],
+        "LNVNB161216"
+    );
     assert_eq!(
         output.json["identity"]["bios"]["smbios_bios_version"],
         "SWCN22WW"
@@ -205,7 +208,11 @@ fn info_human_output_lists_identity_values_and_omits_an_absent_identity() {
     let output = execute(cli, &IdentityHal::target()).expect("info succeeds");
 
     assert!(output.human.contains("  model (mtm): 21VG"));
-    assert!(output.human.contains("  product version: ThinkBook 14 G8+ IPH"));
+    assert!(
+        output
+            .human
+            .contains("  product version: ThinkBook 14 G8+ IPH")
+    );
     assert!(output.human.contains("  serial: PRODUCT-SERIAL"));
     assert!(output.human.contains("  baseboard: LNVNB161216"));
     assert!(output.human.contains("  baseboard version: SDK0T76577 WIN"));
@@ -329,7 +336,10 @@ impl ChangingTemperatures {
 }
 
 impl TemperatureControl for ChangingTemperatures {
-    fn temperature_sensors(&self) -> lenovo_laptop_control_core::Result<Vec<lenovo_laptop_control_core::TemperatureSensor>> {
+    fn temperature_sensors(
+        &self,
+    ) -> lenovo_laptop_control_core::Result<Vec<lenovo_laptop_control_core::TemperatureSensor>>
+    {
         let sample = self.reads.fetch_add(1, Ordering::SeqCst);
         if self.fail {
             return Err(LenovoLaptopControlError::ChannelUnavailable {
@@ -366,7 +376,10 @@ impl TemperatureControl for ChangingTemperatures {
         ])
     }
 
-    fn temperature(&self, id: &str) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::TemperatureSensor> {
+    fn temperature(
+        &self,
+        id: &str,
+    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::TemperatureSensor> {
         self.temperature_sensors()?
             .into_iter()
             .find(|sensor| sensor.metadata.id == id)
@@ -381,7 +394,9 @@ struct FixedDbdc {
 }
 
 impl DbdcControl for FixedDbdc {
-    fn dbdc_profile(&self) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::DbdcProfile> {
+    fn dbdc_profile(
+        &self,
+    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::DbdcProfile> {
         Ok(self.profile.clone())
     }
 }
@@ -406,7 +421,9 @@ impl ToggleUsb {
 }
 
 impl UsbControl for ToggleUsb {
-    fn usb_charging(&self) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::UsbChargingState> {
+    fn usb_charging(
+        &self,
+    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::UsbChargingState> {
         Ok(*self.state.lock())
     }
 
@@ -414,7 +431,9 @@ impl UsbControl for ToggleUsb {
         &self,
         enabled: bool,
         apply: ApplyMode,
-    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::ChangeReport<lenovo_laptop_control_core::UsbChargingState>> {
+    ) -> lenovo_laptop_control_core::Result<
+        lenovo_laptop_control_core::ChangeReport<lenovo_laptop_control_core::UsbChargingState>,
+    > {
         self.writes.fetch_add(1, Ordering::SeqCst);
         let previous = *self.state.lock();
         let mut requested = previous;
@@ -433,7 +452,9 @@ impl UsbControl for ToggleUsb {
         &self,
         enabled: bool,
         apply: ApplyMode,
-    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::ChangeReport<lenovo_laptop_control_core::UsbChargingState>> {
+    ) -> lenovo_laptop_control_core::Result<
+        lenovo_laptop_control_core::ChangeReport<lenovo_laptop_control_core::UsbChargingState>,
+    > {
         self.writes.fetch_add(1, Ordering::SeqCst);
         let previous = *self.state.lock();
         let mut requested = previous;
@@ -483,7 +504,10 @@ fn perf_dbdc_get_without_service_is_structured_unsupported() {
     let error = execute_with_services(cli, CommandServices::new(&hal))
         .expect_err("missing dbdc service must not succeed");
 
-    assert!(matches!(error, LenovoLaptopControlError::Unsupported { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::Unsupported { .. }
+    ));
 }
 
 struct FixedGpuOc {
@@ -491,7 +515,9 @@ struct FixedGpuOc {
 }
 
 impl GpuOcControl for FixedGpuOc {
-    fn gpu_oc_status(&self) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::GpuOcStatus> {
+    fn gpu_oc_status(
+        &self,
+    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::GpuOcStatus> {
         Ok(self.status.clone())
     }
 }
@@ -547,7 +573,10 @@ fn perf_gpu_without_service_is_structured_unsupported() {
     let error = execute_with_services(cli, CommandServices::new(&hal))
         .expect_err("missing gpu OC service must not succeed");
 
-    assert!(matches!(error, LenovoLaptopControlError::Unsupported { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::Unsupported { .. }
+    ));
 }
 
 #[test]
@@ -573,7 +602,10 @@ fn usb_without_service_is_structured_unsupported() {
     let error = execute_with_services(cli, CommandServices::new(&hal))
         .expect_err("missing usb service must not succeed");
 
-    assert!(matches!(error, LenovoLaptopControlError::Unsupported { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::Unsupported { .. }
+    ));
     assert!(error.to_string().contains("usb.always-on"));
 }
 
@@ -583,7 +615,10 @@ struct TelemetryBattery {
 }
 
 impl BatteryControl for TelemetryBattery {
-    fn battery_telemetry(&self, _: u32) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::BatteryTelemetry> {
+    fn battery_telemetry(
+        &self,
+        _: u32,
+    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::BatteryTelemetry> {
         Err(LenovoLaptopControlError::ChannelUnavailable {
             channel: "fixture battery".into(),
         })
@@ -619,7 +654,9 @@ struct TelemetryPerformance {
 }
 
 impl PerformanceControl for TelemetryPerformance {
-    fn performance_state(&self) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::PerformanceState> {
+    fn performance_state(
+        &self,
+    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::PerformanceState> {
         Err(LenovoLaptopControlError::ChannelUnavailable {
             channel: "fixture performance".into(),
         })
@@ -629,7 +666,8 @@ impl PerformanceControl for TelemetryPerformance {
         &self,
         _: lenovo_laptop_control_core::PerformanceMode,
         _: ApplyMode,
-    ) -> lenovo_laptop_control_core::Result<ChangeReport<lenovo_laptop_control_core::PerformanceMode>> {
+    ) -> lenovo_laptop_control_core::Result<ChangeReport<lenovo_laptop_control_core::PerformanceMode>>
+    {
         self.writes.fetch_add(1, Ordering::SeqCst);
         Err(LenovoLaptopControlError::Unsupported {
             feature: "fixture performance".into(),
@@ -984,7 +1022,10 @@ impl FakeBattery {
 }
 
 impl BatteryControl for FakeBattery {
-    fn battery_telemetry(&self, _index: u32) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::BatteryTelemetry> {
+    fn battery_telemetry(
+        &self,
+        _index: u32,
+    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::BatteryTelemetry> {
         Ok(lenovo_laptop_control_core::BatteryTelemetry {
             design_capacity_mwh: Some(99_900),
             full_charge_capacity_mwh: Some(93_810),
@@ -1012,20 +1053,24 @@ impl BatteryControl for FakeBattery {
         })
     }
 
-    fn battery_wear(&self) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::BatteryWearReport> {
+    fn battery_wear(
+        &self,
+    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::BatteryWearReport> {
         self.wear_calls.fetch_add(1, Ordering::SeqCst);
-        Ok(lenovo_laptop_control_core::BatteryWearReport::from_capacities(
-            "fake_capacity_channel",
-            lenovo_laptop_control_core::BatteryFieldProvenance {
-                design_capacity: "fake:BatteryStaticData.DesignedCapacity",
-                full_charge_capacity: "fake:BatteryFullChargedCapacity.FullChargedCapacity",
-                cycle_count: "fake:BatteryCycleCount.CycleCount",
-            },
-            Some(99_900),
-            Some(93_810),
-            Some(233),
-            Vec::new(),
-        ))
+        Ok(
+            lenovo_laptop_control_core::BatteryWearReport::from_capacities(
+                "fake_capacity_channel",
+                lenovo_laptop_control_core::BatteryFieldProvenance {
+                    design_capacity: "fake:BatteryStaticData.DesignedCapacity",
+                    full_charge_capacity: "fake:BatteryFullChargedCapacity.FullChargedCapacity",
+                    cycle_count: "fake:BatteryCycleCount.CycleCount",
+                },
+                Some(99_900),
+                Some(93_810),
+                Some(233),
+                Vec::new(),
+            ),
+        )
     }
 
     fn adapter_info(&self) -> lenovo_laptop_control_core::Result<AdapterInfo> {
@@ -1069,7 +1114,9 @@ struct FakeBrightness {
 }
 
 impl PanelBrightnessControl for FakeBrightness {
-    fn brightness(&self) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::PanelBrightness> {
+    fn brightness(
+        &self,
+    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::PanelBrightness> {
         self.reads.fetch_add(1, Ordering::SeqCst);
         Ok(lenovo_laptop_control_core::PanelBrightness {
             current_percent: 80,
@@ -1219,14 +1266,18 @@ fn panel_brightness_write_obeys_conflict_and_apply_mode() {
 fn touchpad_status_is_read_only_even_with_a_vendor_controller_running() {
     struct StatusOnly;
     impl lenovo_laptop_control_hal::TouchpadControl for StatusOnly {
-        fn touchpad_state(&self) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::DeviceState> {
+        fn touchpad_state(
+            &self,
+        ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::DeviceState> {
             Ok(lenovo_laptop_control_core::DeviceState::Enabled)
         }
         fn set_touchpad(
             &self,
             _: lenovo_laptop_control_core::DeviceState,
             _: ApplyMode,
-        ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::ChangeReport<lenovo_laptop_control_core::DeviceState>> {
+        ) -> lenovo_laptop_control_core::Result<
+            lenovo_laptop_control_core::ChangeReport<lenovo_laptop_control_core::DeviceState>,
+        > {
             panic!("status must not mutate the touchpad")
         }
     }
@@ -1264,7 +1315,10 @@ fn touchpad_enable_and_disable_aliases_drive_the_requested_state() {
     let touchpad = RecordingTouchpad {
         writes: Mutex::new(Vec::new()),
     };
-    for (verb, expected) in [("enable", DeviceState::Enabled), ("disable", DeviceState::Disabled)] {
+    for (verb, expected) in [
+        ("enable", DeviceState::Enabled),
+        ("disable", DeviceState::Disabled),
+    ] {
         let cli = Cli::try_parse_from(["vantage", "--json", "--yes", "touchpad", verb]).unwrap();
         let output = execute_with_services(
             cli,
@@ -1302,7 +1356,8 @@ fn touchpad_recover_reports_the_chosen_strategy() {
         fn recover_touchpad(
             &self,
             apply: ApplyMode,
-        ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::TouchpadRecoveryReport> {
+        ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::TouchpadRecoveryReport>
+        {
             assert_eq!(apply, ApplyMode::Commit);
             Ok(lenovo_laptop_control_core::TouchpadRecoveryReport {
                 mode: apply,
@@ -1400,10 +1455,7 @@ fn battery_health_reports_wear_with_per_field_provenance() {
         .expect("health succeeds with service");
 
     assert_eq!(battery.wear_calls.load(Ordering::SeqCst), 1);
-    assert_eq!(
-        output.json["capacity_wear"]["design_capacity_mwh"],
-        99_900
-    );
+    assert_eq!(output.json["capacity_wear"]["design_capacity_mwh"], 99_900);
     assert_eq!(
         output.json["capacity_wear"]["full_charge_capacity_mwh"],
         93_810
@@ -1448,7 +1500,9 @@ impl FakePerformance {
 }
 
 impl PerformanceControl for FakePerformance {
-    fn performance_state(&self) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::PerformanceState> {
+    fn performance_state(
+        &self,
+    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::PerformanceState> {
         unreachable!()
     }
 
@@ -1456,7 +1510,8 @@ impl PerformanceControl for FakePerformance {
         &self,
         mode: lenovo_laptop_control_core::PerformanceMode,
         apply: ApplyMode,
-    ) -> lenovo_laptop_control_core::Result<ChangeReport<lenovo_laptop_control_core::PerformanceMode>> {
+    ) -> lenovo_laptop_control_core::Result<ChangeReport<lenovo_laptop_control_core::PerformanceMode>>
+    {
         self.modes.lock().push((mode, apply));
         Ok(ChangeReport::dry_run(mode, mode))
     }
@@ -1476,7 +1531,10 @@ fn global_dry_run_reaches_performance_service_without_commit() {
     assert!(result.is_ok());
     assert_eq!(
         &*performance.modes.lock(),
-        &[(lenovo_laptop_control_core::PerformanceMode::Performance, ApplyMode::DryRun)]
+        &[(
+            lenovo_laptop_control_core::PerformanceMode::Performance,
+            ApplyMode::DryRun
+        )]
     );
 }
 
@@ -1495,11 +1553,15 @@ impl FakePower {
 }
 
 impl PowerControl for FakePower {
-    fn power_schemes(&self) -> lenovo_laptop_control_core::Result<Vec<lenovo_laptop_control_core::PowerScheme>> {
+    fn power_schemes(
+        &self,
+    ) -> lenovo_laptop_control_core::Result<Vec<lenovo_laptop_control_core::PowerScheme>> {
         Ok(Vec::new())
     }
 
-    fn active_power_scheme(&self) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::PowerScheme> {
+    fn active_power_scheme(
+        &self,
+    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::PowerScheme> {
         unreachable!()
     }
 
@@ -1507,7 +1569,8 @@ impl PowerControl for FakePower {
         &self,
         _scheme: &lenovo_laptop_control_core::PowerSchemeId,
         _key: &lenovo_laptop_control_core::PowerSettingKey,
-    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::PowerSettingObservation> {
+    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::PowerSettingObservation>
+    {
         unreachable!()
     }
 
@@ -1523,7 +1586,8 @@ impl PowerControl for FakePower {
         &self,
         mutation: lenovo_laptop_control_core::PowerMutation,
         _apply: ApplyMode,
-    ) -> lenovo_laptop_control_core::Result<ChangeReport<lenovo_laptop_control_core::PowerMutation>> {
+    ) -> lenovo_laptop_control_core::Result<ChangeReport<lenovo_laptop_control_core::PowerMutation>>
+    {
         self.mutation_calls.fetch_add(1, Ordering::SeqCst);
         Ok(ChangeReport::dry_run(mutation.clone(), mutation))
     }
@@ -1595,7 +1659,9 @@ impl BiosControl for FakeBios {
         }
     }
 
-    fn list(&self) -> lenovo_laptop_control_core::Result<Vec<lenovo_laptop_control_core::BiosItem>> {
+    fn list(
+        &self,
+    ) -> lenovo_laptop_control_core::Result<Vec<lenovo_laptop_control_core::BiosItem>> {
         Ok(vec![lenovo_laptop_control_core::BiosItem {
             name: "Camera".into(),
             value: "Enable".into(),
@@ -1603,7 +1669,10 @@ impl BiosControl for FakeBios {
         }])
     }
 
-    fn get(&self, name: &str) -> lenovo_laptop_control_core::Result<Option<lenovo_laptop_control_core::BiosItem>> {
+    fn get(
+        &self,
+        name: &str,
+    ) -> lenovo_laptop_control_core::Result<Option<lenovo_laptop_control_core::BiosItem>> {
         let value = self
             .staged
             .lock()
@@ -1622,7 +1691,10 @@ impl BiosControl for FakeBios {
         Ok(vec!["Enable".into(), "Disable".into()])
     }
 
-    fn stage(&self, change: lenovo_laptop_control_core::BiosChange) -> lenovo_laptop_control_core::Result<()> {
+    fn stage(
+        &self,
+        change: lenovo_laptop_control_core::BiosChange,
+    ) -> lenovo_laptop_control_core::Result<()> {
         self.staged.lock().push(change);
         Ok(())
     }
@@ -1644,8 +1716,12 @@ impl BiosControl for FakeBios {
         Ok(())
     }
 
-    fn password_status(&self) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::BiosPasswordStatus> {
-        Ok(lenovo_laptop_control_core::BiosPasswordStatus::from_raw(1, 128, 0))
+    fn password_status(
+        &self,
+    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::BiosPasswordStatus> {
+        Ok(lenovo_laptop_control_core::BiosPasswordStatus::from_raw(
+            1, 128, 0,
+        ))
     }
 }
 
@@ -1849,7 +1925,7 @@ fn camera_status_reports_both_layers_without_mutating() {
     assert_eq!(output.json["persistent"]["value"], "Enable");
     // This fake implements no per-devnode read, and the status command reports
     // that instead of inventing devnodes.
-    assert_eq!(output.json["devices_error"]["kind"], "unsupported");
+    assert_eq!(output.json["devices_error"]["error"]["kind"], "unsupported");
     assert!(
         output.json["devices"]
             .as_array()
@@ -1909,7 +1985,9 @@ impl PrivacyControl for FakeCameraConsent {
         unreachable!("camera inuse must not write the microphone")
     }
 
-    fn camera_consent(&self) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::CameraConsentReport> {
+    fn camera_consent(
+        &self,
+    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::CameraConsentReport> {
         use lenovo_laptop_control_core::{
             CameraConsent, CameraConsentEntry, CameraConsentReport, CameraConsentScope,
             CameraConsentScopeReport, CameraPrivacyPolicy,
@@ -2053,7 +2131,10 @@ fn camera_inuse_rejects_a_layer_flag_without_reading_anything() {
     )
     .expect_err("inuse must reject a layer flag");
 
-    assert!(matches!(error, LenovoLaptopControlError::InvalidArgument { .. }));
+    assert!(matches!(
+        error,
+        LenovoLaptopControlError::InvalidArgument { .. }
+    ));
 }
 
 #[test]
@@ -2151,7 +2232,9 @@ struct FakeSchemes {
 }
 
 impl PowerControl for FakeSchemes {
-    fn power_schemes(&self) -> lenovo_laptop_control_core::Result<Vec<lenovo_laptop_control_core::PowerScheme>> {
+    fn power_schemes(
+        &self,
+    ) -> lenovo_laptop_control_core::Result<Vec<lenovo_laptop_control_core::PowerScheme>> {
         Ok(vec![lenovo_laptop_control_core::PowerScheme {
             id: lenovo_laptop_control_core::PowerSchemeId::new("scheme-guid")?,
             name: "Balanced".into(),
@@ -2159,7 +2242,9 @@ impl PowerControl for FakeSchemes {
         }])
     }
 
-    fn active_power_scheme(&self) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::PowerScheme> {
+    fn active_power_scheme(
+        &self,
+    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::PowerScheme> {
         unreachable!()
     }
 
@@ -2167,7 +2252,8 @@ impl PowerControl for FakeSchemes {
         &self,
         _scheme: &lenovo_laptop_control_core::PowerSchemeId,
         _key: &lenovo_laptop_control_core::PowerSettingKey,
-    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::PowerSettingObservation> {
+    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::PowerSettingObservation>
+    {
         unreachable!()
     }
 
@@ -2182,7 +2268,8 @@ impl PowerControl for FakeSchemes {
         &self,
         mutation: lenovo_laptop_control_core::PowerMutation,
         _apply: ApplyMode,
-    ) -> lenovo_laptop_control_core::Result<ChangeReport<lenovo_laptop_control_core::PowerMutation>> {
+    ) -> lenovo_laptop_control_core::Result<ChangeReport<lenovo_laptop_control_core::PowerMutation>>
+    {
         self.mutations.lock().push(mutation.clone());
         Ok(ChangeReport::dry_run(mutation.clone(), mutation))
     }
@@ -2242,7 +2329,10 @@ fn unknown_power_scheme_name_is_rejected_without_activation() {
 
     let result = execute_with_services(cli, CommandServices::new(&hal).with_power(&power));
 
-    assert!(matches!(result, Err(LenovoLaptopControlError::InvalidArgument { .. })));
+    assert!(matches!(
+        result,
+        Err(LenovoLaptopControlError::InvalidArgument { .. })
+    ));
     assert!(power.mutations.lock().is_empty());
 }
 
@@ -2252,17 +2342,22 @@ struct AmbiguousSchemes {
 }
 
 impl PowerControl for AmbiguousSchemes {
-    fn power_schemes(&self) -> lenovo_laptop_control_core::Result<Vec<lenovo_laptop_control_core::PowerScheme>> {
+    fn power_schemes(
+        &self,
+    ) -> lenovo_laptop_control_core::Result<Vec<lenovo_laptop_control_core::PowerScheme>> {
         Ok(self.schemes.clone())
     }
-    fn active_power_scheme(&self) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::PowerScheme> {
+    fn active_power_scheme(
+        &self,
+    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::PowerScheme> {
         unreachable!()
     }
     fn read_power_setting(
         &self,
         _: &lenovo_laptop_control_core::PowerSchemeId,
         _: &lenovo_laptop_control_core::PowerSettingKey,
-    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::PowerSettingObservation> {
+    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::PowerSettingObservation>
+    {
         unreachable!()
     }
     fn power_value_range(
@@ -2275,7 +2370,8 @@ impl PowerControl for AmbiguousSchemes {
         &self,
         mutation: lenovo_laptop_control_core::PowerMutation,
         _: ApplyMode,
-    ) -> lenovo_laptop_control_core::Result<ChangeReport<lenovo_laptop_control_core::PowerMutation>> {
+    ) -> lenovo_laptop_control_core::Result<ChangeReport<lenovo_laptop_control_core::PowerMutation>>
+    {
         self.mutations.lock().push(mutation.clone());
         Ok(ChangeReport::dry_run(mutation.clone(), mutation))
     }
@@ -2304,7 +2400,10 @@ fn power_scheme_ambiguous_name_is_rejected_before_read_or_activation() {
             Cli::try_parse_from(["vantage", "--dry-run", "power", "scheme", verb, "balanced"])
                 .unwrap();
         let result = execute_with_services(cli, CommandServices::new(&hal).with_power(&power));
-        assert!(matches!(result, Err(LenovoLaptopControlError::InvalidArgument { .. })));
+        assert!(matches!(
+            result,
+            Err(LenovoLaptopControlError::InvalidArgument { .. })
+        ));
     }
     let cli = Cli::try_parse_from([
         "vantage",
@@ -2319,7 +2418,10 @@ fn power_scheme_ambiguous_name_is_rejected_before_read_or_activation() {
     ])
     .unwrap();
     let result = execute_with_services(cli, CommandServices::new(&hal).with_power(&power));
-    assert!(matches!(result, Err(LenovoLaptopControlError::InvalidArgument { .. })));
+    assert!(matches!(
+        result,
+        Err(LenovoLaptopControlError::InvalidArgument { .. })
+    ));
     assert!(power.mutations.lock().is_empty());
 }
 
@@ -2362,7 +2464,12 @@ const UNAVAILABLE_RANGE_DETAIL: &str = "fixture minimum is unavailable";
 struct ObservedSchemes {
     schemes: Vec<lenovo_laptop_control_core::PowerScheme>,
     observations: Vec<lenovo_laptop_control_core::PowerSettingObservation>,
-    reads: Mutex<Vec<(lenovo_laptop_control_core::PowerSchemeId, lenovo_laptop_control_core::PowerSettingKey)>>,
+    reads: Mutex<
+        Vec<(
+            lenovo_laptop_control_core::PowerSchemeId,
+            lenovo_laptop_control_core::PowerSettingKey,
+        )>,
+    >,
     fail_list: bool,
     fail_read: bool,
 }
@@ -2401,19 +2508,27 @@ impl ObservedSchemes {
                 lenovo_laptop_control_core::PowerSettingObservation {
                     scheme: lenovo_laptop_control_core::PowerSchemeId::new(scheme).unwrap(),
                     key: lenovo_laptop_control_core::PowerSettingKey {
-                        subgroup: lenovo_laptop_control_core::PowerGuid::new(SETTING_SUBGROUP).unwrap(),
+                        subgroup: lenovo_laptop_control_core::PowerGuid::new(SETTING_SUBGROUP)
+                            .unwrap(),
                         setting: lenovo_laptop_control_core::PowerGuid::new(setting).unwrap(),
                     },
                     values: lenovo_laptop_control_core::PowerSourceValues::new(ac, dc),
                     range: match increment {
-                        Some(increment) => lenovo_laptop_control_core::PowerRangeObservation::Available {
-                            range: lenovo_laptop_control_core::PowerValueRange::new(0, 100, increment).unwrap(),
-                        },
+                        Some(increment) => {
+                            lenovo_laptop_control_core::PowerRangeObservation::Available {
+                                range: lenovo_laptop_control_core::PowerValueRange::new(
+                                    0, 100, increment,
+                                )
+                                .unwrap(),
+                            }
+                        }
                         None => lenovo_laptop_control_core::PowerRangeObservation::Unavailable {
                             detail: UNAVAILABLE_RANGE_DETAIL.into(),
                         },
                     },
-                    policy_overrides: lenovo_laptop_control_core::PowerSourceValues::new(ac_policy, dc_policy),
+                    policy_overrides: lenovo_laptop_control_core::PowerSourceValues::new(
+                        ac_policy, dc_policy,
+                    ),
                 }
             },
         )
@@ -2429,14 +2544,18 @@ impl ObservedSchemes {
 }
 
 impl PowerControl for ObservedSchemes {
-    fn power_schemes(&self) -> lenovo_laptop_control_core::Result<Vec<lenovo_laptop_control_core::PowerScheme>> {
+    fn power_schemes(
+        &self,
+    ) -> lenovo_laptop_control_core::Result<Vec<lenovo_laptop_control_core::PowerScheme>> {
         if self.fail_list {
             return Err(std::io::Error::from_raw_os_error(1234).into());
         }
         Ok(self.schemes.clone())
     }
 
-    fn active_power_scheme(&self) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::PowerScheme> {
+    fn active_power_scheme(
+        &self,
+    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::PowerScheme> {
         panic!("a selected-scheme observation must not resolve the active scheme")
     }
 
@@ -2444,7 +2563,8 @@ impl PowerControl for ObservedSchemes {
         &self,
         scheme: &lenovo_laptop_control_core::PowerSchemeId,
         key: &lenovo_laptop_control_core::PowerSettingKey,
-    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::PowerSettingObservation> {
+    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::PowerSettingObservation>
+    {
         self.reads.lock().push((scheme.clone(), key.clone()));
         if self.fail_read {
             return Err(std::io::Error::from_raw_os_error(2345).into());
@@ -2469,7 +2589,8 @@ impl PowerControl for ObservedSchemes {
         &self,
         _: lenovo_laptop_control_core::PowerMutation,
         _: ApplyMode,
-    ) -> lenovo_laptop_control_core::Result<ChangeReport<lenovo_laptop_control_core::PowerMutation>> {
+    ) -> lenovo_laptop_control_core::Result<ChangeReport<lenovo_laptop_control_core::PowerMutation>>
+    {
         panic!("a setting observation must not mutate power configuration")
     }
 }
@@ -2535,7 +2656,10 @@ fn power_setting_get_requires_both_flags() {
             ..Cli::try_parse_from(["vantage", "power", "scheme", "get", "Office"]).unwrap()
         };
         let result = execute_with_services(cli, CommandServices::new(&hal).with_power(&power));
-        assert!(matches!(result, Err(LenovoLaptopControlError::InvalidArgument { .. })));
+        assert!(matches!(
+            result,
+            Err(LenovoLaptopControlError::InvalidArgument { .. })
+        ));
     }
     assert!(power.reads.lock().is_empty());
 }
@@ -2642,19 +2766,27 @@ fn power_setting_get_rejects_unresolvable_schemes_before_reading() {
         get_power_setting("unknown", FIRST_SETTING),
         CommandServices::new(&hal).with_power(&power),
     );
-    assert!(matches!(result, Err(LenovoLaptopControlError::InvalidArgument { .. })));
+    assert!(matches!(
+        result,
+        Err(LenovoLaptopControlError::InvalidArgument { .. })
+    ));
     assert!(power.reads.lock().is_empty());
 
-    power.schemes.push(lenovo_laptop_control_core::PowerScheme::new(
-        lenovo_laptop_control_core::PowerSchemeId::new(SELECTED_SCHEME_ID).unwrap(),
-        "Duplicated ID",
-        false,
-    ));
+    power
+        .schemes
+        .push(lenovo_laptop_control_core::PowerScheme::new(
+            lenovo_laptop_control_core::PowerSchemeId::new(SELECTED_SCHEME_ID).unwrap(),
+            "Duplicated ID",
+            false,
+        ));
     let result = execute_with_services(
         get_power_setting(SELECTED_SCHEME_ID, FIRST_SETTING),
         CommandServices::new(&hal).with_power(&power),
     );
-    assert!(matches!(result, Err(LenovoLaptopControlError::InvalidArgument { .. })));
+    assert!(matches!(
+        result,
+        Err(LenovoLaptopControlError::InvalidArgument { .. })
+    ));
     assert!(power.reads.lock().is_empty());
 }
 
@@ -2686,12 +2818,19 @@ impl lenovo_laptop_control_hal::TuningControl for FakeTune {
         Ok(128)
     }
 
-    fn set_epp(&self, value: u8, apply: ApplyMode) -> lenovo_laptop_control_core::Result<ChangeReport<u8>> {
+    fn set_epp(
+        &self,
+        value: u8,
+        apply: ApplyMode,
+    ) -> lenovo_laptop_control_core::Result<ChangeReport<u8>> {
         self.epp_calls.lock().push((value, apply));
         Ok(ChangeReport::dry_run(128, value))
     }
 
-    fn power_limit(&self, _kind: lenovo_laptop_control_hal::PowerLimitKind) -> lenovo_laptop_control_core::Result<u64> {
+    fn power_limit(
+        &self,
+        _kind: lenovo_laptop_control_hal::PowerLimitKind,
+    ) -> lenovo_laptop_control_core::Result<u64> {
         Err(LenovoLaptopControlError::Unsupported {
             feature: "test.power_limit".into(),
         })
@@ -3355,7 +3494,10 @@ fn magicbay_lte_status_reports_module_interface_and_session() {
     assert_eq!(output.json["data_session"], json!(true));
     assert_eq!(output.json["modules"][0]["kind"], json!("lte2"));
     assert_eq!(output.json["interfaces"][0]["interface_index"], json!(57));
-    assert_eq!(output.json["interfaces"][0]["media_state"], json!("connected"));
+    assert_eq!(
+        output.json["interfaces"][0]["media_state"],
+        json!("connected")
+    );
     assert_eq!(output.json["interfaces"][0]["operational"], json!("up"));
     assert_eq!(
         output.human,
@@ -3389,9 +3531,11 @@ fn magicbay_lte_status_keeps_the_accessory_absence_error() {
 
     let hal = FakeHal::new("21VG");
     let cli = Cli::try_parse_from(["vantage", "magicbay", "lte", "status"]).unwrap();
-    let error =
-        execute_with_services(cli, CommandServices::new(&hal).with_mobile_broadband(&Absent))
-            .expect_err("absent accessory is an error, never an empty success");
+    let error = execute_with_services(
+        cli,
+        CommandServices::new(&hal).with_mobile_broadband(&Absent),
+    )
+    .expect_err("absent accessory is an error, never an empty success");
     assert!(
         matches!(error, LenovoLaptopControlError::ChannelUnavailable { ref channel } if channel.contains("no MagicBay LTE accessory")),
         "unexpected error {error}"
@@ -3423,7 +3567,9 @@ struct FakeFirmware {
 }
 
 impl lenovo_laptop_control_hal::FirmwareControl for FakeFirmware {
-    fn firmware_status(&self) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::FirmwareStatus> {
+    fn firmware_status(
+        &self,
+    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::FirmwareStatus> {
         Ok(self.status.clone())
     }
 }
@@ -3504,11 +3650,21 @@ fn firmware_status_reports_identity_resources_and_attempts() {
         }),
     )
     .expect("firmware status");
-    assert!(output.human.contains("UEFI firmware: LENOVO SWCN22WW"), "{}", output.human);
-    assert!(output.human.contains("BIOS release: 1.22"), "{}", output.human);
+    assert!(
+        output.human.contains("UEFI firmware: LENOVO SWCN22WW"),
+        "{}",
+        output.human
+    );
+    assert!(
+        output.human.contains("BIOS release: 1.22"),
+        "{}",
+        output.human
+    );
     assert!(output.human.contains("ESRT entries: 2"), "{}", output.human);
     assert!(
-        output.human.contains("{8163650E-C940-3926-0703-FCF1F743D4E2}"),
+        output
+            .human
+            .contains("{8163650E-C940-3926-0703-FCF1F743D4E2}"),
         "{}",
         output.human
     );
@@ -3519,12 +3675,26 @@ fn firmware_status_reports_identity_resources_and_attempts() {
     );
     // An entry with no readable revision keeps a visible absence.
     assert!(output.human.contains("version absent"), "{}", output.human);
-    assert!(output.human.contains("status 0 (success)"), "{}", output.human);
-    assert!(output.human.contains("catalog: oem57.cat"), "{}", output.human);
+    assert!(
+        output.human.contains("status 0 (success)"),
+        "{}",
+        output.human
+    );
+    assert!(
+        output.human.contains("catalog: oem57.cat"),
+        "{}",
+        output.human
+    );
 
-    assert_eq!(output.json["resources"][0]["current_version"], json!(0x7125_0022));
+    assert_eq!(
+        output.json["resources"][0]["current_version"],
+        json!(0x7125_0022)
+    );
     assert!(output.json["resources"][1]["current_version"].is_null());
-    assert_eq!(output.json["attempts"][0]["last_attempt_outcome"], json!("success"));
+    assert_eq!(
+        output.json["attempts"][0]["last_attempt_outcome"],
+        json!("success")
+    );
 }
 
 #[test]
@@ -3538,10 +3708,17 @@ fn firmware_status_prints_an_unknown_attempt_status_as_its_raw_number() {
         }),
     )
     .expect("firmware status");
-    assert!(output.human.contains("status 4096 (unnamed)"), "{}", output.human);
+    assert!(
+        output.human.contains("status 4096 (unnamed)"),
+        "{}",
+        output.human
+    );
     assert!(!output.human.contains("status 4096 (success)"));
     assert!(output.json["attempts"][1]["last_attempt_outcome"].is_null());
-    assert_eq!(output.json["attempts"][1]["last_attempt_status"], json!(0x1000));
+    assert_eq!(
+        output.json["attempts"][1]["last_attempt_status"],
+        json!(0x1000)
+    );
 }
 
 #[test]
@@ -3564,7 +3741,9 @@ struct FakeUsbPorts {
 }
 
 impl lenovo_laptop_control_hal::UsbPortInventoryControl for FakeUsbPorts {
-    fn usb_port_inventory(&self) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::UsbPortInventory> {
+    fn usb_port_inventory(
+        &self,
+    ) -> lenovo_laptop_control_core::Result<lenovo_laptop_control_core::UsbPortInventory> {
         Ok(self.inventory.clone())
     }
 }
@@ -3633,7 +3812,11 @@ fn usb_ports_prints_the_port_tree_and_keeps_unknown_speeds_raw() {
         output.human
     );
     assert!(output.human.contains("declares 100 mA"), "{}", output.human);
-    assert!(output.human.contains("    port 6: empty"), "{}", output.human);
+    assert!(
+        output.human.contains("    port 6: empty"),
+        "{}",
+        output.human
+    );
     assert!(output.human.contains("firmware 1.2"), "{}", output.human);
     assert!(
         output.human.contains("per-port power: unavailable"),

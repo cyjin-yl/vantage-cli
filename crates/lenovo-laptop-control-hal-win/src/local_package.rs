@@ -387,9 +387,7 @@ mod native {
     impl LocalPackageApi for NativeLocalPackageApi {
         fn download_root(&self) -> Result<PathBuf> {
             let root = std::env::var_os("ProgramData").ok_or_else(|| {
-                unavailable(
-                    "ProgramData is not set, so the UDC download root is unknown".into(),
-                )
+                unavailable("ProgramData is not set, so the UDC download root is unknown".into())
             })?;
             let root = PathBuf::from(root).join(r"Lenovo\Udc\Download");
             fs::canonicalize(&root).map_err(|error| {
@@ -488,29 +486,24 @@ mod native {
 
         fn catalog_package(&self, package_id: &str) -> Result<Option<PackageBinding>> {
             Ok(
-                crate::update_catalog::package_binding(package_id)?.map(|package| {
-                    PackageBinding {
-                        name: package.name,
-                        version: package.version,
-                        package_type: package.package_type,
-                    }
+                crate::update_catalog::package_binding(package_id)?.map(|package| PackageBinding {
+                    name: package.name,
+                    version: package.version,
+                    package_type: package.package_type,
                 }),
             )
         }
 
         fn is_elevated(&self) -> Result<bool> {
             let mut token: HANDLE = std::ptr::null_mut();
-            let opened =
-                unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) };
+            let opened = unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) };
             if opened == 0 {
                 return Err(map_win_error(
                     unsafe { GetLastError() },
                     "opening this process token",
                 ));
             }
-            let mut elevation = TOKEN_ELEVATION {
-                TokenIsElevated: 0,
-            };
+            let mut elevation = TOKEN_ELEVATION { TokenIsElevated: 0 };
             let mut length = 0u32;
             let queried = unsafe {
                 GetTokenInformation(
@@ -562,10 +555,7 @@ mod native {
                     }
                     Ok(None) => {}
                     Err(error) => {
-                        return Err(contextual_io(
-                            error,
-                            "waiting for the package installer",
-                        ));
+                        return Err(contextual_io(error, "waiting for the package installer"));
                     }
                 }
                 if started.elapsed() >= INSTALL_BUDGET {
@@ -626,14 +616,15 @@ mod native {
 
     /// Run one read-only PowerShell helper with a bounded wait and kill it on
     /// expiry. The output is one line, so draining after exit cannot deadlock.
-    fn run_helper(
-        args: &[&str],
-        environment: (&str, &Path),
-        budget: Duration,
-    ) -> Result<Vec<u8>> {
+    fn run_helper(args: &[&str], environment: (&str, &Path), budget: Duration) -> Result<Vec<u8>> {
         let mut command = Command::new("powershell.exe");
         command
-            .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass"])
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+            ])
             .args(args)
             .env(environment.0, environment.1)
             .stdin(Stdio::null())
@@ -706,8 +697,9 @@ $Global:setup_hash = "8b2b73b64fbe3f8f7e916a41000885e7eb68c249302075c1e40f9b863e
     fn self_validating_script_has_no_pinned_payload() {
         // The Smart Meeting package validates its payloads inside the script
         // and declares no hash pair; that is an honest `None`, not a failure.
-        let contract = parse_script_contract("$Global:InstallerName = Join-Path $PSScriptRoot 'x.exe'")
-            .unwrap();
+        let contract =
+            parse_script_contract("$Global:InstallerName = Join-Path $PSScriptRoot 'x.exe'")
+                .unwrap();
         assert_eq!(contract, ScriptContract::default());
     }
 
@@ -770,7 +762,10 @@ $Global:setup_hash = "8b2b73b64fbe3f8f7e916a41000885e7eb68c249302075c1e40f9b863e
         }
 
         fn dir(&self) -> PathBuf {
-            self.root.join(&self.package_id).join(&self.version).join("temp")
+            self.root
+                .join(&self.package_id)
+                .join(&self.version)
+                .join("temp")
         }
 
         fn calls(&self) -> Vec<&'static str> {
@@ -800,9 +795,9 @@ $Global:setup_hash = "8b2b73b64fbe3f8f7e916a41000885e7eb68c249302075c1e40f9b863e
 
         fn sha256_file(&self, _file: &Path) -> Result<String> {
             self.calls.lock().unwrap().push("hash");
-            self.payload_sha256
-                .clone()
-                .ok_or_else(|| LenovoLaptopControlError::Io(std::io::Error::other("missing payload")))
+            self.payload_sha256.clone().ok_or_else(|| {
+                LenovoLaptopControlError::Io(std::io::Error::other("missing payload"))
+            })
         }
 
         fn catalog_package(&self, package_id: &str) -> Result<Option<PackageBinding>> {
@@ -842,9 +837,8 @@ $Global:setup_hash = "8b2b73b64fbe3f8f7e916a41000885e7eb68c249302075c1e40f9b863e
     #[test]
     fn dry_run_verifies_every_gate_and_starts_nothing() {
         let mut api = FakeApi::new(PINNED);
-        api.payload_sha256 = Some(
-            "8b2b73b64fbe3f8f7e916a41000885e7eb68c249302075c1e40f9b863e96a435".into(),
-        );
+        api.payload_sha256 =
+            Some("8b2b73b64fbe3f8f7e916a41000885e7eb68c249302075c1e40f9b863e96a435".into());
         let installer = WindowsLocalPackageInstaller::new(api);
         let report = installer
             .apply_local_package(&request(&installer.api), ApplyMode::DryRun)
@@ -854,7 +848,10 @@ $Global:setup_hash = "8b2b73b64fbe3f8f7e916a41000885e7eb68c249302075c1e40f9b863e
         assert_eq!(report.package_version, "1.2.3");
         assert!(report.signer.contains("LENOVO"));
         assert_eq!(
-            report.payload.as_ref().map(|payload| payload.sha256.as_str()),
+            report
+                .payload
+                .as_ref()
+                .map(|payload| payload.sha256.as_str()),
             Some("8b2b73b64fbe3f8f7e916a41000885e7eb68c249302075c1e40f9b863e96a435")
         );
         assert_eq!(report.exit_code, None);
@@ -874,7 +871,10 @@ $Global:setup_hash = "8b2b73b64fbe3f8f7e916a41000885e7eb68c249302075c1e40f9b863e
         let error = installer
             .apply_local_package(&request(&installer.api), ApplyMode::Commit)
             .unwrap_err();
-        assert!(matches!(error, LenovoLaptopControlError::Unsupported { .. }));
+        assert!(matches!(
+            error,
+            LenovoLaptopControlError::Unsupported { .. }
+        ));
         let calls = installer.api.calls();
         assert!(calls.contains(&"catalog"));
         assert!(!calls.contains(&"verify"));
@@ -909,9 +909,8 @@ $Global:setup_hash = "8b2b73b64fbe3f8f7e916a41000885e7eb68c249302075c1e40f9b863e
     #[test]
     fn unelevated_commit_is_refused_but_dry_run_is_allowed() {
         let mut api = FakeApi::new(PINNED);
-        api.payload_sha256 = Some(
-            "8b2b73b64fbe3f8f7e916a41000885e7eb68c249302075c1e40f9b863e96a435".into(),
-        );
+        api.payload_sha256 =
+            Some("8b2b73b64fbe3f8f7e916a41000885e7eb68c249302075c1e40f9b863e96a435".into());
         api.elevated = false;
         let installer = WindowsLocalPackageInstaller::new(api);
         assert!(
@@ -931,9 +930,8 @@ $Global:setup_hash = "8b2b73b64fbe3f8f7e916a41000885e7eb68c249302075c1e40f9b863e
     #[test]
     fn installer_result_is_the_committed_outcome() {
         let mut api = FakeApi::new(PINNED);
-        api.payload_sha256 = Some(
-            "8b2b73b64fbe3f8f7e916a41000885e7eb68c249302075c1e40f9b863e96a435".into(),
-        );
+        api.payload_sha256 =
+            Some("8b2b73b64fbe3f8f7e916a41000885e7eb68c249302075c1e40f9b863e96a435".into());
         let installer = WindowsLocalPackageInstaller::new(api);
         let report = installer
             .apply_local_package(&request(&installer.api), ApplyMode::Commit)
@@ -946,9 +944,8 @@ $Global:setup_hash = "8b2b73b64fbe3f8f7e916a41000885e7eb68c249302075c1e40f9b863e
     #[test]
     fn non_zero_installer_exit_is_a_verify_mismatch_carrying_the_log() {
         let mut api = FakeApi::new(PINNED);
-        api.payload_sha256 = Some(
-            "8b2b73b64fbe3f8f7e916a41000885e7eb68c249302075c1e40f9b863e96a435".into(),
-        );
+        api.payload_sha256 =
+            Some("8b2b73b64fbe3f8f7e916a41000885e7eb68c249302075c1e40f9b863e96a435".into());
         api.exit_code = Some(1);
         let installer = WindowsLocalPackageInstaller::new(api);
         let error = installer
@@ -965,30 +962,22 @@ $Global:setup_hash = "8b2b73b64fbe3f8f7e916a41000885e7eb68c249302075c1e40f9b863e
 
     #[test]
     fn package_identity_comes_from_the_udc_layout() {
-        let root = Path::new(r"\\?\C:\ProgramData\Lenovo\Udc\Download");
-        let dir = Path::new(
-            r"\\?\C:\ProgramData\Lenovo\Udc\Download\6c28b858-18c6-49f3-9819-b002f41a1492\2.0.5.501\temp",
-        );
+        let root = Path::new("Download");
+        let version_dir = root
+            .join("6c28b858-18c6-49f3-9819-b002f41a1492")
+            .join("2.0.5.501");
         assert_eq!(
-            udc_package_from_dir(dir, root),
+            udc_package_from_dir(&version_dir.join("temp"), root),
             Some((
                 "6c28b858-18c6-49f3-9819-b002f41a1492".to_string(),
                 "2.0.5.501".to_string()
             ))
         );
         // Not a payload directory.
-        assert_eq!(
-            udc_package_from_dir(
-                Path::new(
-                    r"\\?\C:\ProgramData\Lenovo\Udc\Download\6c28b858-18c6-49f3-9819-b002f41a1492\2.0.5.501"
-                ),
-                root
-            ),
-            None
-        );
+        assert_eq!(udc_package_from_dir(&version_dir, root), None);
         // Outside the download root.
         assert_eq!(
-            udc_package_from_dir(Path::new(r"\\?\C:\Users\ezra\package\temp"), root),
+            udc_package_from_dir(Path::new("Other/package/version/temp"), root),
             None
         );
     }

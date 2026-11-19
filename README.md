@@ -49,10 +49,17 @@ vantage perf mode                 # current overlay (balanced/quiet/perf)
 vantage perf temp                 # CPU/SSD temperatures
 vantage perf temp watch           # live temperature stream
 vantage perf top                  # process CPU sampling
+vantage perf fan status           # fan inventory and live RPM where supported
+vantage perf fan duty <pct>       # request duty while firmware manual control is armed
 vantage tune epp <value>          # set Energy Performance Preference
 vantage tune profile list         # available tuning profiles
 vantage tune profile apply <name> # apply a composite profile
 ```
+
+On ThinkBook 21VG under Windows, duty writes require an already-armed firmware
+override. The CLI reports whether the tachometer responded and estimates duty
+from RPM. A stationary fan or a write without a measurable response returns an
+error. See [fan channel evidence](docs/evidence/re-fan-wmae-channel-20261119.md).
 
 ### Display
 

@@ -79,7 +79,9 @@ impl DaemonEvent {
     }
 
     #[cfg(windows)]
-    pub fn vendor_wmi(event: lenovo_laptop_control_hal::RawEvent) -> lenovo_laptop_control_core::Result<Self> {
+    pub fn vendor_wmi(
+        event: lenovo_laptop_control_hal::RawEvent,
+    ) -> lenovo_laptop_control_core::Result<Self> {
         #[derive(Serialize)]
         struct VendorWmiPayload {
             source_class: String,
@@ -149,7 +151,9 @@ fn protocol_error(error: impl Into<String>) -> LenovoLaptopControlError {
 #[cfg(unix)]
 mod unix;
 #[cfg(unix)]
-pub use unix::{default_endpoint, endpoint_text, probe, probe_at, request, request_at, run, run_at};
+pub use unix::{
+    default_endpoint, endpoint_text, probe, probe_at, request, request_at, run, run_at,
+};
 
 #[cfg(windows)]
 mod windows;
@@ -157,7 +161,9 @@ mod windows;
 pub use windows::{default_endpoint, endpoint_text, probe, request, run};
 
 #[cfg(not(any(unix, windows)))]
-pub fn run(_events: std::sync::mpsc::Receiver<DaemonEvent>) -> lenovo_laptop_control_core::Result<()> {
+pub fn run(
+    _events: std::sync::mpsc::Receiver<DaemonEvent>,
+) -> lenovo_laptop_control_core::Result<()> {
     Err(LenovoLaptopControlError::Unsupported {
         feature: "daemon.ipc".into(),
     })

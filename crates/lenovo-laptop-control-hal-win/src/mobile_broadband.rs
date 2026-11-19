@@ -16,9 +16,9 @@
 //! (`docs/evidence/re-magicbay-20261105.md` §3.2).
 
 use lenovo_laptop_control_core::{
-    LenovoLaptopControlError, MagicBayDevice, MagicBayInventory, MagicBayLteInterface, MagicBayLteMediaState,
-    MagicBayLteOperational, MagicBayLteStatus, Result, coalesce_magicbay_devices,
-    parse_magicbay_device_id,
+    LenovoLaptopControlError, MagicBayDevice, MagicBayInventory, MagicBayLteInterface,
+    MagicBayLteMediaState, MagicBayLteOperational, MagicBayLteStatus, Result,
+    coalesce_magicbay_devices, parse_magicbay_device_id,
 };
 use lenovo_laptop_control_hal::MobileBroadbandControl;
 
@@ -165,10 +165,9 @@ fn is_wwan_if_type(if_type: u32) -> bool {
 /// Attach `MSFT_NetIPAddress` rows to the interfaces that own them.
 fn attach_addresses(interfaces: &mut [MagicBayLteInterface], objects: &[WmiObject]) {
     for object in objects {
-        let (Some(index), Some(WmiValue::String(address))) = (
-            u32_field(object, "InterfaceIndex"),
-            object.get("IPAddress"),
-        ) else {
+        let (Some(index), Some(WmiValue::String(address))) =
+            (u32_field(object, "InterfaceIndex"), object.get("IPAddress"))
+        else {
             continue;
         };
         if address.is_empty() {

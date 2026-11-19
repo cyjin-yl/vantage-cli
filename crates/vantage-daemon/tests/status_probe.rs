@@ -70,8 +70,12 @@ fn a_daemon_that_rejects_the_status_request_is_a_fault() {
     let server = thread::spawn(move || {
         let (mut stream, _) = listener.accept().unwrap();
         let mut request = String::new();
-        BufReader::new(stream.try_clone().unwrap()).read_line(&mut request).unwrap();
-        stream.write_all(b"{\"ok\":false,\"error\":\"probe rejected\"}\n").unwrap();
+        BufReader::new(stream.try_clone().unwrap())
+            .read_line(&mut request)
+            .unwrap();
+        stream
+            .write_all(b"{\"ok\":false,\"error\":\"probe rejected\"}\n")
+            .unwrap();
     });
 
     match probe_at(&socket) {
