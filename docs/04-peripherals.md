@@ -309,7 +309,7 @@ Eye_Protection_Mode` / `-seteyeprotected`;支持位来自 `WrapPlugin.dll!IsSupp
 状态 `HKCU\SOFTWARE\Lenovo\PcManager\Configs\EyeCareFlag`,实测 `0`)。Vantage 侧为
 `SmartInteractAddin` 契约 `EyeCareMode`(`EyeModeState`/`ColorTemperature`/`SetEyeMode` +
 `UpdateEachMonitorGammaTemp`)。两者机制相同:系统 `GetDeviceGammaRamp`/`SetDeviceGammaRamp`
-施加色温曲线,所以 lctrl-hal-win 用同一系统 API 实现(`GammaRampApi`/`NativeGammaRamp`),
+施加色温曲线,所以 lenovo-laptop-control-hal-win 用同一系统 API 实现(`GammaRampApi`/`NativeGammaRamp`),
 不依赖联想组件。档位 Kelvin 仍是仓库推断值;证据与验收步骤见
 `docs/evidence/re-panel-20261105.md` §5。
 
@@ -319,7 +319,7 @@ Eye_Protection_Mode` / `-seteyeprotected`;支持位来自 `WrapPlugin.dll!IsSupp
 PnP 显示器 ID,如 `LEN8AD7`)、`0xFC` 名称描述符、`0xFE` 文本描述符、序列号(`0`
 表示未使用,不当作序列号 0)、制造年/周(周 `0` 为未指定,`0xFF` 为型号年)、EDID
 版本、首选 DTD 的原生分辨率与刷新率、物理尺寸(`cm` 字节换算成 `mm`)、数字输入的
-每主色位深与接口码、`0xFD` 范围限制。解码由本仓库实现(`lctrl-core::decode_panel_edid`),
+每主色位深与接口码、`0xFD` 范围限制。解码由本仓库实现(`lenovo-laptop-control-core::decode_panel_edid`),
 不依赖厂商 DLL。
 
 选屏与取字节分两步,且都必须唯一:先查 `root\wmi` `WmiMonitorConnectionParams`,取

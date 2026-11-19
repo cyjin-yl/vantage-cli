@@ -144,7 +144,7 @@ software only reads password state).
 
 ## 4. What the repo already implements, and where the premise is stale
 
-| capability id | row (`crates/lctrl-hal/src/command_capability.rs`) | CLI dispatch | live channel |
+| capability id | row (`crates/lenovo-laptop-control-hal/src/command_capability.rs`) | CLI dispatch | live channel |
 | --- | --- | --- | --- |
 | `bios.list` | `CommandId::BIOS_LIST` row — Implemented | `BiosCommand::List` | 34 items read (§3) |
 | `bios.get` | `CommandId::BIOS_GET` row — Implemented | `BiosCommand::Get` | per-setting read (§3) |
@@ -165,7 +165,7 @@ refusal, not an unimplemented channel.
 `FeatureBinding::Unprobed("bios")` / `"bios.discard"` / `"bios.defaults"` /
 `"bios.password.*"`, but the Windows HAL records only
 `bios.staging.contract` and `channel.bios`
-(`WindowsHal::capabilities` in `crates/lctrl-hal-win/src/windows_hal.rs`
+(`WindowsHal::capabilities` in `crates/lenovo-laptop-control-hal-win/src/windows_hal.rs`
 records them). No HAL ever records
 a capability key named `bios`, `bios.discard`, `bios.defaults`,
 `bios.password.clear` or `bios.password.verify`, so `feature_presence()`
@@ -178,7 +178,7 @@ central-registry change left to the parent; it is deliberately not made here.
 One nuance for the parent's decision: `bios.password.verify` is reported
 read-only but is implemented by invoking the password **write** method with an
 identical old/new value (`PasswordCommand::Verify` arm →
-`crates/lctrl-hal-win/src/bios.rs::verify_password`). It is guarded by
+`crates/lenovo-laptop-control-hal-win/src/bios.rs::verify_password`). It is guarded by
 `PasswordState` so it can never create a password on this machine
 (`PasswordState=0`, §3), but it is still a password-class call. That is the
 existing design, unchanged by this session.
@@ -196,7 +196,7 @@ existing design, unchanged by this session.
   documented surface with no new capability.
 
 Repair made instead (read-only, same channel): `WindowsBiosController::get` in
-`crates/lctrl-hal-win/src/bios.rs` now fills `BiosItem.selections` from
+`crates/lenovo-laptop-control-hal-win/src/bios.rs` now fills `BiosItem.selections` from
 `Lenovo_GetBiosSelections`. Previously only `list()` carried the value domain,
 so `bios get <name>` returned a `BiosItem` whose `selections` was always empty —
 indistinguishable from "this setting has no domain" and inconsistent with

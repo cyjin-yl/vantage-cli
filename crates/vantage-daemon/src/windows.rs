@@ -6,8 +6,8 @@ use std::sync::mpsc::{Receiver, RecvTimeoutError, SyncSender, TrySendError, sync
 use std::thread;
 use std::time::Duration;
 
-use lctrl_core::{LctrlError, Result};
-use lctrl_hal::{OsdControl, ScenePolicyControl};
+use lenovo_laptop_control_core::{LenovoLaptopControlError, Result};
+use lenovo_laptop_control_hal::{OsdControl, ScenePolicyControl};
 use parking_lot::Mutex;
 use windows_sys::Win32::{
     Foundation::{
@@ -100,8 +100,8 @@ pub fn run(events: Receiver<DaemonEvent>) -> Result<()> {
     let clients = Arc::new(AtomicUsize::new(0));
     let last_events = Arc::new(Mutex::new(VecDeque::with_capacity(MAX_EVENTS)));
     let subscribers = Arc::new(Mutex::new(Vec::<SyncSender<DaemonEvent>>::new()));
-    let scene_policy = lctrl_hal_win::NativeScenePolicy::new();
-    let osd = lctrl_hal_win::NativeOsd::new();
+    let scene_policy = lenovo_laptop_control_hal_win::NativeScenePolicy::new();
+    let osd = lenovo_laptop_control_hal_win::NativeOsd::new();
     let event_thread = {
         let stop = Arc::clone(&stop);
         let last_events = Arc::clone(&last_events);
@@ -132,19 +132,19 @@ pub fn run(events: Receiver<DaemonEvent>) -> Result<()> {
                                     if let Ok(report) = scene_policy.apply(
                                         &match_.rule.id,
                                         &class,
-                                        lctrl_core::ApplyMode::Commit,
+                                        lenovo_laptop_control_core::ApplyMode::Commit,
                                     ) {
                                         let action = match &report.requested {
-                                            lctrl_core::SceneAction::SetPowerScheme { scheme } => {
+                                            lenovo_laptop_control_core::SceneAction::SetPowerScheme { scheme } => {
                                                 format!("scheme={scheme}")
                                             }
-                                            lctrl_core::SceneAction::SetPanelRefresh { hz } => {
+                                            lenovo_laptop_control_core::SceneAction::SetPanelRefresh { hz } => {
                                                 format!("refresh={hz}Hz")
                                             }
-                                            lctrl_core::SceneAction::SetFanMode { mode } => {
+                                            lenovo_laptop_control_core::SceneAction::SetFanMode { mode } => {
                                                 format!("fan={mode:?}")
                                             }
-                                            lctrl_core::SceneAction::SetPerformanceMode {
+                                            lenovo_laptop_control_core::SceneAction::SetPerformanceMode {
                                                 mode,
                                             } => format!("perf={mode:?}"),
                                         };
@@ -190,7 +190,7 @@ pub fn run(events: Receiver<DaemonEvent>) -> Result<()> {
         if handle == INVALID_HANDLE_VALUE {
             stop.store(true, Ordering::Release);
             let _ = event_thread.join();
-            return Err(LctrlError::Io(std::io::Error::last_os_error()));
+            return Err(LenovoLaptopControlError::Io(std::io::Error::last_os_error()));
         }
         let connected = unsafe { ConnectNamedPipe(handle, ptr::null_mut()) };
         if connected == 0 {
@@ -199,7 +199,7 @@ pub fn run(events: Receiver<DaemonEvent>) -> Result<()> {
                 unsafe { CloseHandle(handle) };
                 stop.store(true, Ordering::Release);
                 let _ = event_thread.join();
-                return Err(LctrlError::Io(error));
+                return Err(LenovoLaptopControlError::Io(error));
             }
         }
         if clients.fetch_add(1, Ordering::AcqRel) >= MAX_CLIENTS {
@@ -372,7 +372,7 @@ fn read_message(handle: HANDLE) -> Result<Vec<u8>> {
         )
     };
     if success == 0 {
-        return Err(LctrlError::Io(std::io::Error::last_os_error()));
+        return Err(LenovoLaptopControlError::Io(std::io::Error::last_os_error()));
     }
     buffer.truncate(read as usize);
     Ok(buffer)
@@ -380,14 +380,14 @@ fn read_message(handle: HANDLE) -> Result<Vec<u8>> {
 
 fn write_value<T: serde::Serialize>(handle: HANDLE, value: &T) -> Result<()> {
     let mut bytes =
-        serde_json::to_vec(value).map_err(|error| LctrlError::Io(std::io::Error::other(error)))?;
+        serde_json::to_vec(value).map_err(|error| LenovoLaptopControlError::Io(std::io::Error::other(error)))?;
     bytes.push(b'\n');
     if bytes.len() > BUFFER_SIZE as usize {
-        return Err(LctrlError::InvalidArgument {
+        return Err(LenovoLaptopControlError::InvalidArgument {
             detail: format!("daemon IPC message exceeds {BUFFER_SIZE} bytes"),
         });
     }
-    let length = u32::try_from(bytes.len()).map_err(|_| LctrlError::InvalidArgument {
+    let length = u32::try_from(bytes.len()).map_err(|_| LenovoLaptopControlError::InvalidArgument {
         detail: "daemon IPC message exceeds u32 length".into(),
     })?;
     let mut written = 0u32;
@@ -401,7 +401,7 @@ fn write_value<T: serde::Serialize>(handle: HANDLE, value: &T) -> Result<()> {
         )
     };
     if success == 0 || written != length {
-        return Err(LctrlError::Io(std::io::Error::last_os_error()));
+        return Err(LenovoLaptopControlError::Io(std::io::Error::last_os_error()));
     }
     Ok(())
 }
@@ -458,7 +458,7 @@ impl SecurityDescriptor {
             )
         };
         if success == 0 {
-            return Err(LctrlError::Io(std::io::Error::last_os_error()));
+            return Err(LenovoLaptopControlError::Io(std::io::Error::last_os_error()));
         }
         let attributes = SECURITY_ATTRIBUTES {
             nLength: std::mem::size_of::<SECURITY_ATTRIBUTES>() as u32,

@@ -9,15 +9,15 @@ modified by this audit.**
 
 | file | bytes | sha256 |
 |---|---|---|
-| `crates/lctrl-core/src/command_capability.rs` | 30158 | `9075ddd0cdf425dc381f88f2de5727ddb1ae6c653d10bbdc5add6b55e9dcc761` |
-| `crates/lctrl-hal/src/command_capability.rs` | 87634 | `d3e6c1f46f9974d2a32a784af78debd556e5b88aaa22a15dcfa51aeee55b76ca` |
+| `crates/lenovo-laptop-control-core/src/command_capability.rs` | 30158 | `9075ddd0cdf425dc381f88f2de5727ddb1ae6c653d10bbdc5add6b55e9dcc761` |
+| `crates/lenovo-laptop-control-hal/src/command_capability.rs` | 87634 | `d3e6c1f46f9974d2a32a784af78debd556e5b88aaa22a15dcfa51aeee55b76ca` |
 | `crates/vantage-cli/src/capability.rs` | 48937 | `bec6ec61c8a400f12d346d8cb6f21dd9656263c1056bf7ef1d61994abe7ae944` |
 
 Audited 2026-11-06 12:19 (UTC+8). The worktree is shared, dirty, and being edited by ~27 live workers;
 the registry files changed several times *during* this audit (ids 155 → 156, `Capability`
 bindings 106 → 113 → 93 distinct ids). Re-run the checks if these hashes no longer match.
 Snapshot counts: **156 `CommandId` consts**, **156 `CommandId::ALL`
-entries**, **159 `COMMAND_REGISTRY` rows** (`crates/lctrl-hal/src/command_capability.rs`
+entries**, **159 `COMMAND_REGISTRY` rows** (`crates/lenovo-laptop-control-hal/src/command_capability.rs`
 L253–L2264).
 
 ## Results
@@ -29,7 +29,7 @@ L253–L2264).
 | 3 | every used `ServiceRole` has an `as_str` arm and a `role_channel` mapping | `as_str` 36/36; `role_channel` **2 gaps** (`MagicBayCamera`, `MagicBayDisplay`) |
 | 4 | every `Dependency` variant handled by `platform()` and `component()` | **PASS** 49/49 arms, both exhaustive |
 | 5 | no two rows share one command identity | **PASS** 0 duplicate `(CommandId, StateLayer)` |
-| 6 | `cargo check -p lctrl-core -p lctrl-hal` | **PASS** host + `x86_64-pc-windows-msvc` |
+| 6 | `cargo check -p lenovo-laptop-control-core -p lenovo-laptop-control-hal` | **PASS** host + `x86_64-pc-windows-msvc` |
 
 No fix was applied: check 1's gap needs the command owner's dispatch/probe facts (inventing
 them is exactly what this audit is forbidden to do), and the check 2/3 items are metadata
@@ -42,7 +42,7 @@ claims that change no observed status (see severity notes). Exact proposals are 
 
 | check | count | verdict |
 |---|---|---|
-| `pub const` ids in `crates/lctrl-core/src/command_capability.rs` | 156 | — |
+| `pub const` ids in `crates/lenovo-laptop-control-core/src/command_capability.rs` | 156 | — |
 | duplicate const names / duplicate id strings | 0 / 0 | PASS |
 | entries in `CommandId::ALL` | 156 | — |
 | duplicate `ALL` entries | 0 | PASS |
@@ -55,23 +55,23 @@ claims that change no observed status (see severity notes). Exact proposals are 
 ### 1a. The one missing row
 
 - `CommandId::DISPLAY_STATUS` = `"display.status"`, declared at
-  `crates/lctrl-core/src/command_capability.rs:90` and listed in `CommandId::ALL` at
-  `crates/lctrl-core/src/command_capability.rs:270`; `COMMAND_REGISTRY` contains no row for it
+  `crates/lenovo-laptop-control-core/src/command_capability.rs:90` and listed in `CommandId::ALL` at
+  `crates/lenovo-laptop-control-core/src/command_capability.rs:270`; `COMMAND_REGISTRY` contains no row for it
 
 Whole-tree evidence that the id is in flight and unconsumed:
 ```
 $ grep -rn DISPLAY_STATUS crates/ --include=*.rs
-crates/lctrl-core/src/command_capability.rs:90:    pub const DISPLAY_STATUS: Self = Self("display.status");
-crates/lctrl-core/src/command_capability.rs:270:        Self::DISPLAY_STATUS,
+crates/lenovo-laptop-control-core/src/command_capability.rs:90:    pub const DISPLAY_STATUS: Self = Self("display.status");
+crates/lenovo-laptop-control-core/src/command_capability.rs:270:        Self::DISPLAY_STATUS,
 ```
 
 Observable consequences:
 - `crates/vantage-cli/tests/cli_capability.rs::registry_covers_every_command_id` iterates
   `CommandId::ALL` and asserts `!command_capabilities(*id).is_empty()` → this test is red on
   the current tree purely because of this id.
-- `lctrl_hal::command_capability_for(CommandSelector::new(DISPLAY_STATUS, layer))` returns `None`.
+- `lenovo_laptop_control_hal::command_capability_for(CommandSelector::new(DISPLAY_STATUS, layer))` returns `None`.
 - No `vantage-cli` parse arm maps any `Command` to `DISPLAY_STATUS` yet (no `CommandId::`
-  reference outside `lctrl-core`), so the id is currently unreachable from the CLI as well.
+  reference outside `lenovo-laptop-control-core`), so the id is currently unreachable from the CLI as well.
 
 Who can close it: the owner of `display status`. The row needs real axes
 (read-only / `Runtime`), a real `FeatureBinding`, a `ServiceRole`, and the dependency list of
@@ -94,7 +94,7 @@ selectors, which is the registry's identity (`CommandSelector { command, layer }
 ## 2. `FeatureBinding::Capability(id)` — is the id recorded by a live probe?
 
 Distinct ids bound as `Capability`: **93** (across 113 rows).
-Derivation: for every `crates/lctrl-hal-win/src/*.rs` and `crates/lctrl-hal-linux/src/**/*.rs`
+Derivation: for every `crates/lenovo-laptop-control-hal-win/src/*.rs` and `crates/lenovo-laptop-control-hal-linux/src/**/*.rs`
 file (tests excluded) the audit collects (a) the first argument of every `.record(name, …)`
 call, (b) every string literal in a `for … in [ … ]` batch whose body calls `.record`, and
 (c) string literals passed to record helpers (`record_node`, `record_fixed_unsupported`,
@@ -109,15 +109,15 @@ for statically named ids: **146 names on Windows, 40 on Linux**.
 | `battery.extreme-life` | `BATTERY_EXTREME_LIFE` | `Runtime` | `Unsupported` | `Unsupported` | L358 | **nowhere** |
 | `panel.eye-care.write` | `PANEL_EYE_CARE` | `Runtime` | `Unsupported` | `Unsupported` | L1149 | **nowhere** |
 | `panel.super-resolution.write` | `PANEL_SUPER_RESOLUTION` | `Runtime` | `Unsupported` | `Unsupported` | L1118 | **nowhere** |
-| `perf.fan.curve` | `PERF_FAN_CURVE` | `Runtime` | `Unsupported` | `Unsupported` | L658 | `crates/lctrl-hal-win/src/thermal.rs:342`, `crates/lctrl-hal-linux/src/lib.rs:1147` |
+| `perf.fan.curve` | `PERF_FAN_CURVE` | `Runtime` | `Unsupported` | `Unsupported` | L658 | `crates/lenovo-laptop-control-hal-win/src/thermal.rs:342`, `crates/lenovo-laptop-control-hal-linux/src/lib.rs:1147` |
 
 Every other occurrence is an error *label*, never a probe result:
-- `perf.fan.curve` — the `LctrlError::Unsupported { feature }` string in
-  `crates/lctrl-hal-win/src/thermal.rs:342` and `crates/lctrl-hal-linux/src/lib.rs:1147`
+- `perf.fan.curve` — the `LenovoLaptopControlError::Unsupported { feature }` string in
+  `crates/lenovo-laptop-control-hal-win/src/thermal.rs:342` and `crates/lenovo-laptop-control-hal-linux/src/lib.rs:1147`
   (`fn fan_table(&self, …)` has no writer on either platform).
 - `panel.super-resolution.write` / `panel.eye-care.write` — CLI refusal labels
   (`feature: "panel.…write"`), not capability records; the panel writers live in
-  `crates/lctrl-hal-win/src/panel_features.rs` and record no such id.
+  `crates/lenovo-laptop-control-hal-win/src/panel_features.rs` and record no such id.
 - `battery.extreme-life` — appears only in the registry itself plus the row's `notes`, which
   already explains that AiTurbo extreme-life is a run-state policy with no firmware selector.
 
@@ -132,8 +132,8 @@ variant the module documents for "meaningful feature name, but no current capabi
 
 | id | recorded at | rows bound `Unprobed` |
 |---|---|---|
-| `battery.thresholds` | `crates/lctrl-hal-linux/src/lib.rs:847`, `crates/lctrl-hal-win/src/windows_hal.rs:292` | `BATTERY_THRESHOLDS` |
-| `magicbay.lte` | `crates/lctrl-hal-win/src/windows_hal.rs:515` | `MAGICBAY_LTE_APN`, `MAGICBAY_LTE_CONNECT`, `MAGICBAY_LTE_DISCONNECT` |
+| `battery.thresholds` | `crates/lenovo-laptop-control-hal-linux/src/lib.rs:847`, `crates/lenovo-laptop-control-hal-win/src/windows_hal.rs:292` | `BATTERY_THRESHOLDS` |
+| `magicbay.lte` | `crates/lenovo-laptop-control-hal-win/src/windows_hal.rs:515` | `MAGICBAY_LTE_APN`, `MAGICBAY_LTE_CONNECT`, `MAGICBAY_LTE_DISCONNECT` |
 
 Runtime status is unaffected for the same reason as 2a: `feature_presence` resolves
 `Unprobed(feature)` through the same `capability_presence(feature, capabilities)` lookup as
@@ -273,19 +273,19 @@ and compares against a de-duplicated set (`HashSet` or sort+dedup).
 
 ---
 
-## 6. Compile state (`lctrl-core`, `lctrl-hal`)
+## 6. Compile state (`lenovo-laptop-control-core`, `lenovo-laptop-control-hal`)
 
 ```
-$ cargo check -p lctrl-core -p lctrl-hal --offline
+$ cargo check -p lenovo-laptop-control-core -p lenovo-laptop-control-hal --offline
     Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.15s
 
-$ cargo check -p lctrl-core -p lctrl-hal --offline --target x86_64-pc-windows-msvc
-    Checking lctrl-core v0.1.0 (crates/lctrl-core)
-    Checking lctrl-hal v0.1.0 (crates/lctrl-hal)
+$ cargo check -p lenovo-laptop-control-core -p lenovo-laptop-control-hal --offline --target x86_64-pc-windows-msvc
+    Checking lenovo-laptop-control-core v0.1.0 (crates/lenovo-laptop-control-core)
+    Checking lenovo-laptop-control-hal v0.1.0 (crates/lenovo-laptop-control-hal)
     Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.86s
 ```
 Run 2026-11-06T04:20:02Z against the live tree: both crates compile for the host and for the
-Windows target. Known in-flight breakage reported by other workers lives in `lctrl-hal-win`
+Windows target. Known in-flight breakage reported by other workers lives in `lenovo-laptop-control-hal-win`
 (`usb_ports.rs`, `radio.rs`, `event_log.rs`), which neither command builds.
 
 ---
@@ -297,7 +297,7 @@ Windows target. Known in-flight breakage reported by other workers lives in `lct
    `cli_capability::registry_covers_every_command_id` is red. Do not copy another command's
    probe: the id has no recorder and no CLI parse arm yet.
 2. **Four `Capability` → `Unprobed` reclassifications** in
-   `crates/lctrl-hal/src/command_capability.rs`: L358 `BATTERY_EXTREME_LIFE`, L1149 `PANEL_EYE_CARE`, L1118 `PANEL_SUPER_RESOLUTION`, L658 `PERF_FAN_CURVE`.
+   `crates/lenovo-laptop-control-hal/src/command_capability.rs`: L358 `BATTERY_EXTREME_LIFE`, L1149 `PANEL_EYE_CARE`, L1118 `PANEL_SUPER_RESOLUTION`, L658 `PERF_FAN_CURVE`.
    `FeatureBinding::Unprobed(..)` keeps the id string and the observed status (both variants
    consult the live set) while dropping the false "a probe records this" claim.
    `is_probed()` / `direct_feature()` have no consumer in the workspace (grep: 0 hits) and
@@ -325,14 +325,14 @@ Windows target. Known in-flight breakage reported by other workers lives in `lct
 
 ## Not verified (parent-owned)
 
-- No test was run. Acceptance commands: `cargo test -p lctrl-hal`, `cargo test -p lctrl-core`,
+- No test was run. Acceptance commands: `cargo test -p lenovo-laptop-control-hal`, `cargo test -p lenovo-laptop-control-core`,
   `cargo test -p vantage-cli --test cli_capability` (the last is expected red on `DisplayStatus`
   at this snapshot, §1a).
 - No `vantage capability` run on 21VG. "The four §2a rows render `unsupported`" is a read of
   `evaluate_command`'s match order, not an observation. Meaningful check: `vantage capability
   --json` on the target and confirm those four are `unsupported`, with the negative control
   that none of them is `available`; a row flipping elsewhere would mean something records it.
-- Linux parity, measured but out of scope: **72 of 93** `Capability` ids have no `lctrl-hal-linux` recorder, so
+- Linux parity, measured but out of scope: **72 of 93** `Capability` ids have no `lenovo-laptop-control-hal-linux` recorder, so
   on Linux they can only render `unverified`. Consistent with a Linux HAL that implements fewer
   channels, not a registry error — never "fixed" by adding ids.
 - Recorder *liveness* was not re-verified: the audit proves an id is recorded in the platform's

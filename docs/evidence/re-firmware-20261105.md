@@ -188,16 +188,16 @@ record; it adds **no** install or flash verb.
 
 | file | change |
 | --- | --- |
-| `crates/lctrl-core/src/firmware.rs` | new: `FirmwareType`, `FirmwareIdentity`, `FirmwareResource`, `FirmwareAttempt`, `FirmwareStatus`, `firmware_class`, `firmware_revision`, `format_firmware_version`, `last_attempt_status_meaning`, plus unit tests for the parsers and the status naming |
-| `crates/lctrl-core/src/lib.rs` | `mod firmware;` + re-exports |
-| `crates/lctrl-core/src/command_capability.rs` | `CommandId::FIRMWARE_STATUS = "firmware.status"`, added to `CommandId::ALL` |
-| `crates/lctrl-hal/src/firmware.rs` | new: `trait FirmwareControl { fn firmware_status(&self) -> Result<FirmwareStatus>; }` — one method, a read |
-| `crates/lctrl-hal/src/lib.rs` | module + `pub use firmware::FirmwareControl;` |
-| `crates/lctrl-hal/src/command_capability.rs` | row: `read_only(StateLayer::BiosPersistent)`, `FeatureBinding::Capability("firmware.status")`, `ServiceBinding::One(ServiceRole::Hal)`, deps `required(PublicWin32Cim)`, `optional(Win32SetupApi)`, `optional(Win32Registry)`, `DispatchSupport::Implemented` |
-| `crates/lctrl-hal-win/src/firmware.rs` | new: `WindowsFirmware<W: WmiTransport>` + `probe_firmware_status`; WMI reads in the cross-platform part, SetupAPI/registry reads in `#[cfg(windows)] mod native` |
-| `crates/lctrl-hal-win/src/firmware_tests.rs` | new: fake-transport tests for identity/resource mapping, absent-version serialization, the disagreement path, and error propagation |
-| `crates/lctrl-hal-win/src/lib.rs` | module + `pub use firmware::WindowsFirmware;` |
-| `crates/lctrl-hal-win/src/windows_hal.rs` | records `firmware.status` from the live firmware-class device probe |
+| `crates/lenovo-laptop-control-core/src/firmware.rs` | new: `FirmwareType`, `FirmwareIdentity`, `FirmwareResource`, `FirmwareAttempt`, `FirmwareStatus`, `firmware_class`, `firmware_revision`, `format_firmware_version`, `last_attempt_status_meaning`, plus unit tests for the parsers and the status naming |
+| `crates/lenovo-laptop-control-core/src/lib.rs` | `mod firmware;` + re-exports |
+| `crates/lenovo-laptop-control-core/src/command_capability.rs` | `CommandId::FIRMWARE_STATUS = "firmware.status"`, added to `CommandId::ALL` |
+| `crates/lenovo-laptop-control-hal/src/firmware.rs` | new: `trait FirmwareControl { fn firmware_status(&self) -> Result<FirmwareStatus>; }` — one method, a read |
+| `crates/lenovo-laptop-control-hal/src/lib.rs` | module + `pub use firmware::FirmwareControl;` |
+| `crates/lenovo-laptop-control-hal/src/command_capability.rs` | row: `read_only(StateLayer::BiosPersistent)`, `FeatureBinding::Capability("firmware.status")`, `ServiceBinding::One(ServiceRole::Hal)`, deps `required(PublicWin32Cim)`, `optional(Win32SetupApi)`, `optional(Win32Registry)`, `DispatchSupport::Implemented` |
+| `crates/lenovo-laptop-control-hal-win/src/firmware.rs` | new: `WindowsFirmware<W: WmiTransport>` + `probe_firmware_status`; WMI reads in the cross-platform part, SetupAPI/registry reads in `#[cfg(windows)] mod native` |
+| `crates/lenovo-laptop-control-hal-win/src/firmware_tests.rs` | new: fake-transport tests for identity/resource mapping, absent-version serialization, the disagreement path, and error propagation |
+| `crates/lenovo-laptop-control-hal-win/src/lib.rs` | module + `pub use firmware::WindowsFirmware;` |
+| `crates/lenovo-laptop-control-hal-win/src/windows_hal.rs` | records `firmware.status` from the live firmware-class device probe |
 | `crates/vantage-cli/src/lib.rs` | `Command::Firmware { command }` + `FirmwareCommand::Status`, `CommandServices.firmware`/`with_firmware`, dispatch, `feature()` mapping, `execute_firmware_status` |
 | `crates/vantage-cli/src/capability.rs` | `Command::Firmware` → `StateLayer::BiosPersistent` and `CommandId::FIRMWARE_STATUS` |
 | `crates/vantage-cli/tests/cli_contract.rs` | three contract tests over a fake firmware service |
@@ -255,9 +255,9 @@ JSON is the `FirmwareStatus` serialization: `identity`, `resources[]` (with
 
 ## 7. Acceptance the parent should run
 
-1. `cargo test -p lctrl-core firmware` — parser, status-naming and
+1. `cargo test -p lenovo-laptop-control-core firmware` — parser, status-naming and
    `reported_version` unit tests (run on any platform).
-2. `cargo test -p lctrl-hal-win firmware` — the fake-transport mapping tests,
+2. `cargo test -p lenovo-laptop-control-hal-win firmware` — the fake-transport mapping tests,
    including the mismatch (`hardware-id revision` vs property store) and the
    absent-version serialization assertions.
 3. `cargo test -p vantage-cli` — the three new contract tests: identity/ESRT/

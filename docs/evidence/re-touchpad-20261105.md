@@ -38,7 +38,7 @@ DLL/offset-based implementation would be a fiction here.
 The replacement drives the input leaves through system components, not Lenovo
 code:
 
-| Binary | Imports used (`crates/lctrl-hal-win/src/runtime_devices.rs`, `mod native`) |
+| Binary | Imports used (`crates/lenovo-laptop-control-hal-win/src/runtime_devices.rs`, `mod native`) |
 |---|---|
 | `cfgmgr32.dll` | `CM_Locate_DevNodeW`, `CM_Get_DevNode_Status`, `CM_Disable_DevNode`, `CM_Enable_DevNode`, `CM_MapCrToWin32Err` |
 | `setupapi.dll` | `SetupDiGetClassDevsW`, `SetupDiEnumDeviceInfo`, `SetupDiGetDevicePropertyW` (identity: `HardwareIds`, `CompatibleIds`, `Parent`, descriptions) |

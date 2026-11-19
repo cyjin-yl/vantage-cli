@@ -268,8 +268,8 @@ firmware tables: slots and pairs verbatim, no index semantics.
 ## 7. What the CLI now does with this
 
 `vantage perf policy` (`crates/vantage-cli`, decoded in
-`crates/lctrl-hal-win/src/its_policy.rs`, pure rules in
-`crates/lctrl-core/src/performance.rs`) reads the eleven values above through
+`crates/lenovo-laptop-control-hal-win/src/its_policy.rs`, pure rules in
+`crates/lenovo-laptop-control-core/src/performance.rs`) reads the eleven values above through
 `RegGetValueW` only, and reports:
 
 | value | reported |

@@ -1128,7 +1128,7 @@ enum BackendError {
 
 ### 12.1 `perf.top` — `/proc` 进程遥测
 
-实现:`crates/lctrl-hal-linux/src/process.rs`(`LinuxProcessController`),
+实现:`crates/lenovo-laptop-control-hal-linux/src/process.rs`(`LinuxProcessController`),
 在 `vantage/src/main.rs` 的 Linux 组合根接入。
 
 - 两次采样 `/proc/<pid>/stat`(间隔 120 ms),按区间 CPU 时间排序;
@@ -1148,7 +1148,7 @@ enum BackendError {
 
 ### 12.2 `perf.temp` / `channel.temperature` — sysfs 温度
 
-实现:`crates/lctrl-hal-linux/src/lib.rs` 的 `temperature_inventory()` +
+实现:`crates/lenovo-laptop-control-hal-linux/src/lib.rs` 的 `temperature_inventory()` +
 `record_temperature_channels()`。
 
 - 采集 `hwmon temp*_input` 与 `thermal_zone*/temp`,按 id 排序;

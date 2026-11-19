@@ -9,7 +9,7 @@ use std::sync::mpsc::{Receiver, SyncSender, TrySendError, sync_channel};
 use std::thread;
 use std::time::Duration;
 
-use lctrl_core::{LctrlError, Result};
+use lenovo_laptop_control_core::{LenovoLaptopControlError, Result};
 
 use crate::{
     DaemonEvent, DaemonRequest, DaemonResponse, DaemonStatus, MAX_EVENTS, PROTOCOL_VERSION,
@@ -92,18 +92,18 @@ pub fn run(events: Receiver<DaemonEvent>) -> Result<()> {
 pub fn run_at(endpoint: &Path, events: Receiver<DaemonEvent>) -> Result<()> {
     if endpoint.exists() {
         if request_at(endpoint, &DaemonRequest::Status).is_ok() {
-            return Err(LctrlError::ChannelUnavailable {
+            return Err(LenovoLaptopControlError::ChannelUnavailable {
                 channel: format!("daemon already listening at {}", endpoint.display()),
             });
         }
-        fs::remove_file(endpoint).map_err(LctrlError::Io)?;
+        fs::remove_file(endpoint).map_err(LenovoLaptopControlError::Io)?;
     }
     if let Some(parent) = endpoint.parent() {
-        fs::create_dir_all(parent).map_err(LctrlError::Io)?;
+        fs::create_dir_all(parent).map_err(LenovoLaptopControlError::Io)?;
     }
-    let listener = UnixListener::bind(endpoint).map_err(LctrlError::Io)?;
-    fs::set_permissions(endpoint, fs::Permissions::from_mode(0o600)).map_err(LctrlError::Io)?;
-    listener.set_nonblocking(true).map_err(LctrlError::Io)?;
+    let listener = UnixListener::bind(endpoint).map_err(LenovoLaptopControlError::Io)?;
+    fs::set_permissions(endpoint, fs::Permissions::from_mode(0o600)).map_err(LenovoLaptopControlError::Io)?;
+    listener.set_nonblocking(true).map_err(LenovoLaptopControlError::Io)?;
     let _cleanup = SocketCleanup(endpoint.to_path_buf());
 
     let started_at_unix_ms = started_at_unix_ms();
@@ -123,13 +123,13 @@ pub fn run_at(endpoint: &Path, events: Receiver<DaemonEvent>) -> Result<()> {
             let (mut stream, _) = match listener.accept() {
                 Ok(connection) => connection,
                 Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => break,
-                Err(error) => return Err(LctrlError::Io(error)),
+                Err(error) => return Err(LenovoLaptopControlError::Io(error)),
             };
             verify_peer(&stream)?;
             stream
                 .set_read_timeout(Some(Duration::from_secs(2)))
-                .map_err(LctrlError::Io)?;
-            let mut reader = BufReader::new(stream.try_clone().map_err(LctrlError::Io)?);
+                .map_err(LenovoLaptopControlError::Io)?;
+            let mut reader = BufReader::new(stream.try_clone().map_err(LenovoLaptopControlError::Io)?);
             let request_line = match read_limited_line(&mut reader) {
                 Ok(Some(line)) => line,
                 Ok(None) => continue,
@@ -164,7 +164,7 @@ pub fn run_at(endpoint: &Path, events: Receiver<DaemonEvent>) -> Result<()> {
                 DaemonRequest::Subscribe => {
                     stream
                         .set_write_timeout(Some(Duration::from_millis(100)))
-                        .map_err(LctrlError::Io)?;
+                        .map_err(LenovoLaptopControlError::Io)?;
                     write_line(&mut stream, &DaemonResponse::success(status()))?;
                     let (sender, receiver) = sync_channel(8);
                     subscribers.push(sender);
@@ -201,7 +201,7 @@ fn exchange(mut stream: UnixStream, request: &DaemonRequest) -> Result<DaemonRes
     let mut response = String::new();
     BufReader::new(stream)
         .read_line(&mut response)
-        .map_err(LctrlError::Io)?;
+        .map_err(LenovoLaptopControlError::Io)?;
     if response.is_empty() {
         return Err(protocol_error("server closed without a response"));
     }
@@ -214,7 +214,7 @@ const MAX_MESSAGE_BYTES: usize = 64 * 1024;
 fn read_limited_line(reader: &mut impl BufRead) -> Result<Option<String>> {
     let mut bytes = Vec::new();
     loop {
-        let chunk = reader.fill_buf().map_err(LctrlError::Io)?;
+        let chunk = reader.fill_buf().map_err(LenovoLaptopControlError::Io)?;
         if chunk.is_empty() {
             break;
         }
@@ -250,15 +250,15 @@ fn broadcast(subscribers: &mut Vec<SyncSender<DaemonEvent>>, event: DaemonEvent)
 
 fn write_line<T: serde::Serialize>(stream: &mut UnixStream, value: &T) -> Result<()> {
     let mut bytes =
-        serde_json::to_vec(value).map_err(|error| LctrlError::Io(std::io::Error::other(error)))?;
+        serde_json::to_vec(value).map_err(|error| LenovoLaptopControlError::Io(std::io::Error::other(error)))?;
     bytes.push(b'\n');
     if bytes.len() > MAX_MESSAGE_BYTES {
         return Err(protocol_error(format!(
             "response exceeds {MAX_MESSAGE_BYTES} bytes"
         )));
     }
-    stream.write_all(&bytes).map_err(LctrlError::Io)?;
-    stream.flush().map_err(LctrlError::Io)
+    stream.write_all(&bytes).map_err(LenovoLaptopControlError::Io)?;
+    stream.flush().map_err(LenovoLaptopControlError::Io)
 }
 fn verify_peer(stream: &UnixStream) -> Result<()> {
     let mut credentials = libc::ucred {
@@ -277,11 +277,11 @@ fn verify_peer(stream: &UnixStream) -> Result<()> {
         )
     };
     if status != 0 {
-        return Err(LctrlError::Io(std::io::Error::last_os_error()));
+        return Err(LenovoLaptopControlError::Io(std::io::Error::last_os_error()));
     }
     let current_uid = unsafe { libc::geteuid() };
     if credentials.uid != current_uid {
-        return Err(LctrlError::PermissionDenied {
+        return Err(LenovoLaptopControlError::PermissionDenied {
             need: format!(
                 "daemon peer uid {} must match current uid {current_uid}",
                 credentials.uid

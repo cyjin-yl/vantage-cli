@@ -183,15 +183,15 @@ invented API.
 
 | Requirement | Source |
 |---|---|
-| endpoint model (`id`, `friendly_name`, `flow`, `state`, `channels`, `volume_percent`, `mute`, `default`) | `crates/lctrl-core/src/audio.rs` (`AudioEndpoint`, `AudioEndpointState`, `AudioDataFlow`) |
-| volume/mute model + display | `crates/lctrl-core/src/audio.rs` (`EndpointVolume`) |
-| scalar↔percent and step tolerance | `crates/lctrl-core/src/audio.rs` (`volume_percent_from_scalar`, `percent_to_scalar`, `volume_readback_tolerance_percent`) |
-| HAL seam | `crates/lctrl-hal/src/audio_endpoints.rs` (`AudioEndpointControl`) |
-| COM transport (seam + native) | `crates/lctrl-hal-win/src/audio_endpoints.rs` (`MmDeviceApi`, `NativeMmDeviceApi`, `WindowsAudioEndpoints`) |
-| dry-run / readback / restore protocol | `crates/lctrl-hal-win/src/audio_endpoints.rs` `impl AudioEndpointControl for WindowsAudioEndpoints` |
+| endpoint model (`id`, `friendly_name`, `flow`, `state`, `channels`, `volume_percent`, `mute`, `default`) | `crates/lenovo-laptop-control-core/src/audio.rs` (`AudioEndpoint`, `AudioEndpointState`, `AudioDataFlow`) |
+| volume/mute model + display | `crates/lenovo-laptop-control-core/src/audio.rs` (`EndpointVolume`) |
+| scalar↔percent and step tolerance | `crates/lenovo-laptop-control-core/src/audio.rs` (`volume_percent_from_scalar`, `percent_to_scalar`, `volume_readback_tolerance_percent`) |
+| HAL seam | `crates/lenovo-laptop-control-hal/src/audio_endpoints.rs` (`AudioEndpointControl`) |
+| COM transport (seam + native) | `crates/lenovo-laptop-control-hal-win/src/audio_endpoints.rs` (`MmDeviceApi`, `NativeMmDeviceApi`, `WindowsAudioEndpoints`) |
+| dry-run / readback / restore protocol | `crates/lenovo-laptop-control-hal-win/src/audio_endpoints.rs` `impl AudioEndpointControl for WindowsAudioEndpoints` |
 | CLI verbs | `crates/vantage-cli/src/lib.rs` (`AudioCommand::{Endpoints,Volume,Mute}`, `execute_audio_endpoints`, `execute_audio_volume`, `execute_audio_mute`) |
-| capability ids/rows | `crates/lctrl-core/src/command_capability.rs` (`AUDIO_ENDPOINTS`, `AUDIO_VOLUME`, `AUDIO_MUTE`), `crates/lctrl-hal/src/command_capability.rs` |
-| live probe records | `crates/lctrl-hal-win/src/windows_hal.rs` (`channel.mmdevice`, `audio.endpoints`, `audio.volume`, `audio.mute`, plus the `channel.audio` join) |
+| capability ids/rows | `crates/lenovo-laptop-control-core/src/command_capability.rs` (`AUDIO_ENDPOINTS`, `AUDIO_VOLUME`, `AUDIO_MUTE`), `crates/lenovo-laptop-control-hal/src/command_capability.rs` |
+| live probe records | `crates/lenovo-laptop-control-hal-win/src/windows_hal.rs` (`channel.mmdevice`, `audio.endpoints`, `audio.volume`, `audio.mute`, plus the `channel.audio` join) |
 | composition root | `vantage/src/main.rs` (`with_audio_endpoints`) |
 
 Dependency hygiene: `windows-sys` 0.61 has **no** MMDevice/IAudioEndpointVolume
@@ -239,7 +239,7 @@ surface is new in this change and the parent owns build + target execution.
    (`CommandId::AUDIO_ENDPOINTS`/`AUDIO_VOLUME`/`AUDIO_MUTE`) use
    `FeatureBinding::Capability`, not `Unprobed`, because
    `WindowsHal::capabilities` records exactly those three ids
-   (`crates/lctrl-hal-win/src/windows_hal.rs`). The probe counts an empty
+   (`crates/lenovo-laptop-control-hal-win/src/windows_hal.rs`). The probe counts an empty
    active enumeration as `Unavailable` with
    `the MMDevice API reported no active audio endpoint`, so the metadata never
    claims a surface the verbs cannot address (headless session, audio services
@@ -249,7 +249,7 @@ surface is new in this change and the parent owns build + target execution.
    not yet proven end-to-end on the target; if the parent wants the same
    conservative treatment as `audio.dolby`/`audio.noise-cancel`, change those
    two rows to `Readback::Unverified` — the axis lives in one place
-   (`crates/lctrl-hal/src/command_capability.rs`).
+   (`crates/lenovo-laptop-control-hal/src/command_capability.rs`).
 2. **Percent rounding**: the CLI reports whole percent. A hardware volume
    curve can sit between two whole percent values, so the readback may differ
    by one step; the tolerance rule in §4.3 is the contract, not exact equality.

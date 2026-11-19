@@ -251,15 +251,15 @@ closes this last gap; until then the limitation is stated rather than papered ov
 
 ## 7. Implementation (what this change adds)
 
-* `crates/lctrl-core/src/sensor.rs` — `SensorGuid`, `SensorState`, `SensorValue`,
+* `crates/lenovo-laptop-control-core/src/sensor.rs` — `SensorGuid`, `SensorState`, `SensorValue`,
   `SensorField`, `SensorDescriptor`, `SensorReading`, `SensorInventory`, plus the UTC formatter
   and the freshness rule. Type/category/data-key names are a table copied from the Windows SDK
   (`SENSOR_TYPE_*`, `SENSOR_CATEGORY_*`, `SENSOR_DATA_TYPE_*`); unknown GUIDs are printed raw.
   A report timestamp field outside its range — including a day the month does not have — yields
   "no timestamp" (`None`) instead of a rolled-over date, so a bogus device clock cannot become a
   plausible-looking `fresh` reading.
-* `crates/lctrl-hal/src/sensor.rs` — `SensorControl` trait: `list()` and `read(target)`.
-* `crates/lctrl-hal-win/src/sensor.rs` — hand-written Sensor API ABI (the five vtables above),
+* `crates/lenovo-laptop-control-hal/src/sensor.rs` — `SensorControl` trait: `list()` and `read(target)`.
+* `crates/lenovo-laptop-control-hal-win/src/sensor.rs` — hand-written Sensor API ABI (the five vtables above),
   `CoCreateInstance(CLSID_SensorManager, IID_ISensorManager)` with `CoInitializeEx(APARTMENTTHREADED)`,
   and the identity/state/property/report reads. Any unexpected `HRESULT` fails closed to
   `ChannelUnavailable`/`Unsupported`; a null report is "no data", never a zero value.
@@ -268,10 +268,10 @@ closes this last gap; until then the limitation is stated rather than papered ov
   `GetData` produced no report. `read` resolves `target` as list index → device path →
   friendly name → unique case-insensitive substring, and refuses ambiguous selectors.
 * Wiring (all additive):
-  * `lctrl-core::CommandId::SENSOR_LIST` (`sensor.list`) and `SENSOR_READ` (`sensor.read`), both in
+  * `lenovo-laptop-control-core::CommandId::SENSOR_LIST` (`sensor.list`) and `SENSOR_READ` (`sensor.read`), both in
     `CommandId::ALL`; `Dependency::Win32SensorApi` (`platform() == Windows`, component
     "Windows Sensor API (SensorsApi: sensor collection and data reports)").
-  * `lctrl-hal::ServiceRole::Sensor` (`"sensor"`) and two `COMMAND_REGISTRY` rows:
+  * `lenovo-laptop-control-hal::ServiceRole::Sensor` (`"sensor"`) and two `COMMAND_REGISTRY` rows:
     read-only, `FeatureBinding::Capability("sensor.list")`, `ServiceBinding::One(ServiceRole::Sensor)`,
     required `Win32SensorApi`, `DispatchSupport::Implemented`.
   * `crates/vantage-cli/src/lib.rs` — `Command::Sensor` with `SensorCommand::{List, Read { target }}`
@@ -279,7 +279,7 @@ closes this last gap; until then the limitation is stated rather than papered ov
     formatters, `command_feature`/`unsupported_reason` arms; `Command → CommandId` and
     `StateLayer::NotApplicable` in `crates/vantage-cli/src/capability.rs`;
     `role_channel(ServiceRole::Sensor) = "channel.sensor"`.
-  * `crates/lctrl-hal-win/src/windows_hal.rs::capabilities()` — records `channel.sensor` and
+  * `crates/lenovo-laptop-control-hal-win/src/windows_hal.rs::capabilities()` — records `channel.sensor` and
     `sensor.list` from one live `SensorControl::list(&WindowsSensors)` call (the real enumeration;
     it never calls `read`), with the detail "`N` sensor report(s); `M` enumerated sensor(s)
     returned no report".
@@ -306,16 +306,16 @@ orientation, inclinometer, compass/magnetometer, gyro and barometer classes are 
 
 ## 8. Not yet run (parent/acceptance)
 
-Cross-check only (authoring worker, Linux host, 2026-11-06): `cargo check -p lctrl-hal-win
+Cross-check only (authoring worker, Linux host, 2026-11-06): `cargo check -p lenovo-laptop-control-hal-win
 --target x86_64-pc-windows-msvc` reaches this crate and reports **no diagnostic in
-`crates/lctrl-hal-win/src/sensor.rs` or for the sensor block in `windows_hal.rs`**; the crate as a
+`crates/lenovo-laptop-control-hal-win/src/sensor.rs` or for the sensor block in `windows_hal.rs`**; the crate as a
 whole does not link yet because sibling slices in the same worktree are mid-edit
 (`security.rs`, `touchpad_caps.rs`, `usb_ports.rs`). No target program was executed, so no
 reading below is observed behaviour yet.
 
 The parent should:
 
-1. After the sibling slices land, `cargo check -p lctrl-hal-win --target x86_64-pc-windows-msvc`,
+1. After the sibling slices land, `cargo check -p lenovo-laptop-control-hal-win --target x86_64-pc-windows-msvc`,
    then build and run on the target.
 2. `vantage --json sensor list` — expect `sensors` = 7 readable rows (0,1,2,3,4,5,6) and
    `unavailable` = 2 rows (7 `Lenovo AMS_HPD`, 8 `AMS_TMF882x HOD`), with the ALS row's
@@ -340,21 +340,21 @@ The parent should:
 
 ## 9. Linux backend: recommended stub (not applied here)
 
-`crates/lctrl-hal-linux` is owned by the Linux audit in this wave, so this slice did not add the
+`crates/lenovo-laptop-control-hal-linux` is owned by the Linux audit in this wave, so this slice did not add the
 module. Until a Linux sensor plane is recovered and validated, the CLI answers `sensor` on Linux
 with the explicit `Unsupported` written in `unsupported_reason`/`execute_sensor`
 (`sensor.list: no sensor channel is attached on this platform…`). The one-file stub that matches
 the existing `LinuxRadio` precedent is:
 
-* file `crates/lctrl-hal-linux/src/sensor.rs`, plus `mod sensor;` and
-  `pub use sensor::LinuxSensors;` in `crates/lctrl-hal-linux/src/lib.rs`;
+* file `crates/lenovo-laptop-control-hal-linux/src/sensor.rs`, plus `mod sensor;` and
+  `pub use sensor::LinuxSensors;` in `crates/lenovo-laptop-control-hal-linux/src/lib.rs`;
 * `#[derive(Clone, Copy, Debug, Default)] pub struct LinuxSensors;` with `pub const fn new()`;
-* `impl lctrl_hal::SensorControl for LinuxSensors` returning
-  `Err(LctrlError::Unsupported { feature: "sensor.list on Linux (no sensor data plane is bound in \
+* `impl lenovo_laptop_control_hal::SensorControl for LinuxSensors` returning
+  `Err(LenovoLaptopControlError::Unsupported { feature: "sensor.list on Linux (no sensor data plane is bound in \
   this backend; /sys/bus/iio is not implemented or validated)".to_owned() })` from `list()` and the
   same text with `sensor.read` from `read(_target)`;
 * attach it in the `#[cfg(target_os = "linux")] fn main()` of `vantage/src/main.rs` as
-  `let sensor = lctrl_hal_linux::LinuxSensors::new();` … `.with_sensor(&sensor)`.
+  `let sensor = lenovo_laptop_control_hal_linux::LinuxSensors::new();` … `.with_sensor(&sensor)`.
 
 Why no sysfs implementation is proposed: `/sys/bus/iio/devices` node names alone do not carry the
 `*_scale`/`*_offset` calibration or the lux semantics, so deriving a light value from them without

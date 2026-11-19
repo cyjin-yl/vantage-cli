@@ -183,7 +183,7 @@ before the probe; nothing was changed.
 ## 10. PL1/PL2 MSR channel — driver present, device gated by logon type
 
 `tune.pl1` / `tune.pl2` / `tune.tau` are not implemented: `power_limit()` and
-`set_power_limit()` in `crates/lctrl-hal-win/src/power_tuning.rs` return
+`set_power_limit()` in `crates/lenovo-laptop-control-hal-win/src/power_tuning.rs` return
 `Unsupported` unconditionally. The MSR transport that would carry them does
 exist and is loaded on this machine:
 

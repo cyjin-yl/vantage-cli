@@ -16,12 +16,12 @@ fn main() {
 
 #[cfg(target_os = "linux")]
 fn spawn_event_source(events: mpsc::Sender<DaemonEvent>) {
-    use lctrl_hal::{
+    use lenovo_laptop_control_hal::{
         BatteryControl, FanControl, Hal, MagicBayControl, PerformanceControl, PowerControl,
     };
 
     thread::spawn(move || {
-        let hal = lctrl_hal_linux::LinuxHal::new();
+        let hal = lenovo_laptop_control_hal_linux::LinuxHal::new();
         let mut previous = Value::Null;
         loop {
             let snapshot = json!({
@@ -52,10 +52,10 @@ fn spawn_event_source(events: mpsc::Sender<DaemonEvent>) {
 fn spawn_event_source(events: mpsc::Sender<DaemonEvent>) {
     spawn_windows_snapshot_source(events.clone());
     thread::spawn(move || {
-        use lctrl_hal::{EventCancellation, EventSource};
-        use lctrl_hal_win::{DOCUMENTED_LENOVO_EVENT_CLASSES, NativeWmiEventSource};
+        use lenovo_laptop_control_hal::{EventCancellation, EventSource};
+        use lenovo_laptop_control_hal_win::{DOCUMENTED_LENOVO_EVENT_CLASSES, NativeWmiEventSource};
 
-        let result = (|| -> lctrl_core::Result<()> {
+        let result = (|| -> lenovo_laptop_control_core::Result<()> {
             let source = NativeWmiEventSource::new()?;
             let mut reader =
                 source.subscribe(DOCUMENTED_LENOVO_EVENT_CLASSES, EventCancellation::new())?;
@@ -74,17 +74,17 @@ fn spawn_event_source(events: mpsc::Sender<DaemonEvent>) {
 
 #[cfg(windows)]
 fn spawn_windows_snapshot_source(events: mpsc::Sender<DaemonEvent>) {
-    use lctrl_hal::{Hal, MagicBayControl, PerformanceControl, PowerControl};
+    use lenovo_laptop_control_hal::{Hal, MagicBayControl, PerformanceControl, PowerControl};
 
     thread::spawn(move || {
-        let hal = lctrl_hal_win::NativeWindowsHal::new(
-            lctrl_hal_win::NativeWmi,
-            lctrl_hal_win::NativeIoctl,
+        let hal = lenovo_laptop_control_hal_win::NativeWindowsHal::new(
+            lenovo_laptop_control_hal_win::NativeWmi,
+            lenovo_laptop_control_hal_win::NativeIoctl,
         );
         let performance =
-            lctrl_hal_win::WindowsPerformanceP0::new(lctrl_hal_win::NativePerformanceRegistry);
-        let power = lctrl_hal_win::WindowsPowerP0::new(lctrl_hal_win::NativePowerApi);
-        let magicbay = lctrl_hal_win::NativeMagicBay;
+            lenovo_laptop_control_hal_win::WindowsPerformanceP0::new(lenovo_laptop_control_hal_win::NativePerformanceRegistry);
+        let power = lenovo_laptop_control_hal_win::WindowsPowerP0::new(lenovo_laptop_control_hal_win::NativePowerApi);
+        let magicbay = lenovo_laptop_control_hal_win::NativeMagicBay;
         let mut previous = Value::Null;
         loop {
             let snapshot = json!({
@@ -111,7 +111,7 @@ fn spawn_windows_snapshot_source(events: mpsc::Sender<DaemonEvent>) {
 #[cfg(not(any(target_os = "linux", windows)))]
 fn spawn_event_source(_events: mpsc::Sender<DaemonEvent>) {}
 
-fn value_or_error<T: serde::Serialize>(result: lctrl_core::Result<T>) -> Value {
+fn value_or_error<T: serde::Serialize>(result: lenovo_laptop_control_core::Result<T>) -> Value {
     match result {
         Ok(value) => serde_json::to_value(value).unwrap_or(Value::Null),
         Err(error) => serde_json::to_value(error.report()).unwrap_or_else(

@@ -25,11 +25,11 @@ and asserts that it runs inside the active console session (§5).
 
 Source binding of the program: the target build tree
 `C:\Users\ezra\vantage-machine-fix-source` holds
-`crates/lctrl-hal-win/src/display.rs` = `a9d04d5d…` (byte-identical to this
+`crates/lenovo-laptop-control-hal-win/src/display.rs` = `a9d04d5d…` (byte-identical to this
 worktree) and a `vantage-cli/src/lib.rs` whose `PanelRate` enum and
 `PanelCommand::Rate` arm are byte-identical to this worktree's; the target copy
 differs elsewhere only by sibling feature work (extra commands), and
-`lctrl-core/src/panel.rs` differs only in an `EyeCareLevel` doc comment. The
+`lenovo-laptop-control-core/src/panel.rs` differs only in an `EyeCareLevel` doc comment. The
 display path exercised here is therefore the current source's display path.
 
 ## 2. The mode list comes from the display, not from a table
@@ -163,7 +163,7 @@ byte-identical to ours, and it reproduced live.
 
 ## 5. Write path and admission (what the HAL actually does)
 
-`crates/lctrl-hal-win/src/display.rs` (`WindowsPanelController`):
+`crates/lenovo-laptop-control-hal-win/src/display.rs` (`WindowsPanelController`):
 
 1. `refresh_capability()` reads `Minimum/Maximum/DefaultRefreshRate` + `Mode` from
    `LENOVO_INTERNAL_PANEL_REFRESH_RATE_DATA WHERE Active = TRUE`, collapsing
@@ -195,7 +195,7 @@ Live fail-closed observations around that path:
 
 Negative control for the admission rule that this run could **not** reach from the
 CLI (the `ValueEnum` blocks every rate except 60/120/auto): the library test
-`crates/lctrl-hal-win/tests/display_controller.rs::firmware_range_does_not_admit_a_mode_missing_from_native_enumeration`
+`crates/lenovo-laptop-control-hal-win/tests/display_controller.rs::firmware_range_does_not_admit_a_mode_missing_from_native_enumeration`
 — in-range rate absent from the enumerated set → `Unsupported
 panel.refresh.120Hz.exact_native_mode`, **zero** apply calls and **zero**
 `CDS_TEST` calls. Sibling guards:

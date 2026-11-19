@@ -148,15 +148,15 @@ sense/usb/magicbay.lte;P2 = 其余。
 ```
 vantage/                 # 单一 workspace
 ├── crates/
-│   ├── lctrl-core/      # 领域模型:ChargeMode/FanCurve/PerfMode/Profile/Capability/Error
+│   ├── lenovo-laptop-control-core/      # 领域模型:ChargeMode/FanCurve/PerfMode/Profile/Capability/Error
 │   │                    # 纯数据+纯逻辑,零 OS 依赖;所有单元测试在此
-│   ├── lctrl-hal/       # trait Hal { battery(), thermal(), kbd(), panel(), privacy(),
+│   ├── lenovo-laptop-control-hal/       # trait Hal { battery(), thermal(), kbd(), panel(), privacy(),
 │   │                    #          bios(), tuning(), events() } + 能力位结构
-│   ├── lctrl-hal-win/   # Windows 后端:WMI(wmi crate)/ DeviceIoControl(windows-sys)/
+│   ├── lenovo-laptop-control-hal-win/   # Windows 后端:WMI(wmi crate)/ DeviceIoControl(windows-sys)/
 │   │                    # Power API / SCM / 注册表;编译期 gate:cfg(windows)
-│   ├── lctrl-hal-linux/ # Linux 后端:sysfs / ideapad_laptop / acpi_call / powercap /
+│   ├── lenovo-laptop-control-hal-linux/ # Linux 后端:sysfs / ideapad_laptop / acpi_call / powercap /
 │   │                    # intel_pstate / ModemManager D-Bus;cfg(unix)
-│   ├── lctrl-tune/      # 调优引擎:07 §6 模型求值器,触发器、约束、回退、防抖
+│   ├── lenovo-laptop-control-tune/      # 调优引擎:07 §6 模型求值器,触发器、约束、回退、防抖
 │   ├── vantage-cli/     # clap 命令树(§2),--json 输出,退出码(§6)
 │   ├── vantage-daemon/  # 可选常驻:事件订阅、自动策略、OSD 占位;与 CLI 同库零重复逻辑
 │   ├── vantage-gui/     # 可选图形仪表盘
@@ -217,7 +217,7 @@ vantage/                 # 单一 workspace
 ## 6. 错误模型与退出码
 
 ```rust
-enum LctrlError {
+enum LenovoLaptopControlError {
     Unsupported { feature: &'static str },   // 能力探测否定
     ChannelUnavailable { channel: String },  // 驱动/服务/WMI 不可达
     PermissionDenied { need: &'static str }, // 需要 admin/root

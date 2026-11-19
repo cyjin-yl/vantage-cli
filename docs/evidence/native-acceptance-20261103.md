@@ -62,7 +62,7 @@ Every `vantage` invocation (including `info`) terminated with exit code
 `Faulting module name: ntdll.dll, Exception code: 0xc0000005`.
 
 Startup tracing (temporary `eprintln!` markers in the target's copy of
-`vantage/src/main.rs` and `crates/lctrl-hal-win/src/dolby.rs`, never committed) located
+`vantage/src/main.rs` and `crates/lenovo-laptop-control-hal-win/src/dolby.rs`, never committed) located
 the fault inside the DAX transport's first NDR call, after the binding had been
 accepted:
 
@@ -206,7 +206,7 @@ temp scripts were removed afterwards; the Vantage UI is left running.
 
 A read-only review of the HPD transport returned three concrete defects; all three
 are fixed here, and the two behavioural ones carry Windows-only regression tests
-that were executed on the target (`cargo test -p lctrl-hal-win --test sense_control`
+that were executed on the target (`cargo test -p lenovo-laptop-control-hal-win --test sense_control`
 → 10 passed, 0 failed):
 
 1. The supplemental registry read was fatal and ran *before* the RPC read, so an

@@ -118,7 +118,7 @@ Flags absent from both named surfaces (all present, with help text, in `--help`)
 `docs/04-peripherals.md:27`, `docs/08-architecture.md:80`, `docs/10-config-schema.md:69` all list
 `{off|single|shared|spatial|voice-id|farfield}`. `pub enum NoiseCancelArg` (`lib.rs:1380-1386`) has
 `Off|Single|Shared|Spatial|VoiceId`, and the domain type `NoiseCancellationMode`
-(`crates/lctrl-core/src/audio.rs:68`, mapping test `crates/lctrl-core/tests/peripherals_contract.rs:159-176`)
+(`crates/lenovo-laptop-control-core/src/audio.rs:68`, mapping test `crates/lenovo-laptop-control-core/tests/peripherals_contract.rs:159-176`)
 has the same five. `vantage audio noise-cancel farfield` therefore exits 2 with clap's
 "invalid value ... possible values: off, single, shared, spatial, voice-id". Owned by the doc-truth
 worker per parent; do not "fix" by adding a variant — no raw code exists for a sixth mode.

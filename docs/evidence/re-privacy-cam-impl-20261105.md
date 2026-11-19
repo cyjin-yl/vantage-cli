@@ -24,14 +24,14 @@ selector's internal-identity rules.
 
 ## 2. Write path — already implemented, target-verified 2026-10-30
 
-Source (`crates/lctrl-hal-win/src/runtime_devices.rs`):
+Source (`crates/lenovo-laptop-control-hal-win/src/runtime_devices.rs`):
 
 | Requirement | Where |
 |---|---|
 | Admit exactly one physical camera (RGB+IR together, ambiguity refused) | `select_runtime_devices` / `camera_group` |
 | Nothing written on `--dry-run` | `set_group` (`ApplyMode::DryRun` returns before any `set_state`) |
 | Write through the vendor primitive | native `set_state`: `CM_Disable_DevNode(devinst, CM_DISABLE_UI_NOT_OK)` / `CM_Enable_DevNode(devinst, 0)` (`:1025`, `:1030`) |
-| Confirm: readback must reach the requested state | `poll_readback` (`crates/lctrl-hal/src/verify.rs`) — 10 × 50 ms, returns `VerifyMismatch { requested, actual }` on exhaustion |
+| Confirm: readback must reach the requested state | `poll_readback` (`crates/lenovo-laptop-control-hal/src/verify.rs`) — 10 × 50 ms, returns `VerifyMismatch { requested, actual }` on exhaustion |
 | Rollback on partial failure or mismatch | `rollback_group` restores every already-attempted devnode and re-reads each; a rollback failure becomes `FirmwareRejected` |
 | Pre-write refusals never trigger a bogus rollback | `preserve_prewrite_error` (`PermissionDenied`/`Unsupported`/`InvalidArgument`) |
 
@@ -55,18 +55,18 @@ disagree (`aggregate_group_state` → `ChannelUnavailable`). That is right for a
 write, but it hides *which* collection is off — the exact situation an operator
 needs to see. New read, no writes:
 
-- `lctrl_core::PrivacyDeviceState { instance_id, description, state, error }`
-  (`crates/lctrl-core/src/privacy.rs:46`).
+- `lenovo_laptop_control_core::PrivacyDeviceState { instance_id, description, state, error }`
+  (`crates/lenovo-laptop-control-core/src/privacy.rs:46`).
   `state` is `None` when the platform reports a PnP status that is neither
   started nor `CM_PROB_DISABLED` (`PnpDeviceStatus::state` refuses those);
   `error` carries that observation, so a broken devnode is attributed instead
   of being collapsed into a fake `enabled`/`disabled`.
-- `PrivacyControl::camera_devices` (`crates/lctrl-hal/src/peripherals.rs:49`)
+- `PrivacyControl::camera_devices` (`crates/lenovo-laptop-control-hal/src/peripherals.rs:49`)
   with a defaulted `Unsupported { feature: "privacy.cam.devices" }` body —
   same shape as `TouchpadControl::recover_touchpad`, so the Linux backend and
   existing fakes stay honest without edits.
 - `WindowsRuntimeDevices::camera_devices`
-  (`crates/lctrl-hal-win/src/runtime_devices.rs:459`): enumerate the admitted
+  (`crates/lenovo-laptop-control-hal-win/src/runtime_devices.rs:459`): enumerate the admitted
   group, read `CM_Get_DevNode_Status` per instance (`:1006`), attribute each.
   No `set_state` call exists on this path.
 - CLI `privacy cam status` (`execute_camera_status`,
@@ -134,9 +134,9 @@ camera activation per call, live verification on the target).
 Source-bound checks for the parent (this worker ran no build, test, formatter,
 or target program):
 
-1. `cargo check -p lctrl-hal-win --target x86_64-pc-windows-msvc`
+1. `cargo check -p lenovo-laptop-control-hal-win --target x86_64-pc-windows-msvc`
    (new inherent + trait method, default body on the Linux side).
-2. `cargo test -p lctrl-hal-win --test windows_runtime_devices` — new
+2. `cargo test -p lenovo-laptop-control-hal-win --test windows_runtime_devices` — new
    `camera_devices_attributes_a_split_group_per_devnode` (RGB enabled + IR
    disabled → two entries, per-instance states, **no** writes), plus the
    existing `camera_group_split_state_is_not_reported_as_one_answer` must still

@@ -1,12 +1,12 @@
 //! Source-separated battery observations; no cross-source pack association is assumed.
 
-use lctrl_core::LctrlError;
-use lctrl_hal::BatteryControl;
+use lenovo_laptop_control_core::LenovoLaptopControlError;
+use lenovo_laptop_control_hal::BatteryControl;
 use serde::Serialize;
 use serde_json::{Map, Value};
 
 pub(crate) fn execute(battery: Option<&dyn BatteryControl>) -> crate::CommandResult {
-    let battery = battery.ok_or_else(|| LctrlError::Unsupported {
+    let battery = battery.ok_or_else(|| LenovoLaptopControlError::Unsupported {
         feature: "battery.status".into(),
     })?;
     let mut payload = Map::new();
@@ -56,15 +56,15 @@ pub(crate) fn execute(battery: Option<&dyn BatteryControl>) -> crate::CommandRes
         serde_json::to_string_pretty(&json).map_err(serialization_error)?
     );
     if !(device || os || electrical || system) {
-        return Err(LctrlError::ChannelUnavailable {
+        return Err(LenovoLaptopControlError::ChannelUnavailable {
             channel: format!("battery.status: all primary observation sources failed; {human}"),
         });
     }
     Ok(crate::CommandOutput { human, json })
 }
 
-pub(crate) fn serialization_error(error: serde_json::Error) -> LctrlError {
-    LctrlError::Io(std::io::Error::other(error))
+pub(crate) fn serialization_error(error: serde_json::Error) -> LenovoLaptopControlError {
+    LenovoLaptopControlError::Io(std::io::Error::other(error))
 }
 
 /// Record one independent source's value or error without hiding the other.
@@ -72,8 +72,8 @@ pub(crate) fn capture<T: Serialize>(
     payload: &mut Map<String, Value>,
     value_key: &str,
     error_key: &str,
-    result: lctrl_core::Result<T>,
-) -> lctrl_core::Result<bool> {
+    result: lenovo_laptop_control_core::Result<T>,
+) -> lenovo_laptop_control_core::Result<bool> {
     let (value, error, available) = match result {
         Ok(value) => (
             serde_json::to_value(value).map_err(serialization_error)?,
@@ -94,7 +94,7 @@ pub(crate) fn capture<T: Serialize>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lctrl_core::{
+    use lenovo_laptop_control_core::{
         AdapterInfo, ApplyMode, BatteryElectricalObservation, BatterySourceIssue, BatteryTelemetry,
         ChangeReport, ChargeMode, ChargeModeActual, OsBatterySnapshot, SystemPowerStatus,
     };
@@ -106,14 +106,14 @@ mod tests {
         calls: AtomicUsize,
     }
 
-    fn unavailable<T>(source: &str) -> lctrl_core::Result<T> {
-        Err(LctrlError::ChannelUnavailable {
+    fn unavailable<T>(source: &str) -> lenovo_laptop_control_core::Result<T> {
+        Err(LenovoLaptopControlError::ChannelUnavailable {
             channel: source.into(),
         })
     }
 
     impl BatteryControl for Sources {
-        fn battery_telemetry(&self, _: u32) -> lctrl_core::Result<BatteryTelemetry> {
+        fn battery_telemetry(&self, _: u32) -> lenovo_laptop_control_core::Result<BatteryTelemetry> {
             self.calls.fetch_add(1, Ordering::SeqCst);
             if !self.available {
                 return unavailable("vendor");
@@ -144,7 +144,7 @@ mod tests {
                 source_issues: vec![],
             })
         }
-        fn os_battery_snapshot(&self) -> lctrl_core::Result<OsBatterySnapshot> {
+        fn os_battery_snapshot(&self) -> lenovo_laptop_control_core::Result<OsBatterySnapshot> {
             self.calls.fetch_add(1, Ordering::SeqCst);
             if !self.available || self.fail_os {
                 return unavailable("os-pack");
@@ -159,7 +159,7 @@ mod tests {
                 ..Default::default()
             })
         }
-        fn battery_electrical(&self) -> lctrl_core::Result<BatteryElectricalObservation> {
+        fn battery_electrical(&self) -> lenovo_laptop_control_core::Result<BatteryElectricalObservation> {
             self.calls.fetch_add(1, Ordering::SeqCst);
             if !self.available {
                 return unavailable("native-electrical");
@@ -172,7 +172,7 @@ mod tests {
                 source_issues: Vec::new(),
             })
         }
-        fn system_power_status(&self) -> lctrl_core::Result<SystemPowerStatus> {
+        fn system_power_status(&self) -> lenovo_laptop_control_core::Result<SystemPowerStatus> {
             self.calls.fetch_add(1, Ordering::SeqCst);
             if !self.available {
                 return unavailable("aggregate-power");
@@ -182,11 +182,11 @@ mod tests {
                 ..Default::default()
             })
         }
-        fn adapter_info(&self) -> lctrl_core::Result<AdapterInfo> {
+        fn adapter_info(&self) -> lenovo_laptop_control_core::Result<AdapterInfo> {
             self.calls.fetch_add(1, Ordering::SeqCst);
             unavailable("adapter-channel")
         }
-        fn charge_mode(&self) -> lctrl_core::Result<ChargeModeActual> {
+        fn charge_mode(&self) -> lenovo_laptop_control_core::Result<ChargeModeActual> {
             self.calls.fetch_add(1, Ordering::SeqCst);
             unavailable("charge-channel")
         }
@@ -194,7 +194,7 @@ mod tests {
             &self,
             _: ChargeMode,
             _: ApplyMode,
-        ) -> lctrl_core::Result<ChangeReport<ChargeMode>> {
+        ) -> lenovo_laptop_control_core::Result<ChangeReport<ChargeMode>> {
             panic!("status must not write")
         }
     }

@@ -7,7 +7,7 @@ written, and no registry value is written. Nothing here is a rendered vendor
 message; the document records what the OS actually stores.
 
 The contract was recovered on 2026-11-05 (the summary lives at the top of
-`crates/lctrl-hal/src/event_log.rs` and `crates/lctrl-hal-win/src/event_log.rs`).
+`crates/lenovo-laptop-control-hal/src/event_log.rs` and `crates/lenovo-laptop-control-hal-win/src/event_log.rs`).
 Every row below was re-observed live on 2026-11-06 through the encoded
 PowerShell probes described in §9, so this document states only observed facts.
 
@@ -133,7 +133,7 @@ back; the CLI cap (200) and the default (20) therefore do not need paging.
 
 ## 7. Implementation contract (as written)
 
-`crates/lctrl-hal/src/event_log.rs`:
+`crates/lenovo-laptop-control-hal/src/event_log.rs`:
 
 * `MAX_EVENT_LOG_RECORDS = 200`, `DEFAULT_EVENT_LOG_RECORDS = 20`,
   `normalize_event_log_limit` rejects `0` and anything above 200 with
@@ -147,7 +147,7 @@ back; the CLI cap (200) and the default (20) therefore do not need paging.
 * `format_utc_millis` renders `TimeCreated` as `YYYY-MM-DDTHH:MM:SS.mmmZ`
   (Howard Hinnant civil-from-days, no calendar dependency).
 
-`crates/lctrl-hal-win/src/event_log.rs` (`WindowsEventLog`):
+`crates/lenovo-laptop-control-hal-win/src/event_log.rs` (`WindowsEventLog`):
 
 * `EvtQuery(Application|System, xpath, EvtQueryChannelPath|EvtQueryReverseDirection)`;
   a channel that does not exist (`ERROR_EVT_CHANNEL_NOT_FOUND`) is skipped,
@@ -182,7 +182,7 @@ Windows composition root.
 * `vantage events` has **not** been run on the target in this session. The run
   (`vantage events --limit 2 --json`) and its comparison with §2 are parent
   acceptance, not something this document claims.
-* `cargo check -p lctrl-hal-win --target x86_64-pc-windows-msvc` reports no
+* `cargo check -p lenovo-laptop-control-hal-win --target x86_64-pc-windows-msvc` reports no
   error in `event_log.rs`; the crate currently fails in sibling modules that are
   mid-edit (`usb_ports.rs`, `radio.rs`, `storage.rs`, `touchpad_caps.rs`), which
   is why a whole-crate pass is still outstanding.

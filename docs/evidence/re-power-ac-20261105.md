@@ -117,7 +117,7 @@ Documented contract (Microsoft Learn, `BATTERY_STATUS` structure, Poclass.h):
 | `Voltage` | **current battery voltage across the terminals, mV**; `BATTERY_UNKNOWN_VOLTAGE` when unavailable |
 | `Rate` | **current charge/discharge rate**; mW, or arbitrary units/hour when `BATTERY_CAPACITY_RELATIVE` is set; **positive = charging, negative = discharging**; `BATTERY_UNKNOWN_RATE` when unavailable |
 
-Existing implementation: `crates/lctrl-hal-win/src/native_battery_electrical.rs`
+Existing implementation: `crates/lenovo-laptop-control-hal-win/src/native_battery_electrical.rs`
 enumerates `GUID_DEVCLASS_BATTERY`, admits one non-short-term system battery
 (`collect()` at line 245), queries tag/information (`0x0029_4040`/`0x0029_4044`), then
 `BATTERY_QUERY_STATUS` (`0x0029_404c`, line 364). `project()` (line 88) already:
@@ -190,7 +190,7 @@ adapter channel) because `GetSystemPowerStatus` is Windows-only; `ac_line_source
 | `source` | literal | `SetupAPI battery class IOCTL_BATTERY_QUERY_STATUS (BATTERY_STATUS)` |
 | `unavailable[]` | fixed reasons | wall-input power, adapter output power, adapter voltage/current |
 
-Honesty rules enforced in `lctrl-core`:
+Honesty rules enforced in `lenovo-laptop-control-core`:
 
 1. `rate_mw = Some(0)` is reported as **`state="zero"` with `draw_mw=null`**, never as
    `0 W` draw and never silently as "not reported".

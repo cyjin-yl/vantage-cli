@@ -18,13 +18,13 @@
 use std::sync::Mutex;
 
 use clap::CommandFactory;
-use lctrl_core::{
+use lenovo_laptop_control_core::{
     ApplyMode, CapabilitySet, DriverIdentity, DriverRollbackReport, DriverSignature,
     DriverUpdateReport, DriverVersion, FixLedger, FixObservation, FixRepairKind, FixReport,
     FixRule, HardwareInfo, InstalledDriver, PerformanceMode, Platform, Result, SceneAction,
     ScenePolicyLedger, ScenePolicyMatch, ScenePolicyReport, ScenePolicyRule,
 };
-use lctrl_hal::{Hal, LocalUpdateControl, MachineFixControl, ScenePolicyControl};
+use lenovo_laptop_control_hal::{Hal, LocalUpdateControl, MachineFixControl, ScenePolicyControl};
 use vantage_cli::{
     Cli, Command, CommandServices, ProfileCommand, TuneCommand, execute_with_services,
 };
@@ -172,7 +172,7 @@ fn installed_probe() -> InstalledDriver {
 impl LocalUpdateControl for DriverRecorder {
     fn apply_local_driver_update(
         &self,
-        _request: &lctrl_core::LocalDriverUpdateRequest,
+        _request: &lenovo_laptop_control_core::LocalDriverUpdateRequest,
         mode: ApplyMode,
     ) -> Result<DriverUpdateReport> {
         self.modes.lock().expect("mode log").push(mode);
@@ -192,7 +192,7 @@ impl LocalUpdateControl for DriverRecorder {
 
     fn rollback_local_driver(
         &self,
-        _request: &lctrl_core::LocalDriverRollbackRequest,
+        _request: &lenovo_laptop_control_core::LocalDriverRollbackRequest,
         mode: ApplyMode,
     ) -> Result<DriverRollbackReport> {
         self.modes.lock().expect("mode log").push(mode);

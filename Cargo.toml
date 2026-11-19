@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/lctrl-core", "crates/lctrl-hal", "crates/lctrl-hal-win", "crates/lctrl-hal-linux", "crates/vantage-cli", "crates/lctrl-tune", "crates/vantage-gui", "crates/vantage-daemon", "vantage"]
+members = ["crates/lenovo-laptop-control-core", "crates/lenovo-laptop-control-hal", "crates/lenovo-laptop-control-hal-win", "crates/lenovo-laptop-control-hal-linux", "crates/vantage-cli", "crates/lenovo-laptop-control-tune", "crates/vantage-gui", "crates/vantage-daemon", "vantage"]
 resolver = "3"
 
 [workspace.package]

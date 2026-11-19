@@ -85,7 +85,7 @@ launches `MagiCenter.exe` (args `--sp`, `--smw`) and otherwise stays idle.
 The repo table carried `0x62b5` for the Tiko accessory. That is wrong:
 `0x62A5 = 25253` (the decimal in `docs/06-magicbay.md` §2.1) and the shipped
 detector matches the literal `PID_62A5`. `0x62b5 = 25269` matches nothing
-Lenovo ships. Fixed in `lctrl-core::KNOWN_MAGICBAY_DEVICES`; `0x62b5` now
+Lenovo ships. Fixed in `lenovo-laptop-control-core::KNOWN_MAGICBAY_DEVICES`; `0x62b5` now
 correctly resolves to `MagicBayKind::Unknown`.
 
 The SetupAPI path (`DIGCF_PRESENT | DIGCF_ALLCLASSES`, instance-id substring
@@ -165,7 +165,7 @@ of these classes and stay unavailable until a modem-control API can be bound.
 
 * `magicbay detect` — unchanged algorithm, corrected Tiko PID (§2.4).
 * `magicbay lte status` — new read-only implementation
-  (`lctrl-hal-win::WindowsMobileBroadband`, WMI only):
+  (`lenovo-laptop-control-hal-win::WindowsMobileBroadband`, WMI only):
   1. accessory presence via the recovered §2.2 query (independent of, and a
      cross-check for, the SetupAPI inventory);
   2. WWAN interfaces (`InterfaceType` 243/244) with media/operational state;

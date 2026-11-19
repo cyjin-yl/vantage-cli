@@ -143,21 +143,21 @@ So op4 is not the driver file version and not the registry `Version` DWORD
 
 ### 5.1 Surfaced op4
 
-- `crates/lctrl-core/src/sensing.rs`: `SenseState` gains
+- `crates/lenovo-laptop-control-core/src/sensing.rs`: `SenseState` gains
   - `interface_version: Option<u32>` — op4 value, `None` when not read;
   - `interface_version_error: Option<String>` — why it is absent on a live RPC
     snapshot. `None` in the registry store and in test fixtures: absence is
     never synthesized.
   - `Display` prints `hpd-version=<n>` when present and
     `hpd-version=unavailable` when only the error is present.
-- `crates/lctrl-hal-win/src/sense_rpc.rs`: the live projection reads op4 after
+- `crates/lenovo-laptop-control-hal-win/src/sense_rpc.rs`: the live projection reads op4 after
   op5/op6 and converts its result through the new pure `project_state`
   function. **An op4 failure does not fail `sense status`**: the
   presence/approach/video snapshot from ops 5/6 is returned, the version stays
   `None`, and the error text is retained in `interface_version_error`.
-- `crates/lctrl-hal-win/src/sense.rs`: the registry projection sets
+- `crates/lenovo-laptop-control-hal-win/src/sense.rs`: the registry projection sets
   `interface_version: None` / `interface_version_error: None`.
-- `crates/lctrl-hal-win/examples/hpd_probe.rs`: prints `version: <n>` so op4 can
+- `crates/lenovo-laptop-control-hal-win/examples/hpd_probe.rs`: prints `version: <n>` so op4 can
   be observed read-only in a single probe run.
 - `crates/vantage-cli/src/lib.rs` needs no change: `sense status` already
   serializes the whole `SenseState` (`structured_output` at the `Status` arm).
@@ -175,7 +175,7 @@ so no per-frame/per-event clone was added. A sibling that later relies on
 
 ### 5.2 Tests added (source-level; not executed by this worker)
 
-`crates/lctrl-hal-win/src/sense_rpc.rs` `#[cfg(test)] mod tests`:
+`crates/lenovo-laptop-control-hal-win/src/sense_rpc.rs` `#[cfg(test)] mod tests`:
 
 - `op4_version_is_surfaced_without_changing_settings` — `Ok(2)` →
   `interface_version == Some(2)`, error `None`, settings fields unchanged.
@@ -183,7 +183,7 @@ so no per-frame/per-event clone was added. A sibling that later relies on
   version `None`, error text retained, and `wake_on_approach` /
   `lock_on_leave` / `pause_video` still present from op6.
 
-`crates/lctrl-hal-win/tests/sense_control.rs`: all exhaustive `SenseState`
+`crates/lenovo-laptop-control-hal-win/tests/sense_control.rs`: all exhaustive `SenseState`
 literals carry `interface_version: None` / `interface_version_error: None`
 (honest "not read" fixture value, not a synthesized version).
 

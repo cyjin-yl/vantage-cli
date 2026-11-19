@@ -3054,54 +3054,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "lctrl-core"
-version = "1.0.0"
-dependencies = [
- "serde",
- "serde_json",
- "thiserror 2.0.20",
-]
-
-[[package]]
-name = "lctrl-hal"
-version = "1.0.0"
-dependencies = [
- "lctrl-core",
- "serde",
-]
-
-[[package]]
-name = "lctrl-hal-linux"
-version = "1.0.0"
-dependencies = [
- "lctrl-core",
- "lctrl-hal",
-]
-
-[[package]]
-name = "lctrl-hal-win"
-version = "1.0.0"
-dependencies = [
- "futures",
- "lctrl-core",
- "lctrl-hal",
- "parking_lot",
- "serde",
- "serde_json",
- "windows-sys 0.61.2",
- "wmi",
-]
-
-[[package]]
-name = "lctrl-tune"
-version = "1.0.0"
-dependencies = [
- "lctrl-core",
- "serde",
- "toml 0.8.23",
-]
-
-[[package]]
 name = "leak"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3121,6 +3073,54 @@ name = "lebe"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a79a3332a6609480d7d0c9eab957bca6b455b91bb84e66d19f5ff66294b85b8"
+
+[[package]]
+name = "lenovo-laptop-control-core"
+version = "1.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "lenovo-laptop-control-hal"
+version = "1.1.0"
+dependencies = [
+ "lenovo-laptop-control-core",
+ "serde",
+]
+
+[[package]]
+name = "lenovo-laptop-control-hal-linux"
+version = "1.1.0"
+dependencies = [
+ "lenovo-laptop-control-core",
+ "lenovo-laptop-control-hal",
+]
+
+[[package]]
+name = "lenovo-laptop-control-hal-win"
+version = "1.1.0"
+dependencies = [
+ "futures",
+ "lenovo-laptop-control-core",
+ "lenovo-laptop-control-hal",
+ "parking_lot",
+ "serde",
+ "serde_json",
+ "windows-sys 0.61.2",
+ "wmi",
+]
+
+[[package]]
+name = "lenovo-laptop-control-tune"
+version = "1.1.0"
+dependencies = [
+ "lenovo-laptop-control-core",
+ "serde",
+ "toml 0.8.23",
+]
 
 [[package]]
 name = "libc"
@@ -6108,13 +6108,13 @@ dependencies = [
 
 [[package]]
 name = "vantage-cli"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "clap",
- "lctrl-core",
- "lctrl-hal",
- "lctrl-hal-linux",
- "lctrl-hal-win",
+ "lenovo-laptop-control-core",
+ "lenovo-laptop-control-hal",
+ "lenovo-laptop-control-hal-linux",
+ "lenovo-laptop-control-hal-win",
  "serde_json",
  "vantage-cli-lib",
  "vantage-daemon",
@@ -6122,13 +6122,13 @@ dependencies = [
 
 [[package]]
 name = "vantage-cli-lib"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "clap",
  "clap_complete",
- "lctrl-core",
- "lctrl-hal",
- "lctrl-tune",
+ "lenovo-laptop-control-core",
+ "lenovo-laptop-control-hal",
+ "lenovo-laptop-control-tune",
  "parking_lot",
  "serde",
  "serde_json",
@@ -6137,12 +6137,12 @@ dependencies = [
 
 [[package]]
 name = "vantage-daemon"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
- "lctrl-core",
- "lctrl-hal",
- "lctrl-hal-linux",
- "lctrl-hal-win",
+ "lenovo-laptop-control-core",
+ "lenovo-laptop-control-hal",
+ "lenovo-laptop-control-hal-linux",
+ "lenovo-laptop-control-hal-win",
  "libc",
  "parking_lot",
  "serde",
@@ -6152,14 +6152,14 @@ dependencies = [
 
 [[package]]
 name = "vantage-gui"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "gpui",
  "idna_adapter",
- "lctrl-core",
- "lctrl-hal",
- "lctrl-hal-linux",
- "lctrl-hal-win",
+ "lenovo-laptop-control-core",
+ "lenovo-laptop-control-hal",
+ "lenovo-laptop-control-hal-linux",
+ "lenovo-laptop-control-hal-win",
 ]
 
 [[package]]

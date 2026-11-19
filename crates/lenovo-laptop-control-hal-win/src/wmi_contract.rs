@@ -1,0 +1,260 @@
+use std::collections::BTreeMap;
+
+use lenovo_laptop_control_core::{LenovoLaptopControlError, Result};
+
+pub const ROOT_WMI: &str = "ROOT\\WMI";
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum WmiValue {
+    Empty,
+    Null,
+    String(String),
+    I8(i8),
+    I16(i16),
+    I32(i32),
+    I64(i64),
+    U8(u8),
+    U16(u16),
+    U32(u32),
+    U64(u64),
+    F32(f32),
+    F64(f64),
+    Bool(bool),
+    Array(Vec<Self>),
+}
+
+pub type WmiObject = BTreeMap<String, WmiValue>;
+
+pub trait WmiTransport: Send + Sync {
+    /// True only once the target's BIOS staging-buffer ownership contract has
+    /// been established by experiment — not merely because WMI is reachable.
+    ///
+    /// On TB14P-EZRA the contract is machine-global: a `SetBiosSetting` made
+    /// by one WMI client is committed by a `SaveBiosSettings` issued by a
+    /// different client that never staged anything (verified 2026-11-03:
+    /// process B staged `FnAndCtrlKeySwap,Enable`, a separate save-only
+    /// client committed it). Callers must therefore treat every Save as
+    /// "commit all pending staged changes, whoever staged them" and every
+    /// Discard as "clear all pending staged changes for every client".
+    fn bios_staging_contract_verified(&self) -> bool {
+        false
+    }
+
+    fn query(&self, namespace: &str, wql: &str) -> Result<Vec<WmiObject>>;
+
+    /// An empty output means the transport completed without returned properties
+    /// (possibly without an output object); it does not prove a device effect.
+    /// Callers requiring return data must
+    /// reject its absence, and outputless mutations require actual readback.
+    fn invoke_instance(
+        &self,
+        namespace: &str,
+        class: &str,
+        object_path: &str,
+        method: &str,
+        input: &WmiObject,
+    ) -> Result<WmiObject>;
+}
+
+impl<T: WmiTransport + ?Sized> WmiTransport for &T {
+    fn bios_staging_contract_verified(&self) -> bool {
+        (**self).bios_staging_contract_verified()
+    }
+
+    fn query(&self, namespace: &str, wql: &str) -> Result<Vec<WmiObject>> {
+        (**self).query(namespace, wql)
+    }
+
+    fn invoke_instance(
+        &self,
+        namespace: &str,
+        class: &str,
+        object_path: &str,
+        method: &str,
+        input: &WmiObject,
+    ) -> Result<WmiObject> {
+        (**self).invoke_instance(namespace, class, object_path, method, input)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct WmiInstance {
+    class: String,
+    path: String,
+}
+
+impl WmiInstance {
+    #[must_use]
+    pub fn class(&self) -> &str {
+        &self.class
+    }
+
+    #[must_use]
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+}
+
+pub fn active_instance(transport: &dyn WmiTransport, class: &str) -> Result<WmiInstance> {
+    validate_class_identifier(class)?;
+    let query = format!("SELECT __Path, Active, InstanceName FROM {class} WHERE Active = TRUE");
+    let objects = transport.query(ROOT_WMI, &query)?;
+    if objects.is_empty() {
+        return Err(LenovoLaptopControlError::Unsupported {
+            feature: format!("wmi.class.{class}"),
+        });
+    }
+    // Firmware providers can answer a filtered SELECT with extra rows that carry
+    // no instance key, and those rows cannot be invoked. Continue to the first
+    // row that has a usable key instead of failing the whole channel.
+    let mut inactive = false;
+    let mut missing_key = None;
+    for object in objects {
+        if let Some(WmiValue::Bool(false)) = object.get("Active") {
+            inactive = true;
+            continue;
+        }
+        match instance_path(class, &object) {
+            Ok(path) => {
+                return Ok(WmiInstance {
+                    class: class.into(),
+                    path,
+                });
+            }
+            Err(error) => {
+                missing_key.get_or_insert(error);
+            }
+        }
+    }
+    if inactive && missing_key.is_none() {
+        return Err(LenovoLaptopControlError::ChannelUnavailable {
+            channel: format!("{ROOT_WMI} class {class} returned an inactive instance"),
+        });
+    }
+    Err(
+        missing_key.unwrap_or_else(|| LenovoLaptopControlError::ChannelUnavailable {
+            channel: format!("{ROOT_WMI} class {class} returned an inactive instance"),
+        }),
+    )
+}
+
+fn instance_path(class: &str, object: &WmiObject) -> Result<String> {
+    let path = match object.get("__Path") {
+        Some(WmiValue::String(path)) if !path.is_empty() => path.clone(),
+        _ => match object.get("InstanceName") {
+            Some(WmiValue::String(instance))
+                if !instance.is_empty() && !instance.contains('\0') =>
+            {
+                // These firmware-backed classes do not expose a usable __Path
+                // system property. Their InstanceName is the instance key used
+                // by the official ManagementObject invocation form.
+                format!("{class}.InstanceName={}", quote_wql(instance))
+            }
+            _ => {
+                return Err(LenovoLaptopControlError::ChannelUnavailable {
+                    channel: format!(
+                        "{ROOT_WMI} class {class} omitted both __Path and InstanceName"
+                    ),
+                });
+            }
+        },
+    };
+    Ok(path)
+}
+
+fn quote_wql(value: &str) -> String {
+    format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
+}
+
+fn validate_class_identifier(class: &str) -> Result<()> {
+    let valid = !class.is_empty()
+        && class
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_');
+    if valid {
+        return Ok(());
+    }
+    Err(LenovoLaptopControlError::InvalidArgument {
+        detail: format!("invalid WMI class identifier: {class:?}"),
+    })
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct WmiMethodResult {
+    accepted: bool,
+    output: WmiObject,
+}
+
+impl WmiMethodResult {
+    pub fn parse(mut output: WmiObject) -> Result<Self> {
+        let accepted = match output.remove("ReturnValue") {
+            Some(WmiValue::Bool(value)) => value,
+            Some(other) => {
+                return Err(LenovoLaptopControlError::ChannelUnavailable {
+                    channel: format!("WMI method returned non-Boolean ReturnValue: {other:?}"),
+                });
+            }
+            None if output.contains_key("return") => {
+                // Lenovo BIOS method classes (`Lenovo_SetBiosSetting`,
+                // `Lenovo_GetBiosSelections`, `Lenovo_SaveBiosSettings`,
+                // `Lenovo_DiscardBiosSettings`) return Void and carry their
+                // business result in a named out string `return`; transport
+                // success of the call itself is the only acceptance signal.
+                // Callers must still inspect the business `return` value.
+                true
+            }
+            None if !output.is_empty() => {
+                // Other Lenovo method classes (e.g. `Lenovo_GetBiosSelections`
+                // on this firmware) surface their declared out-parameters only;
+                // `IWbemServices::ExecMethod` does not synthesize a ReturnValue
+                // property the way Invoke-CimMethod does. A non-empty out-params
+                // object that successfully unmarshalled is the transport-level
+                // success signal; callers must validate the declared fields.
+                true
+            }
+            None => {
+                return Err(LenovoLaptopControlError::ChannelUnavailable {
+                    channel: "WMI method omitted ReturnValue".into(),
+                });
+            }
+        };
+        Ok(Self { accepted, output })
+    }
+
+    pub fn require_accepted(&self, feature: &str) -> Result<()> {
+        if self.accepted {
+            return Ok(());
+        }
+        Err(LenovoLaptopControlError::FirmwareRejected {
+            detail: format!("WMI firmware rejected {feature}"),
+        })
+    }
+
+    pub fn require_zero_status(&self, feature: &str) -> Result<u32> {
+        self.require_accepted(feature)?;
+        let status = self.data_u32()?;
+        if status == 0 {
+            return Ok(status);
+        }
+        Err(LenovoLaptopControlError::FirmwareRejected {
+            detail: format!("WMI {feature} returned status {status}"),
+        })
+    }
+
+    pub fn data_u32(&self) -> Result<u32> {
+        match self.output.get("Data") {
+            Some(WmiValue::U32(value)) => Ok(*value),
+            Some(other) => Err(LenovoLaptopControlError::ChannelUnavailable {
+                channel: format!("WMI method returned non-u32 Data: {other:?}"),
+            }),
+            None => Err(LenovoLaptopControlError::ChannelUnavailable {
+                channel: "WMI method omitted Data".into(),
+            }),
+        }
+    }
+
+    #[must_use]
+    pub fn output(&self) -> &WmiObject {
+        &self.output
+    }
+}

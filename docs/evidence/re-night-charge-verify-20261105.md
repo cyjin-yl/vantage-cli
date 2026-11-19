@@ -50,13 +50,13 @@ have bit 4 set, so neither can be interpreted as state — state is only ever th
 
 | Site | Content |
 | --- | --- |
-| `crates/lctrl-hal-win/src/codec.rs:17` | `IOCTL_NIGHT_CHARGE = 0x8310_2150` |
-| `crates/lctrl-hal-win/src/codec.rs:118-134` | `NightChargeSelector`: `SUPPORT_PROBE=0x13`, `STATUS=0x11`, `SET_ON=0x8000_0012`, `SET_OFF=0x12`, `encode()` = LE `u32` |
-| `crates/lctrl-hal-win/src/native_ioctl.rs:73-79` | request validation: `0x13`/`0x11` open read-only, `0x12` open read+write, everything else rejected |
-| `crates/lctrl-hal-win/src/ioctl_contract.rs:98-124` | `night_charge_probe`, `night_charge_status`, `write_night_charge(on)` |
-| `crates/lctrl-hal-win/src/p0.rs:171-205` | read path; commit path writes then `poll_readback(…, 10, 50 ms)`, and on mismatch restores the previous state before returning the error |
-| `crates/lctrl-hal-win/src/windows_hal.rs:372-382` | availability recorded as `Available` only when `EnergyDriver::night_charge_probe()` succeeds |
-| `crates/lctrl-hal/src/command_capability.rs:339-349` | `BATTERY_NIGHT_CHARGE`: `Readback::Required`, `Rollback::PreviousState`, `DispatchSupport::Implemented`, requires `Dependency::EnergyDriver` |
+| `crates/lenovo-laptop-control-hal-win/src/codec.rs:17` | `IOCTL_NIGHT_CHARGE = 0x8310_2150` |
+| `crates/lenovo-laptop-control-hal-win/src/codec.rs:118-134` | `NightChargeSelector`: `SUPPORT_PROBE=0x13`, `STATUS=0x11`, `SET_ON=0x8000_0012`, `SET_OFF=0x12`, `encode()` = LE `u32` |
+| `crates/lenovo-laptop-control-hal-win/src/native_ioctl.rs:73-79` | request validation: `0x13`/`0x11` open read-only, `0x12` open read+write, everything else rejected |
+| `crates/lenovo-laptop-control-hal-win/src/ioctl_contract.rs:98-124` | `night_charge_probe`, `night_charge_status`, `write_night_charge(on)` |
+| `crates/lenovo-laptop-control-hal-win/src/p0.rs:171-205` | read path; commit path writes then `poll_readback(…, 10, 50 ms)`, and on mismatch restores the previous state before returning the error |
+| `crates/lenovo-laptop-control-hal-win/src/windows_hal.rs:372-382` | availability recorded as `Available` only when `EnergyDriver::night_charge_probe()` succeeds |
+| `crates/lenovo-laptop-control-hal/src/command_capability.rs:339-349` | `BATTERY_NIGHT_CHARGE`: `Readback::Required`, `Rollback::PreviousState`, `DispatchSupport::Implemented`, requires `Dependency::EnergyDriver` |
 | `crates/vantage-cli/src/lib.rs:2297`, `:3151` | `execute_night_charge` (honours `--dry-run`, optional `--auto-restore`), `restore_night_charge` |
 
 ## 3. Method — three independent observers

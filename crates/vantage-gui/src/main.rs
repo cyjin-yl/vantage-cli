@@ -1,16 +1,16 @@
-use lctrl_core::{LctrlError, Platform};
+use lenovo_laptop_control_core::{LenovoLaptopControlError, Platform};
 use vantage_gui::{DashboardSnapshot, run};
 
 #[cfg(target_os = "linux")]
 fn main() {
-    let hal = lctrl_hal_linux::LinuxHal::new();
+    let hal = lenovo_laptop_control_hal_linux::LinuxHal::new();
     launch(snapshot_or_unavailable(&hal, Platform::Linux));
 }
 
 #[cfg(windows)]
 fn main() {
     let hal =
-        lctrl_hal_win::NativeWindowsHal::new(lctrl_hal_win::NativeWmi, lctrl_hal_win::NativeIoctl);
+        lenovo_laptop_control_hal_win::NativeWindowsHal::new(lenovo_laptop_control_hal_win::NativeWmi, lenovo_laptop_control_hal_win::NativeIoctl);
     launch(snapshot_or_unavailable(&hal, Platform::Windows));
 }
 
@@ -22,7 +22,7 @@ fn main() {
     ));
 }
 
-fn snapshot_or_unavailable(hal: &dyn lctrl_hal::Hal, platform: Platform) -> DashboardSnapshot {
+fn snapshot_or_unavailable(hal: &dyn lenovo_laptop_control_hal::Hal, platform: Platform) -> DashboardSnapshot {
     match DashboardSnapshot::from_hal(hal) {
         Ok(snapshot) => snapshot,
         Err(error) => {
@@ -37,7 +37,7 @@ fn launch(snapshot: DashboardSnapshot) {
     }
 }
 
-fn exit_error(error: LctrlError) -> ! {
+fn exit_error(error: LenovoLaptopControlError) -> ! {
     eprintln!("{error}");
     std::process::exit(i32::from(error.exit_code()));
 }

@@ -1,6 +1,6 @@
 # SmartSense vendor-parity write acceptance — TB14P-EZRA, 2026-11-02
 
-Source: current uncommitted parity implementation in `lctrl-hal-win/src/sense.rs` (WaitNamedPipeW 3000 ms; SECURITY_SQOS_PRESENT | SECURITY_ANONYMOUS; nonzero accepted; exact 8-byte frame), built natively on target.
+Source: current uncommitted parity implementation in `lenovo-laptop-control-hal-win/src/sense.rs` (WaitNamedPipeW 3000 ms; SECURITY_SQOS_PRESENT | SECURITY_ANONYMOUS; nonzero accepted; exact 8-byte frame), built natively on target.
 
 Baseline and all subsequent independent registry reads:
 

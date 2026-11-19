@@ -291,11 +291,11 @@ without re-deriving the probe.
 
 | layer | file | content |
 |---|---|---|
-| core types | `crates/lctrl-core/src/storage.rs` | `StorageStatus`/`StorageDevice`, `StorageFieldProvenance` (one label per field naming the request that produced it), `StorageBusType` (11 = `Sata`, 17 = `Nvme`, unknown values stay `Other` beside `bus_type_raw`), `StorageMediaType`, `StorageHealth` (unknown codes stay `Unknown`), `StorageCriticalWarning`, `StorageTemperatureSensor`, `StorageSourceIssue` |
-| operation | `crates/lctrl-hal/src/storage.rs` | `StorageStatusControl::storage_status` — the only verb; no self-test, sanitize, secure-erase or firmware-slot method exists |
-| seam | `crates/lctrl-hal-win/src/storage.rs` | `StorageProbeApi` (`disks`/`query`/`geometry`) plus `WindowsStorage<P>`, so recorded structure bytes drive the composition in tests; `decode_*` functions decode each structure with a declared-size check |
+| core types | `crates/lenovo-laptop-control-core/src/storage.rs` | `StorageStatus`/`StorageDevice`, `StorageFieldProvenance` (one label per field naming the request that produced it), `StorageBusType` (11 = `Sata`, 17 = `Nvme`, unknown values stay `Other` beside `bus_type_raw`), `StorageMediaType`, `StorageHealth` (unknown codes stay `Unknown`), `StorageCriticalWarning`, `StorageTemperatureSensor`, `StorageSourceIssue` |
+| operation | `crates/lenovo-laptop-control-hal/src/storage.rs` | `StorageStatusControl::storage_status` — the only verb; no self-test, sanitize, secure-erase or firmware-slot method exists |
+| seam | `crates/lenovo-laptop-control-hal-win/src/storage.rs` | `StorageProbeApi` (`disks`/`query`/`geometry`) plus `WindowsStorage<P>`, so recorded structure bytes drive the composition in tests; `decode_*` functions decode each structure with a declared-size check |
 | native | same file, `mod native` | `CM_Get_Device_Interface_List_SizeW`/`CM_Get_Device_Interface_ListW` on `GUID_DEVINTERFACE_DISK`, then `CreateFileW(…, dwDesiredAccess = 0, …)` and `DeviceIoControl` for the three IOCTLs of §8.4 |
-| capability | `crates/lctrl-hal-win/src/windows_hal.rs` | records `storage.status` and `channel.storage` once per `capabilities()` call from `storage::probe_storage()`: the interface enumeration plus one `StorageDeviceProperty` request on the first disk. A per-field refusal is *not* a capability failure — it is recorded per field by the command |
+| capability | `crates/lenovo-laptop-control-hal-win/src/windows_hal.rs` | records `storage.status` and `channel.storage` once per `capabilities()` call from `storage::probe_storage()`: the interface enumeration plus one `StorageDeviceProperty` request on the first disk. A per-field refusal is *not* a capability failure — it is recorded per field by the command |
 | CLI | `crates/vantage-cli/src/lib.rs`, `capability.rs` | `vantage storage [status]` → `CommandId::STORAGE_STATUS`, `StateLayer::NotApplicable`, `ServiceRole::Storage` bound to `channel.storage` |
 
 `probe_storage()` returning an empty list is a success, not a failure: the

@@ -110,14 +110,14 @@ reason for any unsupported entry.
 vantage (CLI binary)
   └─ vantage-cli        command dispatch, formatting, --json
   └─ vantage-daemon     optional background service (IPC)
-  └─ lctrl-core         domain types, validation, no I/O
-  └─ lctrl-hal          platform-neutral trait definitions
-  └─ lctrl-hal-win      Windows: WMI, IOCTL, RPC, registry, Win32
-  └─ lctrl-hal-linux    Linux: sysfs, procfs, ACPI, DRM
-  └─ lctrl-tune         profile engine, constraints, telemetry
+  └─ lenovo-laptop-control-core         domain types, validation, no I/O
+  └─ lenovo-laptop-control-hal          platform-neutral trait definitions
+  └─ lenovo-laptop-control-hal-win      Windows: WMI, IOCTL, RPC, registry, Win32
+  └─ lenovo-laptop-control-hal-linux    Linux: sysfs, procfs, ACPI, DRM
+  └─ lenovo-laptop-control-tune         profile engine, constraints, telemetry
 ```
 
-Each hardware channel is a trait in `lctrl-hal`.  The Windows and Linux
+Each hardware channel is a trait in `lenovo-laptop-control-hal`.  The Windows and Linux
 backends implement those traits through their respective platform APIs.
 The CLI layer has no platform-specific code.
 
@@ -164,8 +164,8 @@ cargo build --release
 
 ```bash
 cargo test                        # all platforms, unit + contract tests
-cargo test -p lctrl-core          # domain model tests
-cargo test -p lctrl-hal           # HAL trait contract tests
+cargo test -p lenovo-laptop-control-core          # domain model tests
+cargo test -p lenovo-laptop-control-hal           # HAL trait contract tests
 ```
 
 Integration tests that touch real hardware run only on the target machine

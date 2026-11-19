@@ -1,8 +1,8 @@
 //! Battery wear, design-versus-full-charge capacity and cycle count with
 //! per-field provenance. Source values are never merged between channels.
 
-use lctrl_core::{BatteryHealth, LctrlError};
-use lctrl_hal::BatteryControl;
+use lenovo_laptop_control_core::{BatteryHealth, LenovoLaptopControlError};
+use lenovo_laptop_control_hal::BatteryControl;
 use serde::Serialize;
 use serde_json::{Map, Value};
 
@@ -14,7 +14,7 @@ use crate::battery_observation::{capture, serialization_error};
 const VENDOR_HEALTH_SOURCE: &str = "energy_drv_83102138_device0";
 
 pub(crate) fn execute(battery: Option<&dyn BatteryControl>) -> crate::CommandResult {
-    let battery = battery.ok_or_else(|| LctrlError::Unsupported {
+    let battery = battery.ok_or_else(|| LenovoLaptopControlError::Unsupported {
         feature: "battery.health".into(),
     })?;
     let mut payload = Map::new();
@@ -39,7 +39,7 @@ pub(crate) fn execute(battery: Option<&dyn BatteryControl>) -> crate::CommandRes
         serde_json::to_string_pretty(&json).map_err(serialization_error)?
     );
     if !wear {
-        return Err(LctrlError::ChannelUnavailable {
+        return Err(LenovoLaptopControlError::ChannelUnavailable {
             channel: format!("battery.health: the capacity channel failed; {human}"),
         });
     }
@@ -54,7 +54,7 @@ struct VendorHealth {
     life_percent: Option<u16>,
 }
 
-fn vendor_health(battery: &dyn BatteryControl) -> lctrl_core::Result<VendorHealth> {
+fn vendor_health(battery: &dyn BatteryControl) -> lenovo_laptop_control_core::Result<VendorHealth> {
     let telemetry = battery.battery_telemetry(0)?;
     Ok(VendorHealth {
         source: VENDOR_HEALTH_SOURCE,
@@ -66,7 +66,7 @@ fn vendor_health(battery: &dyn BatteryControl) -> lctrl_core::Result<VendorHealt
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lctrl_core::{
+    use lenovo_laptop_control_core::{
         AdapterInfo, ApplyMode, BatteryElectricalObservation, BatteryFieldProvenance,
         BatterySourceIssue, BatteryTelemetry, BatteryWearReport, ChangeReport, ChargeMode,
         ChargeModeActual, OsBatterySnapshot, SystemPowerStatus,
@@ -79,13 +79,13 @@ mod tests {
     };
 
     struct Fake {
-        wear: lctrl_core::Result<BatteryWearReport>,
+        wear: lenovo_laptop_control_core::Result<BatteryWearReport>,
         health: Option<BatteryHealth>,
         life_percent: Option<u16>,
     }
 
     impl Fake {
-        fn new(wear: lctrl_core::Result<BatteryWearReport>) -> Self {
+        fn new(wear: lenovo_laptop_control_core::Result<BatteryWearReport>) -> Self {
             Self {
                 wear,
                 health: None,
@@ -95,7 +95,7 @@ mod tests {
     }
 
     impl BatteryControl for Fake {
-        fn battery_telemetry(&self, _: u32) -> lctrl_core::Result<BatteryTelemetry> {
+        fn battery_telemetry(&self, _: u32) -> lenovo_laptop_control_core::Result<BatteryTelemetry> {
             Ok(BatteryTelemetry {
                 design_capacity_mwh: Some(99_900),
                 full_charge_capacity_mwh: Some(93_810),
@@ -123,41 +123,41 @@ mod tests {
             })
         }
 
-        fn battery_wear(&self) -> lctrl_core::Result<BatteryWearReport> {
+        fn battery_wear(&self) -> lenovo_laptop_control_core::Result<BatteryWearReport> {
             match &self.wear {
                 Ok(report) => Ok(report.clone()),
-                Err(_) => Err(LctrlError::ChannelUnavailable {
+                Err(_) => Err(LenovoLaptopControlError::ChannelUnavailable {
                     channel: "fake capacity channel".into(),
                 }),
             }
         }
 
-        fn os_battery_snapshot(&self) -> lctrl_core::Result<OsBatterySnapshot> {
-            Err(LctrlError::Unsupported {
+        fn os_battery_snapshot(&self) -> lenovo_laptop_control_core::Result<OsBatterySnapshot> {
+            Err(LenovoLaptopControlError::Unsupported {
                 feature: "battery.os-observation".into(),
             })
         }
 
-        fn battery_electrical(&self) -> lctrl_core::Result<BatteryElectricalObservation> {
-            Err(LctrlError::Unsupported {
+        fn battery_electrical(&self) -> lenovo_laptop_control_core::Result<BatteryElectricalObservation> {
+            Err(LenovoLaptopControlError::Unsupported {
                 feature: "battery.electrical-observation".into(),
             })
         }
 
-        fn system_power_status(&self) -> lctrl_core::Result<SystemPowerStatus> {
-            Err(LctrlError::Unsupported {
+        fn system_power_status(&self) -> lenovo_laptop_control_core::Result<SystemPowerStatus> {
+            Err(LenovoLaptopControlError::Unsupported {
                 feature: "battery.system-power".into(),
             })
         }
 
-        fn adapter_info(&self) -> lctrl_core::Result<AdapterInfo> {
-            Err(LctrlError::Unsupported {
+        fn adapter_info(&self) -> lenovo_laptop_control_core::Result<AdapterInfo> {
+            Err(LenovoLaptopControlError::Unsupported {
                 feature: "battery.adapter".into(),
             })
         }
 
-        fn charge_mode(&self) -> lctrl_core::Result<ChargeModeActual> {
-            Err(LctrlError::Unsupported {
+        fn charge_mode(&self) -> lenovo_laptop_control_core::Result<ChargeModeActual> {
+            Err(LenovoLaptopControlError::Unsupported {
                 feature: "battery.charge-mode.readback".into(),
             })
         }
@@ -166,8 +166,8 @@ mod tests {
             &self,
             _: ChargeMode,
             _: ApplyMode,
-        ) -> lctrl_core::Result<ChangeReport<ChargeMode>> {
-            Err(LctrlError::Unsupported {
+        ) -> lenovo_laptop_control_core::Result<ChangeReport<ChargeMode>> {
+            Err(LenovoLaptopControlError::Unsupported {
                 feature: "battery.charge_mode".into(),
             })
         }
@@ -225,7 +225,7 @@ mod tests {
 
     #[test]
     fn a_failed_capacity_channel_fails_but_reports_the_vendor_facts() {
-        let fake = Fake::new(Err(LctrlError::ChannelUnavailable {
+        let fake = Fake::new(Err(LenovoLaptopControlError::ChannelUnavailable {
             channel: "root\\WMI battery classes".into(),
         }));
         let error = execute(Some(&fake)).expect_err("no capacity channel");

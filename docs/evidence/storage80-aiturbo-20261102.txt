@@ -8,7 +8,7 @@ Source: work/vantage-machine-fix-20261030 @ c56a491 + this slice's edits
 EnergyDriver::em_spec_version, native_ioctl read-only whitelist, probe print).
 The five touched files on the target matched local HEAD byte-for-byte before
 the edited copies were scp'd to C:\Users\ezra\vantage-machine-fix-source.
-Build on target: cargo build --locked --offline -p lctrl-hal-win --example charge_domain_probe
+Build on target: cargo build --locked --offline -p lenovo-laptop-control-hal-win --example charge_domain_probe
 (cargo at C:\Users\ezra\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\cargo.exe,
 CARGO_TARGET_DIR=D:\YanduBuildCache\cargo-target), Finished in 5.29s.
 

@@ -1,0 +1,69 @@
+[package]
+name = "lenovo-laptop-control-hal-win"
+version = "1.1.0"
+edition.workspace = true
+rust-version.workspace = true
+description = "Windows HAL backend for Vantage (WMI/IOCTL/RPC)"
+license = "AGPL-3.0-only"
+repository.workspace = true
+homepage = "https://github.com/cyjin-yl/vantage-cli"
+
+[dependencies]
+lenovo-laptop-control-core = { path = "../lenovo-laptop-control-core", version = "1.1.0" }
+lenovo-laptop-control-hal = { path = "../lenovo-laptop-control-hal", version = "1.1.0" }
+serde_json.workspace = true
+serde.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+wmi = "0.18"
+futures = "0.3"
+windows-sys = { version = "0.61", features = [
+    "Win32_Devices_Bluetooth",
+    "Win32_Devices_DeviceAndDriverInstallation",
+    "Win32_Devices_Display",
+    "Win32_Devices_HumanInterfaceDevice",
+    "Win32_Devices_Properties",
+    "Win32_Devices_Usb",
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_Globalization",
+    "Win32_Media",
+    "Win32_Media_Audio",
+    "Win32_Media_KernelStreaming",
+    "Win32_NetworkManagement_IpHelper",
+    "Win32_NetworkManagement_Ndis",
+    "Win32_NetworkManagement_WiFi",
+    "Win32_Networking_WinSock",
+    "Win32_Security",
+    "Win32_Security_Cryptography",
+    "Win32_Security_WinTrust",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Com",
+    "Win32_System_Com_Marshal",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_EventLog",
+    "Win32_System_IO",
+    "Win32_System_Kernel",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Memory",
+    "Win32_System_Pipes",
+    "Win32_System_ProcessStatus",
+    "Win32_System_RemoteDesktop",
+    "Win32_System_Registry",
+    "Win32_System_Rpc",
+    "Win32_System_Power",
+    "Win32_System_Services",
+    "Win32_System_SystemInformation",
+    "Win32_System_Threading",
+    "Win32_System_Time",
+    "Win32_System_WindowsProgramming",
+    "Win32_UI_ColorSystem",
+    "Win32_UI_HiDpi",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Input_KeyboardAndMouse",
+] }
+
+[dev-dependencies]
+serde_json.workspace = true
+parking_lot.workspace = true

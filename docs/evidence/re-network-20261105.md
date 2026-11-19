@@ -11,7 +11,7 @@ Scope: the two **read-only** network verbs of this wave.
 
 Out of scope and untouched: radio soft/hard state and `radio off|on` (owner: the Radio API slice,
 `docs/evidence/re-radio-20261105.md`), Wi-Fi saved-profile security (`wifi security`, existing
-netsh slice in `crates/lctrl-hal-win/src/wifi_security.rs`).
+netsh slice in `crates/lenovo-laptop-control-hal-win/src/wifi_security.rs`).
 
 This document was written **before** the implementation, per the wave method: contract first, then
 code that only covers what the live channel actually exposes.
@@ -334,7 +334,7 @@ survived.
 
 ## 5. Implemented plane and fail-closed rules
 
-`crates/lctrl-hal-win/src/wifi_status.rs`
+`crates/lenovo-laptop-control-hal-win/src/wifi_status.rs`
 - `WlanOpenHandle(2)`, `WlanEnumInterfaces`, `WlanQueryInterface`(6, 7, 8),
   `WlanGetNetworkBssList`, `WlanFreeMemory`, `WlanCloseHandle`. **No** `WlanScan`,
   **no** `WlanSetInterface`, **no** `WlanConnect`.
@@ -350,7 +350,7 @@ survived.
 - The BSS query is filtered to the associated SSID and `dot11_BSS_type_infrastructure`, and is only
   issued for an interface whose state is `connected`.
 
-`crates/lctrl-hal-win/src/bluetooth.rs`
+`crates/lenovo-laptop-control-hal-win/src/bluetooth.rs`
 - `BluetoothFindFirstRadio`/`BluetoothFindNextRadio`/`BluetoothFindRadioClose`,
   `BluetoothGetRadioInfo` (+ `CloseHandle` on the radio handle), and
   `BluetoothFindFirstDevice`/`BluetoothFindNextDevice`/`BluetoothFindDeviceClose` with

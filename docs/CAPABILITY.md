@@ -444,7 +444,7 @@ firmware rejects the gamut plane: every LENOVO_PANEL_METHOD method including Pan
 
 ### `panel.eye-care`
 
-vendor owner recovered (Vantage SmartInteractAddin EyeCareMode + PCManager LenovoMonitorManager.exe) and the mechanism is the system gamma ramp (GetDeviceGammaRamp/SetDeviceGammaRamp), implemented here through lctrl-hal-win's NativeGammaRamp with readback classification; the row stays unsupported because this SSH/network logon cannot exercise a desktop gamma write and the Mid/High Kelvin table is repo-inferred rather than vendor-extracted (docs/evidence/re-panel-20261105.md §5)
+vendor owner recovered (Vantage SmartInteractAddin EyeCareMode + PCManager LenovoMonitorManager.exe) and the mechanism is the system gamma ramp (GetDeviceGammaRamp/SetDeviceGammaRamp), implemented here through lenovo-laptop-control-hal-win's NativeGammaRamp with readback classification; the row stays unsupported because this SSH/network logon cannot exercise a desktop gamma write and the Mid/High Kelvin table is repo-inferred rather than vendor-extracted (docs/evidence/re-panel-20261105.md §5)
 
 ### `panel.overdrive`
 

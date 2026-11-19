@@ -254,7 +254,7 @@ Derivation rules (pure function, unit-tested without a device):
 Source-only change in a shared worktree: no build, test, lint, or CLI execution
 was performed by this slice. Parent-owned checks:
 
-1. `cargo check -p lctrl-hal-win --target x86_64-pc-windows-msvc` and the target
+1. `cargo check -p lenovo-laptop-control-hal-win --target x86_64-pc-windows-msvc` and the target
    `.bat` build.
 2. On the target: `vantage --json touchpad caps` must print exactly the values in
    §5 and exit 0; `vantage touchpad caps` (human) must label the millimetres line

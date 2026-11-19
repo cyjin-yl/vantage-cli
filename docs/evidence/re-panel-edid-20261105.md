@@ -52,7 +52,7 @@ them:
 SHA-256 of the 384-byte value:
 `648806e959b417cc81049eb1d1e6e2c33c084b09514ce8a211ea0c06de1c0bcc`.
 The byte-exact value is pinned by the unit test constant
-`crates/lctrl-core/src/edid.rs::tests::REFERENCE_EDID` (verified equal to this
+`crates/lenovo-laptop-control-core/src/edid.rs::tests::REFERENCE_EDID` (verified equal to this
 capture), and the base64 below decodes to it:
 
 ```text
@@ -116,7 +116,7 @@ valid EDID for a monitor that is not attached.
 
 ## 5. Refusals
 
-Enforced by `lctrl_core::decode_panel_edid` before any field is reported:
+Enforced by `lenovo_laptop_control_core::decode_panel_edid` before any field is reported:
 
 | defect | behavior | evidence |
 | --- | --- | --- |
@@ -127,7 +127,7 @@ Enforced by `lctrl_core::decode_panel_edid` before any field is reported:
 | preferred DTD with a zero active/blank field | refused | unit test (vertical active zeroed, checksum resealed) |
 | base block version major ≠ 1 | refused | code path, no sample |
 
-Selection refusals (`lctrl-hal-win::panel_identity`): zero internal connections →
+Selection refusals (`lenovo-laptop-control-hal-win::panel_identity`): zero internal connections →
 `Unsupported`; two or more → `ChannelUnavailable` (ambiguous, never "pick one");
 `InstanceName` without a numeric `_N` index → `ChannelUnavailable`; class/EDID
 mismatch → `ChannelUnavailable`.
@@ -140,9 +140,9 @@ value above 32 KiB.
 
 | layer | path / symbol |
 | --- | --- |
-| decoder + types | `crates/lctrl-core/src/edid.rs`: `decode_panel_edid`, `PanelIdentity`, `PanelConnection`, `PanelInput`, `PanelResolution`, `PanelPhysicalSize`, `PanelManufacture`, `PanelEdidVersion`, `PanelRangeLimits`; re-exported from `lctrl-core` |
-| HAL trait | `crates/lctrl-hal/src/peripherals.rs`: `PanelIdentityControl::identity` |
-| Windows channel | `crates/lctrl-hal-win/src/panel_identity.rs`: `WindowsPanelIdentity<W, R>`, `NativePanelRegistry` (`RegOpenKeyExW`/`RegQueryValueExW`), `internal_panel_device` probe |
+| decoder + types | `crates/lenovo-laptop-control-core/src/edid.rs`: `decode_panel_edid`, `PanelIdentity`, `PanelConnection`, `PanelInput`, `PanelResolution`, `PanelPhysicalSize`, `PanelManufacture`, `PanelEdidVersion`, `PanelRangeLimits`; re-exported from `lenovo-laptop-control-core` |
+| HAL trait | `crates/lenovo-laptop-control-hal/src/peripherals.rs`: `PanelIdentityControl::identity` |
+| Windows channel | `crates/lenovo-laptop-control-hal-win/src/panel_identity.rs`: `WindowsPanelIdentity<W, R>`, `NativePanelRegistry` (`RegOpenKeyExW`/`RegQueryValueExW`), `internal_panel_device` probe |
 | capability row | `CommandId::PANEL_INFO` (`panel.info`), `ServiceRole::PanelIdentity`, `FeatureBinding::Capability("panel.identity")`, dependencies `PublicWin32Cim` + `Win32Registry`, `DispatchSupport::Implemented` |
 | capability probe | `windows_hal` records `channel.panel-identity` and `panel.identity` from the `WmiMonitorConnectionParams` selection only |
 | CLI | `PanelCommand::Info` (`panel info`), `CommandServices::with_panel_identity`, `execute_panel_info`; composition in `vantage/src/main.rs` |
@@ -169,12 +169,12 @@ value above 32 KiB.
 
 ## 8. Parent acceptance steps (not run by this work)
 
-1. Build per the shared contract (`cargo check -p lctrl-hal-win --target
+1. Build per the shared contract (`cargo check -p lenovo-laptop-control-hal-win --target
    x86_64-pc-windows-msvc`, then the target `.bat` build) and run the new unit
    tests:
-   - `lctrl-core`: `edid::tests` (reference decode, external-DP decode, and the
+   - `lenovo-laptop-control-core`: `edid::tests` (reference decode, external-DP decode, and the
      five malformed-input refusals).
-   - `lctrl-hal-win`: `panel_identity::tests` (selection, signed/unsigned
+   - `lenovo-laptop-control-hal-win`: `panel_identity::tests` (selection, signed/unsigned
      `VOT_INTERNAL`, ambiguity, missing index, class cross-check).
 2. On the target: `vantage panel info` and `vantage panel info --json`. Expect
    `panel: LEN8AD7 (LEN14.53K)`, `manufactured: 2025 (week not specified)`,

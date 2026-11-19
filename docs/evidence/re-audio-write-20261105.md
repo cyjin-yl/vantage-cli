@@ -137,18 +137,18 @@ literal key order matches the owned `Envelope` writer byte for byte.
 
 | Requirement | Source |
 |---|---|
-| op6 / op8 constants | `crates/lctrl-hal-win/src/dolby.rs:213`, `:215` |
-| op6 / op8 call sites | `crates/lctrl-hal-win/src/dolby.rs:639` (`NdrClientCall3(… PROC_SET_DOLBY_ENABLED …)`), `:673` (op8) |
-| owned descriptors, op5–8 (`out short`, `in short`, `out long`, `in long`) | `crates/lctrl-hal-win/src/ndr/dolby.rs:198-218` (param vocabulary `:128-159`) |
-| write orchestration + readback gate | `crates/lctrl-hal-win/src/dolby.rs:115` `set_dolby_profile` (Off ⇒ op6 only; otherwise op6 then op8; `poll_readback_until` 10 × 50 ms, op5+op7 compare) |
-| check `0x10`/`0x06`/`0x08` interpretation above | `crates/lctrl-hal-win/src/ndr/dolby.rs:199-218` emits the same attr/type words the server record shows |
-| Elevoc Set verb | `crates/lctrl-hal-win/src/noise.rs:1212` `set_effect_mode` (voice-id gate 4, `6→1`/`7→2` remap, domain check, `SetAlgType` prefix, `SetMode{uplink}`) |
-| `SetMode` envelope order | `crates/lctrl-hal-win/src/noise.rs:1129` `rpc_set_mode`, `:653` `Envelope` (`request … elevoc_rpc_protocol, RPC/2.2, token, endpoint`) |
-| mode table | `crates/lctrl-hal-win/src/noise.rs:151` `MODE_NAMES` = §5 order |
-| HAL write entry points | `crates/lctrl-hal-win/src/noise.rs:93` (`poll_readback` after commit), `crates/lctrl-hal-win/src/dolby.rs:115` |
+| op6 / op8 constants | `crates/lenovo-laptop-control-hal-win/src/dolby.rs:213`, `:215` |
+| op6 / op8 call sites | `crates/lenovo-laptop-control-hal-win/src/dolby.rs:639` (`NdrClientCall3(… PROC_SET_DOLBY_ENABLED …)`), `:673` (op8) |
+| owned descriptors, op5–8 (`out short`, `in short`, `out long`, `in long`) | `crates/lenovo-laptop-control-hal-win/src/ndr/dolby.rs:198-218` (param vocabulary `:128-159`) |
+| write orchestration + readback gate | `crates/lenovo-laptop-control-hal-win/src/dolby.rs:115` `set_dolby_profile` (Off ⇒ op6 only; otherwise op6 then op8; `poll_readback_until` 10 × 50 ms, op5+op7 compare) |
+| check `0x10`/`0x06`/`0x08` interpretation above | `crates/lenovo-laptop-control-hal-win/src/ndr/dolby.rs:199-218` emits the same attr/type words the server record shows |
+| Elevoc Set verb | `crates/lenovo-laptop-control-hal-win/src/noise.rs:1212` `set_effect_mode` (voice-id gate 4, `6→1`/`7→2` remap, domain check, `SetAlgType` prefix, `SetMode{uplink}`) |
+| `SetMode` envelope order | `crates/lenovo-laptop-control-hal-win/src/noise.rs:1129` `rpc_set_mode`, `:653` `Envelope` (`request … elevoc_rpc_protocol, RPC/2.2, token, endpoint`) |
+| mode table | `crates/lenovo-laptop-control-hal-win/src/noise.rs:151` `MODE_NAMES` = §5 order |
+| HAL write entry points | `crates/lenovo-laptop-control-hal-win/src/noise.rs:93` (`poll_readback` after commit), `crates/lenovo-laptop-control-hal-win/src/dolby.rs:115` |
 | composition root attaches both | `vantage/src/main.rs:431-437` (Dolby), `:438-444` (Elevoc), `:472-479` (`with_noise_cancel`, `with_audio`) |
-| capability rows | `crates/lctrl-hal/src/command_capability.rs:1277` (`AUDIO_DOLBY`), `:1289` (`AUDIO_NOISE_CANCEL`) — both `DispatchSupport::Implemented` |
-| read-only probe gate | `crates/lctrl-hal-win/src/windows_hal.rs:944-1006` (`audio.dolby` from op5, `audio.noise-cancel` from `GetCurrentMode`, `channel.audio` join) |
+| capability rows | `crates/lenovo-laptop-control-hal/src/command_capability.rs:1277` (`AUDIO_DOLBY`), `:1289` (`AUDIO_NOISE_CANCEL`) — both `DispatchSupport::Implemented` |
+| read-only probe gate | `crates/lenovo-laptop-control-hal-win/src/windows_hal.rs:944-1006` (`audio.dolby` from op5, `audio.noise-cancel` from `GetCurrentMode`, `channel.audio` join) |
 | CLI surfaces | `crates/vantage-cli/src/lib.rs:951` `AudioCommand`, `:2789` `execute_noise_cancel`, `:2836` `execute_dolby`, `:2638`/`:2665` restore helpers |
 
 ## 7. Live status (from prior receipts, not re-run in this pass)
@@ -177,7 +177,7 @@ literal key order matches the owned `Envelope` writer byte for byte.
    gap, a surface-coverage choice.
 3. **Product naming vs wire names**: `NoiseCancellationMode` maps raw 2
    (`private`) to `Single` and raw 3 (`special`) to `Spatial`
-   (`crates/lctrl-core/src/audio.rs:79-100`, `docs/04-peripherals.md:395`).
+   (`crates/lenovo-laptop-control-core/src/audio.rs:79-100`, `docs/04-peripherals.md:395`).
    Wire behaviour is the vendor's; the label mapping is a project decision and
    should be labelled as such in user-facing docs.
 4. **Speaker side**: `SetDownLinkStatus` is a documented SDK verb but is not

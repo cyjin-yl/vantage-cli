@@ -2,7 +2,7 @@
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use lctrl_core::LctrlError;
+use lenovo_laptop_control_core::LenovoLaptopControlError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -79,14 +79,14 @@ impl DaemonEvent {
     }
 
     #[cfg(windows)]
-    pub fn vendor_wmi(event: lctrl_hal::RawEvent) -> lctrl_core::Result<Self> {
+    pub fn vendor_wmi(event: lenovo_laptop_control_hal::RawEvent) -> lenovo_laptop_control_core::Result<Self> {
         #[derive(Serialize)]
         struct VendorWmiPayload {
             source_class: String,
-            instance: std::collections::BTreeMap<String, lctrl_hal::EventValue>,
+            instance: std::collections::BTreeMap<String, lenovo_laptop_control_hal::EventValue>,
         }
 
-        let lctrl_hal::RawEvent {
+        let lenovo_laptop_control_hal::RawEvent {
             timestamp_unix_ms,
             source_class,
             instance,
@@ -95,7 +95,7 @@ impl DaemonEvent {
             source_class,
             instance,
         })
-        .map_err(|error| LctrlError::Io(std::io::Error::other(error)))?;
+        .map_err(|error| LenovoLaptopControlError::Io(std::io::Error::other(error)))?;
         Ok(Self {
             ts_unix_ms: timestamp_unix_ms,
             kind: VENDOR_EVENT_KIND.into(),
@@ -119,7 +119,7 @@ pub struct DaemonStatus {
 
 /// Presence of the daemon at an IPC endpoint, as observed by one status probe.
 ///
-/// The clients use this instead of a bare [`LctrlError`] so that "no daemon is
+/// The clients use this instead of a bare [`LenovoLaptopControlError`] so that "no daemon is
 /// running" (an answer) stays distinct from "the endpoint is broken"
 /// (a fault): only the latter is an error to report.
 #[derive(Clone, Debug)]
@@ -140,8 +140,8 @@ fn started_at_unix_ms() -> u64 {
         })
 }
 
-fn protocol_error(error: impl Into<String>) -> LctrlError {
-    LctrlError::ChannelUnavailable {
+fn protocol_error(error: impl Into<String>) -> LenovoLaptopControlError {
+    LenovoLaptopControlError::ChannelUnavailable {
         channel: format!("vantage daemon IPC: {}", error.into()),
     }
 }
@@ -157,15 +157,15 @@ mod windows;
 pub use windows::{default_endpoint, endpoint_text, probe, request, run};
 
 #[cfg(not(any(unix, windows)))]
-pub fn run(_events: std::sync::mpsc::Receiver<DaemonEvent>) -> lctrl_core::Result<()> {
-    Err(LctrlError::Unsupported {
+pub fn run(_events: std::sync::mpsc::Receiver<DaemonEvent>) -> lenovo_laptop_control_core::Result<()> {
+    Err(LenovoLaptopControlError::Unsupported {
         feature: "daemon.ipc".into(),
     })
 }
 
 #[cfg(not(any(unix, windows)))]
-pub fn request(_request: &DaemonRequest) -> lctrl_core::Result<DaemonResponse> {
-    Err(LctrlError::Unsupported {
+pub fn request(_request: &DaemonRequest) -> lenovo_laptop_control_core::Result<DaemonResponse> {
+    Err(LenovoLaptopControlError::Unsupported {
         feature: "daemon.ipc".into(),
     })
 }
@@ -206,7 +206,7 @@ mod tests {
     fn vendor_events_expose_only_timestamp_class_and_actual_instance() {
         use std::collections::BTreeMap;
 
-        use lctrl_hal::{EventValue, RawEvent};
+        use lenovo_laptop_control_hal::{EventValue, RawEvent};
 
         let raw = RawEvent::new(
             42,

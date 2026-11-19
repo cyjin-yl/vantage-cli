@@ -1,7 +1,7 @@
 # Capability-matrix accuracy audit — 21VG target — 2026-11-05/06
 
 Target: `tb14p-ezra` (ThinkBook 14 G8+ IPH, 21VG, Windows 11 26100, BIOS `SWCN22WW`).
-Scope: every row of `COMMAND_REGISTRY` in `crates/lctrl-hal/src/command_capability.rs`, classified
+Scope: every row of `COMMAND_REGISTRY` in `crates/lenovo-laptop-control-hal/src/command_capability.rs`, classified
 against the live machine, plus the bounded `FeatureBinding::Unprobed → Capability` repairs that the
 live probes prove. **No write, no service change, no driver call with side effects was issued.**
 Compiler/IR, dispatch code, axes, dependencies and capability *ids* are untouched.
@@ -9,7 +9,7 @@ Compiler/IR, dispatch code, axes, dependencies and capability *ids* are untouche
 Registry snapshot audited (line numbers below are exact for this sha):
 
 ```
-file    crates/lctrl-hal/src/command_capability.rs
+file    crates/lenovo-laptop-control-hal/src/command_capability.rs
 bytes   83703
 sha256  2e41712e1c0bceee924b92679f75118f1536236b0670ee79e994b838691f2394
 rows    153  (CommandCapability::new entries)
@@ -427,7 +427,7 @@ binary cannot parse.
 Rule applied (per parent instruction): flip only where **both** hold, and keep the id string
 identical:
 
-1. a recording site exists in `crates/lctrl-hal-win/src/windows_hal.rs` (quoted below), and
+1. a recording site exists in `crates/lenovo-laptop-control-hal-win/src/windows_hal.rs` (quoted below), and
 2. the live capability run reports that id `available`/`limited`, i.e. the probe proved the channel;
 3. the row's dispatch is `Implemented`.
 
@@ -440,7 +440,7 @@ only stops the registry claiming "no current capability probe" when one exists.
 Recording sites are cited by their enclosing statement/array, not by line number: `windows_hal.rs`
 is being extended by sibling workers continuously (it grew by well over a hundred lines during this
 audit alone), so any line number would be stale within minutes. Every anchor below was re-checked
-against the tree when this table was written; `git grep -n '<anchor>' crates/lctrl-hal-win/src`
+against the tree when this table was written; `git grep -n '<anchor>' crates/lenovo-laptop-control-hal-win/src`
 locates it.
 
 | # | row | id | recording site in `windows_hal.rs` | live observation |
@@ -561,7 +561,7 @@ Note the eight `update.*` ids here are **deliberately** non-probe names ("withou
 4. **`kbd backlight` role defect (§6.2)**: after a build with the `KBLC` channel, `vantage capability`
    should report `kbd.backlight` `available`; with `ServiceRole::Keyboard` still unmapped it will
    say `unverified` — this confirms the defect rather than the channel.
-5. **Registry tests**: `cargo test -p lctrl-hal` must still pass. Verified by grep at audit time:
+5. **Registry tests**: `cargo test -p lenovo-laptop-control-hal` must still pass. Verified by grep at audit time:
    no crate test outside `command_capability.rs` mentions `Unprobed` at all
    (`crates/vantage-cli/src/capability.rs:1081` and `:1178` are the only other occurrences, both
    match arms), so no test can distinguish the two bindings.

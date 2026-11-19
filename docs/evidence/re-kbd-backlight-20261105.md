@@ -168,7 +168,7 @@ the EC reports the change back through the EnergyDrv
 `0x1000 KeyboardBacklightStatus` event (`docs/02-power-battery.md` §11.2).
 Those need the acceptance run.
 
-## 5. Implementation boundary (`crates/lctrl-hal-win/src/kbd_backlight.rs`)
+## 5. Implementation boundary (`crates/lenovo-laptop-control-hal-win/src/kbd_backlight.rs`)
 
 - `WindowsKeyboardBacklight<I: IoctlTransport>` speaks only `0x83102144`
   with 4-byte in/out; it re-queries the layout on every operation instead of

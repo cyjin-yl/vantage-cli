@@ -1,0 +1,2422 @@
+use std::collections::BTreeMap;
+
+use lenovo_laptop_control_core::{
+    CommandAxes, CommandDependency, CommandId, CommandSelector, Dependency, DependencyUse,
+    HardwarePresence, HardwareRequirement, Readback, Rollback, StateLayer,
+};
+
+/// A concrete service or executor that can implement a command.
+///
+/// Roles map one-to-one to `CommandServices` fields only when the platform
+/// composition root exposes that field. Unexposed roles remain explicit so a
+/// registry entry never looks supported merely because a field happens to exist.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum ServiceRole {
+    Hal,
+    Battery,
+    Bios,
+    Diagnostics,
+    Fan,
+    Keyboard,
+    MagicBay,
+    Performance,
+    Power,
+    Privacy,
+    Touchpad,
+    Panel,
+    PanelBrightness,
+    PanelIdentity,
+    Temperature,
+    Tuning,
+    Update,
+    Events,
+    Process,
+    ProcessorPower,
+    Usb,
+    UsbPorts,
+    Sense,
+    Audio,
+    MobileBroadband,
+    MagicBayCamera,
+    MagicBayDisplay,
+    Osd,
+    Storage,
+    Hotkey,
+    Wifi,
+    Bluetooth,
+    Radio,
+    Sensor,
+    Security,
+    MachineFix,
+    ScenePolicy,
+}
+
+impl ServiceRole {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Hal => "hal",
+            Self::Battery => "battery",
+            Self::Bios => "bios",
+            Self::Diagnostics => "diagnostics",
+            Self::Fan => "fan",
+            Self::Keyboard => "keyboard",
+            Self::MagicBay => "magicbay",
+            Self::Performance => "performance",
+            Self::Power => "power",
+            Self::Privacy => "privacy",
+            Self::Touchpad => "touchpad",
+            Self::Panel => "panel",
+            Self::PanelBrightness => "panel_brightness",
+            Self::PanelIdentity => "panel_identity",
+            Self::Temperature => "temperature",
+            Self::Tuning => "tuning",
+            Self::Update => "update",
+            Self::Events => "events",
+            Self::Process => "process",
+            Self::ProcessorPower => "processor_power",
+            Self::Usb => "usb",
+            Self::UsbPorts => "usb_ports",
+            Self::Sense => "sense",
+            Self::Audio => "audio",
+            Self::MobileBroadband => "mobile_broadband",
+            Self::MagicBayCamera => "magicbay_camera",
+            Self::MagicBayDisplay => "magicbay_display",
+            Self::Osd => "osd",
+            Self::Storage => "storage",
+            Self::Hotkey => "hotkey",
+            Self::Wifi => "wifi",
+            Self::Bluetooth => "bluetooth",
+            Self::Radio => "radio",
+            Self::Sensor => "sensor",
+            Self::Security => "security",
+            Self::MachineFix => "machine_fix",
+            Self::ScenePolicy => "scene_policy",
+        }
+    }
+}
+
+/// How a registry entry proves its intended feature.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FeatureBinding {
+    /// Direct `CapabilitySet` probe key.
+    Capability(&'static str),
+    /// Meaningful CLI/HAL feature name, but no current capability probe.
+    Unprobed(&'static str),
+    /// Any of these capabilities is sufficient.
+    AnyOf(&'static [&'static str]),
+    /// The command depends on a profile- or snapshot-selected subset.
+    Dynamic(&'static [&'static str]),
+    /// The implementation is the service/executor itself and has no HAL probe.
+    ServiceOnly,
+    /// A pure local operation with no HAL feature.
+    LocalOnly,
+}
+
+impl FeatureBinding {
+    #[must_use]
+    pub fn feature_ids(self) -> &'static [&'static str] {
+        match self {
+            Self::AnyOf(features) | Self::Dynamic(features) => features,
+            _ => &[],
+        }
+    }
+
+    #[must_use]
+    pub const fn is_probed(self) -> bool {
+        matches!(
+            self,
+            Self::Capability(_) | Self::AnyOf(_) | Self::Dynamic(_)
+        )
+    }
+
+    #[must_use]
+    pub const fn direct_feature(self) -> Option<&'static str> {
+        match self {
+            Self::Capability(feature) | Self::Unprobed(feature) => Some(feature),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ServiceBinding {
+    Local,
+    One(ServiceRole),
+    AnyOf(&'static [ServiceRole]),
+    /// A composite command can use any subset; absence reduces confidence but
+    /// is not itself `Unsupported`.
+    Composite(&'static [ServiceRole]),
+    /// Handled by the platform binary outside `CommandServices`.
+    External,
+    /// No current HAL trait method or executor is attached.
+    Unsupported,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DispatchSupport {
+    /// The current CLI dispatch reaches this service/executor. It is not a
+    /// hardware-effect claim; observed capability is still required.
+    Implemented,
+    /// The current dispatch is explicitly unavailable.
+    Unsupported(&'static str),
+    External,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct CommandCapability {
+    pub command: CommandId,
+    pub axes: CommandAxes,
+    pub feature: FeatureBinding,
+    pub service: ServiceBinding,
+    pub dependencies: &'static [CommandDependency],
+    pub hardware: HardwareRequirement,
+    pub dispatch: DispatchSupport,
+    pub notes: Option<&'static str>,
+}
+
+impl CommandCapability {
+    #[must_use]
+    pub const fn new(
+        command: CommandId,
+        axes: CommandAxes,
+        feature: FeatureBinding,
+        service: ServiceBinding,
+        dependencies: &'static [CommandDependency],
+        dispatch: DispatchSupport,
+    ) -> Self {
+        Self {
+            command,
+            axes,
+            feature,
+            service,
+            dependencies,
+            hardware: HardwareRequirement::None,
+            dispatch,
+            notes: None,
+        }
+    }
+
+    #[must_use]
+    pub const fn with_hardware(mut self, hardware: HardwareRequirement) -> Self {
+        self.hardware = hardware;
+        self
+    }
+
+    #[must_use]
+    pub const fn selector(&self) -> CommandSelector {
+        self.axes.selector(self.command)
+    }
+
+    #[must_use]
+    pub const fn static_reason(&self) -> Option<&'static str> {
+        match self.dispatch {
+            DispatchSupport::Implemented | DispatchSupport::External => self.notes,
+            DispatchSupport::Unsupported(reason) => Some(reason),
+        }
+    }
+}
+
+/// Cross-process executor observations. Absence is recorded only from actual
+/// inventories; `Unknown` never becomes NotApplicable or available.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct HardwareObservation {
+    pub magicbay: HardwarePresence,
+}
+
+const SNAPSHOT_FEATURES: &[&str] = &[
+    "battery.charge_mode",
+    "perf.mode",
+    "perf.fan.mode",
+    "tune.epp",
+    "tune.pl1",
+    "tune.pl2",
+    "tune.tau",
+    "kbd.backlight",
+    "touchpad",
+    "privacy.camera",
+    "power.scheme",
+];
+
+const SNAPSHOT_SERVICES: &[ServiceRole] = &[
+    ServiceRole::Battery,
+    ServiceRole::Performance,
+    ServiceRole::Fan,
+    ServiceRole::Tuning,
+    ServiceRole::Keyboard,
+    ServiceRole::Touchpad,
+    ServiceRole::Privacy,
+    ServiceRole::Power,
+];
+
+/// Complete static registry for every current CLI command/subcommand and
+/// argument-selected layer.
+pub const COMMAND_REGISTRY: &[CommandCapability] = &[
+    CommandCapability::new(
+        CommandId::INFO,
+        CommandAxes::read_only(StateLayer::NotApplicable),
+        FeatureBinding::LocalOnly,
+        ServiceBinding::One(ServiceRole::Hal),
+        &[],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::DOCTOR,
+        CommandAxes::read_only(StateLayer::NotApplicable),
+        FeatureBinding::LocalOnly,
+        ServiceBinding::One(ServiceRole::Hal),
+        &[],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::CPU_STATUS,
+        CommandAxes::read_only(StateLayer::NotApplicable),
+        FeatureBinding::Capability("cpu.status"),
+        ServiceBinding::One(ServiceRole::Hal),
+        &[
+            lenovo_laptop_control_core::required(Dependency::PublicWin32Cim),
+            lenovo_laptop_control_core::required(Dependency::Win32Registry),
+            lenovo_laptop_control_core::required(Dependency::Win32PowerApi),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::EVENTS_LOG,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("events.log"),
+        ServiceBinding::One(ServiceRole::Events),
+        &[
+            lenovo_laptop_control_core::required(Dependency::Win32EventLog),
+            lenovo_laptop_control_core::required(Dependency::Win32Registry),
+            lenovo_laptop_control_core::optional(Dependency::LenovoPcManagerService),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::BATTERY_STATUS,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("battery.status"),
+        ServiceBinding::One(ServiceRole::Battery),
+        &[
+            lenovo_laptop_control_core::optional(Dependency::EnergyDriver),
+            lenovo_laptop_control_core::optional(Dependency::PublicWin32Cim),
+            lenovo_laptop_control_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::BATTERY_ADAPTER,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("battery.adapter"),
+        ServiceBinding::One(ServiceRole::Battery),
+        &[
+            lenovo_laptop_control_core::optional(Dependency::EnergyDriver),
+            lenovo_laptop_control_core::optional(Dependency::PublicWin32Cim),
+            lenovo_laptop_control_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::BATTERY_HEALTH,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("battery.health"),
+        ServiceBinding::One(ServiceRole::Battery),
+        &[
+            lenovo_laptop_control_core::optional(Dependency::EnergyDriver),
+            lenovo_laptop_control_core::optional(Dependency::PublicWin32Cim),
+            lenovo_laptop_control_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::BATTERY_CHARGE_MODE,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::Transactional,
+        ),
+        FeatureBinding::Capability("battery.charge_mode"),
+        ServiceBinding::One(ServiceRole::Battery),
+        &[
+            lenovo_laptop_control_core::required(Dependency::EnergyDriver),
+            lenovo_laptop_control_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::BATTERY_THRESHOLDS,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Unverified,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::Unprobed("battery.thresholds"),
+        ServiceBinding::Unsupported,
+        &[],
+        DispatchSupport::Unsupported(
+            "custom charge thresholds have no verified native write and readback contract; fixed conservation mode is not a custom threshold interface (docs/02-power-battery.md §4.2)",
+        ),
+    ),
+    CommandCapability::new(
+        CommandId::BATTERY_EXTREME_LIFE,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Unverified,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::Capability("battery.extreme-life"),
+        ServiceBinding::Unsupported,
+        &[],
+        DispatchSupport::Unsupported(
+            "extreme life is the AiTurbo run-state policy (BatteryLife.exe/AiPerfSvc), not a charge-firmware mode: no GBMD/BNMC/BTMC selector carries it, and the PCManager charge radio's extra state is night charge (BNMC 0x83102150), not a fourth firmware mode. Full equivalence needs an owned signed kernel Job lifecycle implementation and the target UI toggle mapping; a partial power-plan or EcoQoS substitute is not implemented (docs/evidence/extreme-life-re-20261102.md, docs/evidence/re-battery-adv-20261105.md)",
+        ),
+    ),
+    CommandCapability::new(
+        CommandId::BATTERY_NIGHT_CHARGE,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("battery.night-charge"),
+        ServiceBinding::One(ServiceRole::Battery),
+        &[lenovo_laptop_control_core::required(Dependency::EnergyDriver)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::BATTERY_TEMPORARY_MODE,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("battery.temporary-mode"),
+        ServiceBinding::One(ServiceRole::Battery),
+        &[lenovo_laptop_control_core::required(Dependency::EnergyDriver)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::BATTERY_WATCH,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("battery.status"),
+        ServiceBinding::One(ServiceRole::Battery),
+        &[
+            lenovo_laptop_control_core::required(Dependency::PublicWin32Cim),
+            lenovo_laptop_control_core::optional(Dependency::EnergyDriver),
+            lenovo_laptop_control_core::required(Dependency::LinuxUdev),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::USB_ALWAYS_ON,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("usb.charging"),
+        ServiceBinding::One(ServiceRole::Usb),
+        &[lenovo_laptop_control_core::required(Dependency::EnergyDriver)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::USB_ALWAYS_ON,
+        CommandAxes::mutation(
+            StateLayer::BiosPersistent,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("bios"),
+        ServiceBinding::One(ServiceRole::Bios),
+        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::USB_CHARGE_ON_BATTERY,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("usb.charging"),
+        ServiceBinding::One(ServiceRole::Usb),
+        &[lenovo_laptop_control_core::required(Dependency::EnergyDriver)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::USB_CHARGE_ON_BATTERY,
+        CommandAxes::mutation(
+            StateLayer::BiosPersistent,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("bios"),
+        ServiceBinding::One(ServiceRole::Bios),
+        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::USB_PORTS,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("usb.ports"),
+        ServiceBinding::One(ServiceRole::Usb),
+        &[lenovo_laptop_control_core::required(Dependency::Win32SetupApi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::POWER_SCHEME_ACTIVE,
+        CommandAxes::read_only(StateLayer::OsPersistent),
+        FeatureBinding::Capability("power.scheme"),
+        ServiceBinding::One(ServiceRole::Power),
+        &[
+            lenovo_laptop_control_core::required(Dependency::Win32PowerApi),
+            lenovo_laptop_control_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::POWER_SCHEME_LIST,
+        CommandAxes::read_only(StateLayer::OsPersistent),
+        FeatureBinding::Capability("power.scheme"),
+        ServiceBinding::One(ServiceRole::Power),
+        &[
+            lenovo_laptop_control_core::required(Dependency::Win32PowerApi),
+            lenovo_laptop_control_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::POWER_SCHEME_GET,
+        CommandAxes::read_only(StateLayer::OsPersistent),
+        FeatureBinding::Capability("power.scheme"),
+        ServiceBinding::One(ServiceRole::Power),
+        &[
+            lenovo_laptop_control_core::required(Dependency::Win32PowerApi),
+            lenovo_laptop_control_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::POWER_SCHEME_SETTING_READ,
+        CommandAxes::read_only(StateLayer::OsPersistent),
+        FeatureBinding::Capability("power.scheme.setting.read"),
+        ServiceBinding::One(ServiceRole::Power),
+        &[lenovo_laptop_control_core::required(Dependency::Win32PowerApi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::POWER_SCHEME_APPLY,
+        CommandAxes::mutation(
+            StateLayer::OsPersistent,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("power.scheme"),
+        ServiceBinding::One(ServiceRole::Power),
+        &[
+            lenovo_laptop_control_core::required(Dependency::Win32PowerApi),
+            lenovo_laptop_control_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::POWER_SCHEME_SET,
+        CommandAxes::mutation(
+            StateLayer::OsPersistent,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("power.scheme.setting"),
+        ServiceBinding::One(ServiceRole::Power),
+        &[
+            lenovo_laptop_control_core::required(Dependency::Win32PowerApi),
+            lenovo_laptop_control_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::POWER_SAVER_ONCE,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Unverified,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::Capability("power.saver-once"),
+        ServiceBinding::Composite(&[ServiceRole::Battery, ServiceRole::Power]),
+        &[
+            lenovo_laptop_control_core::required(Dependency::EnergyDriver),
+            lenovo_laptop_control_core::required(Dependency::Win32PowerApi),
+            lenovo_laptop_control_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::POWER_AC,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("battery.adapter"),
+        ServiceBinding::One(ServiceRole::Battery),
+        &[
+            lenovo_laptop_control_core::optional(Dependency::EnergyDriver),
+            lenovo_laptop_control_core::required(Dependency::Win32PowerApi),
+            lenovo_laptop_control_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::POWER_DRAW,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("battery.status"),
+        ServiceBinding::One(ServiceRole::Battery),
+        &[
+            lenovo_laptop_control_core::required(Dependency::Win32SetupApi),
+            lenovo_laptop_control_core::optional(Dependency::Win32PowerApi),
+            lenovo_laptop_control_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::PERF_MODE,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("perf.mode"),
+        ServiceBinding::One(ServiceRole::Performance),
+        &[
+            lenovo_laptop_control_core::required(Dependency::Win32PowerApi),
+            lenovo_laptop_control_core::optional(Dependency::Win32Registry),
+            lenovo_laptop_control_core::optional(Dependency::LenovoProcessManagement),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::PERF_FAN_STATUS,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::AnyOf(&["perf.fan.mode", "perf.fan.inventory"]),
+        ServiceBinding::One(ServiceRole::Fan),
+        &[
+            lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi),
+            lenovo_laptop_control_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::PERF_FAN_AUTO,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("perf.fan.mode.write"),
+        ServiceBinding::One(ServiceRole::Fan),
+        &[
+            lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi),
+            lenovo_laptop_control_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::PERF_FAN_MANUAL,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("perf.fan.mode.write"),
+        ServiceBinding::One(ServiceRole::Fan),
+        &[
+            lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi),
+            lenovo_laptop_control_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::PERF_FAN_FULLSPEED,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("perf.fan.mode.write"),
+        ServiceBinding::One(ServiceRole::Fan),
+        &[
+            lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi),
+            lenovo_laptop_control_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::PERF_FAN_SMART,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("perf.fan.mode.write"),
+        ServiceBinding::One(ServiceRole::Fan),
+        &[
+            lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi),
+            lenovo_laptop_control_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::PERF_FAN_CURVE,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Unverified,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::Capability("perf.fan.curve"),
+        ServiceBinding::One(ServiceRole::Fan),
+        &[
+            lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi),
+            lenovo_laptop_control_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Unsupported(
+            "firmware rejects the fan-table plane: LENOVO_FAN_METHOD.Fan_Get_Table/Fan_Set_Table return WBEM_E_NOT_SUPPORTED on this SKU (docs/evidence/wmi-capability-exhaustion-20261104.md §3)",
+        ),
+    ),
+    CommandCapability::new(
+        CommandId::PERF_FAN_DUTY,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::Capability("perf.fan.duty.write"),
+        ServiceBinding::One(ServiceRole::Fan),
+        &[
+            lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi),
+            lenovo_laptop_control_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::DISPLAY_STATUS,
+        CommandAxes::read_only(StateLayer::Runtime),
+        // Session/display/monitor reads are OS-level; the panel.refresh
+        // sub-read degrades to an inline error when the channel is absent.
+        FeatureBinding::LocalOnly,
+        ServiceBinding::One(ServiceRole::Panel),
+        &[
+            lenovo_laptop_control_core::required(Dependency::PublicWin32Cim),
+            lenovo_laptop_control_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::PERF_TEMP_LIST,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("perf.temp"),
+        ServiceBinding::One(ServiceRole::Temperature),
+        &[
+            lenovo_laptop_control_core::required(Dependency::PublicWin32Cim),
+            lenovo_laptop_control_core::optional(Dependency::EnergyDriver),
+            lenovo_laptop_control_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::PERF_TEMP_READ,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("perf.temp"),
+        ServiceBinding::One(ServiceRole::Temperature),
+        &[
+            lenovo_laptop_control_core::required(Dependency::PublicWin32Cim),
+            lenovo_laptop_control_core::optional(Dependency::EnergyDriver),
+            lenovo_laptop_control_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::PERF_TEMP_WATCH,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("perf.temp"),
+        ServiceBinding::One(ServiceRole::Temperature),
+        &[
+            lenovo_laptop_control_core::required(Dependency::PublicWin32Cim),
+            lenovo_laptop_control_core::optional(Dependency::EnergyDriver),
+            lenovo_laptop_control_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::PERF_PL1,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("tune.pl1"),
+        ServiceBinding::One(ServiceRole::Tuning),
+        &[
+            lenovo_laptop_control_core::optional(Dependency::IntelDptf),
+            lenovo_laptop_control_core::required(Dependency::LinuxPowercap),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::PERF_PL2,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("tune.pl2"),
+        ServiceBinding::One(ServiceRole::Tuning),
+        &[
+            lenovo_laptop_control_core::optional(Dependency::IntelDptf),
+            lenovo_laptop_control_core::required(Dependency::LinuxPowercap),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::PERF_DBDC_GET,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("perf.dbdc"),
+        ServiceBinding::One(ServiceRole::Performance),
+        &[lenovo_laptop_control_core::required(Dependency::LenovoVendorWmi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::PERF_GPU_STATUS,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("perf.gpu"),
+        ServiceBinding::One(ServiceRole::Performance),
+        &[lenovo_laptop_control_core::required(Dependency::LenovoVendorWmi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::PERF_POLICY,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("perf.policy"),
+        ServiceBinding::One(ServiceRole::Performance),
+        &[
+            lenovo_laptop_control_core::required(Dependency::Win32Registry),
+            lenovo_laptop_control_core::optional(Dependency::LenovoProcessManagement),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::PERF_TOP,
+        CommandAxes::read_only(StateLayer::NotApplicable),
+        FeatureBinding::Capability("perf.top"),
+        ServiceBinding::One(ServiceRole::Process),
+        &[
+            lenovo_laptop_control_core::required(Dependency::Win32ProcessApi),
+            lenovo_laptop_control_core::required(Dependency::LinuxProcfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::PERF_BOOST,
+        CommandAxes::mutation(
+            StateLayer::NotApplicable,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("perf.boost"),
+        ServiceBinding::One(ServiceRole::Process),
+        &[lenovo_laptop_control_core::required(Dependency::Win32ProcessApi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::PERF_THROTTLE,
+        CommandAxes::mutation(
+            StateLayer::NotApplicable,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("perf.throttle"),
+        ServiceBinding::One(ServiceRole::Process),
+        &[lenovo_laptop_control_core::required(Dependency::Win32ProcessApi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::TUNE_PROFILE_LIST,
+        CommandAxes::read_only(StateLayer::LocalPersistent),
+        FeatureBinding::LocalOnly,
+        ServiceBinding::Local,
+        &[lenovo_laptop_control_core::required(Dependency::LocalFilesystem)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::TUNE_PROFILE_SHOW,
+        CommandAxes::read_only(StateLayer::LocalPersistent),
+        FeatureBinding::LocalOnly,
+        ServiceBinding::Local,
+        &[lenovo_laptop_control_core::required(Dependency::LocalFilesystem)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::TUNE_PROFILE_APPLY,
+        CommandAxes::mutation(
+            StateLayer::Composite,
+            Readback::Required,
+            Rollback::Transactional,
+        ),
+        FeatureBinding::Dynamic(&[
+            "battery.charge_mode",
+            "perf.mode",
+            "perf.fan.mode",
+            "tune.epp",
+            "tune.pl1",
+            "tune.pl2",
+            "tune.tau",
+            "kbd.backlight",
+        ]),
+        ServiceBinding::Composite(&[
+            ServiceRole::Battery,
+            ServiceRole::Performance,
+            ServiceRole::Fan,
+            ServiceRole::Tuning,
+            ServiceRole::Keyboard,
+        ]),
+        &[lenovo_laptop_control_core::required(Dependency::LocalFilesystem)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::TUNE_PL1,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::Transactional,
+        ),
+        FeatureBinding::Dynamic(&["tune.pl1", "tune.pl2", "tune.tau"]),
+        ServiceBinding::One(ServiceRole::Tuning),
+        &[
+            lenovo_laptop_control_core::optional(Dependency::IntelDptf),
+            lenovo_laptop_control_core::required(Dependency::LinuxPowercap),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::TUNE_EPP,
+        CommandAxes::mutation(
+            StateLayer::PlatformDependent,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("tune.epp"),
+        ServiceBinding::One(ServiceRole::Tuning),
+        &[
+            lenovo_laptop_control_core::required(Dependency::Win32PowerApi),
+            lenovo_laptop_control_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::TUNE_TURBO,
+        CommandAxes::mutation(
+            StateLayer::PlatformDependent,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("tune.turbo"),
+        ServiceBinding::One(ServiceRole::ProcessorPower),
+        &[
+            lenovo_laptop_control_core::required(Dependency::Win32PowerApi),
+            lenovo_laptop_control_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::TUNE_RESTORE,
+        CommandAxes::mutation(
+            StateLayer::Composite,
+            Readback::Required,
+            Rollback::Transactional,
+        ),
+        FeatureBinding::Dynamic(&[
+            "battery.charge_mode",
+            "perf.mode",
+            "perf.fan.mode",
+            "tune.epp",
+            "tune.pl1",
+            "tune.pl2",
+            "tune.tau",
+            "kbd.backlight",
+        ]),
+        ServiceBinding::Composite(&[
+            ServiceRole::Battery,
+            ServiceRole::Performance,
+            ServiceRole::Fan,
+            ServiceRole::Tuning,
+            ServiceRole::Keyboard,
+        ]),
+        &[lenovo_laptop_control_core::required(Dependency::LocalFilesystem)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::TUNE_TELEMETRY,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::AnyOf(&[
+            "tune.epp",
+            "tune.pl1",
+            "tune.pl2",
+            "tune.tau",
+            "battery.status",
+            "perf.mode",
+            "perf.temp",
+        ]),
+        ServiceBinding::Composite(&[
+            ServiceRole::Tuning,
+            ServiceRole::Battery,
+            ServiceRole::Performance,
+            ServiceRole::Temperature,
+        ]),
+        &[],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::TUNE_WATCH,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::AnyOf(&["tune.epp", "battery.status", "perf.temp", "perf.mode"]),
+        ServiceBinding::AnyOf(&[
+            ServiceRole::Tuning,
+            ServiceRole::Battery,
+            ServiceRole::Performance,
+            ServiceRole::Temperature,
+        ]),
+        &[
+            lenovo_laptop_control_core::required(Dependency::PublicWin32Cim),
+            lenovo_laptop_control_core::required(Dependency::LinuxUdev),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::KBD_BACKLIGHT,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::Transactional,
+        ),
+        FeatureBinding::Capability("kbd.backlight"),
+        ServiceBinding::One(ServiceRole::Keyboard),
+        &[
+            lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi),
+            lenovo_laptop_control_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::KBD_FNLOCK,
+        CommandAxes::mutation(
+            StateLayer::BiosPersistent,
+            Readback::Required,
+            Rollback::Transactional,
+        ),
+        FeatureBinding::Capability("kbd.fnlock"),
+        ServiceBinding::One(ServiceRole::Bios),
+        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::KBD_FN_CTRL_SWAP,
+        CommandAxes::mutation(
+            StateLayer::BiosPersistent,
+            Readback::Required,
+            Rollback::Transactional,
+        ),
+        FeatureBinding::Capability("kbd.fn-ctrl-swap"),
+        ServiceBinding::One(ServiceRole::Bios),
+        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::KBD_WINLOCK,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Unverified,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::Capability("wmi.gamezone.methods"),
+        ServiceBinding::Unsupported,
+        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        DispatchSupport::Unsupported(
+            "firmware rejects the Win-key methods: LENOVO_GAMEZONE_DATA.GetWinKeyStatus/SetWinKeyStatus return WBEM_E_INVALID_OBJECT on this SKU (docs/evidence/wmi-capability-exhaustion-20261104.md §4)",
+        ),
+    ),
+    CommandCapability::new(
+        CommandId::TOUCHPAD,
+        CommandAxes::mutation(
+            StateLayer::PlatformDependent,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("touchpad"),
+        ServiceBinding::One(ServiceRole::Touchpad),
+        &[
+            lenovo_laptop_control_core::required(Dependency::Win32DeviceManagement),
+            lenovo_laptop_control_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::TOUCHPAD_STATUS,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("touchpad.status"),
+        ServiceBinding::One(ServiceRole::Touchpad),
+        &[
+            lenovo_laptop_control_core::required(Dependency::Win32DeviceManagement),
+            lenovo_laptop_control_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::TOUCHPAD_RECOVER,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::Capability("touchpad.recover"),
+        ServiceBinding::One(ServiceRole::Touchpad),
+        &[lenovo_laptop_control_core::required(Dependency::Win32DeviceManagement)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::TOUCHPAD_CAPS,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("touchpad.caps"),
+        ServiceBinding::One(ServiceRole::Touchpad),
+        &[lenovo_laptop_control_core::required(Dependency::Win32DeviceManagement)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::PANEL_RATE,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("panel.refresh"),
+        ServiceBinding::One(ServiceRole::Panel),
+        &[
+            lenovo_laptop_control_core::required(Dependency::Win32DisplayApi),
+            lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi),
+            lenovo_laptop_control_core::required(Dependency::LinuxDrm),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::PANEL_INFO,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("panel.identity"),
+        ServiceBinding::One(ServiceRole::PanelIdentity),
+        &[
+            lenovo_laptop_control_core::required(Dependency::PublicWin32Cim),
+            lenovo_laptop_control_core::required(Dependency::Win32Registry),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::PANEL_BRIGHTNESS_STATUS,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("panel.brightness.status"),
+        ServiceBinding::One(ServiceRole::PanelBrightness),
+        &[lenovo_laptop_control_core::required(Dependency::PublicWin32Cim)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::PANEL_BRIGHTNESS_SET,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("panel.brightness.set"),
+        ServiceBinding::One(ServiceRole::PanelBrightness),
+        &[lenovo_laptop_control_core::required(Dependency::PublicWin32Cim)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::PANEL_COLOR,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Unverified,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::Unprobed("panel.color.write"),
+        ServiceBinding::One(ServiceRole::Panel),
+        &[
+            lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi),
+            lenovo_laptop_control_core::required(Dependency::LinuxDrm),
+        ],
+        DispatchSupport::Unsupported(
+            "firmware rejects the gamut plane: every LENOVO_PANEL_METHOD method including Panel_Set_Gamut_Switch and Panel_Get_Gamut_Switch returns WBEM_E_NOT_SUPPORTED on this SKU, so no user-mode write path exists (docs/evidence/wmi-capability-exhaustion-20261104.md §2)",
+        ),
+    ),
+    CommandCapability::new(
+        CommandId::PANEL_SUPER_RESOLUTION,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("panel.super-resolution.write"),
+        ServiceBinding::Unsupported,
+        &[],
+        DispatchSupport::Unsupported(
+            "IGCL is the vendor channel (SESuperResolutionPlugin64.dll -> IntelControlLib.dll), but this driver answers CTL_RESULT_ERROR_INVALID_ARGUMENT (0x4000000b) to both the two-pass capability enumeration and the get/set state query, so there is no previous state to verify or roll back; the write is guarded by that read and stays closed (docs/evidence/re-panel-20261105.md §4)",
+        ),
+    ),
+    CommandCapability::new(
+        CommandId::PANEL_OVERDRIVE,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Unverified,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::Unprobed("panel.overdrive.write"),
+        ServiceBinding::One(ServiceRole::Panel),
+        &[
+            lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi),
+            lenovo_laptop_control_core::required(Dependency::LinuxDrm),
+        ],
+        DispatchSupport::Unsupported(
+            "firmware advertises no overdrive feature on this SKU: the vendor owner (SmartPanelAddin -> BiosOD.dll) drives LENOVO_OTHER_METHOD Get/SetFeatureValue with IDs 0x1A0000 but only after LENOVO_CAPABILITY_DATA_00 lists an 0x1A family, and this machine lists none (dump in docs/evidence/re-panel-20261105.md §3); the Legion plane (LENOVO_PANEL_METHOD MPRT, LENOVO_GAMEZONE_DATA OD) rejects with 不支持/无效的对象 and the TCON plane needs \\\\.\\SPBTESTTOOL, which is absent",
+        ),
+    ),
+    CommandCapability::new(
+        CommandId::PANEL_EYE_CARE,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Unverified,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::Capability("panel.eye-care.write"),
+        ServiceBinding::One(ServiceRole::Panel),
+        &[
+            lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi),
+            lenovo_laptop_control_core::required(Dependency::LinuxDrm),
+        ],
+        DispatchSupport::Unsupported(
+            "vendor owner recovered (Vantage SmartInteractAddin EyeCareMode + PCManager LenovoMonitorManager.exe) and the mechanism is the system gamma ramp (GetDeviceGammaRamp/SetDeviceGammaRamp), implemented here through lenovo-laptop-control-hal-win's NativeGammaRamp with readback classification; the row stays unsupported because this SSH/network logon cannot exercise a desktop gamma write and the Mid/High Kelvin table is repo-inferred rather than vendor-extracted (docs/evidence/re-panel-20261105.md §5)",
+        ),
+    ),
+    CommandCapability::new(
+        CommandId::PRIVACY_CAM,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("privacy.camera.runtime"),
+        ServiceBinding::One(ServiceRole::Privacy),
+        &[
+            lenovo_laptop_control_core::required(Dependency::Win32DeviceManagement),
+            lenovo_laptop_control_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::PRIVACY_CAM,
+        CommandAxes::mutation(
+            StateLayer::BiosPersistent,
+            Readback::Required,
+            Rollback::Transactional,
+        ),
+        FeatureBinding::Capability("privacy.camera"),
+        ServiceBinding::One(ServiceRole::Bios),
+        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::PRIVACY_MIC,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("privacy.microphone.runtime"),
+        ServiceBinding::One(ServiceRole::Privacy),
+        &[
+            lenovo_laptop_control_core::required(Dependency::Win32DeviceManagement),
+            lenovo_laptop_control_core::required(Dependency::WindowsAudio),
+            lenovo_laptop_control_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::PRIVACY_MIC,
+        CommandAxes::mutation(
+            StateLayer::BiosPersistent,
+            Readback::Required,
+            Rollback::Transactional,
+        ),
+        FeatureBinding::Capability("privacy.microphone"),
+        ServiceBinding::One(ServiceRole::Bios),
+        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::PRIVACY_FINGERPRINT,
+        CommandAxes::mutation(
+            StateLayer::BiosPersistent,
+            Readback::Required,
+            Rollback::Transactional,
+        ),
+        FeatureBinding::Capability("privacy.fingerprint"),
+        ServiceBinding::One(ServiceRole::Bios),
+        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::PRIVACY_STATUS,
+        CommandAxes::read_only(StateLayer::Composite),
+        FeatureBinding::AnyOf(&[
+            "privacy.camera",
+            "privacy.microphone",
+            "privacy.fingerprint",
+        ]),
+        ServiceBinding::AnyOf(&[ServiceRole::Privacy, ServiceRole::Bios]),
+        &[
+            lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi),
+            lenovo_laptop_control_core::required(Dependency::Win32DeviceManagement),
+            lenovo_laptop_control_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::SENSE_STATUS,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("sense.status"),
+        ServiceBinding::One(ServiceRole::Sense),
+        &[lenovo_laptop_control_core::required(Dependency::SmartSense)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::SENSE_LOCK_ON_LEAVE,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Unverified,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::Capability("sense.lock-on-leave"),
+        ServiceBinding::One(ServiceRole::Sense),
+        &[
+            lenovo_laptop_control_core::required(Dependency::SmartSense),
+            lenovo_laptop_control_core::optional(Dependency::WindowsHpd),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::SENSE_WAKE_ON_APPROACH,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Unverified,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::Capability("sense.wake-on-approach"),
+        ServiceBinding::One(ServiceRole::Sense),
+        &[
+            lenovo_laptop_control_core::required(Dependency::SmartSense),
+            lenovo_laptop_control_core::optional(Dependency::WindowsHpd),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::SENSE_PAUSE_VIDEO,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Unverified,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::Capability("sense.pause-video"),
+        ServiceBinding::One(ServiceRole::Sense),
+        &[
+            lenovo_laptop_control_core::required(Dependency::SmartSense),
+            lenovo_laptop_control_core::optional(Dependency::WindowsHpd),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::SENSE_CAMERA_ASSIST,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Unverified,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::Capability("sense.camera-assist"),
+        ServiceBinding::One(ServiceRole::Sense),
+        &[
+            lenovo_laptop_control_core::required(Dependency::SmartSense),
+            lenovo_laptop_control_core::optional(Dependency::WindowsHpd),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::SENSE_APPROACH_AUTO_ADJUST,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Unverified,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::Capability("sense.approach-auto-adjust"),
+        ServiceBinding::One(ServiceRole::Sense),
+        &[
+            lenovo_laptop_control_core::required(Dependency::SmartSense),
+            lenovo_laptop_control_core::optional(Dependency::WindowsHpd),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::SENSE_LEAVE_AUTO_ADJUST,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Unverified,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::Capability("sense.leave-auto-adjust"),
+        ServiceBinding::One(ServiceRole::Sense),
+        &[
+            lenovo_laptop_control_core::required(Dependency::SmartSense),
+            lenovo_laptop_control_core::optional(Dependency::WindowsHpd),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::SENSE_RESET,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Unverified,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::Capability("sense.reset"),
+        ServiceBinding::One(ServiceRole::Sense),
+        &[
+            lenovo_laptop_control_core::required(Dependency::SmartSense),
+            lenovo_laptop_control_core::optional(Dependency::WindowsHpd),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::SENSE_ATTENTION_TRACKING,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Unverified,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::Capability("sense.attention-tracking"),
+        ServiceBinding::One(ServiceRole::Sense),
+        &[
+            lenovo_laptop_control_core::required(Dependency::SmartSense),
+            lenovo_laptop_control_core::optional(Dependency::WindowsHpd),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::SENSE_KBD_LIGHT_AUTO,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Unverified,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::Unprobed("sense.kbd-light-auto"),
+        ServiceBinding::One(ServiceRole::Sense),
+        &[
+            lenovo_laptop_control_core::required(Dependency::SmartSense),
+            lenovo_laptop_control_core::optional(Dependency::WindowsHpd),
+        ],
+        DispatchSupport::Unsupported(
+            "automatic keyboard backlight has no consuming service on this model: ThinkSmartSenseAddin 1.0.0.77 targets LPlatSvc/LITSSvc registry parameters, and both services are absent on 21VG (docs/interfaces.md §13.3)",
+        ),
+    ),
+    CommandCapability::new(
+        CommandId::AUDIO_DOLBY,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Unverified,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("audio.dolby"),
+        ServiceBinding::One(ServiceRole::Audio),
+        &[lenovo_laptop_control_core::required(Dependency::DolbyAudioSdk)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::AUDIO_NOISE_CANCEL,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Unverified,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("audio.noise-cancel"),
+        ServiceBinding::One(ServiceRole::Audio),
+        &[lenovo_laptop_control_core::required(Dependency::NoiseCancellationSdk)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::AUDIO_ENDPOINTS,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("audio.endpoints"),
+        ServiceBinding::One(ServiceRole::Audio),
+        &[lenovo_laptop_control_core::required(Dependency::WindowsAudio)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::AUDIO_VOLUME,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("audio.volume"),
+        ServiceBinding::One(ServiceRole::Audio),
+        &[lenovo_laptop_control_core::required(Dependency::WindowsAudio)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::AUDIO_MUTE,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("audio.mute"),
+        ServiceBinding::One(ServiceRole::Audio),
+        &[lenovo_laptop_control_core::required(Dependency::WindowsAudio)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::BIOS_LIST,
+        CommandAxes::read_only(StateLayer::BiosPersistent),
+        FeatureBinding::Capability("bios"),
+        ServiceBinding::One(ServiceRole::Bios),
+        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::BIOS_GET,
+        CommandAxes::read_only(StateLayer::BiosPersistent),
+        FeatureBinding::Capability("bios"),
+        ServiceBinding::One(ServiceRole::Bios),
+        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::BIOS_SET,
+        CommandAxes::mutation(
+            StateLayer::BiosPersistent,
+            Readback::Required,
+            Rollback::Transactional,
+        ),
+        FeatureBinding::Capability("bios"),
+        ServiceBinding::One(ServiceRole::Bios),
+        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::BIOS_SAVE,
+        CommandAxes::write_only(
+            StateLayer::BiosPersistent,
+            Readback::Unverified,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::Unprobed("bios.save.global-buffer"),
+        ServiceBinding::One(ServiceRole::Bios),
+        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        DispatchSupport::Unsupported("standalone global BIOS-buffer save is not supported"),
+    ),
+    CommandCapability::new(
+        CommandId::BIOS_DISCARD,
+        CommandAxes::write_only(
+            StateLayer::BiosPersistent,
+            Readback::NotApplicable,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::Capability("bios.discard"),
+        ServiceBinding::One(ServiceRole::Bios),
+        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::BIOS_DEFAULTS,
+        CommandAxes::mutation(
+            StateLayer::BiosPersistent,
+            Readback::Unverified,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::Capability("bios.defaults"),
+        ServiceBinding::One(ServiceRole::Bios),
+        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::BIOS_PASSWORD_STATUS,
+        CommandAxes::read_only(StateLayer::BiosPersistent),
+        FeatureBinding::Capability("bios.password.status"),
+        ServiceBinding::One(ServiceRole::Bios),
+        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::BIOS_PASSWORD_SET,
+        CommandAxes::mutation(
+            StateLayer::BiosPersistent,
+            Readback::Unverified,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::Unprobed("bios.password.set"),
+        ServiceBinding::One(ServiceRole::Bios),
+        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        DispatchSupport::Unsupported(
+            "BIOS password writes stay refused by the documented no-password-write boundary (docs/interfaces.md §0)",
+        ),
+    ),
+    CommandCapability::new(
+        CommandId::BIOS_PASSWORD_CLEAR,
+        CommandAxes::mutation(
+            StateLayer::BiosPersistent,
+            Readback::Unverified,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::Unprobed("bios.password.clear"),
+        ServiceBinding::One(ServiceRole::Bios),
+        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        DispatchSupport::Unsupported(
+            "BIOS password writes stay refused by the documented no-password-write boundary (docs/interfaces.md §0)",
+        ),
+    ),
+    CommandCapability::new(
+        CommandId::BIOS_PASSWORD_VERIFY,
+        CommandAxes::read_only(StateLayer::BiosPersistent),
+        FeatureBinding::Capability("bios.password.verify"),
+        ServiceBinding::One(ServiceRole::Bios),
+        &[lenovo_laptop_control_core::required(Dependency::LenovoFirmwareWmi)],
+        DispatchSupport::Implemented,
+    ),
+    // Firmware inventory reads the platform's own firmware projection
+    // (`Win32_BIOS`, the ESRT firmware-class devices, the firmware update
+    // driver's record) rather than a Lenovo service. It has no write axis: a
+    // capsule is never staged or flashed from this tool.
+    CommandCapability::new(
+        CommandId::FIRMWARE_STATUS,
+        CommandAxes::read_only(StateLayer::BiosPersistent),
+        FeatureBinding::Capability("firmware.status"),
+        ServiceBinding::One(ServiceRole::Hal),
+        &[
+            lenovo_laptop_control_core::required(Dependency::PublicWin32Cim),
+            lenovo_laptop_control_core::optional(Dependency::Win32SetupApi),
+            lenovo_laptop_control_core::optional(Dependency::Win32Registry),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::MAGICBAY_DETECT,
+        CommandAxes::read_only(StateLayer::NotApplicable),
+        FeatureBinding::Capability("magicbay.inventory"),
+        ServiceBinding::One(ServiceRole::MagicBay),
+        &[
+            lenovo_laptop_control_core::required(Dependency::Win32SetupApi),
+            lenovo_laptop_control_core::required(Dependency::LinuxSysfs),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::MAGICBAY_LTE_STATUS,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("magicbay.lte"),
+        ServiceBinding::One(ServiceRole::MobileBroadband),
+        &[lenovo_laptop_control_core::required(Dependency::PublicWin32Cim)],
+        DispatchSupport::Implemented,
+    )
+    .with_hardware(HardwareRequirement::MagicBay),
+    CommandCapability::new(
+        CommandId::MAGICBAY_LTE_CONNECT,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Unprobed("magicbay.lte"),
+        ServiceBinding::One(ServiceRole::MobileBroadband),
+        &[
+            lenovo_laptop_control_core::required(Dependency::Win32MobileBroadband),
+            lenovo_laptop_control_core::required(Dependency::LinuxModemManager),
+        ],
+        DispatchSupport::Unsupported("standard MBIM control is not attached"),
+    ),
+    CommandCapability::new(
+        CommandId::MAGICBAY_LTE_DISCONNECT,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Unprobed("magicbay.lte"),
+        ServiceBinding::One(ServiceRole::MobileBroadband),
+        &[
+            lenovo_laptop_control_core::required(Dependency::Win32MobileBroadband),
+            lenovo_laptop_control_core::required(Dependency::LinuxModemManager),
+        ],
+        DispatchSupport::Unsupported("standard MBIM control is not attached"),
+    ),
+    CommandCapability::new(
+        CommandId::MAGICBAY_LTE_APN,
+        CommandAxes::mutation(
+            StateLayer::OsPersistent,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Unprobed("magicbay.lte"),
+        ServiceBinding::One(ServiceRole::MobileBroadband),
+        &[
+            lenovo_laptop_control_core::required(Dependency::Win32MobileBroadband),
+            lenovo_laptop_control_core::required(Dependency::LinuxModemManager),
+        ],
+        DispatchSupport::Unsupported("standard MBIM control is not attached"),
+    ),
+    CommandCapability::new(
+        CommandId::MAGICBAY_CAM,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Unprobed("magicbay.cam"),
+        ServiceBinding::One(ServiceRole::MagicBayCamera),
+        &[
+            lenovo_laptop_control_core::required(Dependency::Win32MediaFoundation),
+            lenovo_laptop_control_core::required(Dependency::LinuxV4l2),
+        ],
+        DispatchSupport::Unsupported("standard UVC camera control is not attached"),
+    ),
+    CommandCapability::new(
+        CommandId::MAGICBAY_DISPLAY,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Unprobed("magicbay.display"),
+        ServiceBinding::One(ServiceRole::MagicBayDisplay),
+        &[
+            lenovo_laptop_control_core::required(Dependency::Win32DisplayApi),
+            lenovo_laptop_control_core::required(Dependency::LinuxDrm),
+        ],
+        DispatchSupport::Unsupported("standard display control is not attached"),
+    )
+    .with_hardware(HardwareRequirement::MagicBay),
+    CommandCapability::new(
+        CommandId::MAGICBAY_WATCH,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::ServiceOnly,
+        ServiceBinding::One(ServiceRole::Events),
+        &[
+            lenovo_laptop_control_core::required(Dependency::Win32DeviceNotifications),
+            lenovo_laptop_control_core::required(Dependency::LinuxUdev),
+        ],
+        DispatchSupport::Unsupported("no documented MagicBay event class exists"),
+    ),
+    CommandCapability::new(
+        CommandId::OSD_ENABLE,
+        CommandAxes::mutation(
+            StateLayer::OsPersistent,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::AnyOf(&["osd.fn.capslock", "osd.fn.numlock"]),
+        ServiceBinding::One(ServiceRole::Osd),
+        &[
+            lenovo_laptop_control_core::required(Dependency::LocalDaemon),
+            lenovo_laptop_control_core::optional(Dependency::LenovoUtilityService),
+            lenovo_laptop_control_core::optional(Dependency::LenovoFnAndFunctionKeys),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::OSD_DISABLE,
+        CommandAxes::mutation(
+            StateLayer::OsPersistent,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::AnyOf(&["osd.fn.capslock", "osd.fn.numlock"]),
+        ServiceBinding::One(ServiceRole::Osd),
+        &[
+            lenovo_laptop_control_core::required(Dependency::LocalDaemon),
+            lenovo_laptop_control_core::optional(Dependency::LenovoUtilityService),
+            lenovo_laptop_control_core::optional(Dependency::LenovoFnAndFunctionKeys),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::OSD_TEST,
+        CommandAxes::action(StateLayer::Runtime),
+        FeatureBinding::Capability("osd.test"),
+        ServiceBinding::One(ServiceRole::Osd),
+        &[
+            lenovo_laptop_control_core::required(Dependency::LocalDaemon),
+            lenovo_laptop_control_core::optional(Dependency::LenovoUtilityService),
+            lenovo_laptop_control_core::optional(Dependency::LenovoFnAndFunctionKeys),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::OSD_SHOW,
+        CommandAxes::action(StateLayer::Runtime),
+        FeatureBinding::Capability("osd.show"),
+        ServiceBinding::One(ServiceRole::Osd),
+        &[
+            lenovo_laptop_control_core::required(Dependency::LocalDaemon),
+            lenovo_laptop_control_core::optional(Dependency::LenovoUtilityService),
+            lenovo_laptop_control_core::optional(Dependency::LenovoFnAndFunctionKeys),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::HOTKEY_LIST,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("hotkey.list"),
+        ServiceBinding::One(ServiceRole::Hotkey),
+        &[lenovo_laptop_control_core::required(Dependency::LocalDaemon)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::HOTKEY_STATUS,
+        CommandAxes::read_only(StateLayer::Composite),
+        FeatureBinding::AnyOf(&["channel.hotkey", "kbd.fnlock"]),
+        ServiceBinding::AnyOf(&[ServiceRole::Hotkey, ServiceRole::Bios]),
+        &[
+            lenovo_laptop_control_core::optional(Dependency::LenovoFnAndFunctionKeys),
+            lenovo_laptop_control_core::optional(Dependency::LenovoFirmwareWmi),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::HOTKEY_REGISTER,
+        CommandAxes::mutation(
+            StateLayer::OsPersistent,
+            Readback::Unverified,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("hotkey.register"),
+        ServiceBinding::One(ServiceRole::Hotkey),
+        &[lenovo_laptop_control_core::required(Dependency::LocalDaemon)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::HOTKEY_TRIGGER,
+        CommandAxes::action(StateLayer::Runtime),
+        FeatureBinding::Capability("hotkey.trigger"),
+        ServiceBinding::One(ServiceRole::Hotkey),
+        &[lenovo_laptop_control_core::required(Dependency::LocalDaemon)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::HOTKEY_UNREGISTER,
+        CommandAxes::mutation(
+            StateLayer::OsPersistent,
+            Readback::Unverified,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("hotkey.unregister"),
+        ServiceBinding::One(ServiceRole::Hotkey),
+        &[lenovo_laptop_control_core::required(Dependency::LocalDaemon)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::UPDATE_CHECK,
+        CommandAxes::read_only(StateLayer::NotApplicable),
+        // `update check` serves the catalogue the UDC service already synced
+        // into `HKLM\SOFTWARE\Lenovo\UDC\Packages`, so the row binds the local
+        // catalogue probe (`update.catalog.local`) rather than the remote
+        // refresh contract. The two legs are deliberately different ids:
+        //
+        // * local: read `LastUpdateConfig`, parse it, evaluate applicability —
+        //   read-only, no network, recorded `available`/`limited` when a config
+        //   exists. This is what the verb does.
+        // * remote: "remote update checking has no authenticated catalog
+        //   contract" (the previous verdict this row carried). It is refused by
+        //   `UPDATE_DOWNLOAD`/`UPDATE_INSTALL`/`UPDATE_SCHEDULE`
+        //   (`update.*.without-authenticated-manifest|without-catalog`) and by
+        //   `vantage doctor`'s `update.capability` channel, because the UDC mTLS
+        //   client credential is service-held
+        //   (docs/evidence/udc-mtls-credential-hunt-20261105.md).
+        FeatureBinding::Capability("update.catalog.local"),
+        ServiceBinding::One(ServiceRole::Update),
+        &[
+            lenovo_laptop_control_core::required(Dependency::Win32SetupApi),
+            lenovo_laptop_control_core::required(Dependency::Win32WinTrust),
+            lenovo_laptop_control_core::optional(Dependency::LocalFilesystem),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::UPDATE_LOCAL_INSTALL,
+        CommandAxes::mutation(
+            StateLayer::NotApplicable,
+            Readback::Required,
+            Rollback::Transactional,
+        ),
+        FeatureBinding::Capability("update.local_driver"),
+        ServiceBinding::One(ServiceRole::Update),
+        &[
+            lenovo_laptop_control_core::required(Dependency::Win32SetupApi),
+            lenovo_laptop_control_core::required(Dependency::Win32WinTrust),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::UPDATE_LOCAL_PACKAGE,
+        CommandAxes::mutation(
+            StateLayer::NotApplicable,
+            // The vendor installer reports success through its own exit code
+            // and log; this tool reads no post-install device state back.
+            Readback::Unverified,
+            // A package installer exposes no CLI-driven rollback.
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::Unprobed("update.local_package"),
+        ServiceBinding::One(ServiceRole::Update),
+        &[
+            lenovo_laptop_control_core::required(Dependency::LocalFilesystem),
+            lenovo_laptop_control_core::required(Dependency::Win32WinTrust),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::UPDATE_LOCAL_ROLLBACK,
+        CommandAxes::mutation(
+            StateLayer::NotApplicable,
+            Readback::Required,
+            Rollback::Transactional,
+        ),
+        FeatureBinding::Capability("update.local_driver.rollback"),
+        ServiceBinding::One(ServiceRole::Update),
+        &[
+            lenovo_laptop_control_core::required(Dependency::Win32SetupApi),
+            lenovo_laptop_control_core::required(Dependency::LocalFilesystem),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::UPDATE_LOCAL_HISTORY,
+        CommandAxes::read_only(StateLayer::LocalPersistent),
+        FeatureBinding::Capability("update.local_driver.policy"),
+        ServiceBinding::One(ServiceRole::Update),
+        &[lenovo_laptop_control_core::required(Dependency::LocalFilesystem)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::UPDATE_LOCAL_IGNORE,
+        CommandAxes::mutation(
+            StateLayer::LocalPersistent,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("update.local_driver.policy"),
+        ServiceBinding::One(ServiceRole::Update),
+        &[lenovo_laptop_control_core::required(Dependency::LocalFilesystem)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::UPDATE_LOCAL_SCHEDULE,
+        CommandAxes::mutation(
+            StateLayer::LocalPersistent,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("update.local_driver.policy"),
+        ServiceBinding::One(ServiceRole::Update),
+        &[lenovo_laptop_control_core::required(Dependency::LocalFilesystem)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::UPDATE_DOWNLOAD,
+        CommandAxes::mutation(
+            StateLayer::LocalPersistent,
+            Readback::Unverified,
+            Rollback::Transactional,
+        ),
+        FeatureBinding::Unprobed("update.download.without-authenticated-manifest"),
+        ServiceBinding::One(ServiceRole::Update),
+        &[
+            lenovo_laptop_control_core::required(Dependency::AuthenticatedUpdateCatalog),
+            lenovo_laptop_control_core::required(Dependency::LocalFilesystem),
+        ],
+        DispatchSupport::Unsupported("no authenticated remote update manifest is attached"),
+    ),
+    CommandCapability::new(
+        CommandId::UPDATE_INSTALL,
+        CommandAxes::mutation(
+            StateLayer::NotApplicable,
+            Readback::Required,
+            Rollback::Transactional,
+        ),
+        FeatureBinding::Unprobed("update.install.without-authenticated-manifest"),
+        ServiceBinding::One(ServiceRole::Update),
+        &[
+            lenovo_laptop_control_core::required(Dependency::AuthenticatedUpdateCatalog),
+            lenovo_laptop_control_core::required(Dependency::Win32SetupApi),
+            lenovo_laptop_control_core::required(Dependency::LocalFilesystem),
+        ],
+        DispatchSupport::Unsupported("no authenticated remote update manifest is attached"),
+    ),
+    CommandCapability::new(
+        CommandId::UPDATE_HISTORY,
+        CommandAxes::read_only(StateLayer::LocalPersistent),
+        // Reads the update ledger the machine's own Lenovo System Update
+        // add-in wrote; no catalogue, network, or vendor service is involved.
+        FeatureBinding::Unprobed("update.history.ledger"),
+        ServiceBinding::One(ServiceRole::Update),
+        &[lenovo_laptop_control_core::required(Dependency::LocalFilesystem)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::UPDATE_IGNORE,
+        CommandAxes::mutation(
+            StateLayer::LocalPersistent,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Unprobed("update.ignore.without-catalog"),
+        ServiceBinding::One(ServiceRole::Update),
+        &[lenovo_laptop_control_core::required(Dependency::LocalFilesystem)],
+        DispatchSupport::Unsupported("no remote update catalog is attached"),
+    ),
+    CommandCapability::new(
+        CommandId::UPDATE_ROLLBACK,
+        CommandAxes::mutation(
+            StateLayer::NotApplicable,
+            Readback::Required,
+            Rollback::Transactional,
+        ),
+        FeatureBinding::Unprobed("update.rollback.without-install-ledger"),
+        ServiceBinding::One(ServiceRole::Update),
+        &[
+            lenovo_laptop_control_core::required(Dependency::Win32SetupApi),
+            lenovo_laptop_control_core::required(Dependency::LocalFilesystem),
+        ],
+        DispatchSupport::Unsupported("no remote update install ledger is attached"),
+    ),
+    CommandCapability::new(
+        CommandId::UPDATE_SCHEDULE,
+        CommandAxes::mutation(
+            StateLayer::LocalPersistent,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Unprobed("update.schedule.without-catalog"),
+        ServiceBinding::One(ServiceRole::Update),
+        &[lenovo_laptop_control_core::required(Dependency::LocalFilesystem)],
+        DispatchSupport::Unsupported("no remote update catalog is attached"),
+    ),
+    CommandCapability::new(
+        CommandId::SCAN_LIST,
+        CommandAxes::read_only(StateLayer::NotApplicable),
+        FeatureBinding::Capability("diagnostics.inventory"),
+        ServiceBinding::One(ServiceRole::Diagnostics),
+        &[
+            lenovo_laptop_control_core::required(Dependency::PublicWin32Cim),
+            lenovo_laptop_control_core::required(Dependency::LinuxDiagnosticTools),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::SCAN_RUN,
+        CommandAxes::read_only(StateLayer::NotApplicable),
+        FeatureBinding::Capability("diagnostics.inventory"),
+        ServiceBinding::One(ServiceRole::Diagnostics),
+        &[
+            lenovo_laptop_control_core::required(Dependency::PublicWin32Cim),
+            lenovo_laptop_control_core::required(Dependency::LinuxDiagnosticTools),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::WIFI_SECURITY,
+        CommandAxes::read_only(StateLayer::NotApplicable),
+        FeatureBinding::Capability("wifi.security"),
+        ServiceBinding::One(ServiceRole::Wifi),
+        &[lenovo_laptop_control_core::required(Dependency::Win32ProcessApi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::WIFI_STATUS,
+        CommandAxes::read_only(StateLayer::NotApplicable),
+        // `windows_hal::capabilities()` records this id from the WLAN API
+        // link-state query (`WindowsWifiStatus::wifi_status`), so the static
+        // "no current capability probe" claim is no longer true.
+        FeatureBinding::Capability("wifi.status"),
+        ServiceBinding::One(ServiceRole::Wifi),
+        &[lenovo_laptop_control_core::required(Dependency::Win32WlanApi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::BLUETOOTH_LIST,
+        CommandAxes::read_only(StateLayer::NotApplicable),
+        // Recorded from the non-inquiring WinRT radio/device enumeration
+        // (`WindowsBluetooth::bluetooth_devices`).
+        FeatureBinding::Capability("bluetooth.list"),
+        ServiceBinding::One(ServiceRole::Bluetooth),
+        &[lenovo_laptop_control_core::required(Dependency::Win32BluetoothApi)],
+        DispatchSupport::Implemented,
+    ),
+    // Both sensor verbs are decided by the platform's own enumeration, so the
+    // listing probe is what proves the channel: an absent sensor type is
+    // reported as absent by `read`, never as a zero reading
+    // (docs/evidence/re-sensors-20261105.md §1, §3.1).
+    CommandCapability::new(
+        CommandId::SENSOR_LIST,
+        CommandAxes::read_only(StateLayer::NotApplicable),
+        FeatureBinding::Capability("sensor.list"),
+        ServiceBinding::One(ServiceRole::Sensor),
+        &[lenovo_laptop_control_core::required(Dependency::Win32SensorApi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::SENSOR_READ,
+        CommandAxes::read_only(StateLayer::NotApplicable),
+        FeatureBinding::Capability("sensor.list"),
+        ServiceBinding::One(ServiceRole::Sensor),
+        &[lenovo_laptop_control_core::required(Dependency::Win32SensorApi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::SECURITY_STATUS,
+        CommandAxes::read_only(StateLayer::NotApplicable),
+        FeatureBinding::Capability("security.status"),
+        ServiceBinding::One(ServiceRole::Security),
+        &[
+            lenovo_laptop_control_core::required(Dependency::PublicWin32Cim),
+            lenovo_laptop_control_core::required(Dependency::Win32FirmwareEnvironment),
+            lenovo_laptop_control_core::optional(Dependency::Win32Registry),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::RADIO_STATUS,
+        CommandAxes::read_only(StateLayer::Runtime),
+        // Recorded from the read-only WinRT radio enumeration; a machine with
+        // no radio of a kind reports that kind as absent, not as a failure.
+        // `radio.off`/`radio.on` stay `Unprobed`: a status query cannot prove an
+        // owned set-state with readback.
+        FeatureBinding::Capability("radio.status"),
+        ServiceBinding::One(ServiceRole::Radio),
+        &[lenovo_laptop_control_core::required(
+            Dependency::WindowsRadioManagement,
+        )],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::RADIO_OFF,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Unprobed("radio.off"),
+        ServiceBinding::One(ServiceRole::Radio),
+        &[lenovo_laptop_control_core::required(
+            Dependency::WindowsRadioManagement,
+        )],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::RADIO_ON,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Unprobed("radio.on"),
+        ServiceBinding::One(ServiceRole::Radio),
+        &[lenovo_laptop_control_core::required(
+            Dependency::WindowsRadioManagement,
+        )],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::FIX_RULES,
+        CommandAxes::read_only(StateLayer::NotApplicable),
+        FeatureBinding::LocalOnly,
+        ServiceBinding::Local,
+        &[],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::FIX_SCAN,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::Capability("machinefix.scan"),
+        ServiceBinding::One(ServiceRole::MachineFix),
+        &[lenovo_laptop_control_core::required(Dependency::Win32Scm)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::FIX_RUN,
+        CommandAxes::mutation(
+            StateLayer::LocalPersistent,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("machinefix.run"),
+        ServiceBinding::One(ServiceRole::MachineFix),
+        &[
+            lenovo_laptop_control_core::required(Dependency::Win32Scm),
+            lenovo_laptop_control_core::required(Dependency::LocalFilesystem),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::FIX_TRACK,
+        CommandAxes::read_only(StateLayer::LocalPersistent),
+        FeatureBinding::Capability("machinefix.track"),
+        ServiceBinding::One(ServiceRole::MachineFix),
+        &[lenovo_laptop_control_core::required(Dependency::LocalFilesystem)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::SCENE_LIST,
+        CommandAxes::read_only(StateLayer::NotApplicable),
+        FeatureBinding::LocalOnly,
+        ServiceBinding::Local,
+        &[],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::SCENE_TEST,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::PreviousState,
+        ),
+        FeatureBinding::Capability("scene.test"),
+        ServiceBinding::One(ServiceRole::ScenePolicy),
+        &[
+            lenovo_laptop_control_core::required(Dependency::Win32Scm),
+            lenovo_laptop_control_core::required(Dependency::LocalFilesystem),
+        ],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::SCENE_TRACK,
+        CommandAxes::read_only(StateLayer::LocalPersistent),
+        FeatureBinding::Capability("scene.track"),
+        ServiceBinding::One(ServiceRole::ScenePolicy),
+        &[lenovo_laptop_control_core::required(Dependency::LocalFilesystem)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::SNAPSHOT_CAPTURE,
+        CommandAxes::mutation(
+            StateLayer::LocalPersistent,
+            Readback::Unverified,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::Dynamic(SNAPSHOT_FEATURES),
+        ServiceBinding::Composite(SNAPSHOT_SERVICES),
+        &[lenovo_laptop_control_core::required(Dependency::LocalFilesystem)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::SNAPSHOT_DIFF,
+        CommandAxes::read_only(StateLayer::Composite),
+        FeatureBinding::Dynamic(SNAPSHOT_FEATURES),
+        ServiceBinding::Composite(SNAPSHOT_SERVICES),
+        &[lenovo_laptop_control_core::required(Dependency::LocalFilesystem)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::SNAPSHOT_RESTORE,
+        CommandAxes::mutation(
+            StateLayer::Composite,
+            Readback::Required,
+            Rollback::Transactional,
+        ),
+        FeatureBinding::Dynamic(SNAPSHOT_FEATURES),
+        ServiceBinding::Composite(SNAPSHOT_SERVICES),
+        &[lenovo_laptop_control_core::required(Dependency::LocalFilesystem)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::DAEMON_START,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Required,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::ServiceOnly,
+        ServiceBinding::External,
+        &[lenovo_laptop_control_core::required(Dependency::LocalDaemon)],
+        DispatchSupport::External,
+    ),
+    // `storage status` reads the drive through
+    // `IOCTL_STORAGE_QUERY_PROPERTY` / `IOCTL_DISK_GET_DRIVE_GEOMETRY_EX` on a
+    // handle opened with no requested access, so it has no write verb and no
+    // WMI dependency: the Storage WMI namespace is admin-gated on this SKU
+    // (docs/evidence/re-storage-20261105.md §6.1).
+    CommandCapability::new(
+        CommandId::STORAGE_STATUS,
+        CommandAxes::read_only(StateLayer::NotApplicable),
+        FeatureBinding::Capability("storage.status"),
+        ServiceBinding::One(ServiceRole::Storage),
+        &[lenovo_laptop_control_core::required(Dependency::Win32SetupApi)],
+        DispatchSupport::Implemented,
+    ),
+    CommandCapability::new(
+        CommandId::DAEMON_STOP,
+        CommandAxes::mutation(
+            StateLayer::Runtime,
+            Readback::Unverified,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::ServiceOnly,
+        ServiceBinding::External,
+        &[lenovo_laptop_control_core::required(Dependency::LocalDaemon)],
+        DispatchSupport::External,
+    ),
+    CommandCapability::new(
+        CommandId::DAEMON_STATUS,
+        CommandAxes::read_only(StateLayer::Runtime),
+        FeatureBinding::ServiceOnly,
+        ServiceBinding::External,
+        &[lenovo_laptop_control_core::required(Dependency::LocalDaemon)],
+        DispatchSupport::External,
+    ),
+    CommandCapability::new(
+        CommandId::DAEMON_INSTALL,
+        CommandAxes::mutation(
+            StateLayer::OsPersistent,
+            Readback::Unverified,
+            Rollback::Unavailable,
+        ),
+        FeatureBinding::ServiceOnly,
+        ServiceBinding::External,
+        &[
+            lenovo_laptop_control_core::required(Dependency::LocalDaemon),
+            lenovo_laptop_control_core::required(Dependency::LocalFilesystem),
+            lenovo_laptop_control_core::required(Dependency::Win32TaskScheduler),
+            lenovo_laptop_control_core::required(Dependency::LinuxSystemd),
+        ],
+        DispatchSupport::External,
+    ),
+    CommandCapability::new(
+        CommandId::COMPLETIONS,
+        CommandAxes::read_only(StateLayer::NotApplicable),
+        FeatureBinding::LocalOnly,
+        ServiceBinding::Local,
+        &[],
+        DispatchSupport::Implemented,
+    ),
+];
+
+#[must_use]
+pub const fn command_registry() -> &'static [CommandCapability] {
+    COMMAND_REGISTRY
+}
+
+#[must_use]
+pub fn command_capability(command: CommandId) -> Option<&'static CommandCapability> {
+    COMMAND_REGISTRY
+        .iter()
+        .find(|capability| capability.command == command)
+}
+
+#[must_use]
+pub fn command_capabilities(command: CommandId) -> Vec<&'static CommandCapability> {
+    COMMAND_REGISTRY
+        .iter()
+        .filter(|capability| capability.command.as_str() == command.as_str())
+        .collect()
+}
+
+#[must_use]
+pub fn command_capability_for(selector: CommandSelector) -> Option<&'static CommandCapability> {
+    COMMAND_REGISTRY
+        .iter()
+        .find(|capability| capability.selector() == selector)
+}
+
+/// Minimal vendor-service switch checklist for the selected command layers.
+///
+/// This is never a recommendation to disable a component. Commands which are
+/// unsupported are still listed so their declared dependency is not mistaken
+/// for a replacement.
+#[must_use]
+pub fn minimal_dependency_checklist(selected: &[CommandSelector]) -> Vec<DependencySwitch> {
+    let mut selected: Vec<_> = selected.to_vec();
+    selected.sort();
+    selected.dedup();
+
+    let mut switches = BTreeMap::new();
+    for &dependency in Dependency::VENDOR_SWITCHES {
+        switches.insert(
+            dependency,
+            DependencySwitch {
+                dependency,
+                required_by: Vec::new(),
+                optional_for: Vec::new(),
+                unsupported_for: Vec::new(),
+            },
+        );
+    }
+
+    for selector in &selected {
+        let Some(entry) = command_capability_for(*selector) else {
+            continue;
+        };
+        let Some(&usage) = entry
+            .dependencies
+            .iter()
+            .find(|item| item.dependency.platform() == Some(lenovo_laptop_control_core::Platform::Windows))
+        else {
+            continue;
+        };
+        let Some(switch) = switches.get_mut(&usage.dependency) else {
+            continue;
+        };
+        match (entry.dispatch, usage.usage) {
+            (DispatchSupport::Implemented, DependencyUse::Required) => {
+                switch.required_by.push(*selector);
+            }
+            (DispatchSupport::Implemented, DependencyUse::Optional) => {
+                switch.optional_for.push(*selector);
+            }
+            (DispatchSupport::Unsupported(_) | DispatchSupport::External, _) => {
+                switch.unsupported_for.push(*selector);
+            }
+        }
+    }
+
+    Dependency::VENDOR_SWITCHES
+        .iter()
+        .filter_map(|dependency| switches.remove(dependency))
+        .collect()
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DependencySwitch {
+    pub dependency: Dependency,
+    pub required_by: Vec<CommandSelector>,
+    pub optional_for: Vec<CommandSelector>,
+    pub unsupported_for: Vec<CommandSelector>,
+}
+
+impl DependencySwitch {
+    #[must_use]
+    pub fn required(&self) -> bool {
+        !self.required_by.is_empty()
+    }
+
+    #[must_use]
+    pub fn action(&self) -> SwitchAction {
+        if self.required() {
+            SwitchAction::Keep
+        } else {
+            SwitchAction::Review
+        }
+    }
+
+    #[must_use]
+    pub fn reason(&self) -> &'static str {
+        if self.required() {
+            "a selected supported command requires this component"
+        } else if !self.unsupported_for.is_empty() {
+            "a selected command is unsupported or external; removal does not create replacement support"
+        } else if !self.optional_for.is_empty() {
+            "only optional or alternate paths reference this component"
+        } else {
+            "no selected registry entry references this component"
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SwitchAction {
+    Keep,
+    /// Never a safe automatic disable action; independent feature review is required.
+    Review,
+}

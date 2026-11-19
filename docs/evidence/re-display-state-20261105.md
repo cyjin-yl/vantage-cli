@@ -288,15 +288,15 @@ session 0 view         no paths (QueryDisplayConfig = ERROR_ACCESS_DENIED), WinD
 
 ## 7. Source changes derived from this evidence
 
-1. `crates/lctrl-core/src/display.rs` (new) — `DisplaySession`, `DisplayConnection`,
+1. `crates/lenovo-laptop-control-core/src/display.rs` (new) — `DisplaySession`, `DisplayConnection`,
    `DisplayScaling`, `DisplayColorState`, `DisplayPathState`, `MonitorColorState`,
    `PanelHdrCapability`, and `decode_panel_hdr_capability` (CTA-861 HDR Static
    Metadata + Colorimetry decode on already-structured EDID bytes). Luminance is
    decoded with integer fixed-point arithmetic (Q20 `2^(r/32)` table) so the reported
    millinits are reproducible and testable, not float-dependent.
-2. `crates/lctrl-hal/src/peripherals.rs` — `DisplayStatusControl` with three reads:
+2. `crates/lenovo-laptop-control-hal/src/peripherals.rs` — `DisplayStatusControl` with three reads:
    `session()`, `displays()`, `monitors()`.
-3. `crates/lctrl-hal-win/src/display_status.rs` (new) —
+3. `crates/lenovo-laptop-control-hal-win/src/display_status.rs` (new) —
    `WindowsDisplayStatus<D, A, W, R>`:
    - `D: DisplayApi` provides the session path list and the current mode (the same
      native transport `panel rate` uses);
@@ -310,7 +310,7 @@ session 0 view         no paths (QueryDisplayConfig = ERROR_ACCESS_DENIED), WinD
    `ChangeDisplaySettingsEx`, no DPI write, no registry write.
 4. `crates/vantage-cli` — `display status` command, capability id `display.status`
    (layer `Runtime`), and a human renderer that names the scope of each number.
-5. `crates/lctrl-hal-win/Cargo.toml` — enable the `Win32_UI_HiDpi` and
+5. `crates/lenovo-laptop-control-hal-win/Cargo.toml` — enable the `Win32_UI_HiDpi` and
    `Win32_System_RemoteDesktop` windows-sys features.
 
 ## 8. Acceptance that remains unrun, and negative controls

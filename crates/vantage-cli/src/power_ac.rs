@@ -4,8 +4,8 @@
 //! fields stay absent with a recorded reason; no nominal rating, design
 //! voltage, wall-input figure, or cross-source association is synthesized.
 
-use lctrl_core::{AcPowerObservation, BatteryRateState, LctrlError, PowerDrawObservation};
-use lctrl_hal::BatteryControl;
+use lenovo_laptop_control_core::{AcPowerObservation, BatteryRateState, LenovoLaptopControlError, PowerDrawObservation};
+use lenovo_laptop_control_hal::BatteryControl;
 use serde::Serialize;
 use serde_json::{Map, Value};
 
@@ -14,15 +14,15 @@ use crate::battery_observation::serialization_error;
 /// Channel labels for each platform backend. Core report types stay free of
 /// API names; the composition root names the channel that actually answered.
 const fn channel_labels(
-    platform: lctrl_core::Platform,
+    platform: lenovo_laptop_control_core::Platform,
 ) -> (&'static str, &'static str, &'static str) {
     match platform {
-        lctrl_core::Platform::Windows => (
+        lenovo_laptop_control_core::Platform::Windows => (
             "GetSystemPowerStatus.ACLineStatus",
             "Lenovo EnergyDrv GBMD 0xFF + GAPD 0x8310215c (bit 24 gated)",
             "SetupAPI battery class IOCTL_BATTERY_QUERY_STATUS (BATTERY_STATUS)",
         ),
-        lctrl_core::Platform::Linux => (
+        lenovo_laptop_control_core::Platform::Linux => (
             "Linux power_supply online",
             "Linux power_supply (battery.adapter)",
             "HAL battery electrical observation",
@@ -35,16 +35,16 @@ const fn channel_labels(
 /// when both independent sources fail.
 pub(crate) fn execute_ac(
     battery: Option<&dyn BatteryControl>,
-    platform: lctrl_core::Platform,
+    platform: lenovo_laptop_control_core::Platform,
 ) -> crate::CommandResult {
-    let battery = battery.ok_or_else(|| LctrlError::Unsupported {
+    let battery = battery.ok_or_else(|| LenovoLaptopControlError::Unsupported {
         feature: "power.ac".into(),
     })?;
     let (ac_line_source, adapter_source, _) = channel_labels(platform);
     let (adapter, adapter_error) = optional(battery.adapter_info());
     let (system, system_error) = optional(battery.system_power_status());
     if adapter.is_none() && system.is_none() {
-        return Err(LctrlError::ChannelUnavailable {
+        return Err(LenovoLaptopControlError::ChannelUnavailable {
             channel: format!(
                 "power.ac: AC-line and vendor-adapter sources both failed; adapter={adapter_error:?}; system_power={system_error:?}"
             ),
@@ -54,7 +54,7 @@ pub(crate) fn execute_ac(
         Some(value) => Some(value),
         // Linux exposes the same `online` bit through the adapter channel; the
         // Windows adapter object is not an AC-line sensor.
-        None if platform == lctrl_core::Platform::Linux => {
+        None if platform == lenovo_laptop_control_core::Platform::Linux => {
             adapter.as_ref().and_then(|info| info.ac_connected)
         }
         None => None,
@@ -123,9 +123,9 @@ pub(crate) fn execute_ac(
 /// turned into a draw and an absent rate is never filled in.
 pub(crate) fn execute_draw(
     battery: Option<&dyn BatteryControl>,
-    platform: lctrl_core::Platform,
+    platform: lenovo_laptop_control_core::Platform,
 ) -> crate::CommandResult {
-    let battery = battery.ok_or_else(|| LctrlError::Unsupported {
+    let battery = battery.ok_or_else(|| LenovoLaptopControlError::Unsupported {
         feature: "power.draw".into(),
     })?;
     let (ac_line_source, _, draw_source) = channel_labels(platform);
@@ -201,7 +201,7 @@ pub(crate) fn execute_draw(
     })
 }
 
-fn optional<T: Serialize>(result: lctrl_core::Result<T>) -> (Option<T>, Option<Value>) {
+fn optional<T: Serialize>(result: lenovo_laptop_control_core::Result<T>) -> (Option<T>, Option<Value>) {
     match result {
         Ok(value) => (Some(value), None),
         Err(error) => {
@@ -214,10 +214,10 @@ fn optional<T: Serialize>(result: lctrl_core::Result<T>) -> (Option<T>, Option<V
     }
 }
 
-fn object<T: Serialize>(value: &T) -> std::result::Result<Map<String, Value>, LctrlError> {
+fn object<T: Serialize>(value: &T) -> std::result::Result<Map<String, Value>, LenovoLaptopControlError> {
     match serde_json::to_value(value).map_err(serialization_error)? {
         Value::Object(map) => Ok(map),
-        _ => Err(LctrlError::Io(std::io::Error::other(
+        _ => Err(LenovoLaptopControlError::Io(std::io::Error::other(
             "power observation did not serialize to an object",
         ))),
     }

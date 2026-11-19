@@ -29,7 +29,7 @@ The binary predates properties added by sibling workers after 14:23 on 11-05
 `update …`, `radio`). For those the entry is marked **source-bound**: the failure path
 is established from the current source only, and is **not** claimed as observed.
 
-Exit-code taxonomy under test is `LctrlError::exit_code`, `crates/lctrl-core/src/error.rs`
+Exit-code taxonomy under test is `LenovoLaptopControlError::exit_code`, `crates/lenovo-laptop-control-core/src/error.rs`
 (Io=1, InvalidArgument=2, Unsupported=3, ChannelUnavailable=4, PermissionDenied=5,
 FirmwareRejected=6, VerifyMismatch=7). Parse errors are intercepted in
 `vantage/src/main.rs` (`parse_cli`): `--json` renders them as `InvalidArgument`,
@@ -79,7 +79,7 @@ moved twice in ten minutes.
 | `scene list` / `scene track` | declared ruleset, ledger | exit 0, `4 declared scene rule(s)` / `0 applied scene action(s)` | `None` → `Unsupported("scene.*")` | honest |
 | `scene test <event> [--dry-run]` | ruleset match | exit 0, `scene plan for …: rule … (1 of 4 rule(s) fire)`; unknown class → exit 0 `no scene fires on bogus.event.class` | no match is a legitimate answer | kept as-is by decision; doc note only (§4.2) |
 | `hotkey list` | this process's registrations | exit 0, `0 live global hotkey(s)` | `None` → `Unsupported("hotkey")` | honest |
-| `hotkey status` | Lenovo Fn package keys | **source-bound** (binary predates it) | `None` → `Unsupported("hotkey")`; a missing key/registry error is recorded in `notes`, never dropped (`NativeHotkey::status`, `crates/lctrl-hal-win/src/hotkey.rs`) | honest |
+| `hotkey status` | Lenovo Fn package keys | **source-bound** (binary predates it) | `None` → `Unsupported("hotkey")`; a missing key/registry error is recorded in `notes`, never dropped (`NativeHotkey::status`, `crates/lenovo-laptop-control-hal-win/src/hotkey.rs`) | honest |
 | `update history` | local Lenovo update ledger | exit 3, `update.history.without-catalog` | `Unsupported` | honest |
 | `snapshot diff` | managed baseline file + live capture | exit 0, `snapshot comparison complete` | missing baseline → `Unsupported("snapshot.baseline")`; corrupt baseline → `InvalidArgument` (`read_managed_snapshot`) | honest |
 | `daemon status` | named-pipe IPC probe + on-disk autostart record | exit 4 `channel is unavailable: vantage daemon IPC: … (os error 2)` on the **binary under test**; the current source answers exit 0 `running:false` + `observed_error` when nothing listens | `StatusProbe::Absent` is an answer, `StatusProbe::Fault` is `ChannelUnavailable` (`daemon_status`, `vantage/src/main.rs`) | honest (semantics changed after this sweep ran; see the note under this table) |
@@ -129,7 +129,7 @@ Two defects in one line: the mode *was* read (`FanMode::Unknown(4)`, the dispatc
 Fixed (`execute_fan_status`): `fans()` is captured like `fan_mode()`; an empty inventory is
 mapped to `Unsupported("perf.fan.inventory: firmware exposed no fan inventory record")`,
 which is exactly what the capability probe already records for the same answer
-(`record_fan_capabilities` in `crates/lctrl-hal-win/src/windows_hal.rs` — `fan_inventory_available = matches!(… Ok(objects) if
+(`record_fan_capabilities` in `crates/lenovo-laptop-control-hal-win/src/windows_hal.rs` — `fan_inventory_available = matches!(… Ok(objects) if
 !objects.is_empty())`); **both** sub-reads unavailable now returns `ChannelUnavailable`;
 the human line states the mode it actually read. JSON gains one field, `fans_error`,
 next to the existing `mode_error`; no field was renamed or removed.
@@ -238,7 +238,7 @@ mapping that audit complains about (`command_id` sending bare `power` to
 
 ### 4.1 `bios list` can silently drop rows
 
-`WindowsBiosController::settings` in `crates/lctrl-hal-win/src/bios.rs` builds the list with
+`WindowsBiosController::settings` in `crates/lenovo-laptop-control-hal-win/src/bios.rs` builds the list with
 `filter_map(|object| match object.get("CurrentSetting") { Some(String) → parse_current_setting(..), _ => None })`:
 an object whose `CurrentSetting` is not a string (or does not parse) disappears. A
 provider that published only malformed rows would yield `0 BIOS setting(s)` at exit 0.
@@ -254,7 +254,7 @@ nothing", and the branch is unreachable from the Windows HAL when the class is a
 
 ### 4.2 `scene test <undocumented event class>` exits 0 with `matched: 0`
 
-`NativeScenePolicy::match_event` (`crates/lctrl-hal-win/src/scene_policy.rs`) compares strings against the
+`NativeScenePolicy::match_event` (`crates/lenovo-laptop-control-hal-win/src/scene_policy.rs`) compares strings against the
 declared ruleset, so `bogus.event.class` answers
 `{"event":"bogus.event.class","matched":0,"reason":"no declared scene rule fires on this event class"}`
 at exit 0. Per the parent's decision this is a legitimate no-match for a runtime event
@@ -264,7 +264,7 @@ caller that wants argument validation instead must pass `--rule <id>`
 
 ### 4.3 `perf policy` returns an empty policy instead of `Unsupported` when the channel is absent
 
-`read_policy` (`crates/lctrl-hal-win/src/its_policy.rs`) decodes a machine whose `PowerSlider` key is
+`read_policy` (`crates/lenovo-laptop-control-hal-win/src/its_policy.rs`) decodes a machine whose `PowerSlider` key is
 missing entirely into an empty `ItsPolicy` with no issues, so `perf policy` would exit 0
 with every field "not published". This is documented as intentional in that module and
 the row `perf.policy` is already reported `unavailable` by the capability probe; the
@@ -309,7 +309,7 @@ Bad arguments all yielded exit 2 (and `kind=invalid_argument` in JSON mode):
 Absent-channel controls that passed unchanged: `magicbay lte status` → 3,
 `update history` → 3, `bios save` → 3 (deliberate boundary), and every
 `Option<&dyn …>`-guarded handler returns
-`Unsupported` rather than an empty success (115 `ok_or_else(|| LctrlError::Unsupported`
+`Unsupported` rather than an empty success (115 `ok_or_else(|| LenovoLaptopControlError::Unsupported`
 sites at the time of this edit; the three exceptions found are §2). The channel-action
 pattern for a *missing* daemon is `daemon start` / `daemon stop` →
 `ChannelUnavailable` (`daemon_request`, `start_daemon`), not `daemon status`, which

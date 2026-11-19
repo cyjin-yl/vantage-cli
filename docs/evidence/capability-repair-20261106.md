@@ -20,12 +20,12 @@ Already landed by peers (verified here, **not** changed by this repair):
 
 | id | recorder | row binding |
 |---|---|---|
-| `events.log` + `channel.events` | `lctrl-hal-win/src/event_log.rs` (`record_event_log_capability`, called at `windows_hal.rs`) | `EVENTS_LOG` = `Capability` |
+| `events.log` + `channel.events` | `lenovo-laptop-control-hal-win/src/event_log.rs` (`record_event_log_capability`, called at `windows_hal.rs`) | `EVENTS_LOG` = `Capability` |
 | `channel.storage` + `storage.status` | `windows_hal.rs` (`probe_storage`) | `STORAGE_STATUS` = `Capability` |
 | `channel.sensor` + `sensor.list` | `windows_hal.rs` (`SensorControl::list`) | `SENSOR_LIST`/`SENSOR_READ` = `Capability` |
 | `channel.bluetooth` + `bluetooth.list` | `windows_hal.rs` (`WindowsBluetooth::bluetooth_devices`) | role mapped; row still `Unprobed` (§2) |
 | `channel.security` + `security.status` | `windows_hal.rs` (`observe_security`) | role mapped (`SECURITY_STATUS`) |
-| `usb.ports` | `lctrl-hal-win/src/usb_ports.rs` (`record_usb_port_capabilities`) | `USB_PORTS` = `Capability` |
+| `usb.ports` | `lenovo-laptop-control-hal-win/src/usb_ports.rs` (`record_usb_port_capabilities`) | `USB_PORTS` = `Capability` |
 | `wifi.status` | `windows_hal.rs` (`WindowsWifiStatus::wifi_status`) | row still `Unprobed` (§2) |
 | role `Events` | `crates/vantage-cli/src/capability.rs::role_channel` | done by peer |
 
@@ -49,7 +49,7 @@ feature probe says**. A row bound to such a role therefore could never read `ava
 
 | role | channel id | recorder that must have written it | rows affected | status before → after |
 |---|---|---|---|---|
-| `Keyboard` | `channel.keyboard` | **added**: `windows_hal.rs:346` (`for feature in ["kbd.backlight", "channel.keyboard"]`, fed by the existing `probe_vpc_keyboard` result). Linux already recorded the same id (`lctrl-hal-linux/src/lib.rs:873`) | `KBD_BACKLIGHT`; the `Keyboard` leg of the `TUNE_PROFILE_APPLY`/`TUNE_RESTORE` composites | `unverified` → `available` (KBLC answers: `out=0x7`, group 3, states 0..=3) |
+| `Keyboard` | `channel.keyboard` | **added**: `windows_hal.rs:346` (`for feature in ["kbd.backlight", "channel.keyboard"]`, fed by the existing `probe_vpc_keyboard` result). Linux already recorded the same id (`lenovo-laptop-control-hal-linux/src/lib.rs:873`) | `KBD_BACKLIGHT`; the `Keyboard` leg of the `TUNE_PROFILE_APPLY`/`TUNE_RESTORE` composites | `unverified` → `available` (KBLC answers: `out=0x7`, group 3, states 0..=3) |
 | `Events` | `channel.events` | `event_log.rs` (peer) | `EVENTS_LOG` | `unverified` → follows the `events.log` probe |
 | `Storage` | `channel.storage` | `windows_hal.rs` storage probe (peer) | `STORAGE_STATUS` | `unverified` → follows `storage.status` |
 | `Sensor` | `channel.sensor` | `windows_hal.rs` sensor probe (peer) | `SENSOR_LIST`, `SENSOR_READ` | `unverified` → follows `sensor.list` |
@@ -69,7 +69,7 @@ inherited `Unexposed` with no compiler signal. Now a new `ServiceRole` variant f
 until its channel (or its deliberate absence) is decided.
 
 Cross-check run at the end of this change: every id returned by `role_channel` has at least one
-recording site in `crates/lctrl-hal-win/src` or `crates/lctrl-hal-linux/src` — no mapping points at
+recording site in `crates/lenovo-laptop-control-hal-win/src` or `crates/lenovo-laptop-control-hal-linux/src` — no mapping points at
 an id nothing writes.
 
 ## 2. Defect B — `Implemented` rows bound to an id nothing records (audit §5.2)
@@ -99,7 +99,7 @@ Why the last three were not given a recorder:
   channel observation.
 * `update.history.ledger`: the honest probe is `update_history::read_history()`, which runs
   `SELECT … FROM updatehistory` over **both** ledger databases with no `LIMIT`
-  (`lctrl-hal-win/src/update_history.rs`, `INSTALL_EVENTS_SQL`/`PACKAGE_STATUS_SQL`). That is a full
+  (`lenovo-laptop-control-hal-win/src/update_history.rs`, `INSTALL_EVENTS_SQL`/`PACKAGE_STATUS_SQL`). That is a full
   row enumeration inside `capabilities()`, so it violates the "cheap, no full enumeration" rule for
   a probe. The bounded repair is a precondition probe — ledger file exists and the engine opens —
   and belongs to the update-family owner, not to a matrix repair.
@@ -125,7 +125,7 @@ DispatchSupport::Unsupported("remote update checking has no authenticated catalo
 exit 0 with `last_sync 2026-10-05T20:02:25+08:00` and three packages. The matrix told users a working
 read command was broken.
 
-After (`crates/lctrl-hal/src/command_capability.rs:1780-1806`):
+After (`crates/lenovo-laptop-control-hal/src/command_capability.rs:1780-1806`):
 
 ```rust
 FeatureBinding::Capability("update.catalog.local"),
@@ -134,18 +134,18 @@ DispatchSupport::Implemented,
 
 with the new read-only probe:
 
-* `lctrl-hal-win/src/update_catalog.rs` — `pub struct CatalogSync { last_sync, packages, stale }`
+* `lenovo-laptop-control-hal-win/src/update_catalog.rs` — `pub struct CatalogSync { last_sync, packages, stale }`
   and `pub fn catalog_sync() -> Result<Option<CatalogSync>>` (Windows impl at `:440`, non-Windows
   `Unsupported` stub at `:530`). It reuses the existing private `read_config()` (one `RegGetValueW`
   for `Packages\LastUpdateConfig` + JSON parse) plus the `UpdateCheckDateTime` sibling value and
   **stops before** `evaluate()`: no network, no package applicability, no install, no write.
-* `lctrl-hal-win/src/windows_hal.rs:1538-1583` records `update.catalog.local`:
+* `lenovo-laptop-control-hal-win/src/windows_hal.rs:1538-1583` records `update.catalog.local`:
   `available` when a parseable config lists ≥1 package and is not marked update-required,
   `limited` when the service marked the cached config stale (`ConfigUpdateRequired=1`) or the synced
   config lists no packages, `unavailable` when no `LastUpdateConfig` exists or it does not parse —
   with the parse error as the detail. A missing catalogue is **not** a failure of the verb (it falls
   back to the capability summary), so `unavailable` is the honest record and the row follows it.
-* `lctrl-hal-linux/src/lib.rs:721-736` records the same id as `unavailable` with the Windows-only
+* `lenovo-laptop-control-hal-linux/src/lib.rs:721-736` records the same id as `unavailable` with the Windows-only
   boundary, so the row reads `unavailable` on Linux instead of `unverified`.
 
 Both recorders name the split in the detail text: `"local synced catalogue: last sync …, N
@@ -192,7 +192,7 @@ have no verb, and the refusal is already carried by the `update download/install
 * `docs/evidence/target-capability-matrix-20261105.json` and every published matrix: they are
   snapshots of the 2026-11-05 14:23 binary and must be regenerated from a build of this tree
   (§6).
-* `crates/lctrl-hal-win/src/radio.rs` (another worker's in-flight module): this repair only *calls*
+* `crates/lenovo-laptop-control-hal-win/src/radio.rs` (another worker's in-flight module): this repair only *calls*
   its read-only status path.
 * Linux `channel.update-local` is still unrecorded, so `ServiceRole::Update` is `Unexposed` on Linux
   and the other `update.*` rows read `unverified` there. Pre-existing, outside this repair, recorded
@@ -213,7 +213,7 @@ have no verb, and the refusal is already carried by the `update download/install
 
 ## 6. Proposed parent acceptance (with negative controls)
 
-1. `cargo check -p lctrl-hal -p vantage-cli --target x86_64-pc-windows-msvc` (the check this item
+1. `cargo check -p lenovo-laptop-control-hal -p vantage-cli --target x86_64-pc-windows-msvc` (the check this item
    asked for; not run here, see §5).
 2. Build and re-run the matrix:
    `cargo.exe build --offline --manifest-path vantage\Cargo.toml --bin vantage`, then
@@ -237,7 +237,7 @@ have no verb, and the refusal is already carried by the `update download/install
    * run `update check` on Linux: must print the capability-summary fallback, and the row must be
      `unavailable` (from the Linux recorder), never `available` and never `unsupported` — proves no
      fabricated catalogue and that the remote/local split holds on both backends.
-   * `cargo test -p lctrl-hal` (registry contract) must stay green; no test outside
+   * `cargo test -p lenovo-laptop-control-hal` (registry contract) must stay green; no test outside
      `command_capability.rs` asserts an `Unprobed`/`Capability` distinction or the `UPDATE_CHECK`
      dispatch (grep-verified at the time of this note).
 5. **Avoid** as a negative control: deleting/renaming the machine's `LastUpdateConfig`. It is a

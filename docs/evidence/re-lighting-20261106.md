@@ -210,12 +210,12 @@ channel already recovered on 2026-11-05.
   answers on the same instance.
 - **Exactly one lighting READ answers**: ACPI `KBLC` (query + get) over
   `\\.\EnergyDrv` IOCTL `0x83102144`. It is already implemented —
-  `crates/lctrl-hal-win/src/kbd_backlight.rs`
+  `crates/lenovo-laptop-control-hal-win/src/kbd_backlight.rs`
   (`WindowsKeyboardBacklight::layout`/`read_state`) — and already wired as the
   primary channel in the composition root
   (`vantage/src/main.rs:671-673`, `WindowsKeyboardSources::new(WindowsKeyboardBacklight::new(NativeIoctl), WindowsPeripheralController::new(Wmi))`).
   The capability probe records `kbd.backlight = Available` with the KBLC
-  group/states in its reason (`crates/lctrl-hal-win/src/windows_hal.rs:296-311`).
+  group/states in its reason (`crates/lenovo-laptop-control-hal-win/src/windows_hal.rs:296-311`).
 - Therefore **nothing lighting-specific needs implementing from this retry**:
   the only answering read is live and the WMI planes have no read to build on.
   The WMI lighting controller stays in place as the fallback for RGB models
@@ -224,7 +224,7 @@ channel already recovered on 2026-11-05.
 
 ## 7. Dependent defect found by this probe — repaired (Main-approved)
 
-`crates/lctrl-hal-win/src/error.rs` declared
+`crates/lenovo-laptop-control-hal-win/src/error.rs` declared
 `WBEM_E_NOT_SUPPORTED = 0x8004_1001`, but `0x80041001` is `WBEM_E_FAILED`
 (generic failure). `WBEM_E_NOT_SUPPORTED` is **`0x8004100C`** — the value this
 probe measured together with the provider's own "Not supported" text, the
@@ -235,11 +235,11 @@ quote, and a different value from the `0x80041001` that
 
 Effect before the repair: `map_wmi_hresult` did not recognize `0x8004100C`, so
 every firmware-absent WMI channel that answers `不支持` surfaced as
-`LctrlError::Io("... WMI HRESULT 0x8004100C")` — a transient I/O error —
+`LenovoLaptopControlError::Io("... WMI HRESULT 0x8004100C")` — a transient I/O error —
 instead of `Unsupported`. That defeated exactly the consumers keyed on
 absence: `WindowsKeyboardSources::channel_absent`
-(`crates/lctrl-hal-win/src/kbd_backlight.rs`) refuses to fall back on `Io`,
-`active_instance` (`crates/lctrl-hal-win/src/wmi_contract.rs`) reports the
+(`crates/lenovo-laptop-control-hal-win/src/kbd_backlight.rs`) refuses to fall back on `Io`,
+`active_instance` (`crates/lenovo-laptop-control-hal-win/src/wmi_contract.rs`) reports the
 absence as a raw I/O failure, and the capability registry caches a channel as
 unavailable only for `Unsupported`.
 
@@ -248,10 +248,10 @@ Channels that were misreported because of it (each answers `0x8004100C` on
 
 | Channel / feature | Code path | Answering plane |
 | --- | --- | --- |
-| `kbd.backlight` WMI fallback | `crates/lctrl-hal-win/src/peripherals.rs:36,58,79` | `LENOVO_LIGHTING_DATA`, `LENOVO_LIGHTING_METHOD` |
-| `kbd.backlight` capability probe | `crates/lctrl-hal-win/src/windows_hal.rs:311` | `active_instance(LENOVO_LIGHTING_DATA)` |
-| `perf.fan.curve` | `crates/lctrl-hal-win/src/gamezone.rs:173` (`Fan_Get_Table`) | `LENOVO_FAN_METHOD` |
-| GPU-OC status | `crates/lctrl-hal-win/src/gpu_oc.rs:18`, `windows_hal.rs:737` | `LENOVO_GAMEZONE_GPU_OC_DATA` |
+| `kbd.backlight` WMI fallback | `crates/lenovo-laptop-control-hal-win/src/peripherals.rs:36,58,79` | `LENOVO_LIGHTING_DATA`, `LENOVO_LIGHTING_METHOD` |
+| `kbd.backlight` capability probe | `crates/lenovo-laptop-control-hal-win/src/windows_hal.rs:311` | `active_instance(LENOVO_LIGHTING_DATA)` |
+| `perf.fan.curve` | `crates/lenovo-laptop-control-hal-win/src/gamezone.rs:173` (`Fan_Get_Table`) | `LENOVO_FAN_METHOD` |
+| GPU-OC status | `crates/lenovo-laptop-control-hal-win/src/gpu_oc.rs:18`, `windows_hal.rs:737` | `LENOVO_GAMEZONE_GPU_OC_DATA` |
 | GPU-OC / OC report surfaces | capability and report text only (no live query in Rust today) | `LENOVO_GPU_OVERCLOCKING_DATA`, `LENOVO_GPU_METHOD`, `LENOVO_CPU_OVERCLOCKING_DATA`, `LENOVO_MEMORY_OC_DATA`, `LENOVO_DISCRETE_DATA` (`docs/evidence/re-gpu-oc-20261105.md:23-27`) |
 | panel colour/overdrive | evidence only — `panel_features.rs` uses no WMI class today | `LENOVO_PANEL_METHOD` (`docs/evidence/wmi-capability-exhaustion-20261104.md` §2) |
 
@@ -264,12 +264,12 @@ key on); for `perf.gpu` the capability boolean already ignored the error and
 
 Applied repair (approved by Main, this work item):
 
-1. `crates/lctrl-hal-win/src/error.rs`: `WBEM_E_NOT_SUPPORTED` corrected to
+1. `crates/lenovo-laptop-control-hal-win/src/error.rs`: `WBEM_E_NOT_SUPPORTED` corrected to
    `0x8004_100C` inside the `Unsupported` arm, with a comment pinning
    `0x80041001` as `WBEM_E_FAILED` that must stay outside it.
    `WBEM_E_INVALID_METHOD_PARAMETERS = 0x8004_102F` added to the same arm —
    the live answer of a class-level ACPI-WMI invoke (rows 4 and 8).
-2. `crates/lctrl-hal-win/tests/error_mapping.rs`:
+2. `crates/lenovo-laptop-control-hal-win/tests/error_mapping.rs`:
    `wmi_not_supported_marks_feature_unsupported` now asserts
    `0x8004_100C -> unsupported` (it previously encoded the wrong constant),
    plus two regression cases: `0x8004_1001 -> io` (generic failure is not

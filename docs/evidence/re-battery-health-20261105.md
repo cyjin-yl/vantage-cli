@@ -17,7 +17,7 @@ program was built or run, no registry/service/hardware state changed.
 
 Consequence for the CLI: `battery health` takes its capacities from the `root\WMI` battery
 class chain (one identity-matched pack, `InstanceName` association already enforced in
-`lctrl-hal-win/src/os_battery.rs`), reports the vendor firmware health code and life
+`lenovo-laptop-control-hal-win/src/os_battery.rs`), reports the vendor firmware health code and life
 percentage beside it, and never merges the two channels into one number.
 
 ### 1.1 Provider access method (why the binding matters)
@@ -120,13 +120,13 @@ response independently reported the same 99900 / 94090 / 65240 mWh triple.
 
 | change | file / symbol | reason |
 |---|---|---|
-| `BatteryFieldProvenance { design_capacity, full_charge_capacity, cycle_count }`, `BatteryWearReport { source, fields, design_capacity_mwh, full_charge_capacity_mwh, cycle_count, capacity_ratio_percent, wear_percent, issues, has_observation() }` | `crates/lctrl-core/src/battery.rs`, re-exported in `crates/lctrl-core/src/lib.rs` | one arithmetic home for the wear rule; every raw number keeps the record that produced it |
-| `BatteryControl::battery_wear()` (default `Unsupported { feature: "battery.health" }`, forwarded by the `&T` impl) | `crates/lctrl-hal/src/battery.rs` | the HAL owns transport and provenance; the CLI only renders |
-| `WindowsBatterySources::battery_wear()` → `root_wmi_battery_classes` with `root\WMI:BatteryStaticData.DesignedCapacity`, `root\WMI:BatteryFullChargedCapacity.FullChargedCapacity`, `root\WMI:BatteryCycleCount.CycleCount` | `crates/lctrl-hal-win/src/battery_sources.rs` | reuses the identity-matched snapshot instead of opening a second, unassociated query |
-| `CycleCount == 0` ⇒ `None` + issue | `crates/lctrl-hal-win/src/os_battery.rs` | MSDN encoding, see §4.5 |
-| `LinuxHal::battery_wear()` → label per actual node (`energy_full_design` vs `charge_full_design` converted with voltage) | `crates/lctrl-hal-linux/src/lib.rs` | same contract on sysfs; provenance names the node that supplied the number |
-| `capabilities.record("battery.health", …)` | `crates/lctrl-hal-win/src/windows_hal.rs`, `crates/lctrl-hal-linux/src/lib.rs` | capability matrix honesty |
-| `CommandId::BATTERY_HEALTH` + registry row (read-only, Runtime layer, `Capability("battery.health")`, service `Battery`, deps: optional EnergyDriver, optional PublicWin32Cim, required LinuxSysfs) + `BatteryCommand::Health` + dispatch | `crates/lctrl-core/src/command_capability.rs`, `crates/lctrl-hal/src/command_capability.rs`, `crates/vantage-cli/src/lib.rs`, `crates/vantage-cli/src/capability.rs` | every command needs one registry row and one layer |
+| `BatteryFieldProvenance { design_capacity, full_charge_capacity, cycle_count }`, `BatteryWearReport { source, fields, design_capacity_mwh, full_charge_capacity_mwh, cycle_count, capacity_ratio_percent, wear_percent, issues, has_observation() }` | `crates/lenovo-laptop-control-core/src/battery.rs`, re-exported in `crates/lenovo-laptop-control-core/src/lib.rs` | one arithmetic home for the wear rule; every raw number keeps the record that produced it |
+| `BatteryControl::battery_wear()` (default `Unsupported { feature: "battery.health" }`, forwarded by the `&T` impl) | `crates/lenovo-laptop-control-hal/src/battery.rs` | the HAL owns transport and provenance; the CLI only renders |
+| `WindowsBatterySources::battery_wear()` → `root_wmi_battery_classes` with `root\WMI:BatteryStaticData.DesignedCapacity`, `root\WMI:BatteryFullChargedCapacity.FullChargedCapacity`, `root\WMI:BatteryCycleCount.CycleCount` | `crates/lenovo-laptop-control-hal-win/src/battery_sources.rs` | reuses the identity-matched snapshot instead of opening a second, unassociated query |
+| `CycleCount == 0` ⇒ `None` + issue | `crates/lenovo-laptop-control-hal-win/src/os_battery.rs` | MSDN encoding, see §4.5 |
+| `LinuxHal::battery_wear()` → label per actual node (`energy_full_design` vs `charge_full_design` converted with voltage) | `crates/lenovo-laptop-control-hal-linux/src/lib.rs` | same contract on sysfs; provenance names the node that supplied the number |
+| `capabilities.record("battery.health", …)` | `crates/lenovo-laptop-control-hal-win/src/windows_hal.rs`, `crates/lenovo-laptop-control-hal-linux/src/lib.rs` | capability matrix honesty |
+| `CommandId::BATTERY_HEALTH` + registry row (read-only, Runtime layer, `Capability("battery.health")`, service `Battery`, deps: optional EnergyDriver, optional PublicWin32Cim, required LinuxSysfs) + `BatteryCommand::Health` + dispatch | `crates/lenovo-laptop-control-core/src/command_capability.rs`, `crates/lenovo-laptop-control-hal/src/command_capability.rs`, `crates/vantage-cli/src/lib.rs`, `crates/vantage-cli/src/capability.rs` | every command needs one registry row and one layer |
 | `battery_health::execute` | `crates/vantage-cli/src/battery_health.rs` (new) | emits `source_association: "unverified"`, `capacity_wear`, `capacity_wear_error`, `vendor_health` (`source: "energy_drv_83102138_device0"`, `health`, `life_percent`), `vendor_health_error`; fails only when the capacity channel itself failed |
 
 Authority and lifecycle: read-only. No write, no service, no registry, no persistence, no
@@ -134,7 +134,7 @@ restore step; nothing survives the process.
 
 ## 6. Acceptance the parent must run (not run here)
 
-1. `cargo check -p lctrl-hal-win --target x86_64-pc-windows-msvc` (cross), then on the target
+1. `cargo check -p lenovo-laptop-control-hal-win --target x86_64-pc-windows-msvc` (cross), then on the target
    `vantage --json battery health` → expect `capacity_wear.design_capacity_mwh = 99900`,
    `full_charge_capacity_mwh` near 93810, `cycle_count` 233-ish, `wear_percent` 6-ish,
    `fields.*` naming the three `root\WMI` records, `vendor_health.health = null`.

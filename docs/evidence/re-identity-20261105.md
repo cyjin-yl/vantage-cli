@@ -147,9 +147,9 @@ JSON (`identity` key, omitted when the HAL reports no identity module at all):
 }
 ```
 
-These are the existing `lctrl-core` inventory records, not a second schema:
+These are the existing `lenovo-laptop-control-core` inventory records, not a second schema:
 `ProductInventory` / `MotherboardInventory` / `BiosInventory` from
-`crates/lctrl-core/src/inventory.rs`.
+`crates/lenovo-laptop-control-core/src/inventory.rs`.
 
 Human output on this target (values from §1):
 
@@ -192,14 +192,14 @@ features:
 
 | Change | File |
 |---|---|
-| `SystemIdentity { product, motherboard, bios }` + `is_empty()`, `BiosInventory::embedded_controller_version()` | `crates/lctrl-core/src/inventory.rs`, exported in `crates/lctrl-core/src/lib.rs` |
-| `Hal::system_identity()` default (all-absent) so existing impls/fakes keep compiling | `crates/lctrl-hal/src/capability.rs` |
-| `WindowsInventory::capture_identity()` / `identity_from_wmi()` — the 4 identity queries only (`Win32_ComputerSystemProduct`, `Win32_ComputerSystem`, `Win32_BaseBoard`, `Win32_BIOS`), provenance table in the doc comment | `crates/lctrl-hal-win/src/system_inventory.rs` |
-| `WindowsHal::system_identity()` delegates to that bounded reader | `crates/lctrl-hal-win/src/windows_hal.rs` |
+| `SystemIdentity { product, motherboard, bios }` + `is_empty()`, `BiosInventory::embedded_controller_version()` | `crates/lenovo-laptop-control-core/src/inventory.rs`, exported in `crates/lenovo-laptop-control-core/src/lib.rs` |
+| `Hal::system_identity()` default (all-absent) so existing impls/fakes keep compiling | `crates/lenovo-laptop-control-hal/src/capability.rs` |
+| `WindowsInventory::capture_identity()` / `identity_from_wmi()` — the 4 identity queries only (`Win32_ComputerSystemProduct`, `Win32_ComputerSystem`, `Win32_BaseBoard`, `Win32_BIOS`), provenance table in the doc comment | `crates/lenovo-laptop-control-hal-win/src/system_inventory.rs` |
+| `WindowsHal::system_identity()` delegates to that bounded reader | `crates/lenovo-laptop-control-hal-win/src/windows_hal.rs` |
 | `identity` payload key + identity lines in `format_info` | `crates/vantage-cli/src/lib.rs` |
 
 Tests added (not run in this slice — the parent owns verification):
-`crates/lctrl-hal-win/tests/windows_system_inventory.rs`
+`crates/lenovo-laptop-control-hal-win/tests/windows_system_inventory.rs`
 (`identity_capture_reads_only_product_baseboard_and_bios` uses a transport that
 **fails** on any class outside the four, so a widened query set is an error;
 `identity_capture_without_provider_records_stays_empty`;
@@ -225,9 +225,9 @@ Tests added (not run in this slice — the parent owns verification):
 
 ## 6. Suggested parent checks
 
-1. `cargo check -p lctrl-hal-win --target x86_64-pc-windows-msvc` (cross) — the
+1. `cargo check -p lenovo-laptop-control-hal-win --target x86_64-pc-windows-msvc` (cross) — the
    `SystemIdentity` wiring, the default trait method, and the new tests.
-2. Windows `cargo test --offline -p lctrl-hal-win --test windows_system_inventory`
+2. Windows `cargo test --offline -p lenovo-laptop-control-hal-win --test windows_system_inventory`
    and `-p vantage-cli --test cli_contract`.
 3. Native `vantage info` / `vantage info --json` on `tb14p-ezra`, compared field
    by field with §1 (expect `ec firmware: 1.22`, `bios release date:

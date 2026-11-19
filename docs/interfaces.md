@@ -223,7 +223,7 @@ BOOL WrmsrCollection(ULONG reserved0, ULONG reserved1, ULONG selector, ULONG low
 | 温度 | `class/hwmon/*/temp*` | ACPI 热区（WMI） | 已实现 |
 | 充电阈值 | `power_supply/BAT0/charge_control_end_threshold` | 固件 WMI（需写门禁） | 部分 |
 
-### 9.1 Windows 性能模式的实现契约（`crates/lctrl-hal-win/src/power_overlay.rs`）
+### 9.1 Windows 性能模式的实现契约（`crates/lenovo-laptop-control-hal-win/src/power_overlay.rs`）
 
 | 模式 | overlay GUID | 依据 |
 |---|---|---|
@@ -315,7 +315,7 @@ Linux 上同类能力由主线内核 `/dev/cpu/N/msr` 完整提供(见 `09-linux
   `WBEM_E_INVALID_METHOD_PARAMETERS` / "Invalid object"。原因未查明(PowerShell
   与 Rust 客户端行为一致),推测固件按机型/调用方校验拒绝。**客户端必须把它当
   "该固件不支持"处理,而不是调用形态错误**——当前实现映射为
-  `LctrlError::Unsupported`,能力行动态探测如实报 Unavailable。
+  `LenovoLaptopControlError::Unsupported`,能力行动态探测如实报 Unavailable。
 - FAN_METHOD 常量无法在本机验证(实例不存在),按 §10.2 形态实现、按 §10.4 报错。
 
 ## 11. 充电域接口契约(EnergyDrv)
@@ -494,7 +494,7 @@ out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Se
 
 ### 12.3 实现落点
 
-- `lctrl-hal-win/src/dolby.rs`:`NativeDolbyRpc`(纯 Rust rpcrt4 NDR 客户端)+ `WindowsDolbyAudio<R: DolbyRpc>`(dry-run/commit + 读回轮询,`poll_readback` 10×50ms)。trait 接缝 `DolbyRpc` 与 `vantage-cli` 表面未变。
+- `lenovo-laptop-control-hal-win/src/dolby.rs`:`NativeDolbyRpc`(纯 Rust rpcrt4 NDR 客户端)+ `WindowsDolbyAudio<R: DolbyRpc>`(dry-run/commit + 读回轮询,`poll_readback` 10×50ms)。trait 接缝 `DolbyRpc` 与 `vantage-cli` 表面未变。
 - `vantage/src/main.rs` Windows 组合根:**已挂载** `WindowsDolbyAudio::new(NativeDolbyRpc::load())`(`:431-437`、`:476-479`)。2026-11-03 的启动崩溃根因已闭合:不是 NDR 描述表,而是 VEH 守卫的 `CONTEXT` 缓冲区缺少 16 字节对齐,`RtlCaptureContext` 的 `fxsave` 在守卫内先崩,`_Call` 从未执行;修正后同一台机器上 `audio dolby movie --yes --auto-restore` 真实提交并恢复(见 `docs/evidence/dax-hpd-rpc-reattach-20261103.md`)。§13 的 HPD 通道同因修复后一并挂载。
 - 第二通道 `ncalrpc:[FusionRpcEndpoint]`(DolbyFusionRpcClient.dll,Atmos/Fusion 附加项)未接入,列为后续。
 
@@ -522,7 +522,7 @@ out 参数全部在 wrapper 栈帧内分配;调用方只需按上表传参。`Se
 | 8 | SetActiveProfile | context + `u32`(0x10) | 预设写 |
 | 37 | GetSKU | context + `&BSTR`(0x10) | SKU 名串(BSTR) |
 
-**元数据**:MIDL 解释器表(proc format string / format offset / type format)由 `lctrl-hal-win/src/ndr/dolby.rs` 在编译期按公开的 NDR `-Oicf`(x64)格式规则,从上表恢复出的形参签名生成。当前源码不再内嵌原先逐字节转录的描述表;类型表仅保留本通道引用的 context handle 和 BSTR 语义。BSTR 参数经 `FC_USER_MARSHAL`(quad index 0)封送,quad 表绑定系统 oleaut32 的 `BSTR_UserSize/Marshal/Unmarshal/Free`。`-Oicf` 是 RPC 运行时的解释器元数据格式,不应仅凭线协议兼容就断言不同编译器生成的表必定逐字节相同。
+**元数据**:MIDL 解释器表(proc format string / format offset / type format)由 `lenovo-laptop-control-hal-win/src/ndr/dolby.rs` 在编译期按公开的 NDR `-Oicf`(x64)格式规则,从上表恢复出的形参签名生成。当前源码不再内嵌原先逐字节转录的描述表;类型表仅保留本通道引用的 context handle 和 BSTR 语义。BSTR 参数经 `FC_USER_MARSHAL`(quad index 0)封送,quad 表绑定系统 oleaut32 的 `BSTR_UserSize/Marshal/Unmarshal/Free`。`-Oicf` 是 RPC 运行时的解释器元数据格式,不应仅凭线协议兼容就断言不同编译器生成的表必定逐字节相同。
 
 **单语法决定**:`RPC_CLIENT_INTERFACE.Flags` 置 0(多语法位取值 `0x06000000` 会把 rpcrt4 引到 NDR64 分发路径,而本客户端只携带 NDR32 表,结果是 `RPC_S_INTERNAL_ERROR`(`0x6e6`)。置 0 后协商语法恒为 NDR v2.0。
 
@@ -662,14 +662,14 @@ addin 侧的 VantageService contract 调度契约(`CommandNameGet/SetAutoKBDBack
 
 ## 14. 降噪接口(Elevoc RPC)
 
-链路:`vantage audio noise-cancel → ALPC ncalrpc:[ElevocRpcEndpoint] → ElevocControlService.exe(LocalSystem)`。接口 GUID `{6F761170-1054-4339-A573-063DD08C7E16}` v4.0,NDR32;单 opnum-0 通用分发,方法名在 JSON 请求信封内(elevoc_rpc_protocol)。**实现为纯 Rust rpcrt4 客户端**(`lctrl-hal-win/src/noise.rs`,`NativeElevocRpc`):按 2026-11-01 依赖裁定,Lenovo 交付的 ElevocControlSDK_x64.dll 已禁止作为运行时依赖,DLL 发现/缓存机制移除;传输改为系统 `rpcrt4.dll` + `NdrClientCall3` 直打 opnum-0。
+链路:`vantage audio noise-cancel → ALPC ncalrpc:[ElevocRpcEndpoint] → ElevocControlService.exe(LocalSystem)`。接口 GUID `{6F761170-1054-4339-A573-063DD08C7E16}` v4.0,NDR32;单 opnum-0 通用分发,方法名在 JSON 请求信封内(elevoc_rpc_protocol)。**实现为纯 Rust rpcrt4 客户端**(`lenovo-laptop-control-hal-win/src/noise.rs`,`NativeElevocRpc`):按 2026-11-01 依赖裁定,Lenovo 交付的 ElevocControlSDK_x64.dll 已禁止作为运行时依赖,DLL 发现/缓存机制移除;传输改为系统 `rpcrt4.dll` + `NdrClientCall3` 直打 opnum-0。
 
 **客户端依赖边界**:当前源码不加载或复制任何厂商 SDK,也不内嵌外部描述表;客户端通过系统 `rpcrt4.dll` 调用。RPC 服务端仍是必需依赖:目标机实测 `ElevocService` 运行 `C:\Windows\System32\ElevocInstallDriver\ElevocControlService.exe`。卸载 Lenovo Vantage 后服务是否保留尚未验证;不能据此声称无需安装或保留该服务。
 
 ### 14.0 纯 Rust 通道实现要点(ABI 稳定依据)
 
 - **绑定**:`RpcStringBindingComposeW(NULL,"ncalrpc",NULL,"ElevocRpcEndpoint")` → `RpcBindingFromStringBindingW`(与原版初始化次序一致;无 AuthInfo,服务端无鉴权注册)。
-- **MIDL 表**:当前源码由 `lctrl-hal-win/src/ndr/elevoc.rs` 的生成器按恢复出的签名 `void opnum0([in,out,string,size_is(0x5000)] wchar_t *json)` 生成描述符,不再保存原先转录的格式串。过程头启用 `HasNewCorrDesc` 和两端 correlation checks;因此 sized-string 的四字节常量符合度描述符后还必须生成两字节 `/robust` 标志(常量采用 early correlation)。结构体根据公开 `rpcndr.h` 定义构建。接口 GUID+v4.0 与 NDR32 v2.0 是当前测试版本的绑定依据,不是未来兼容性保证:服务端可能保留同一版本号但更改语义,必须针对更新版本重新验证。
+- **MIDL 表**:当前源码由 `lenovo-laptop-control-hal-win/src/ndr/elevoc.rs` 的生成器按恢复出的签名 `void opnum0([in,out,string,size_is(0x5000)] wchar_t *json)` 生成描述符,不再保存原先转录的格式串。过程头启用 `HasNewCorrDesc` 和两端 correlation checks;因此 sized-string 的四字节常量符合度描述符后还必须生成两字节 `/robust` 标志(常量采用 early correlation)。结构体根据公开 `rpcndr.h` 定义构建。接口 GUID+v4.0 与 NDR32 v2.0 是当前测试版本的绑定依据,不是未来兼容性保证:服务端可能保留同一版本号但更改语义,必须针对更新版本重新验证。
 - **异常面**:原客户端以 `__try/__except` 将 RPC 异常换成返回码。复刻用 VEH+landing-pad(guard `NdrClientCall3`):异常线程还原到包装帧返回,异常码→ChannelUnavailable;正常路径零开销。
 - **请求缓冲**:保留原有不超过 `0x3ff` 个 UTF-16 单元的请求限制;由于生成的 `[in,out,string,size_is(0x5000)]` 描述符允许更长响应,本地接收缓冲使用同一个 `0x5000` 单元上限,包括末尾 NUL。不声称此约束已验证恶意 RPC 服务端的全部异常情况。
 
@@ -703,7 +703,7 @@ addin 侧的 VantageService contract 调度契约(`CommandNameGet/SetAutoKBDBack
 
 ## 15. 面板图像特性接口(Intel IGCL)
 
-**护眼(gamma ramp 支路已实现,验收待交互会话)**:真正的 owner 有两个——Vantage `SmartInteractAddin` 的 `EyeCareMode` 契约(`EyeModeState`/`ColorTemperature`/`SetEyeMode`,配 `UpdateEachMonitorGammaTemp` 逐显示器生效)和电脑管家 `LenovoMonitorManager.exe`(`-pcmgr Eye_Protection_Mode`、`-seteyeprotected`,支持位来自联想 `WrapPlugin.dll` 的 `IsSupportColorTemperature`,状态 `HKCU\SOFTWARE\Lenovo\PcManager\Configs\EyeCareFlag`)。两者都用系统 `GetDeviceGammaRamp`/`SetDeviceGammaRamp` 施加色温曲线,不是联想私有滤镜。因此实现走同一系统 API(`lctrl-hal-win` 的 `GammaRampApi`/`NativeGammaRamp`),不依赖任何联想组件:读 = 分类当前 ramp,不匹配任何档位即 `unknown`;写 = 捕获旧 ramp、dry-run 优先、写后回读、不一致回滚旧 ramp。IGCL 像素变换块在本机为 0 块,该支路不存在。Mid=5000K / High=4000K 仍是**仓库推断**(Tanner-Helland 近似),未从厂商预设表逐字节提取,不得声称与原版等价;`kelvin_channel_gain` 已改为按百开尔文取对数(此前直接用开尔文并把 blue 分支设在 4900K,导致 mid 恒等、high 全灭蓝)。能力行保持 Unsupported:gamma 写入需要交互会话,SSH 网络登录无法验收。见 `docs/evidence/re-panel-20261105.md` §5。
+**护眼(gamma ramp 支路已实现,验收待交互会话)**:真正的 owner 有两个——Vantage `SmartInteractAddin` 的 `EyeCareMode` 契约(`EyeModeState`/`ColorTemperature`/`SetEyeMode`,配 `UpdateEachMonitorGammaTemp` 逐显示器生效)和电脑管家 `LenovoMonitorManager.exe`(`-pcmgr Eye_Protection_Mode`、`-seteyeprotected`,支持位来自联想 `WrapPlugin.dll` 的 `IsSupportColorTemperature`,状态 `HKCU\SOFTWARE\Lenovo\PcManager\Configs\EyeCareFlag`)。两者都用系统 `GetDeviceGammaRamp`/`SetDeviceGammaRamp` 施加色温曲线,不是联想私有滤镜。因此实现走同一系统 API(`lenovo-laptop-control-hal-win` 的 `GammaRampApi`/`NativeGammaRamp`),不依赖任何联想组件:读 = 分类当前 ramp,不匹配任何档位即 `unknown`;写 = 捕获旧 ramp、dry-run 优先、写后回读、不一致回滚旧 ramp。IGCL 像素变换块在本机为 0 块,该支路不存在。Mid=5000K / High=4000K 仍是**仓库推断**(Tanner-Helland 近似),未从厂商预设表逐字节提取,不得声称与原版等价;`kelvin_channel_gain` 已改为按百开尔文取对数(此前直接用开尔文并把 blue 分支设在 4900K,导致 mid 恒等、high 全灭蓝)。能力行保持 Unsupported:gamma 写入需要交互会话,SSH 网络登录无法验收。见 `docs/evidence/re-panel-20261105.md` §5。
 
 **超分(诚实 Unsupported,驱动拒绝)**:原版链路已恢复为 `SmartDisplayAddin → x64\SESuperResolutionPlugin64.dll → IntelControlLib.dll`(IGCL)。能力枚举是**两趟**:`pFeatureDetails=NULL` 先取数量,再传数组,最后单特性取 116B 自定义负载;get/set 用 120B `ctl_video_processing_feature_getset_t`(`FeatureType=4`、`bSet`、`ValueType=5`、`CustomValueSize`/`pCustomValue`)配 92B `ctl_video_processing_super_resolution_t`(flag 在 +8,1=`DISABLE`、2=`ENABLE_DEFAULT_SCENARIO_MODE`)。本机驱动对枚举与状态查询均回 `0x4000000b`(`INVALID_ARGUMENT`);第二条链路 `IntelSRAPI.dll → CLSIDFromProgID(Igfxext.CUIExternal)` 在本机未注册;`root\wmi:LENOVO_SR_DATA`(EC)的方法参数在 CIM schema 中无名字,无法按名调用。写路径以“成功读到旧状态”为门控:读到才写,写后回读,不一致回滚。见 `docs/evidence/re-panel-20261105.md` §4。
 
@@ -713,7 +713,7 @@ addin 侧的 VantageService contract 调度契约(`CommandNameGet/SetAutoKBDBack
 
 目标机 IGCL 组件:`C:\Windows\System32\DriverStore\FileRepository\iigd_dch.inf_amd64_*\IntelControlLib.dll`(两版 1.2.265 / 1.2.301.0;`ctlInit` 回 `SupportedVersion=0x00010001`)。导出名以实机为准:`ctlClose`、`ctlInit`、`ctlEnumerateDevices`、`ctlEnumerateDisplayOutputs`、`ctlPixelTransformationGetConfig`、`ctlPixelTransformationSetConfig`、`ctlGetSupportedVideoProcessingCapabilities`、`ctlGetSetVideoProcessingFeature`。
 
-**结构布局已按公开头文件校正**(此前把 `ctl_pixtx_color_primaries_t` 写成 `u32`、`ctl_pixtx_config_t` 只留 1D LUT 成员、`ctl_video_processing_super_resolution_info_t` 缺两个 range 字段——这会让驱动按更大的结构写入调用方栈帧)。校正后的布局由 `crates/lctrl-hal-win/src/panel_features.rs` 的布局测试逐字段钉住(大小与偏移)。
+**结构布局已按公开头文件校正**(此前把 `ctl_pixtx_color_primaries_t` 写成 `u32`、`ctl_pixtx_config_t` 只留 1D LUT 成员、`ctl_video_processing_super_resolution_info_t` 缺两个 range 字段——这会让驱动按更大的结构写入调用方栈帧)。校正后的布局由 `crates/lenovo-laptop-control-hal-win/src/panel_features.rs` 的布局测试逐字段钉住(大小与偏移)。
 
 **2026-11-02 契约与实机复验**:像素变换查询必须使用**显示输出句柄**,并固定请求与公开头文件匹配的 1.1 ABI;超分信息结构(116B)与 get/set 负载(92B)是不同结构。此前查询错用 adapter 句柄,不能用来判断块管线是否存在。修正后的独立只读探针成功枚举所选显示输出,返回 0 个 pixtx 块;超分 caps 查询仍返回 `0x4000000b`(`INVALID_ARGUMENT`)。见 `docs/evidence/igcl-readonly-probe-20261102.md`。因此:
 
@@ -721,4 +721,4 @@ addin 侧的 VantageService contract 调度契约(`CommandNameGet/SetAutoKBDBack
 - 超分状态查询被驱动以 `0x4000000b` 拒(`INVALID_ARGUMENT`),CLI 报 `unknown`;写路径由“成功读到旧状态”门控,读被拒即拒绝写(`panel.super-resolution.state-query.rejected`);
 - 0 块结论只适用于本次所选显示输出与该驱动版本,不推断其他显示输出/未来驱动也没有能力。写路径不做猜测。
 
-**Overdrive(诚实 Unsupported,固件未声明)**:原版 owner 是 `SmartPanelAddin` 的 `Vantage.SmartEngineBiosOD` → `BiosOD.dll`(导出 `Init`/`Uninit`/`GetODStatus`/`SetODStatus`)。它先枚举 `SELECT * FROM LENOVO_CAPABILITY_DATA_00`,仅当存在 `(IDs >> 16) == 0x1A` 且 `Capability != 0` 的行时,才对 `LENOVO_OTHER_METHOD` 用 `IDs = 0x1A0000` 调 `GetFeatureValue`(读回 `value`)或 `SetFeatureValue`(`value` = `"1"`/`"0"`);本机 11 行能力表中没有 0x1A 家族(全表见 `docs/evidence/re-panel-20261105.md` §3)。这与三条独立否定一致:`LENOVO_GAMEZONE_DATA` 的 OD 方法族回 `无效的对象`、`LENOVO_PANEL_METHOD` 的 MPRT 回 `不支持`、TCON 动态 OD 需要的 `\\.\SPBTESTTOOL` 设备不存在。`crates/lctrl-hal-win/src/gamezone.rs` 已有该 WMI 原语,缺的是固件能力行;不为一台不支持的机器预置服务。
+**Overdrive(诚实 Unsupported,固件未声明)**:原版 owner 是 `SmartPanelAddin` 的 `Vantage.SmartEngineBiosOD` → `BiosOD.dll`(导出 `Init`/`Uninit`/`GetODStatus`/`SetODStatus`)。它先枚举 `SELECT * FROM LENOVO_CAPABILITY_DATA_00`,仅当存在 `(IDs >> 16) == 0x1A` 且 `Capability != 0` 的行时,才对 `LENOVO_OTHER_METHOD` 用 `IDs = 0x1A0000` 调 `GetFeatureValue`(读回 `value`)或 `SetFeatureValue`(`value` = `"1"`/`"0"`);本机 11 行能力表中没有 0x1A 家族(全表见 `docs/evidence/re-panel-20261105.md` §3)。这与三条独立否定一致:`LENOVO_GAMEZONE_DATA` 的 OD 方法族回 `无效的对象`、`LENOVO_PANEL_METHOD` 的 MPRT 回 `不支持`、TCON 动态 OD 需要的 `\\.\SPBTESTTOOL` 设备不存在。`crates/lenovo-laptop-control-hal-win/src/gamezone.rs` 已有该 WMI 原语,缺的是固件能力行;不为一台不支持的机器预置服务。

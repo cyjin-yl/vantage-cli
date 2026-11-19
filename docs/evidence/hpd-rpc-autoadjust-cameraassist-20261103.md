@@ -1,7 +1,7 @@
 # HPD RPC 剩余 setter 实测验收(2026-11-03,TB14P-EZRA / 21VG)
 
 对 `docs/evidence/hpd-rpc-re-20261102.md` §4 恢复出的、此前未接线的 HPD RPC op 做真机
-写探测。探针为 `lctrl-hal-win/examples/hpd_probe.rs`(`hpd_probe <op> <arg>`:一次
+写探测。探针为 `lenovo-laptop-control-hal-win/examples/hpd_probe.rs`(`hpd_probe <op> <arg>`:一次
 `NdrClientCall3`,随后读回 op5 capability + op6 settings),传输为自有 NDR32 表
 (`ndr/hpd.rs`,emit ops 7/10/13/15/17,PROC_COUNT=18),不调用任何 Lenovo 运行时库。
 

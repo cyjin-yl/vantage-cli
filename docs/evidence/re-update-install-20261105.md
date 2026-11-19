@@ -276,7 +276,7 @@ different vocabulary from UDC's string `package_type` (`"app"`).
 
 ### 4.1 `update history` (read-only)
 
-`UpdateControl::update_history` → `lctrl_hal_win::update_history::read_history`:
+`UpdateControl::update_history` → `lenovo_laptop_control_hal_win::update_history::read_history`:
 
 * reads `%ProgramData%\Lenovo\Vantage\AddinData\LenovoSystemUpdateAddin\session\editable_update_history.db`
   (falling back to `update_history.db` only when the install-event ledger is

@@ -1,6 +1,6 @@
 # IGCL read-only native probe — TB14P-EZRA, 2026-11-02
 
-Source: `crates/lctrl-hal-win/examples/igcl_probe.rs`, built natively on the target with the direct stable-MSVC toolchain. This isolated process performs no writes.
+Source: `crates/lenovo-laptop-control-hal-win/examples/igcl_probe.rs`, built natively on the target with the direct stable-MSVC toolchain. This isolated process performs no writes.
 
 Observed output (the process was rerun with `Start-Process -Wait` and a bounded wait; its captured exit status was 0):
 

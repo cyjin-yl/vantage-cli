@@ -1,7 +1,7 @@
 //! A read-only GPUI control-center shell for vantage.
 //!
 //! The GUI deliberately has no hardware mutation path. It renders the state
-//! reported by [`lctrl_hal::Hal`] and marks every capability according to the
+//! reported by [`lenovo_laptop_control_hal::Hal`] and marks every capability according to the
 //! core availability value, including its explanation.
 
 use std::{cell::RefCell, env, rc::Rc};
@@ -10,8 +10,8 @@ use gpui::{
     App, Application, Bounds, Context, IntoElement, Render, Window, WindowBounds, WindowOptions,
     div, prelude::*, px, rgb, size,
 };
-use lctrl_core::{Availability, CapabilitySet, HardwareInfo, LctrlError, Platform, Result};
-use lctrl_hal::Hal;
+use lenovo_laptop_control_core::{Availability, CapabilitySet, HardwareInfo, LenovoLaptopControlError, Platform, Result};
+use lenovo_laptop_control_hal::Hal;
 
 // Palette tokens: a cool instrument-panel base, with one signal color and one
 // caution color. Keeping these in one place makes the dashboard's visual
@@ -48,7 +48,7 @@ pub struct DashboardSnapshot {
 impl DashboardSnapshot {
     /// Query the real platform, hardware identity, and capability set.
     ///
-    /// Errors are returned unchanged from `lctrl-core`; this keeps callers from
+    /// Errors are returned unchanged from `lenovo-laptop-control-core`; this keeps callers from
     /// accidentally displaying a successful-looking snapshot for a failed
     /// query.
     pub fn from_hal(hal: &dyn Hal) -> Result<Self> {
@@ -88,7 +88,7 @@ pub fn run(snapshot: DashboardSnapshot) -> Result<()> {
             env::var_os("WAYLAND_DISPLAY").as_deref(),
         )
     {
-        return Err(LctrlError::ChannelUnavailable {
+        return Err(LenovoLaptopControlError::ChannelUnavailable {
             channel: "desktop display (DISPLAY or WAYLAND_DISPLAY)".into(),
         });
     }
@@ -111,7 +111,7 @@ pub fn run(snapshot: DashboardSnapshot) -> Result<()> {
         }
     });
     if let Some(error) = failure.borrow_mut().take() {
-        Err(LctrlError::ChannelUnavailable {
+        Err(LenovoLaptopControlError::ChannelUnavailable {
             channel: format!("desktop window: {error}"),
         })
     } else {
@@ -526,7 +526,7 @@ fn availability_presentation(availability: Availability) -> (&'static str, gpui:
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lctrl_core::{CapabilitySet, HardwareInfo, LctrlError};
+    use lenovo_laptop_control_core::{CapabilitySet, HardwareInfo, LenovoLaptopControlError};
 
     struct ReadOnlyHal {
         capabilities: CapabilitySet,
@@ -583,7 +583,7 @@ mod tests {
                 Platform::Linux
             }
             fn hardware_info(&self) -> Result<HardwareInfo> {
-                Err(LctrlError::Unsupported {
+                Err(LenovoLaptopControlError::Unsupported {
                     feature: "hardware identity".into(),
                 })
             }
@@ -595,7 +595,7 @@ mod tests {
         let error =
             DashboardSnapshot::from_hal(&FailingHal).expect_err("core error must propagate");
         assert!(
-            matches!(error, LctrlError::Unsupported { feature } if feature == "hardware identity")
+            matches!(error, LenovoLaptopControlError::Unsupported { feature } if feature == "hardware identity")
         );
     }
 

@@ -153,25 +153,25 @@ number without any storage/express transition). Night stays its own command
 
 ## 5. Source corrections made with this evidence
 
-- `crates/lctrl-core/src/battery.rs`: `TemporaryChargeState` now mirrors the native decode
+- `crates/lenovo-laptop-control-core/src/battery.rs`: `TemporaryChargeState` now mirrors the native decode
   (`supported` from the `0x13` probe, `valid` = bit0 of the `0x11` reply,
   `mode: Option<TemporaryChargeMode>` with `Permanent=1/PlugIn=2/DynamicLifeSpan=4`),
   replacing the bitmask interpretation; `NightChargeState::from_probe` now requires
   `bit0 && bit4`, matching `DoesSupportNightChargeMode` instead of bit0 alone.
-- `crates/lctrl-hal-win/src/ioctl_contract.rs` + `p0.rs`: added the BTMC `0x13` probe and
+- `crates/lenovo-laptop-control-hal-win/src/ioctl_contract.rs` + `p0.rs`: added the BTMC `0x13` probe and
   build the state from probe+status; IOCTL failures remain `ChannelUnavailable`.
-- `crates/lctrl-hal-win/src/windows_hal.rs`: the `battery.temporary-mode` capability now
+- `crates/lenovo-laptop-control-hal-win/src/windows_hal.rs`: the `battery.temporary-mode` capability now
   probes `0x83102148/0x13` (was `0x11`) and names that selector in the unavailable reason.
 - `crates/vantage-cli` `battery temporary-mode` output and the
   `examples/charge_domain_probe.rs` printer follow the new fields.
-- `crates/lctrl-hal/src/command_capability.rs`: `BATTERY_EXTREME_LIFE` unsupported reason
+- `crates/lenovo-laptop-control-hal/src/command_capability.rs`: `BATTERY_EXTREME_LIFE` unsupported reason
   now names the AiTurbo owner and states that the PCManager radio's extra state is night
   charge, not a fourth firmware mode.
 - Docs: `docs/interfaces.md` §11.3/§11.4 + the "11.4 修正" block (per-function RVA table,
   the `0x23/0x21/0x31/0x41` block re-scoped as unreferenced), `docs/02-power-battery.md`
   §5/§13, `docs/A-wmi-reference.md` (no charge-mode WMI class), `docs/C-acceptance.md` C26
   (addendum preserving the verbatim 2026-11-01 output).
-- `crates/lctrl-core/tests/battery_contract.rs`: decoder tests for the night support
+- `crates/lenovo-laptop-control-core/tests/battery_contract.rs`: decoder tests for the night support
   predicate (`0x11`/`0x10`/`0x01`) and the temporary mode field (`0x01`/`0x12`/`0x21`/
   `0x04`/`0x31`), the `is_temporary` split, and the contract value/`serde` names.
 

@@ -1,7 +1,7 @@
 # `--dry-run` commit-path audit: every mutating command
 
 Scope: `crates/vantage-cli/src/lib.rs` (CLI dispatch and every handler that can reach a hardware
-write), the Windows HAL writers those handlers call, `crates/lctrl-hal/{src,win,linux}/src/radio.rs`,
+write), the Windows HAL writers those handlers call, `crates/lenovo-laptop-control-hal/{src,win,linux}/src/radio.rs`,
 and the `daemon` verbs in `vantage/src/main.rs` (the platform binary that intercepts them).
 
 **No binary, test, or target probe was run by this item** (execution is out of scope for it).
@@ -234,10 +234,10 @@ under dry run vs. perform it as non-hardware housekeeping) that belongs to the w
 
 ### F6b — `hotkey unregister` ignores `--dry-run` (open, low)
 
-`HotkeyControl::register` takes `dry_run: bool` (`crates/lctrl-hal/src/hotkey.rs:36`) and its
-Windows implementation returns early (`crates/lctrl-hal-win/src/hotkey.rs:160`), but the sibling
+`HotkeyControl::register` takes `dry_run: bool` (`crates/lenovo-laptop-control-hal/src/hotkey.rs:36`) and its
+Windows implementation returns early (`crates/lenovo-laptop-control-hal-win/src/hotkey.rs:160`), but the sibling
 operation does not: `fn unregister(&self, id: u32) -> Result<bool>`
-(`crates/lctrl-hal/src/hotkey.rs:39`), called from `execute_hotkey` as `hotkey.unregister(id)?`. So
+(`crates/lenovo-laptop-control-hal/src/hotkey.rs:39`), called from `execute_hotkey` as `hotkey.unregister(id)?`. So
 `vantage --dry-run hotkey unregister <id>` releases the registration. Severity is low because a
 registration is process-scoped (it dies with the CLI process that created it), but the asymmetry is
 exactly the class this audit was asked to find, and the fix (a `dry_run` parameter on the trait
@@ -293,8 +293,8 @@ Deliberately **not** added:
 `if apply == ApplyMode::Commit && command_is_mutating(&cli.command)` (`lib.rs:1742`), so nothing
 changes for dry runs (they skip it), and nothing changes when no vendor controller is active
 (`active_vendor_controllers()` empty). When a controller *is* active and `--yes` is absent, the
-newly covered commands now fail with `LctrlError::InvalidArgument` →
-**exit code 2** (`crates/lctrl-core/src/error.rs:25-35`), stderr
+newly covered commands now fail with `LenovoLaptopControlError::InvalidArgument` →
+**exit code 2** (`crates/lenovo-laptop-control-core/src/error.rs:25-35`), stderr
 `stop <controllers> before writing, or re-run with --yes to accept concurrent-control risk`
 (plus `conflicting vendor control application(s) detected: …` when interactive), where before they
 ran and exited 0 on success (or with their own error: 3 unsupported, 4 channel unavailable,
@@ -378,8 +378,8 @@ None of these was run here.
    needed). Not present in `wave6-1`'s `dry_run_resolution.rs` by their deliberate choice — their
    file is uncompiled/unverified and a trait-shape mismatch there would fail the whole test binary
    and take the eight mode-resolution guards with it — so this belongs to whoever runs the suite.
-   Pinned shape: stub `lctrl_hal::ControlConflictDetection`
-   (`crates/lctrl-hal/src/conflict.rs:4-8`, `fn active_vendor_controllers(&self) ->
+   Pinned shape: stub `lenovo_laptop_control_hal::ControlConflictDetection`
+   (`crates/lenovo-laptop-control-hal/src/conflict.rs:4-8`, `fn active_vendor_controllers(&self) ->
    Result<Vec<String>>`) returning one name, attached through
    `CommandServices::with_conflict_detection` (`lib.rs:221`), with a recording fake backend of the
    `MachineFixControl` kind. The gate is `apply == Commit && command_is_mutating(..)`
@@ -404,7 +404,7 @@ None of these was run here.
    (`crates/vantage-cli/tests/cli_contract.rs`), i.e. a recording stub backend asserting
    `mode == DryRun` and zero write calls.
 6. **Build risk to resolve before any merge gate**: three workers edited the same file
-   (`lib.rs`) plus `lctrl-hal{,-win,-linux}/src/radio.rs` without a build. Run
+   (`lib.rs`) plus `lenovo-laptop-control-hal{,-win,-linux}/src/radio.rs` without a build. Run
    `cargo check -p vantage-cli --target x86_64-pc-windows-msvc` (and the Linux target) before
    trusting any of §5.
 

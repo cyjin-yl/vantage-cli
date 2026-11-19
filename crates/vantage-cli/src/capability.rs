@@ -1,6 +1,6 @@
-use lctrl_core::{CapabilitySet, CommandSelector, HardwarePresence, HardwareRequirement};
-use lctrl_hal::HardwareObservation;
-use lctrl_hal::{CommandCapability, DispatchSupport, FeatureBinding, ServiceBinding, ServiceRole};
+use lenovo_laptop_control_core::{CapabilitySet, CommandSelector, HardwarePresence, HardwareRequirement};
+use lenovo_laptop_control_hal::HardwareObservation;
+use lenovo_laptop_control_hal::{CommandCapability, DispatchSupport, FeatureBinding, ServiceBinding, ServiceRole};
 
 /// Map a parsed CLI command to the exact registry selector.
 ///
@@ -22,8 +22,8 @@ pub fn command_selector(command: &crate::Command) -> Option<CommandSelector> {
         } => {
             let layer = privacy_layer(privacy_command)?;
             match layer {
-                "runtime" => id(lctrl_core::StateLayer::Runtime),
-                "persistent" => id(lctrl_core::StateLayer::BiosPersistent),
+                "runtime" => id(lenovo_laptop_control_core::StateLayer::Runtime),
+                "persistent" => id(lenovo_laptop_control_core::StateLayer::BiosPersistent),
                 _ => None,
             }
         }
@@ -33,12 +33,12 @@ pub fn command_selector(command: &crate::Command) -> Option<CommandSelector> {
 }
 
 #[must_use]
-pub fn command_layer(command: &crate::Command) -> lctrl_core::StateLayer {
+pub fn command_layer(command: &crate::Command) -> lenovo_laptop_control_core::StateLayer {
     use crate::Command;
     use crate::{
         BatteryCommand, BiosCommand, LteCommand, PanelCommand, PerfCommand, PrivacyCommand,
     };
-    use lctrl_core::StateLayer;
+    use lenovo_laptop_control_core::StateLayer;
 
     match command {
         Command::Battery {
@@ -223,7 +223,7 @@ pub fn privacy_layer(command: &crate::PrivacyCommand) -> Option<&'static str> {
 }
 
 #[must_use]
-pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
+pub fn command_id(command: &crate::Command) -> Option<lenovo_laptop_control_core::CommandId> {
     use crate::Command;
     use crate::{
         AudioCommand, BatteryCommand, BiosCommand, DaemonCommand, FixCommand, LocalDriverCommand,
@@ -231,7 +231,7 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
         PrivacyCommand, ProfileCommand, SchemeCommand, SenseCommand, SnapshotCommand, TempCommand,
         TuneCommand, UpdateCommand, UsbCommand, WifiCommand,
     };
-    use lctrl_core::CommandId;
+    use lenovo_laptop_control_core::CommandId;
 
     Some(match command {
         Command::Info => CommandId::INFO,
@@ -393,6 +393,12 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
                     command: Some(crate::FanCommand::Curve { .. }),
                 }),
         } => CommandId::PERF_FAN_CURVE,
+        Command::Perf {
+            command:
+                Some(PerfCommand::Fan {
+                    command: Some(crate::FanCommand::Duty { .. }),
+                }),
+        } => CommandId::PERF_FAN_DUTY,
         Command::Perf {
             command: Some(PerfCommand::Temp { command: None }),
         } => CommandId::PERF_TEMP_LIST,
@@ -826,13 +832,13 @@ pub fn command_id(command: &crate::Command) -> Option<lctrl_core::CommandId> {
 
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct ObservedCommandCapability {
-    pub command: lctrl_core::CommandId,
-    pub layer: lctrl_core::StateLayer,
+    pub command: lenovo_laptop_control_core::CommandId,
+    pub layer: lenovo_laptop_control_core::StateLayer,
     pub status: ObservedStatus,
-    pub axes: lctrl_core::CommandAxes,
+    pub axes: lenovo_laptop_control_core::CommandAxes,
     pub feature_ids: Vec<&'static str>,
     pub service_roles: Vec<&'static str>,
-    pub dependencies: Vec<lctrl_core::CommandDependency>,
+    pub dependencies: Vec<lenovo_laptop_control_core::CommandDependency>,
     pub hardware: HardwarePresence,
     pub detail: Option<String>,
 }
@@ -852,8 +858,8 @@ pub enum ObservedStatus {
 /// Observe every registry row against the actual attached `CommandServices`
 /// and the root HAL's returned `CapabilitySet`.
 pub fn evaluate_commands(
-    hal: &dyn lctrl_hal::Hal,
-) -> lctrl_core::Result<Vec<ObservedCommandCapability>> {
+    hal: &dyn lenovo_laptop_control_hal::Hal,
+) -> lenovo_laptop_control_core::Result<Vec<ObservedCommandCapability>> {
     let capabilities = hal.capabilities()?;
     let hardware = HardwareObservation::default();
     Ok(evaluate_commands_with_hardware(
@@ -864,21 +870,21 @@ pub fn evaluate_commands(
 }
 
 pub fn evaluate_commands_with_hardware(
-    hal: &dyn lctrl_hal::Hal,
+    hal: &dyn lenovo_laptop_control_hal::Hal,
     capabilities: &CapabilitySet,
-    hardware: lctrl_hal::HardwareObservation,
+    hardware: lenovo_laptop_control_hal::HardwareObservation,
 ) -> Vec<ObservedCommandCapability> {
-    lctrl_hal::command_registry()
+    lenovo_laptop_control_hal::command_registry()
         .iter()
         .map(|entry| evaluate_command(hal, capabilities, entry, hardware))
         .collect()
 }
 
 fn evaluate_command(
-    hal: &dyn lctrl_hal::Hal,
+    hal: &dyn lenovo_laptop_control_hal::Hal,
     capabilities: &CapabilitySet,
     entry: &CommandCapability,
-    hardware: lctrl_hal::HardwareObservation,
+    hardware: lenovo_laptop_control_hal::HardwareObservation,
 ) -> ObservedCommandCapability {
     let platform = hal.platform();
     let service_roles = service_role_names(entry.service);
@@ -890,7 +896,7 @@ fn evaluate_command(
     {
         capabilities
             .get("bios.staging.contract")
-            .filter(|capability| capability.availability == lctrl_core::Availability::Unavailable)
+            .filter(|capability| capability.availability == lenovo_laptop_control_core::Availability::Unavailable)
     } else {
         None
     };
@@ -1122,7 +1128,7 @@ fn role_channel(role: ServiceRole) -> Option<&'static str> {
         ServiceRole::Usb => Some("channel.usb"),
         // The read-only USB port inventory probe records its row under the
         // feature key `usb.ports` rather than a `channel.*` name
-        // (crates/lctrl-hal-win/src/usb_ports.rs, re-usb-ports-20261105 §7).
+        // (crates/lenovo-laptop-control-hal-win/src/usb_ports.rs, re-usb-ports-20261105 §7).
         ServiceRole::UsbPorts => Some("usb.ports"),
         ServiceRole::Wifi => Some("channel.wifi"),
         ServiceRole::Bluetooth => Some("channel.bluetooth"),
@@ -1149,10 +1155,10 @@ fn role_present(role: ServiceRole, capabilities: &CapabilitySet) -> ServicePrese
     }
     match role_channel(role).and_then(|name| capabilities.get(name)) {
         Some(capability) => match capability.availability {
-            lctrl_core::Availability::Available | lctrl_core::Availability::Limited => {
+            lenovo_laptop_control_core::Availability::Available | lenovo_laptop_control_core::Availability::Limited => {
                 ServicePresence::Present
             }
-            lctrl_core::Availability::Unavailable => ServicePresence::Unexposed,
+            lenovo_laptop_control_core::Availability::Unavailable => ServicePresence::Unexposed,
         },
         None => ServicePresence::Unexposed,
     }
@@ -1198,7 +1204,7 @@ fn role_presence(
 fn feature_presence(
     binding: FeatureBinding,
     capabilities: &CapabilitySet,
-    _platform: lctrl_core::Platform,
+    _platform: lenovo_laptop_control_core::Platform,
 ) -> FeaturePresence {
     match binding {
         FeatureBinding::LocalOnly => FeaturePresence::Available,
@@ -1259,9 +1265,9 @@ fn capability_presence(feature: &str, capabilities: &CapabilitySet) -> FeaturePr
     match capabilities.get(feature) {
         None => FeaturePresence::Unverified,
         Some(capability) => match capability.availability {
-            lctrl_core::Availability::Available => FeaturePresence::Available,
-            lctrl_core::Availability::Limited => FeaturePresence::Limited,
-            lctrl_core::Availability::Unavailable => FeaturePresence::Unsupported,
+            lenovo_laptop_control_core::Availability::Available => FeaturePresence::Available,
+            lenovo_laptop_control_core::Availability::Limited => FeaturePresence::Limited,
+            lenovo_laptop_control_core::Availability::Unavailable => FeaturePresence::Unsupported,
         },
     }
 }
@@ -1279,8 +1285,8 @@ fn service_role_names(binding: ServiceBinding) -> Vec<&'static str> {
 
 fn dependencies(
     entry: &CommandCapability,
-    platform: lctrl_core::Platform,
-) -> Vec<lctrl_core::CommandDependency> {
+    platform: lenovo_laptop_control_core::Platform,
+) -> Vec<lenovo_laptop_control_core::CommandDependency> {
     entry
         .dependencies
         .iter()
@@ -1296,11 +1302,11 @@ fn dependencies(
 
 fn make(
     entry: &CommandCapability,
-    hardware: lctrl_hal::HardwareObservation,
+    hardware: lenovo_laptop_control_hal::HardwareObservation,
     status: ObservedStatus,
     detail: Option<String>,
     service_roles: Vec<&'static str>,
-    dependencies: Vec<lctrl_core::CommandDependency>,
+    dependencies: Vec<lenovo_laptop_control_core::CommandDependency>,
 ) -> ObservedCommandCapability {
     let feature_ids = match entry.feature {
         FeatureBinding::Capability(feature) | FeatureBinding::Unprobed(feature) => vec![feature],

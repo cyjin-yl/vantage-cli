@@ -106,8 +106,8 @@ BIOS 密码元数据、MagicBay 检测和 scan 清单共 **12 次实际运行,�
    `DM_DISPLAYORIENTATION`,旧解码要求全字段导致模式列表为空(`panel.refresh.native_modes`)。
    改为按枚举项的形状(宽/高/bpp/刷新率)建候选,布局继承当前模式;写回前把位置与旋转换填回
    `DEVMODE`,保证只改刷新率。
-3. **回归测试**:Windows 上 `cargo test -p lctrl-hal-win --test display_controller`
-   = 14 passed;`cargo test -p lctrl-hal-win --lib display::native` = 3 passed。
+3. **回归测试**:Windows 上 `cargo test -p lenovo-laptop-control-hal-win --test display_controller`
+   = 14 passed;`cargo test -p lenovo-laptop-control-hal-win --lib display::native` = 3 passed。
 
 **限制**:显示切换要求交互式桌面会话;停止 Sunshine/GameViewer 不改变活动路径数(其虚拟适配器
 不占用活动路径),因此验收期间未改动它们的运行状态,仅在需要时以 `--yes` 接受并发控制风险。
@@ -155,7 +155,7 @@ BIOS 密码元数据、MagicBay 检测和 scan 清单共 **12 次实际运行,�
 
 本轮为让测试在 Windows 主机上真实可跑而修正的**测试夹具**问题(不改生产语义):
 
-1. Linux 后端测试(`lctrl-hal-linux/tests/linux_backend.rs`)在 Windows 上构造 sysfs/Unix 路径夹具
+1. Linux 后端测试(`lenovo-laptop-control-hal-linux/tests/linux_backend.rs`)在 Windows 上构造 sysfs/Unix 路径夹具
    必然失败 → 以 `#![cfg(unix)]` 明确限定宿主要求。
 2. 本地驱动更新夹具使用 Unix 绝对路径,而校验器按宿主语义判定绝对路径 → 夹具改为宿主绝对路径,
    并按平台分别断言 `C:\…`(Windows 合法)与 `/…`(Unix 合法)的接受/拒绝。
@@ -268,7 +268,7 @@ Col04(vendor-defined)全部重新出现且为 `Started`。用户明确确认触�
 
 | 验证 | 实际结果 |
 |---|---|
-| Windows `cargo test --offline -j 1 -p lctrl-hal-win --test windows_runtime_devices` | **28 passed**,覆盖新客户端重新发现/恢复、控制器与无关集合隔离、dry-run、已启用 no-op、写入报错后生效的回滚 |
+| Windows `cargo test --offline -j 1 -p lenovo-laptop-control-hal-win --test windows_runtime_devices` | **28 passed**,覆盖新客户端重新发现/恢复、控制器与无关集合隔离、dry-run、已启用 no-op、写入报错后生效的回滚 |
 | Windows `cargo build --offline --release -j 1 -p vantage` | 退出码 **0** |
 | 新程序 `vantage --dry-run touchpad off --json` | previous=enabled,requested=disabled,mode=dry_run |
 | 新程序 `vantage --yes touchpad on --json` | previous=enabled,actual=enabled,mode=commit(no-op) |
@@ -668,7 +668,7 @@ release 二进制 `vantage.exe`(SHA-256 `8c299fd2d46c3a84c970a9c27ee06e8485223f8
 
 **状态:已消除 `perf.mode.set` 的 `Unsupported`;经 OS 原生 API 实现并真机验收,不经联想厂商层。**
 
-实现:新建 `crates/lctrl-hal-win/src/power_overlay.rs`,运行时经 `GetProcAddress` 解析
+实现:新建 `crates/lenovo-laptop-control-hal-win/src/power_overlay.rs`,运行时经 `GetProcAddress` 解析
 `powrprof.dll` 的 `PowerGetActualOverlayScheme` / `PowerGetEffectiveOverlayScheme` /
 `PowerSetActiveOverlayScheme`。三个方案映射:
 
@@ -693,7 +693,7 @@ release 二进制 `vantage.exe`(SHA-256 `8c299fd2d46c3a84c970a9c27ee06e8485223f8
 | `perf mode geek` | `feature is unsupported: perf.mode.geek.overlay`,exit 3 | 不变 |
 
 Windows 目标机构建:`cargo build --locked --release -p vantage` 退出 0;
-`cargo test -p lctrl-hal-win --test windows_performance_p0` 8 项全过;
+`cargo test -p lenovo-laptop-control-hal-win --test windows_performance_p0` 8 项全过;
 `--test overlay_native` 2 项全过（真实 `powrprof.dll` 路径 + HAL 能力记录为 `Limited`）。
 
 能力矩阵:`perf.mode` 依赖改为 `win32_power_api:required`、`win32_registry`/`lenovo_process_management`
@@ -779,7 +779,7 @@ docs/interfaces.md §13/§15,属待开发项,不计入已验收。
 
 **状态：只读路径已验收；写入路径保持门禁，等待独立物理确认。**
 
-- 通道：自有 Rust 客户端 `WinMsrDev`（`crates/lctrl-hal-win/src/msr.rs`）经
+- 通道：自有 Rust 客户端 `WinMsrDev`（`crates/lenovo-laptop-control-hal-win/src/msr.rs`）经
   联想签名 `LnvMSRIO` 驱动设备 `\\.\WinMsrDev`，IOCTL 契约按 `interfaces.md` §4。
 - 调用身份：`LocalSystem`（经一次性计划任务）；普通用户直开设备如实报
   `permission denied; requires administrator`。
@@ -805,13 +805,13 @@ docs/interfaces.md §13/§15,属待开发项,不计入已验收。
 
 ```powershell
 # 以 SYSTEM 运行(一次性计划任务);默认只读;--write 为等值回写(机器状态可证不变)
-cargo build -p lctrl-hal-win --example msr_acceptance --offline
+cargo build -p lenovo-laptop-control-hal-win --example msr_acceptance --offline
 # 经 schtasks /RU SYSTEM 运行;输出作为写路径证据
 ```
 
 ## C26 · EnergyDrv 充电域只读真机验收（2026-11-01，用户态，无写入）
 
-`cargo build -p lctrl-hal-win --example charge_domain_probe --offline` 在 TB14P-EZRA
+`cargo build -p lenovo-laptop-control-hal-win --example charge_domain_probe --offline` 在 TB14P-EZRA
 用户会话直跑(无需 SYSTEM;`\\.\EnergyDrv` 以标准读写打开)。只读输出:
 
 ```

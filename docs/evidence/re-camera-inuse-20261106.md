@@ -122,7 +122,7 @@ Stated in the product itself (`as_recorded` in JSON, plus a banner line):
 
 ## 3. Design (implemented after this record)
 
-### 3.1 Pure types and decoding — `crates/lctrl-core/src/privacy.rs`
+### 3.1 Pure types and decoding — `crates/lenovo-laptop-control-core/src/privacy.rs`
 
 Additive only; nothing existing in that module changes.
 
@@ -134,7 +134,7 @@ Additive only; nothing existing in that module changes.
   is preserved in `consent_raw`.
 - `CameraStamp { filetime, utc }` + `filetime_to_rfc3339(u64)`: FILETIME → RFC
   3339 UTC at 100 ns precision (Howard Hinnant civil-date algorithm, the same
-  approach already used by `lctrl-hal-win::update_history::ticks_to_rfc3339`,
+  approach already used by `lenovo-laptop-control-hal-win::update_history::ticks_to_rfc3339`,
   shifted to the 1601 epoch instead of the .NET 0001 epoch).
 - `decode_non_packaged_path(&str) -> Option<String>`: `#` → `\` **only** for
   names that look like an encoded absolute path (`X:#…` or `##…` for UNC).
@@ -152,14 +152,14 @@ Additive only; nothing existing in that module changes.
   Both `notes` vectors carry read failures (per-subkey for a container, per-value
   for the policy) so one unreadable record cannot silently truncate the report.
 
-### 3.2 HAL trait — `crates/lctrl-hal/src/peripherals.rs`
+### 3.2 HAL trait — `crates/lenovo-laptop-control-hal/src/peripherals.rs`
 
 `PrivacyControl::camera_consent()` with a defaulted
 `Unsupported { feature: "privacy.cam.inuse" }` body, the same shape as the
 existing `camera_devices`. Linux and every test fake stay honest without edits;
 no runtime path is promoted.
 
-### 3.3 Windows reader — `crates/lctrl-hal-win/src/camera_consent.rs` (`#[cfg(windows)]`)
+### 3.3 Windows reader — `crates/lenovo-laptop-control-hal-win/src/camera_consent.rs` (`#[cfg(windows)]`)
 
 `RegOpenKeyExW(…, KEY_READ, …)` only, on
 `SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\webcam`
@@ -228,9 +228,9 @@ No capability-registry row is added (`docs/evidence/re-privacy-cam-impl-20261105
 
 This worker ran no build, test, formatter, linter, or target program.
 
-1. `cargo check -p lctrl-hal-win --target x86_64-pc-windows-msvc`
+1. `cargo check -p lenovo-laptop-control-hal-win --target x86_64-pc-windows-msvc`
    (new `#[cfg(windows)]` module + trait forwarder).
-2. `cargo test -p lctrl-core` — new unit tests in `privacy.rs`:
+2. `cargo test -p lenovo-laptop-control-core` — new unit tests in `privacy.rs`:
    - `filetime_decodes_to_the_utc_stamp_it_encodes`: `filetime_to_rfc3339` on
      §1's ticks reproduces the §1 decoded table (including
      `0x1dd2e18bfdecedf` → `2026-08-17T07:19:32.4125919Z`), the Unix epoch maps

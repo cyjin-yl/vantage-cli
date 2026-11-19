@@ -255,7 +255,7 @@ capability, cable or partner identity, physical connector names, or a USB4 port 
 
 ## 9. Unrun acceptance (parent-owned)
 
-- `cargo check -p lctrl-hal-win --target x86_64-pc-windows-msvc` and the target build.
+- `cargo check -p lenovo-laptop-control-hal-win --target x86_64-pc-windows-msvc` and the target build.
 - `vantage usb ports` on 21VG with the dock/ports in the state captured here: expect
   `E47D` → 12-port hub with ports 4 (Goodix, `full`), 5 (camera, `high`), 8 (receiver, `full`)
   and nine empty ports; `E431` → 5-port hub, all empty; `E434` → USB4 host router with

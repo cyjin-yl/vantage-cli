@@ -12,7 +12,7 @@ substitutes for a type check of GUI-owned code.
 
 ## 0. Evidence binding
 
-Read on 2026-11-06 11:42–12:2x CST. `windows_hal.rs` and `lctrl-hal-linux/src/lib.rs` are being
+Read on 2026-11-06 11:42–12:2x CST. `windows_hal.rs` and `lenovo-laptop-control-hal-linux/src/lib.rs` are being
 edited by other seats while this audit ran (§0 hashes are the exact bytes read; line numbers drift
 with the next sibling edit).
 
@@ -21,12 +21,12 @@ with the next sibling edit).
 | `crates/vantage-gui/src/lib.rs` | 2026-11-01 23:01:19 | `c1323a07771977a0` |
 | `crates/vantage-gui/src/main.rs` | 2026-11-01 23:00:59 | `6846931b7431347f` |
 | `crates/vantage-gui/Cargo.toml` | 2026-11-04 01:33:10 | `0b2ac67dc3edfb95` |
-| `crates/lctrl-core/src/capability.rs` | 2026-11-05 23:00:57 | `23c85c5eef2baeee` |
-| `crates/lctrl-hal/src/capability.rs` | 2026-11-06 03:04:53 | `465ef485b6d6b8e4` |
-| `crates/lctrl-core/src/command_capability.rs` | 2026-11-06 10:31:20 | `057bd1b3cb3cecd5` |
-| `crates/lctrl-hal/src/command_capability.rs` | 2026-11-06 11:38 | `8c37c07bedc12797` |
-| `crates/lctrl-hal-win/src/windows_hal.rs` | 2026-11-06 11:37:13 | `711133c09b9d58b6` |
-| `crates/lctrl-hal-linux/src/lib.rs` | 2026-11-06 12:14 | `930e2173ffcde11c` |
+| `crates/lenovo-laptop-control-core/src/capability.rs` | 2026-11-05 23:00:57 | `23c85c5eef2baeee` |
+| `crates/lenovo-laptop-control-hal/src/capability.rs` | 2026-11-06 03:04:53 | `465ef485b6d6b8e4` |
+| `crates/lenovo-laptop-control-core/src/command_capability.rs` | 2026-11-06 10:31:20 | `057bd1b3cb3cecd5` |
+| `crates/lenovo-laptop-control-hal/src/command_capability.rs` | 2026-11-06 11:38 | `8c37c07bedc12797` |
+| `crates/lenovo-laptop-control-hal-win/src/windows_hal.rs` | 2026-11-06 11:37:13 | `711133c09b9d58b6` |
+| `crates/lenovo-laptop-control-hal-linux/src/lib.rs` | 2026-11-06 12:14 | `930e2173ffcde11c` |
 
 `git status` reports **no modification and no new file** under `crates/vantage-gui/`: the GUI has
 not been touched since 2026-11-01, five days before this window. Nothing in this audit describes a
@@ -36,15 +36,15 @@ GUI edit made today; it describes how today's *command/HAL* edits land on an unc
 
 There is **no command list of any kind** in the GUI. `grep -rn CommandId crates/vantage-gui/`
 returns nothing (exit 1). `vantage-gui` does not depend on `vantage-cli`, does not derive clap, and
-`crates/vantage-gui/Cargo.toml` pulls only `gpui =0.2.2`, `lctrl-core`, `lctrl-hal`, and (per
-target) `lctrl-hal-linux` / `lctrl-hal-win`.
+`crates/vantage-gui/Cargo.toml` pulls only `gpui =0.2.2`, `lenovo-laptop-control-core`, `lenovo-laptop-control-hal`, and (per
+target) `lenovo-laptop-control-hal-linux` / `lenovo-laptop-control-hal-win`.
 
 The GUI's entire data model is a `CapabilitySet`:
 
 * `DashboardSnapshot::from_hal` (`lib.rs:54`) calls exactly three HAL methods —
   `hal.platform()`, `hal.hardware_info()?`, `hal.capabilities()?`.
 * `capability_matrix` (`lib.rs:357`) renders **every entry of `CapabilitySet::features`**, i.e. a
-  `BTreeMap<String, Capability>` keyed by *feature id* (`crates/lctrl-core/src/capability.rs:28-31`).
+  `BTreeMap<String, Capability>` keyed by *feature id* (`crates/lenovo-laptop-control-core/src/capability.rs:28-31`).
   The header count is `features.len()` (`lib.rs:424`); an empty set renders an explicit "No
   capability claims available" row instead of nothing.
 * `telemetry_panel` (`lib.rs:442`) counts the three `Availability` values over the same map.
@@ -64,14 +64,14 @@ in the tree to fall out of sync.
 
 ## 2. Every CommandId added today, and what the GUI shows for it (step 2)
 
-`git log --since="2026-11-05" -p -- crates/lctrl-core/src/command_capability.rs` adds **zero**
+`git log --since="2026-11-05" -p -- crates/lenovo-laptop-control-core/src/command_capability.rs` adds **zero**
 `CommandId` constants. All 25 additions are uncommitted working-tree edits
 (`git diff … | grep -c '^+.*pub const [A-Z]'` = 25; the same diff removes none).
 
 Because the GUI renders feature ids, the honest parity object is each new command's
-`FeatureBinding` (`crates/lctrl-hal/src/command_capability.rs`) against the rows the two HALs
-actually record. `W` = a capability row is recorded by `lctrl-hal-win` (so the Windows GUI shows a
-row); `L` = the same for `lctrl-hal-linux`.
+`FeatureBinding` (`crates/lenovo-laptop-control-hal/src/command_capability.rs`) against the rows the two HALs
+actually record. `W` = a capability row is recorded by `lenovo-laptop-control-hal-win` (so the Windows GUI shows a
+row); `L` = the same for `lenovo-laptop-control-hal-linux`.
 
 | # | `CommandId` (wire) | `FeatureBinding` (hal registry line) | `W` row site | `L` row site | what the GUI shows |
 |---|---|---|---|---|---|
@@ -137,11 +137,11 @@ The three structural safety properties, all in GUI-owned code:
 1. **Error propagation, not unwrapping.** `from_hal` uses `?` on both fallible HAL calls
    (`lib.rs:55-57`). `main.rs:25` converts any `Err` into an explicit
    `DashboardSnapshot::unavailable(platform, "Hardware probe failed: {error}")`, and `run()`
-   returns `LctrlError` for the no-display case (`lib.rs:85-92`) rather than unwrapping. A newly
+   returns `LenovoLaptopControlError` for the no-display case (`lib.rs:85-92`) rather than unwrapping. A newly
    `Unsupported` channel therefore degrades to a banner; it cannot abort.
 2. **Exhaustive matches on the closed enums.** `platform_name` (`lib.rs:511`) matches
    `Platform::{Windows,Linux}`; `availability_presentation` (`lib.rs:518`) matches
-   `Availability::{Available,Limited,Unavailable}`. `crates/lctrl-core/src/capability.rs:7-18`
+   `Availability::{Available,Limited,Unavailable}`. `crates/lenovo-laptop-control-core/src/capability.rs:7-18`
    still has exactly those variants today, so nothing changed; and if a variant were added, the GUI
    would fail to **compile**, not panic at render time. (No `_ =>` arm exists, verified at both
    sites.)
@@ -158,7 +158,7 @@ The GUI executes new command code in exactly one place: `capabilities()`. On Win
 runs the probe for essentially every channel, including every channel added in this window. The
 GUI's other HAL calls are `hardware_info()` (three CIM/`Win32_BIOS` reads) and `platform()`.
 
-`crates/lctrl-hal-win/src/windows_hal.rs` contains **zero** `unwrap()` / `.expect(` / `panic!` /
+`crates/lenovo-laptop-control-hal-win/src/windows_hal.rs` contains **zero** `unwrap()` / `.expect(` / `panic!` /
 `unreachable!` / `todo!` — every fallible probe is matched and recorded with `Availability::
 Unavailable` plus the error text, and `CapabilitySet::record(...)?` is the only `?`-propagated call
 (the only way it errors is an empty feature id, and every literal id in the file is non-empty).
@@ -166,11 +166,11 @@ The probe helpers it calls were added/edited today and are captured in the table
 
 ### 3.3 Every production panic-family site in the crates the GUI links
 
-Method: for each `crates/lctrl-hal-win/src/**`, `crates/lctrl-hal-linux/src/**`,
+Method: for each `crates/lenovo-laptop-control-hal-win/src/**`, `crates/lenovo-laptop-control-hal-linux/src/**`,
 `crates/vantage-gui/src/*.rs`, everything after the first `#[cfg(test)]` (including the
 `#[path = "…_tests.rs"]` modules `firmware_tests`, `security_tests`, `mobile_broadband_tests`,
-`native_battery_electrical_tests`) is excluded. `lctrl-hal-linux` has exactly **one** site; the GUI
-has none; `lctrl-hal-win` has the following 36, with the guard that decides reachability:
+`native_battery_electrical_tests`) is excluded. `lenovo-laptop-control-hal-linux` has exactly **one** site; the GUI
+has none; `lenovo-laptop-control-hal-win` has the following 36, with the guard that decides reachability:
 
 | site | construct | guard / reachability |
 |---|---|---|
@@ -195,7 +195,7 @@ has none; `lctrl-hal-win` has the following 36, with the guard that decides reac
 | `scene_policy.rs:68,82,96,106` | `.expect("well-formed rule")` | four literal rule constructors; reached by `scene test/track`, not by `capabilities()` |
 | `sense_rpc.rs:78` | `.expect("HPD session initialized")` | **On the GUI path** (`capabilities()` calls `read_state()`); guarded by the immediately preceding `if slot.is_none() { *slot = Some(Session::connect()?) }` — the `?` returns early on connect failure, so the slot is `Some` at the `expect` |
 | `touchpad_caps.rs:661` | `try_from(size_of::<HIDD_ATTRIBUTES>()).expect` | fixed struct; infallible |
-| `lctrl-hal-linux/src/lib.rs:244` | `unreachable!("binary mode values were checked")` | inside `if conservation <= 1 && rapid <= 1`, so every reachable tuple is one of the four non-wildcard arms. Reached by `battery charge-mode`, **not** by `capabilities()` |
+| `lenovo-laptop-control-hal-linux/src/lib.rs:244` | `unreachable!("binary mode values were checked")` | inside `if conservation <= 1 && rapid <= 1`, so every reachable tuple is one of the four non-wildcard arms. Reached by `battery charge-mode`, **not** by `capabilities()` |
 
 ### 3.4 Why none of them is newly triggerable by a new command
 
@@ -234,25 +234,25 @@ has none; `lctrl-hal-win` has the following 36, with the guard that decides reac
 
 ### 4.1 Symbol audit — what the type check of GUI-owned code would cover
 
-`vantage-gui` compiles against `lctrl-core`, `lctrl-hal`, and one HAL. Every symbol it names was
+`vantage-gui` compiles against `lenovo-laptop-control-core`, `lenovo-laptop-control-hal`, and one HAL. Every symbol it names was
 re-verified against today's bytes, all present with compatible shapes:
 
 | GUI use | definition today | status |
 |---|---|---|
-| `lctrl_core::{Availability, CapabilitySet, HardwareInfo, Platform, Result, LctrlError}` | `crates/lctrl-core/src/lib.rs` re-exports all six from `capability.rs`/`error.rs` | ✅ |
+| `lenovo_laptop_control_core::{Availability, CapabilitySet, HardwareInfo, Platform, Result, LenovoLaptopControlError}` | `crates/lenovo-laptop-control-core/src/lib.rs` re-exports all six from `capability.rs`/`error.rs` | ✅ |
 | `CapabilitySet::{new, record, get, features}` | `capability.rs:28-69` (`features: BTreeMap<String, Capability>` is `pub`) | ✅ |
 | `HardwareInfo` 3 × `Option<String>` + `Default` | `capability.rs:71-76` | ✅ |
 | `Availability` 3 variants | `capability.rs:14-18` | ✅ (closed match still exhaustive) |
 | `Platform::{Windows,Linux}` | `capability.rs:7-10` | ✅ (closed match still exhaustive) |
-| `LctrlError::{Unsupported{feature}, ChannelUnavailable{channel}}`, `exit_code() -> u8` | `error.rs:5-33` | ✅ (`main.rs:41` does `i32::from`) |
-| `lctrl_hal::Hal` | `crates/lctrl-hal/src/capability.rs` | ✅ |
-| `lctrl_hal_win::{NativeWindowsHal, NativeWmi, NativeIoctl}` | `lib.rs:204,290,314`; `NativeWindowsHal = WindowsHal<NativeWmi, NativeIoctl>` and `WindowsHal<W,I,E = NativeBatteryElectrical>` keeps the 2-arg `new` (`windows_hal.rs:24-36`) | ✅ |
-| `lctrl_hal_linux::LinuxHal::new()` | `lib.rs:93-98`, `impl Hal for LinuxHal` at `612` | ✅ |
+| `LenovoLaptopControlError::{Unsupported{feature}, ChannelUnavailable{channel}}`, `exit_code() -> u8` | `error.rs:5-33` | ✅ (`main.rs:41` does `i32::from`) |
+| `lenovo_laptop_control_hal::Hal` | `crates/lenovo-laptop-control-hal/src/capability.rs` | ✅ |
+| `lenovo_laptop_control_hal_win::{NativeWindowsHal, NativeWmi, NativeIoctl}` | `lib.rs:204,290,314`; `NativeWindowsHal = WindowsHal<NativeWmi, NativeIoctl>` and `WindowsHal<W,I,E = NativeBatteryElectrical>` keeps the 2-arg `new` (`windows_hal.rs:24-36`) | ✅ |
+| `lenovo_laptop_control_hal_linux::LinuxHal::new()` | `lib.rs:93-98`, `impl Hal for LinuxHal` at `612` | ✅ |
 
 ### 4.2 The one trait-growth risk, and it is defused
 
 `Hal` grew two methods in this window (`system_identity`, `cpu_status`,
-`crates/lctrl-hal/src/capability.rs:5-24`) — both **defaulted**. That matters because the GUI's
+`crates/lenovo-laptop-control-hal/src/capability.rs:5-24`) — both **defaulted**. That matters because the GUI's
 `#[cfg(test)]` double `ReadOnlyHal` implements only the original three methods
 (`lib.rs:534-552`). Because the new methods have bodies, the double still satisfies `Hal`, so
 `cargo test -p vantage-gui` is not broken by the trait growth. Had they been required methods, the
@@ -264,9 +264,9 @@ GUI lib would still have built but its test target would not.
   6de7ec72…,a254016f…}` all carry their success markers and `libvantage_gui-87ab5b44….rmeta`
   (52 763 B) exists, written **2026-11-06 10:37–10:38**: lib, bin, test-lib and test-bin all
   type-checked on the host an hour after this window's first edits. Its `deps` list is
-  `gpui, lctrl_core, idna_adapter, lctrl_hal, lctrl_hal_linux` — the Linux closure, as expected.
-  **Staleness boundary:** that check predates `privacy.rs` (11:16), `lctrl-hal/src/
-  command_capability.rs` (11:38) and `lctrl-hal-linux/src/lib.rs` (12:14), so it cannot certify
+  `gpui, lenovo_laptop_control_core, idna_adapter, lenovo_laptop_control_hal, lenovo_laptop_control_hal_linux` — the Linux closure, as expected.
+  **Staleness boundary:** that check predates `privacy.rs` (11:16), `lenovo-laptop-control-hal/src/
+  command_capability.rs` (11:38) and `lenovo-laptop-control-hal-linux/src/lib.rs` (12:14), so it cannot certify
   today's tree.
 * **`x86_64-pc-windows-msvc` target, vantage-gui** — **unverified, and the tree shows no completed
   unit.** `target/x86_64-pc-windows-msvc/debug/deps` contains no `gpui`/`vantage_gui` metadata
@@ -275,7 +275,7 @@ GUI lib would still have built but its test target would not.
   gpui's dependency units for msvc (`taffy`, `usvg`, `resvg`, `lyon`, `image`) are likewise empty
   dirs from the same minute. Cargo pre-creates those directories when it plans the unit graph, so
   this records "planned on 11-05 18:41, never executed to completion" — not a failure signature
-  either. `lctrl-core`/`lctrl-hal` *did* complete for msvc (metadata at 11:38) and `lctrl-hal-win`
+  either. `lenovo-laptop-control-core`/`lenovo-laptop-control-hal` *did* complete for msvc (metadata at 11:38) and `lenovo-laptop-control-hal-win`
   is mid-build as of 12:13, so the msvc tree is live and the GUI units are simply the part that has
   never run.
 * Toolchain feasibility for the parent's run: the `stable` toolchain has
@@ -291,10 +291,10 @@ cargo check -p vantage-gui --all-targets                 # host: also type-check
 ```
 
 Note for interpreting the result: on Windows the GUI's only direct dependencies are `gpui`,
-`idna_adapter`, `lctrl-core`, `lctrl-hal`, `lctrl-hal-win`, and the whole of `lctrl-hal-win` must
+`idna_adapter`, `lenovo-laptop-control-core`, `lenovo-laptop-control-hal`, `lenovo-laptop-control-hal-win`, and the whole of `lenovo-laptop-control-hal-win` must
 compile first. A failure in `usb_ports.rs`, `radio.rs` or `event_log.rs` (sibling work in flight as
 of 12:1x) fails the *GUI* command without implicating the GUI. Only an error located in
-`crates/vantage-gui/**`, `vantage-gui`'s dependency list, or a mismatched `lctrl-*` signature is a
+`crates/vantage-gui/**`, `vantage-gui`'s dependency list, or a mismatched `lenovo-laptop-control-*` signature is a
 GUI-parity finding.
 
 ## 5. What was changed — nothing
@@ -317,11 +317,11 @@ the negative result of the two searches the item asked for:
 1. **`Unprobed` labels for three features that now have probes.** `wifi.status` (hal registry
    `1985`), `bluetooth.list` (`1993`) and `radio.status` (`2033`) are bound as `Unprobed("x")`
    while `windows_hal.rs` records `x` at `1182`, `1200`, `1298` respectively. The variant's own doc
-   says "no current capability probe" (`crates/lctrl-hal/src/command_capability.rs:102-103`), which
+   says "no current capability probe" (`crates/lenovo-laptop-control-hal/src/command_capability.rs:102-103`), which
    is now untrue. **Impact: none.** `feature_presence` resolves `Unprobed(f)` exactly like
    `Capability(f)` — both call `capability_presence(f, …)`
    (`crates/vantage-cli/src/capability.rs:1117-1124`) — so the CLI verdict and the GUI row are
-   already correct; only the registry label is stale. Owner: the `lctrl-hal` command-registry seat.
+   already correct; only the registry label is stale. Owner: the `lenovo-laptop-control-hal` command-registry seat.
 2. **The capability matrix cannot distinguish 78 rows by section.** On Windows today
    `windows_hal.rs` + `its_policy.rs` + `event_log.rs` + `usb_ports.rs` + `fn_osd.rs` have 92
    `record` call-sites over 78 distinct ids (the 14 duplicates are mutually exclusive
@@ -340,7 +340,7 @@ the negative result of the two searches the item asked for:
 | 3 | `cargo test -p vantage-gui` on the host with `DISPLAY=` unset | `run()` returns `ChannelUnavailable` instead of panicking; the three existing tests (`snapshot_preserves_unavailable_capability_detail`, `from_hal_keeps_core_errors_strict`, `desktop_session_requires_nonempty_display_or_wayland_socket`) still hold |
 | 4 | negative control on target: run `vantage-gui.exe` from an SSH session (no interactive desktop) | shows whether the unguarded Windows path degrades or aborts (§3.5.3) — this is the one *unverified* crash claim in this document |
 | 5 | bounded timing: `vantage info --json` vs. GUI startup on `tb14p-ezra` | quantifies §3.5.2's probe cost so it can be judged rather than guessed |
-| 6 | `cargo test -p lctrl-hal-win` (target-independent parts) after the in-flight `usb_ports/radio/event_log` edits settle | the capability rows in §2's table are actually produced, i.e. the GUI's 78 signals are not a promise |
+| 6 | `cargo test -p lenovo-laptop-control-hal-win` (target-independent parts) after the in-flight `usb_ports/radio/event_log` edits settle | the capability rows in §2's table are actually produced, i.e. the GUI's 78 signals are not a promise |
 
 ## 8. Remaining uncertainty (stated, not resolved)
 
@@ -351,4 +351,4 @@ the negative result of the two searches the item asked for:
   `cargo check --target x86_64-pc-windows-msvc` for `gpui` succeeds at all in this tree (§4.3).
   Both are parent-run checks 1 and 4.
 * Line numbers in §2/§3 are bound to the hashes in §0; `windows_hal.rs` was still being written
-  11:37 and `lctrl-hal-linux/src/lib.rs` at 12:14, so re-anchor before quoting them downstream.
+  11:37 and `lenovo-laptop-control-hal-linux/src/lib.rs` at 12:14, so re-anchor before quoting them downstream.
