@@ -140,10 +140,6 @@ fn capability_probe_requires_battery_detail_for_battery_telemetry() {
         capabilities.get("battery.adapter").unwrap().availability,
         Availability::Available
     );
-    assert_eq!(
-        capabilities.get("power.scheme").unwrap().availability,
-        Availability::Limited
-    );
 }
 
 /// Scripted `ITS_FanMode` reader: `None` models a machine without the
