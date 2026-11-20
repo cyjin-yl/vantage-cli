@@ -275,7 +275,9 @@ mod winrt {
     /// documented offset instead of being guessed.
     type Slot = *const c_void;
 
-    #[link(name = "combase")]
+    // combase.lib is no longer shipped by the Windows SDK; generate the
+    // imports at link time instead of looking for an import library.
+    #[link(name = "combase", kind = "raw-dylib", modifiers = "+verbatim")]
     unsafe extern "system" {
         fn RoInitialize(init_type: u32) -> i32;
         fn RoUninitialize();
