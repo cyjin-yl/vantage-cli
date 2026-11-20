@@ -329,7 +329,7 @@ mod tests {
     fn device_names_sort_case_insensitively_before_unnamed_ones() {
         assert_eq!(
             compare_names(Some("oppo"), Some("ThinkBook")),
-            Ordering::Greater
+            Ordering::Less
         );
         assert_eq!(compare_names(Some("abc"), Some("ABD")), Ordering::Less);
         assert_eq!(compare_names(Some("abc"), None), Ordering::Less);
