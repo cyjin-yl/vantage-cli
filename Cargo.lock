@@ -3076,7 +3076,7 @@ checksum = "7a79a3332a6609480d7d0c9eab957bca6b455b91bb84e66d19f5ff66294b85b8"
 
 [[package]]
 name = "lenovo-laptop-control-core"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -3085,7 +3085,7 @@ dependencies = [
 
 [[package]]
 name = "lenovo-laptop-control-hal"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "lenovo-laptop-control-core",
  "serde",
@@ -3093,7 +3093,7 @@ dependencies = [
 
 [[package]]
 name = "lenovo-laptop-control-hal-linux"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "lenovo-laptop-control-core",
  "lenovo-laptop-control-hal",
@@ -3101,7 +3101,7 @@ dependencies = [
 
 [[package]]
 name = "lenovo-laptop-control-hal-win"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "futures",
  "lenovo-laptop-control-core",
@@ -3115,7 +3115,7 @@ dependencies = [
 
 [[package]]
 name = "lenovo-laptop-control-tune"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "lenovo-laptop-control-core",
  "serde",
@@ -6108,7 +6108,7 @@ dependencies = [
 
 [[package]]
 name = "vantage-cli"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "clap",
  "lenovo-laptop-control-core",
@@ -6122,7 +6122,7 @@ dependencies = [
 
 [[package]]
 name = "vantage-cli-lib"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "clap",
  "clap_complete",
@@ -6137,7 +6137,7 @@ dependencies = [
 
 [[package]]
 name = "vantage-daemon"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "lenovo-laptop-control-core",
  "lenovo-laptop-control-hal",
@@ -6152,7 +6152,7 @@ dependencies = [
 
 [[package]]
 name = "vantage-gui"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "gpui",
  "idna_adapter",
