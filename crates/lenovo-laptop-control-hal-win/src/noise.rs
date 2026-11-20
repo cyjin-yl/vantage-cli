@@ -274,20 +274,6 @@ unsafe extern "C" {
 // `elevoc_rpc_invoke_wrapper` assembly via `__imp_NdrClientCall3` (the import
 // link above keeps `rpcrt4.lib` on the link line).
 
-#[link(name = "ole32")]
-unsafe extern "system" {
-    fn CoInitializeEx(reserved: *mut c_void, coinit: u32) -> crate::audio_endpoints::Hresult;
-    fn CoUninitialize();
-    fn CoCreateInstance(
-        clsid: *const crate::audio_endpoints::Guid,
-        outer: *mut c_void,
-        clsctx: u32,
-        iid: *const crate::audio_endpoints::Guid,
-        out: *mut *mut c_void,
-    ) -> crate::audio_endpoints::Hresult;
-    fn CoTaskMemFree(pv: *mut c_void);
-}
-
 #[link(name = "kernel32")]
 unsafe extern "C" {
     fn GetProcessHeap() -> *mut c_void;
@@ -850,12 +836,10 @@ fn make_token() -> String {
 // + GetDefaultAudioEndpoint(eCapture, eConsole) + IMMDevice::GetId.
 // ---------------------------------------------------------------------------
 
-const CLSID_MMDEVICE_ENUMERATOR: [u8; 16] = [
-    0x95, 0x03, 0xde, 0xbc, 0x2f, 0xe5, 0x7c, 0x46, 0x8e, 0x3d, 0xc4, 0x57, 0x92, 0x91, 0x69, 0x2e,
-];
-const IID_IMMDEVICE_ENUMERATOR: [u8; 16] = [
-    0xd2, 0x64, 0x56, 0xa9, 0x14, 0x96, 0x35, 0x4f, 0xa7, 0x46, 0xde, 0x8d, 0xb6, 0x36, 0x17, 0xe6,
-];
+use crate::audio_endpoints::{
+    CLSID_MM_DEVICE_ENUMERATOR, CoCreateInstance, CoInitializeEx, CoTaskMemFree, CoUninitialize,
+    IID_IMM_DEVICE_ENUMERATOR,
+};
 const COINIT_MULTITHREADED: u32 = 0;
 const CLSCTX_ALL: u32 = 0x17;
 const E_CAPTURE: i32 = 1;
@@ -890,10 +874,10 @@ fn default_capture_endpoint() -> Option<String> {
 
         let mut enumerator: *mut c_void = std::ptr::null_mut();
         let hr = CoCreateInstance(
-            std::ptr::from_ref(&CLSID_MMDEVICE_ENUMERATOR).cast::<crate::audio_endpoints::Guid>(),
+            &CLSID_MM_DEVICE_ENUMERATOR,
             std::ptr::null_mut(),
             CLSCTX_ALL,
-            std::ptr::from_ref(&IID_IMMDEVICE_ENUMERATOR).cast::<crate::audio_endpoints::Guid>(),
+            &IID_IMM_DEVICE_ENUMERATOR,
             &mut enumerator,
         );
         if hr < 0 || enumerator.is_null() {

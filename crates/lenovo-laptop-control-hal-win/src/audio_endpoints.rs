@@ -43,7 +43,7 @@ use lenovo_laptop_control_hal::{AudioEndpointControl, EndpointSelector, poll_rea
 // COM ABI
 // ---------------------------------------------------------------------------
 
-pub(crate) type Hresult = i32;
+type Hresult = i32;
 
 const COINIT_MULTITHREADED: u32 = 0;
 const CLSCTX_ALL: u32 = 0x17;
@@ -100,13 +100,13 @@ impl PropVariant {
     }
 }
 
-const CLSID_MM_DEVICE_ENUMERATOR: Guid = Guid {
+pub(super) const CLSID_MM_DEVICE_ENUMERATOR: Guid = Guid {
     data1: 0xBCDE_0395,
     data2: 0xE52F,
     data3: 0x467C,
     data4: [0x8E, 0x3D, 0xC4, 0x57, 0x92, 0x91, 0x69, 0x2E],
 };
-const IID_IMM_DEVICE_ENUMERATOR: Guid = Guid {
+pub(super) const IID_IMM_DEVICE_ENUMERATOR: Guid = Guid {
     data1: 0xA956_64D2,
     data2: 0x9614,
     data3: 0x4F35,
@@ -156,16 +156,16 @@ const PKEY_DEVICE_DEVICE_DESC: PropertyKey = PropertyKey {
 
 #[link(name = "ole32")]
 unsafe extern "system" {
-    fn CoInitializeEx(reserved: *mut c_void, coinit: u32) -> Hresult;
-    fn CoUninitialize();
-    fn CoCreateInstance(
+    pub(super) fn CoInitializeEx(reserved: *mut c_void, coinit: u32) -> Hresult;
+    pub(super) fn CoUninitialize();
+    pub(super) fn CoCreateInstance(
         clsid: *const Guid,
         outer: *mut c_void,
         clsctx: u32,
         iid: *const Guid,
         out: *mut *mut c_void,
     ) -> Hresult;
-    fn CoTaskMemFree(pointer: *mut c_void);
+    pub(super) fn CoTaskMemFree(pointer: *mut c_void);
     fn PropVariantClear(value: *mut PropVariant) -> Hresult;
 }
 

@@ -779,14 +779,18 @@ impl IntelControlLib {
     /// the mismatch is reported.
     ///
     /// The caller must hold `state`.
-    fn write_super_resolution_flag(&self, flag: u32) -> Result<()> {
-        let previous = self.read_super_resolution_payload()?;
+    fn write_super_resolution_flag(
+        flag: u32,
+        mut read: impl FnMut() -> Result<CtlVideoProcessingSuperResolution>,
+        mut write: impl FnMut(&mut CtlVideoProcessingSuperResolution) -> u32,
+    ) -> Result<()> {
+        let previous = read()?;
         if previous.super_resolution_flag == flag {
             return Ok(());
         }
         let mut requested = previous;
         requested.super_resolution_flag = flag;
-        let result = self.super_resolution_call(&mut requested, true);
+        let result = write(&mut requested);
         if result == CTL_RESULT_ERROR_INVALID_ARGUMENT {
             return Err(LenovoLaptopControlError::Unsupported {
                 feature: "panel.super-resolution.write.rejected".to_string(),
@@ -800,12 +804,12 @@ impl IntelControlLib {
             });
         }
         let requested_text = format!("super-resolution flag 0x{flag:x}");
-        let observed = match self.read_super_resolution_payload() {
+        let observed = match read() {
             Ok(observed) if observed.super_resolution_flag == flag => return Ok(()),
             Ok(observed) => observed.super_resolution_flag,
             Err(error) => {
                 let mut restore = previous;
-                let _ = self.super_resolution_call(&mut restore, true);
+                let _ = write(&mut restore);
                 return Err(LenovoLaptopControlError::VerifyMismatch {
                     requested: requested_text,
                     actual: format!("readback failed after the write: {error}"),
@@ -821,7 +825,7 @@ impl IntelControlLib {
             });
         }
         let mut restore = previous;
-        let rollback = self.super_resolution_call(&mut restore, true);
+        let rollback = write(&mut restore);
         Err(LenovoLaptopControlError::VerifyMismatch {
             requested: requested_text,
             actual: if rollback == CTL_RESULT_SUCCESS {
@@ -1062,7 +1066,11 @@ impl IntelCtlApi for IntelControlLib {
         // value means no readback and no rollback target, so a driver that
         // rejects the get (21VG) is refused the set as well. A machine whose
         // driver answers the get gets a verified, reversible write.
-        self.write_super_resolution_flag(flag)
+        Self::write_super_resolution_flag(
+            flag,
+            || self.read_super_resolution_payload(),
+            |payload| self.super_resolution_call(payload, true),
+        )
     }
 }
 
@@ -1427,6 +1435,69 @@ fn discover_intel_control_lib() -> Result<PathBuf> {
 mod tests {
     use super::*;
     use std::mem::{align_of, offset_of, size_of};
+
+    #[test]
+    fn super_resolution_commit_never_writes_when_the_state_read_is_rejected() {
+        let error = IntelControlLib::write_super_resolution_flag(
+            CTL_VIDEO_PROCESSING_SUPER_RESOLUTION_FLAG_ENABLE_DEFAULT_SCENARIO_MODE,
+            || {
+                Err(LenovoLaptopControlError::Unsupported {
+                    feature: "state query".into(),
+                })
+            },
+            |_| panic!("cannot write without reading the previous flag"),
+        )
+        .expect_err("state query rejected");
+        assert!(matches!(
+            error,
+            LenovoLaptopControlError::Unsupported { .. }
+        ));
+    }
+
+    #[test]
+    fn super_resolution_commit_reports_an_ignored_write_without_a_rollback() {
+        let mut writes = Vec::new();
+        let flag = CTL_VIDEO_PROCESSING_SUPER_RESOLUTION_FLAG_ENABLE_DEFAULT_SCENARIO_MODE;
+        let error = IntelControlLib::write_super_resolution_flag(
+            flag,
+            || Ok(empty_super_resolution_payload()),
+            |payload| {
+                writes.push(payload.super_resolution_flag);
+                CTL_RESULT_SUCCESS
+            },
+        )
+        .expect_err("readback mismatch");
+        let LenovoLaptopControlError::VerifyMismatch { requested, actual } = error else {
+            panic!("expected verify mismatch, got {error}");
+        };
+        assert!(requested.contains("super-resolution flag"), "{requested}");
+        assert!(actual.contains("unchanged"), "{actual}");
+        assert_eq!(writes, [flag]);
+    }
+
+    #[test]
+    fn super_resolution_commit_rolls_back_a_third_value() {
+        let previous = empty_super_resolution_payload();
+        let mut observed = previous;
+        observed.super_resolution_flag = 4;
+        let mut replies = [previous, observed].into_iter();
+        let mut writes = Vec::new();
+        let flag = CTL_VIDEO_PROCESSING_SUPER_RESOLUTION_FLAG_ENABLE_DEFAULT_SCENARIO_MODE;
+        let error = IntelControlLib::write_super_resolution_flag(
+            flag,
+            || Ok(replies.next().expect("initial read and readback")),
+            |payload| {
+                writes.push(payload.super_resolution_flag);
+                CTL_RESULT_SUCCESS
+            },
+        )
+        .expect_err("readback mismatch");
+        let LenovoLaptopControlError::VerifyMismatch { actual, .. } = error else {
+            panic!("expected verify mismatch, got {error}");
+        };
+        assert!(actual.contains("rolled back"), "{actual}");
+        assert_eq!(writes, [flag, previous.super_resolution_flag]);
+    }
 
     /// The IGCL structures are ABI: every field offset and the struct size
     /// must match the published header, otherwise the driver rejects the

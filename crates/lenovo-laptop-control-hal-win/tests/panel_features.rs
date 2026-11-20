@@ -53,8 +53,6 @@ struct FakeCtl {
     sr_flag: Arc<Mutex<u32>>,
     sr_writes: Arc<Mutex<usize>>,
     reject_state: Arc<Mutex<bool>>,
-    ignore_writes: Arc<Mutex<bool>>,
-    force_flag: Arc<Mutex<Option<u32>>>,
     pixtx: Arc<Mutex<Option<PixtxCapability>>>,
 }
 
@@ -74,13 +72,7 @@ impl IntelCtlApi for FakeCtl {
 
     fn set_super_resolution_flag(&self, flag: u32) -> Result<()> {
         *self.sr_writes.lock() += 1;
-        // A forced flag applies to exactly one write, so the restore write can
-        // succeed and be observed.
-        if let Some(forced) = self.force_flag.lock().take() {
-            *self.sr_flag.lock() = forced;
-        } else if !*self.ignore_writes.lock() {
-            *self.sr_flag.lock() = flag;
-        }
+        *self.sr_flag.lock() = flag;
         Ok(())
     }
 
@@ -290,66 +282,6 @@ fn super_resolution_commit_writes_and_confirms_the_flag() {
     assert_eq!(report.requested(), &Some(true));
     assert_eq!(*ctl.sr_writes.lock(), 1);
     assert_eq!(*ctl.sr_flag.lock(), 2);
-}
-
-#[test]
-fn super_resolution_commit_never_writes_when_the_state_read_is_rejected() {
-    let ctl = FakeCtl {
-        reject_state: Arc::new(Mutex::new(true)),
-        ..FakeCtl::default()
-    };
-    let features = WindowsPanelFeatures::new(ctl.clone());
-    let error = features
-        .set_super_resolution(true, ApplyMode::Commit)
-        .expect_err("no previous value, no write");
-    assert!(matches!(
-        error,
-        LenovoLaptopControlError::Unsupported { .. }
-    ));
-    assert_eq!(*ctl.sr_writes.lock(), 0);
-}
-
-#[test]
-fn super_resolution_commit_reports_an_ignored_write_without_a_rollback() {
-    let ctl = FakeCtl {
-        ignore_writes: Arc::new(Mutex::new(true)),
-        ..FakeCtl::default()
-    };
-    let features = WindowsPanelFeatures::new(ctl.clone());
-    let error = features
-        .set_super_resolution(true, ApplyMode::Commit)
-        .expect_err("readback mismatch");
-    match error {
-        LenovoLaptopControlError::VerifyMismatch { requested, actual } => {
-            assert!(requested.contains("super-resolution flag"), "{requested}");
-            assert!(actual.contains("unchanged"), "{actual}");
-        }
-        other => panic!("expected a verify mismatch, got {other}"),
-    }
-    // The flag is already at the previous value, so no restore write is sent.
-    assert_eq!(*ctl.sr_writes.lock(), 1);
-}
-
-#[test]
-fn super_resolution_commit_rolls_back_a_third_value() {
-    let ctl = FakeCtl {
-        // The driver accepts the write but lands on a different flag.
-        force_flag: Arc::new(Mutex::new(Some(4))),
-        ..FakeCtl::default()
-    };
-    let features = WindowsPanelFeatures::new(ctl.clone());
-    let error = features
-        .set_super_resolution(true, ApplyMode::Commit)
-        .expect_err("readback mismatch");
-    match error {
-        LenovoLaptopControlError::VerifyMismatch { actual, .. } => {
-            assert!(actual.contains("rolled back"), "{actual}");
-        }
-        other => panic!("expected a verify mismatch, got {other}"),
-    }
-    // The requested write plus the restore write of the previous flag.
-    assert_eq!(*ctl.sr_writes.lock(), 2);
-    assert_eq!(*ctl.sr_flag.lock(), 0);
 }
 
 #[test]
