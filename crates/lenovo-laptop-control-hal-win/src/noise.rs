@@ -275,16 +275,16 @@ unsafe extern "C" {
 // link above keeps `rpcrt4.lib` on the link line).
 
 #[link(name = "ole32")]
-unsafe extern "C" {
-    fn CoInitializeEx(reserved: *mut c_void, coinit: u32) -> i32;
+unsafe extern "system" {
+    fn CoInitializeEx(reserved: *mut c_void, coinit: u32) -> crate::audio_endpoints::Hresult;
     fn CoUninitialize();
     fn CoCreateInstance(
-        clsid: *const [u8; 16],
+        clsid: *const crate::audio_endpoints::Guid,
         outer: *mut c_void,
         clsctx: u32,
-        iid: *const [u8; 16],
+        iid: *const crate::audio_endpoints::Guid,
         out: *mut *mut c_void,
-    ) -> i32;
+    ) -> crate::audio_endpoints::Hresult;
     fn CoTaskMemFree(pv: *mut c_void);
 }
 
@@ -890,10 +890,10 @@ fn default_capture_endpoint() -> Option<String> {
 
         let mut enumerator: *mut c_void = std::ptr::null_mut();
         let hr = CoCreateInstance(
-            &CLSID_MMDEVICE_ENUMERATOR,
+            std::ptr::from_ref(&CLSID_MMDEVICE_ENUMERATOR).cast::<crate::audio_endpoints::Guid>(),
             std::ptr::null_mut(),
             CLSCTX_ALL,
-            &IID_IMMDEVICE_ENUMERATOR,
+            std::ptr::from_ref(&IID_IMMDEVICE_ENUMERATOR).cast::<crate::audio_endpoints::Guid>(),
             &mut enumerator,
         );
         if hr < 0 || enumerator.is_null() {

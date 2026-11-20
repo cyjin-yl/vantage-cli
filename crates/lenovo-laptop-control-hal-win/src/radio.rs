@@ -261,9 +261,9 @@ mod winrt {
     /// The host thread was already initialized into an apartment (observed live on the target).
     const RPC_E_CHANGED_MODE: i32 = 0x8001_0106u32 as i32;
 
-    const IID_IRADIO_STATICS: GUID = GUID::from_u128(0x5fb6_a12e_67cb_46ae_aae9_65919f86eff4);
-    const IID_IRADIO: GUID = GUID::from_u128(0x2521_18df_b33e_416a_875f_1cf38ae2d83e);
-    const IID_IASYNC_INFO: GUID = GUID::from_u128(0x0000_0036_0000_0000_c000_000000000046);
+    const IID_IRADIO_STATICS: GUID = GUID::from_u128(0x5fb6_a12e_67cb_46ae_aae9_6591_9f86_eff4);
+    const IID_IRADIO: GUID = GUID::from_u128(0x2521_18df_b33e_416a_875f_1cf3_8ae2_d83e);
+    const IID_IASYNC_INFO: GUID = GUID::from_u128(0x0000_0036_0000_0000_c000_0000_0000_0046);
 
     /// `IAsyncStatus`: Canceled = 2, Completed = 1, Error = 3, Started = 0.
     const ASYNC_STARTED: i32 = 0;
@@ -460,6 +460,7 @@ mod winrt {
             Ok(Self { raw })
         }
 
+        #[allow(clippy::inherent_to_string)]
         fn to_string(&self) -> String {
             let mut length = 0u32;
             let buffer = unsafe { WindowsGetStringRawBuffer(self.raw, &mut length) };

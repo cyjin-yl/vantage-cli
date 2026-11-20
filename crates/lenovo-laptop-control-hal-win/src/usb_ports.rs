@@ -94,10 +94,10 @@ impl UsbPortInventoryControl for WindowsUsbPorts {
 /// never walks a port tree, so capability discovery stays bounded even with a
 /// dock attached.
 pub fn record_usb_port_capabilities(capabilities: &mut CapabilitySet) -> Result<()> {
-    // `record` yields `Option<Capability>`; the probe only needs the write.
+    // `record` yields `Result<Option<Capability>>`; the probe only needs the write.
     match hub_interfaces() {
         Ok(hubs) if !hubs.is_empty() => {
-            capabilities.record(
+            let _ = capabilities.record(
                 "usb.ports",
                 Availability::Available,
                 Some(format!(
@@ -107,14 +107,14 @@ pub fn record_usb_port_capabilities(capabilities: &mut CapabilitySet) -> Result<
             );
         }
         Ok(_) => {
-            capabilities.record(
+            let _ = capabilities.record(
                 "usb.ports",
                 Availability::Unavailable,
                 Some("no USB hub device interface enumerates".into()),
             );
         }
         Err(error) => {
-            capabilities.record(
+            let _ = capabilities.record(
                 "usb.ports",
                 Availability::Unavailable,
                 Some(error.to_string()),

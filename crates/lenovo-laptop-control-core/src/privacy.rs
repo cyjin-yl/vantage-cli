@@ -506,8 +506,8 @@ mod tests {
             "Microsoft.BioEnrollment_cw5n1h2txyewy",
             None,
             None,
-            Some(0x1dd1_4228_dc83_4fe),
-            Some(0x1dd1_4229_3f72_a14),
+            Some(0x01dd_1422_8dc8_34fe),
+            Some(0x01dd_1422_93f7_2a14),
         );
         assert_eq!(recorded_without_consent.consent, None);
         assert_eq!(recorded_without_consent.consent_raw, None);

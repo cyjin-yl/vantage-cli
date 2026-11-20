@@ -242,11 +242,10 @@ impl SensorFreshness {
 
     #[must_use]
     pub fn stale_after_ms(min_report_interval_ms: Option<u32>) -> u32 {
-        let window = min_report_interval_ms
+        min_report_interval_ms
             .unwrap_or(0)
             .saturating_mul(4)
-            .max(Self::MIN_STALE_AFTER_MS);
-        window
+            .max(Self::MIN_STALE_AFTER_MS)
     }
 
     #[must_use]
@@ -314,11 +313,11 @@ pub struct SensorInventory {
 /// Documented name of one sensor data property key.
 pub const SENSOR_DATA_TYPE_LIGHT_LEVEL_LUX_NAME: &str = "SENSOR_DATA_TYPE_LIGHT_LEVEL_LUX";
 /// `SENSOR_DATA_TYPE_COMMON_GUID`: report-level fields.
-const SENSOR_DATA_TYPE_COMMON_GUID: u128 = 0xdb5e_0cf2_cf1f_4c18_b46c_d86011d62150;
+const SENSOR_DATA_TYPE_COMMON_GUID: u128 = 0xdb5e_0cf2_cf1f_4c18_b46c_d860_11d6_2150;
 /// `SENSOR_DATA_TYPE_LIGHT_GUID`.
-const SENSOR_DATA_TYPE_LIGHT_GUID: u128 = 0xe4c7_7ce2_dcb7_46e9_8439_4fec548833a6;
+const SENSOR_DATA_TYPE_LIGHT_GUID: u128 = 0xe4c7_7ce2_dcb7_46e9_8439_4fec_5488_33a6;
 /// `SENSOR_DATA_TYPE_CUSTOM_GUID`: vendor-defined fields.
-const SENSOR_DATA_TYPE_CUSTOM_GUID: u128 = 0xb14c_764f_07cf_41e8_9d82_ebe3d0776a6f;
+const SENSOR_DATA_TYPE_CUSTOM_GUID: u128 = 0xb14c_764f_07cf_41e8_9d82_ebe3_d077_6a6f;
 
 /// Documented name of a `SENSOR_DATA_TYPE_*` key, or `None` when the key is not
 /// one this build knows. Unknown keys are printed as `{FMTID},pid` by callers and

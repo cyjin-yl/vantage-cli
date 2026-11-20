@@ -532,6 +532,7 @@ mod native {
                 let error = unsafe { GetLastError() };
                 return Err(map_win_error(error, "GetFirmwareType"));
             }
+            #[allow(non_upper_case_globals)]
             Ok(match firmware_type {
                 FirmwareTypeUefi => FirmwareType::Uefi,
                 FirmwareTypeBios => FirmwareType::Bios,

@@ -2,8 +2,8 @@ use lenovo_laptop_control_core::{
     Availability, CapabilitySet, HardwareInfo, Platform, Result, SystemIdentity,
 };
 use lenovo_laptop_control_hal::{
-    BatteryElectricalSource, BluetoothControl, Hal, HotkeyControl, SecurityAvailability,
-    TouchpadControl, WifiStatusControl,
+    BatteryElectricalSource, BluetoothControl, Hal, SecurityAvailability, TouchpadControl,
+    WifiStatusControl,
 };
 
 use crate::HpdRpc;
@@ -914,14 +914,7 @@ where
                         error.to_string()
                     })
             }
-            Err(error)
-                if matches!(
-                    error,
-                    lenovo_laptop_control_core::LenovoLaptopControlError::Unsupported { .. }
-                ) =>
-            {
-                None
-            }
+            Err(lenovo_laptop_control_core::LenovoLaptopControlError::Unsupported { .. }) => None,
             Err(error) => {
                 esif_source_failed = true;
                 Some(error.to_string())

@@ -332,16 +332,13 @@ fn modern_registry(values: &[(&'static str, u32)]) -> FakeRegistry {
     FakeRegistry::new(
         // Overrides come first: `read_dword` returns the first matching entry,
         // so a duplicate name must have the override ahead of the base value.
-        values.iter().copied().chain(
-            [
-                ("VERSION", 0x4000u32),
-                ("ITS_CurrentSetting", 1),
-                ("ITS_CurrentSettingV", 1),
-                ("ITS_AutomaticModeSetting", 0),
-                ("Policy_ModernITS", 0),
-            ]
-            .into_iter(),
-        ),
+        values.iter().copied().chain([
+            ("VERSION", 0x4000u32),
+            ("ITS_CurrentSetting", 1),
+            ("ITS_CurrentSettingV", 1),
+            ("ITS_AutomaticModeSetting", 0),
+            ("Policy_ModernITS", 0),
+        ]),
     )
 }
 

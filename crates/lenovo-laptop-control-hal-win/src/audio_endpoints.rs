@@ -43,7 +43,7 @@ use lenovo_laptop_control_hal::{AudioEndpointControl, EndpointSelector, poll_rea
 // COM ABI
 // ---------------------------------------------------------------------------
 
-type Hresult = i32;
+pub(crate) type Hresult = i32;
 
 const COINIT_MULTITHREADED: u32 = 0;
 const CLSCTX_ALL: u32 = 0x17;
@@ -67,7 +67,7 @@ const READBACK_DELAY_MS: u64 = 50;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-struct Guid {
+pub(crate) struct Guid {
     data1: u32,
     data2: u16,
     data3: u16,

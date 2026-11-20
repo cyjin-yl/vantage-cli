@@ -1,3 +1,8 @@
+// Items here mirror Windows-only services: on other platforms only the
+// portable parsing surface and the fake-friendly tests consume them, so
+// members reserved for the native Windows paths are expected to look unused.
+#![cfg_attr(not(windows), allow(dead_code))]
+
 #[cfg(windows)]
 mod audio_endpoints;
 mod battery_sources;

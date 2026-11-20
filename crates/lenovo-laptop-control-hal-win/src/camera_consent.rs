@@ -339,7 +339,7 @@ impl Key {
             units
                 .split(|unit| *unit == 0)
                 .filter(|run| !run.is_empty())
-                .map(|run| String::from_utf16_lossy(run))
+                .map(String::from_utf16_lossy)
                 .collect(),
         ))
     }

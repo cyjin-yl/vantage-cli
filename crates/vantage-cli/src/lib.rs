@@ -7311,9 +7311,9 @@ fn execute_update(
 ) -> CommandResult {
     /// A local package install needs no update-catalogue service; the
     /// catalogue-backed commands require one.
-    fn require_update<'a>(
-        update: Option<&'a dyn UpdateControl>,
-    ) -> lenovo_laptop_control_core::Result<&'a dyn UpdateControl> {
+    fn require_update(
+        update: Option<&dyn UpdateControl>,
+    ) -> lenovo_laptop_control_core::Result<&dyn UpdateControl> {
         update.ok_or_else(|| LenovoLaptopControlError::Unsupported {
             feature: "update".into(),
         })
@@ -9327,9 +9327,9 @@ fn render_camera_consent(report: &lenovo_laptop_control_core::CameraConsentRepor
         );
     }
     let in_use = report.in_use().count();
-    let _ = write!(
+    let _ = writeln!(
         text,
-        "{in_use} record(s) satisfy the in-use rule; that is a recorded stamp pair, not a live stream\n"
+        "{in_use} record(s) satisfy the in-use rule; that is a recorded stamp pair, not a live stream"
     );
     text
 }

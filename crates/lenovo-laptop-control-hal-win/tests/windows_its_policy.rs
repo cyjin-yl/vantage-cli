@@ -51,7 +51,7 @@ impl FakeRegistry {
 
 impl PerformanceRegistryReader for FakeRegistry {
     fn read_dword(&self, value: &str) -> lenovo_laptop_control_core::Result<u32> {
-        if self.denied.iter().any(|name| *name == value) {
+        if self.denied.contains(&value) {
             return Err(LenovoLaptopControlError::PermissionDenied {
                 need: "administrator".into(),
             });

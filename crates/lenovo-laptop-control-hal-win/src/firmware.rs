@@ -280,6 +280,7 @@ mod native {
             issues.push(format!("GetFirmwareType failed with {error}"));
             return FirmwareType::Unknown;
         }
+        #[allow(non_upper_case_globals)]
         match firmware_type {
             FirmwareTypeBios => FirmwareType::Bios,
             FirmwareTypeUefi => FirmwareType::Uefi,

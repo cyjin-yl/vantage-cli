@@ -823,7 +823,7 @@ where
         // transition left disabled. A group whose leaves are all enabled while
         // the pad does not serve input can only be repaired by restarting the
         // input collections themselves.
-        let strategy = if states.iter().any(|state| *state == DeviceState::Disabled) {
+        let strategy = if states.contains(&DeviceState::Disabled) {
             lenovo_laptop_control_core::TouchpadRecoveryStrategy::EnableDisabledLeaves
         } else {
             lenovo_laptop_control_core::TouchpadRecoveryStrategy::CycleInputLeaves

@@ -128,8 +128,6 @@ const SRC_TEMPERATURE_LOG: &str = "NVMe SMART/Health log page 0x02 composite tem
 const SRC_WEAR: &str = "NVMe SMART/Health log page 0x02 percentage used";
 const SRC_POWER_ON_HOURS: &str = "NVMe SMART/Health log page 0x02 power-on hours";
 
-const NVME_BUS_TYPE: u32 = 17;
-
 /// `STORAGE_DEVICE_DESCRIPTOR` fields this service reads.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DeviceDescriptorFacts {
@@ -830,7 +828,7 @@ mod native {
 
     /// `GUID_DEVINTERFACE_DISK`.
     const DISK_INTERFACE_GUID: windows_sys::core::GUID =
-        windows_sys::core::GUID::from_u128(0x53f5_6307_b6bf_11d0_94f2_00a0c91efb8b);
+        windows_sys::core::GUID::from_u128(0x53f5_6307_b6bf_11d0_94f2_00a0_c91e_fb8b);
 
     /// Native storage probe over the disk device interface class.
     #[derive(Clone, Copy, Debug, Default)]

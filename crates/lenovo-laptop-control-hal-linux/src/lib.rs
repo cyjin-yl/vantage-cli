@@ -12,10 +12,12 @@
 //! `uWh / 1000 -> mWh`, `uV / 1000 -> mV`, `uA / 1000 -> mA`, and
 //! `deci-C + 273.2 -> deci-K` (rounded to the nearest representable tenth).
 
+#[cfg(unix)]
 mod msr;
 mod process;
 mod radio;
 
+#[cfg(unix)]
 pub use msr::{DevMsr, MsrAddress, MsrTransport};
 pub use process::LinuxProcessController;
 pub use radio::LinuxRadio;
@@ -110,6 +112,7 @@ impl LinuxHal {
     }
 
     /// MSR transport for CPU 0 (`/dev/cpu/0/msr` under the injected root).
+    #[cfg(unix)]
     #[must_use]
     pub fn msr(&self) -> DevMsr {
         DevMsr::new(self.path("dev/cpu/0/msr"), 0)
@@ -819,21 +822,24 @@ impl Hal for LinuxHal {
                 (!available).then(|| "no writable Intel RAPL constraint sysfs node".into()),
             )?;
         }
-        let msr = self.msr();
-        match msr.probe() {
-            Ok(()) => {
-                capabilities.record(
-                    "tune.msr",
-                    Availability::Available,
-                    Some("/dev/cpu/0/msr openable".into()),
-                )?;
-            }
-            Err(error) => {
-                capabilities.record(
-                    "tune.msr",
-                    Availability::Unavailable,
-                    Some(error.to_string()),
-                )?;
+        #[cfg(unix)]
+        {
+            let msr = self.msr();
+            match msr.probe() {
+                Ok(()) => {
+                    capabilities.record(
+                        "tune.msr",
+                        Availability::Available,
+                        Some("/dev/cpu/0/msr openable".into()),
+                    )?;
+                }
+                Err(error) => {
+                    capabilities.record(
+                        "tune.msr",
+                        Availability::Unavailable,
+                        Some(error.to_string()),
+                    )?;
+                }
             }
         }
 

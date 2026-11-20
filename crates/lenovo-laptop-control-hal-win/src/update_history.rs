@@ -157,7 +157,7 @@ mod ledger {
     }
 }
 
-#[cfg(any(windows, test))]
+#[cfg(test)]
 pub(crate) use ledger::*;
 
 #[cfg(windows)]

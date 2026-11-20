@@ -173,7 +173,7 @@ mod tests {
         );
         assert!(normalize_event_log_limit(0).is_err());
         assert!(normalize_event_log_limit(MAX_EVENT_LOG_RECORDS + 1).is_err());
-        assert!(DEFAULT_EVENT_LOG_RECORDS >= 1);
+        const { assert!(DEFAULT_EVENT_LOG_RECORDS >= 1) }
     }
 
     #[test]

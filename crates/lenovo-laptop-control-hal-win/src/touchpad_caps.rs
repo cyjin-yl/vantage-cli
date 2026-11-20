@@ -936,6 +936,7 @@ mod tests {
     const SCAN_TIME_USAGE: u16 = 0x0056;
     const CONTACT_LINKS: [u16; 5] = [1, 2, 3, 4, 5];
 
+    #[allow(clippy::too_many_arguments)]
     fn finger_value(
         usage_page: u16,
         usage: u16,
