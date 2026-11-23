@@ -652,6 +652,9 @@ fn main() {
     // No Linux radio plane is bound yet, so the service is attached and answers
     // `Unsupported` instead of leaving `radio` commands looking unimplemented.
     let radio = lenovo_laptop_control_hal_linux::LinuxRadio::new();
+    // Present device hardware IDs, read from sysfs (PCI and USB). Used to
+    // decide whether a catalog package binds to hardware this machine has.
+    let hardware_inventory = lenovo_laptop_control_hal_linux::LinuxHardwareInventory::default();
     let services = vantage_cli::CommandServices::new(&hal)
         .with_battery(&hal)
         .with_conflict_detection(&hal)
@@ -667,7 +670,8 @@ fn main() {
         .with_touchpad(&hal)
         .with_tuning(&hal)
         .with_temperature(&hal)
-        .with_update(&hal);
+        .with_update(&hal)
+        .with_hardware_inventory(&hardware_inventory);
     run(cli, services);
 }
 
@@ -791,6 +795,9 @@ fn main() {
     let local_package = lenovo_laptop_control_hal_win::WindowsLocalPackageInstaller::new(
         lenovo_laptop_control_hal_win::NativeLocalPackageApi,
     );
+    // Present device hardware IDs, read through SetupAPI. Used to decide
+    // whether a catalog package binds to hardware this machine actually has.
+    let hardware_inventory = lenovo_laptop_control_hal_win::WindowsHardwareInventory;
     let machine_fix = lenovo_laptop_control_hal_win::WindowsMachineFix::new();
     let scene = lenovo_laptop_control_hal_win::NativeScenePolicy::new();
     let osd = lenovo_laptop_control_hal_win::NativeOsd::new();
@@ -861,6 +868,7 @@ fn main() {
         .with_update(&system_inventory)
         .with_local_update(&local_update)
         .with_local_package(&local_package)
+        .with_hardware_inventory(&hardware_inventory)
         .with_wifi(&wifi_security)
         .with_wifi_status(&wifi_status)
         .with_bluetooth(&bluetooth)

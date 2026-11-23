@@ -12,11 +12,13 @@
 //! `uWh / 1000 -> mWh`, `uV / 1000 -> mV`, `uA / 1000 -> mA`, and
 //! `deci-C + 273.2 -> deci-K` (rounded to the nearest representable tenth).
 
+mod hardware_inventory;
 #[cfg(unix)]
 mod msr;
 mod process;
 mod radio;
 
+pub use hardware_inventory::LinuxHardwareInventory;
 #[cfg(unix)]
 pub use msr::{DevMsr, MsrAddress, MsrTransport};
 pub use process::LinuxProcessController;

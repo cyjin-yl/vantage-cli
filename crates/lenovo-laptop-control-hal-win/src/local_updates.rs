@@ -265,6 +265,20 @@ fn invalid(detail: impl Into<String>) -> LenovoLaptopControlError {
     }
 }
 
+/// The machine's present device hardware IDs, read through SetupAPI.
+///
+/// The same enumeration the local-driver path uses (`SPDRP_HARDWAREID` over
+/// present devices), so the IDs are the platform's own strings.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct WindowsHardwareInventory;
+
+#[cfg(windows)]
+impl lenovo_laptop_control_hal::HardwareInventoryControl for WindowsHardwareInventory {
+    fn present_hardware_ids(&self) -> Result<Vec<String>> {
+        native::present_hardware_ids()
+    }
+}
+
 #[cfg(windows)]
 pub use native::NativeLocalDriverUpdateApi;
 
@@ -742,6 +756,36 @@ mod native {
             }
         }
         Ok(values)
+    }
+
+    /// Every hardware ID of every present device.
+    pub(crate) fn present_hardware_ids() -> Result<Vec<String>> {
+        let set = DeviceSet::present()?;
+        let mut ids = Vec::new();
+        for index in 0..=MAX_LOCAL_UPDATE_DEVICES {
+            let mut data = device_data();
+            if unsafe { SetupDiEnumDeviceInfo(set.0, index as u32, &mut data) } == 0 {
+                let error = unsafe { GetLastError() };
+                if error == ERROR_NO_MORE_ITEMS {
+                    return Ok(ids);
+                }
+                return Err(crate::map_win_error(error, "SetupDiEnumDeviceInfo"));
+            }
+            if index == MAX_LOCAL_UPDATE_DEVICES {
+                return Err(invalid("present-device enumeration exceeds its bound"));
+            }
+            let Some((kind, values)) = device_property(set.0, &data, SPDRP_HARDWAREID)? else {
+                continue;
+            };
+            if kind != REG_MULTI_SZ {
+                return Err(invalid("PnP hardware IDs are not a REG_MULTI_SZ value"));
+            }
+            ids.extend(multi_string(&values)?);
+            if ids.len() > MAX_LOCAL_UPDATE_DEVICES * 64 {
+                return Err(invalid("present hardware-ID count exceeds its bound"));
+            }
+        }
+        Err(invalid("present-device enumeration exceeds its bound"))
     }
 
     fn install_parameters(set: HDEVINFO, data: &SP_DEVINFO_DATA) -> Result<SP_DEVINSTALL_PARAMS_W> {

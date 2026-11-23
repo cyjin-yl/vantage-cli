@@ -32,15 +32,16 @@ use lenovo_laptop_control_hal::{
     AudioControl, AudioEndpointControl, BatteryControl, BiosControl, BitLockerState,
     BitLockerVolume, BluetoothControl, BluetoothInventory, BluetoothMajorClass,
     ControlConflictDetection, DbdcControl, DiagnosticsControl, DisplayStatusControl,
-    EventLogControl, FanControl, FirmwareControl, GpuOcControl, Hal, HotkeyControl,
-    ItsPolicyControl, KeyboardControl, LocalPackageInstallControl, LocalUpdateControl,
-    MachineFixControl, MagicBayControl, MobileBroadbandControl, NoiseCancelControl, OsdControl,
-    PanelBrightnessControl, PanelControl, PanelFeaturesControl, PanelIdentityControl,
-    PerformanceControl, PowerControl, PowerLimitKind, PrivacyControl, ProcessControl,
-    ProcessorPowerControl, RadioControl, RadioKind, RadioState, SecureBootState, SecurityControl,
-    SecuritySource, SecurityStatusReport, SenseControl, SenseFeature, SensorControl,
-    StorageStatusControl, TemperatureControl, TouchpadControl, TpmState, TuningControl,
-    UpdateControl, UsbControl, WifiBand, WifiSecurityControl, WifiStatusControl, WifiStatusReport,
+    EventLogControl, FanControl, FirmwareControl, GpuOcControl, Hal, HardwareInventoryControl,
+    HotkeyControl, ItsPolicyControl, KeyboardControl, LocalPackageInstallControl,
+    LocalUpdateControl, MachineFixControl, MagicBayControl, MobileBroadbandControl,
+    NoiseCancelControl, OsdControl, PanelBrightnessControl, PanelControl, PanelFeaturesControl,
+    PanelIdentityControl, PerformanceControl, PowerControl, PowerLimitKind, PrivacyControl,
+    ProcessControl, ProcessorPowerControl, RadioControl, RadioKind, RadioState, SecureBootState,
+    SecurityControl, SecuritySource, SecurityStatusReport, SenseControl, SenseFeature,
+    SensorControl, StorageStatusControl, TemperatureControl, TouchpadControl, TpmState,
+    TuningControl, UpdateControl, UsbControl, WifiBand, WifiSecurityControl, WifiStatusControl,
+    WifiStatusReport,
 };
 use serde::{Deserialize, Serialize};
 
@@ -48,6 +49,7 @@ mod battery_health;
 mod battery_observation;
 mod capability;
 mod power_ac;
+mod public_update_catalog;
 use serde_json::Value;
 
 /// Result returned by [`execute`].
@@ -109,6 +111,9 @@ pub struct CommandServices<'a> {
     update: Option<&'a dyn UpdateControl>,
     local_update: Option<&'a dyn LocalUpdateControl>,
     local_package: Option<&'a dyn LocalPackageInstallControl>,
+    /// Present device hardware IDs, used to decide whether a catalog
+    /// package binds to hardware this machine has.
+    hardware_inventory: Option<&'a dyn HardwareInventoryControl>,
     wifi: Option<&'a dyn WifiSecurityControl>,
     wifi_status: Option<&'a dyn WifiStatusControl>,
     bluetooth: Option<&'a dyn BluetoothControl>,
@@ -161,6 +166,7 @@ impl<'a> CommandServices<'a> {
             update: None,
             local_update: None,
             local_package: None,
+            hardware_inventory: None,
             wifi: None,
             wifi_status: None,
             bluetooth: None,
@@ -400,6 +406,15 @@ impl<'a> CommandServices<'a> {
     #[must_use]
     pub fn with_local_package(mut self, local_package: &'a dyn LocalPackageInstallControl) -> Self {
         self.local_package = Some(local_package);
+        self
+    }
+
+    #[must_use]
+    pub fn with_hardware_inventory(
+        mut self,
+        hardware_inventory: &'a dyn HardwareInventoryControl,
+    ) -> Self {
+        self.hardware_inventory = Some(hardware_inventory);
         self
     }
 
@@ -1388,6 +1403,16 @@ pub enum UpdateCommand {
     Check {
         #[arg(long, value_enum)]
         severity: Option<UpdateSeverity>,
+        /// Query Lenovo's public catalog for a machine type or full MTM.
+        #[arg(long, conflicts_with = "severity")]
+        mtm: Option<String>,
+        /// Windows catalog to query. Defaults to win11 when --mtm is supplied.
+        #[arg(long, value_enum, requires = "mtm")]
+        os: Option<UpdateCatalogOs>,
+        /// Show only packages whose declared device binding is present on this
+        /// machine.
+        #[arg(long)]
+        applicable_only: bool,
     },
     LocalDriver {
         #[command(subcommand)]
@@ -1405,6 +1430,17 @@ pub enum UpdateCommand {
     Download {
         #[arg(required = true, num_args = 1..)]
         packages: Vec<String>,
+        /// Machine type or full MTM whose public catalog supplies the
+        /// package; detected from this machine when omitted.
+        #[arg(long)]
+        mtm: Option<String>,
+        /// Windows catalog to download from. Defaults to win11 with --mtm or on Linux.
+        #[arg(long, value_enum)]
+        os: Option<UpdateCatalogOs>,
+        /// Directory each package downloads into (one subdirectory per
+        /// package). Defaults to the user cache `vantage/updates`.
+        #[arg(long)]
+        dest: Option<PathBuf>,
     },
     Install {
         #[arg(required = true, num_args = 1..)]
@@ -1423,6 +1459,12 @@ pub enum UpdateCommand {
         #[arg(value_enum)]
         frequency: UpdateSchedule,
     },
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
+pub enum UpdateCatalogOs {
+    Win10,
+    Win11,
 }
 
 #[derive(Clone, Debug, ValueEnum, PartialEq, Eq)]
@@ -2211,6 +2253,7 @@ pub fn execute_with_services(cli: Cli, services: CommandServices<'_>) -> Command
             services.update,
             services.local_update,
             services.local_package,
+            services.hardware_inventory,
             apply,
             command,
         ),
@@ -7306,6 +7349,7 @@ fn execute_update(
     update: Option<&dyn UpdateControl>,
     local_update: Option<&dyn LocalUpdateControl>,
     local_package: Option<&dyn LocalPackageInstallControl>,
+    hardware_inventory: Option<&dyn HardwareInventoryControl>,
     mode: ApplyMode,
     command: UpdateCommand,
 ) -> CommandResult {
@@ -7319,6 +7363,17 @@ fn execute_update(
         })
     }
     match command {
+        UpdateCommand::Check {
+            mtm: Some(mtm),
+            os,
+            applicable_only,
+            ..
+        } => public_update_catalog::check(
+            &mtm,
+            os.unwrap_or(UpdateCatalogOs::Win11),
+            hardware_inventory,
+            applicable_only,
+        ),
         UpdateCommand::Check { .. } => {
             let update = require_update(update)?;
             // Prefer the synced-catalog report when the backend can evaluate
@@ -7375,11 +7430,21 @@ fn execute_update(
         UpdateCommand::LocalInstall { package } => {
             execute_local_package(local_package, package, mode)
         }
-        UpdateCommand::Download { .. } => Err(LenovoLaptopControlError::Unsupported {
-            feature: "update.download.without-authenticated-manifest".into(),
-        }),
+        UpdateCommand::Download {
+            packages,
+            mtm,
+            os,
+            dest,
+        } => public_update_catalog::download(
+            &packages,
+            &dest.unwrap_or_else(public_update_catalog::default_download_dir),
+            mtm.as_deref(),
+            os,
+            hardware_inventory,
+            mode,
+        ),
         UpdateCommand::Install { .. } => Err(LenovoLaptopControlError::Unsupported {
-            feature: "update.install.without-authenticated-manifest".into(),
+            feature: "update.install.remote-execution".into(),
         }),
         UpdateCommand::History => execute_update_history(require_update(update)?),
         UpdateCommand::Ignore { .. } => Err(LenovoLaptopControlError::Unsupported {

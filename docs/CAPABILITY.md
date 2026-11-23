@@ -309,8 +309,8 @@ Status codes: **available** = works, **limited** = partial,
 | `update.local.history` | local_persistent | **available** | — |
 | `update.local.ignore` | local_persistent | **available** | — |
 | `update.local.schedule` | local_persistent | **available** | — |
-| `update.download` | local_persistent | **unsupported** | no authenticated remote update manifest is attached |
-| `update.install` | not_applicable | **unsupported** | no authenticated remote update manifest is attached |
+| `update.download` | local_persistent | **unverified** | Public Lenovo catalog download requires HTTPS access to Lenovo's CDN |
+| `update.install` | not_applicable | **unsupported** | no remote install execution is attached |
 | `update.history` | local_persistent | **unverified** | update.history.ledger has not been probed on this platform |
 | `update.ignore` | local_persistent | **unsupported** | no remote update catalog is attached |
 | `update.rollback` | not_applicable | **unsupported** | no remote update install ledger is attached |
@@ -339,9 +339,9 @@ Status codes: **available** = works, **limited** = partial,
 |--------|-------|
 | available | 112 |
 | limited | 7 |
-| unsupported | 29 |
+| unsupported | 28 |
 | unavailable | 1 |
-| unverified | 4 |
+| unverified | 5 |
 | external | 4 |
 | not_applicable | 2 |
 | **total** | **159** |
@@ -494,17 +494,13 @@ automatic keyboard backlight has no consuming service on this model: ThinkSmartS
 
 Windows raw MSR/RAPL writes are unavailable
 
-### `update.download`
-
-no authenticated remote update manifest is attached
-
 ### `update.ignore`
 
 no remote update catalog is attached
 
 ### `update.install`
 
-no authenticated remote update manifest is attached
+no remote install execution is attached
 
 ### `update.rollback`
 

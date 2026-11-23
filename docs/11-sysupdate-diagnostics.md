@@ -173,8 +173,10 @@ CLI 等价:`vantage snapshot {capture,diff,restore}`(restore 限定到本工具�
 ## 9. CLI 契约
 
 ```
-update check [--severity critical|recommended|driver|optional]   # §2.3 SEARCHING 等价
-update download <id>... / update install <id>... [--reboot]      # XML 包 + HTTPS + SetupAPI
+update check [--severity critical|recommended|driver|optional]   # 本地同步目录
+update check --mtm <机型代码或完整 MTM> [--os win10|win11]          # 联想公开目录，默认 win11
+update download <id|标题>... [--mtm ..] [--os win10|win11] [--dest DIR]  # 公开目录包文件，SHA-256+大小校验后写入 <dest>/<id>/
+update install <id>...                                                   # 远程执行路径尚未接入
 update history [--json] / update ignore <id> / update rollback <id>
 update local-install <payload-dir> [--dry-run]                   # 已下载 UDC 包的自有签名 install.ps1
 update schedule {daily|weekly|off}                               # 任务计划
@@ -186,6 +188,12 @@ wifi security [--json]                                           # §7
 wifi status [--json]                                             # 实时关联(不扫描),见 evidence/re-network-20261105.md
 bluetooth list [--json]                                          # 本机射频与已知设备(不发起发现),同上
 ```
+
+`update check --mtm` 使用 MTM 的前四位查询联想发布的 Windows 目录。它通过 `curl` 读取目录和包描述 XML，按目录中的 SHA-256 校验描述文件，再列出包 ID、标题、版本、类别和发布日期。加 `--json` 可取得描述文件 URL、哈希和 payload 文件清单。遇到没有公开目录的机型与系统组合时，命令报告 HTTP 404。
+
+目录本身只说明联想为该机型发布了哪些包。描述文件里的 `DetectVersion/_PnPID` 与 `DetectInstall/_Driver/HardwareID` 给出包绑定的硬件，命令会把它与本机实际存在的设备 ID 比较（Windows 通过 SetupAPI 读取，Linux 从 sysfs 的 PCI/USB 节点读取），并给出三种判定：命中本机设备、绑定的设备本机不存在、没有声明设备绑定（系统级或人工安装的包，目录无法判断）。`--applicable-only` 只保留命中本机设备的包。比较只做硬件 ID 匹配，不比较已安装驱动的版本。
+
+`update download` 复用同一目录。`--mtm` 可指定其他机型，省略时从本机固件读取 MTM。已指定 `--mtm` 或在 Linux 上运行时，默认查询 `win11`。Windows 本机查询默认按系统版本选择目录。用包 ID 或唯一的标题片段选择包。每个文件按联想发布的大小和 SHA-256 校验，通过后才移入 `<dest>/<package-id>/`。已存在且校验一致的文件会复用，内容不同的现有文件会保留并报错。默认目录为用户缓存下的 `vantage/updates`。`--dry-run` 查询目录并列出计划写入的文件。下载命令只保存文件。
 
 ## 10. 证据
 

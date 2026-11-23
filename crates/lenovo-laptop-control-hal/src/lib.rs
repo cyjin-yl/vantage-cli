@@ -99,6 +99,6 @@ pub use sense::{SenseControl, SenseFeature, encode_request};
 pub use sensor::SensorControl;
 pub use setting::{Setting, apply_setting};
 pub use storage::StorageStatusControl;
-pub use update::{LocalPackageInstallControl, LocalUpdateControl};
+pub use update::{HardwareInventoryControl, LocalPackageInstallControl, LocalUpdateControl};
 pub use usb::UsbPortInventoryControl;
 pub use verify::{poll_readback, poll_readback_until};

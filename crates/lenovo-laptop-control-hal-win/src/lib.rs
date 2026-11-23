@@ -165,7 +165,9 @@ pub use kbd_backlight::{
 #[cfg(windows)]
 pub use local_updates::NativeLocalDriverUpdateApi;
 #[cfg(windows)]
-pub use local_updates::{LocalDriverUpdateApi, WindowsLocalUpdateController};
+pub use local_updates::{
+    LocalDriverUpdateApi, WindowsHardwareInventory, WindowsLocalUpdateController,
+};
 #[cfg(windows)]
 pub use machine_fix::WindowsMachineFix;
 #[cfg(windows)]

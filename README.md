@@ -96,6 +96,9 @@ vantage storage status            # NVMe health, SMART, temperature
 vantage bios list                 # BIOS settings and current values
 vantage scan list                 # diagnostic item inventory
 vantage update check              # synced update catalog
+vantage update check --mtm 21VG --os win11  # public Lenovo catalog
+vantage update download <pkg-id>            # verified public-catalog payload
+vantage update check --mtm 21VG --applicable-only  # packages bound to this machine
 vantage bluetooth list            # paired devices
 vantage wifi status               # WLAN link and security
 vantage usb ports                 # hub/port tree with connected devices

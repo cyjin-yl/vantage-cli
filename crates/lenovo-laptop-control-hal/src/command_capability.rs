@@ -1902,21 +1902,8 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
     CommandCapability::new(
         CommandId::UPDATE_CHECK,
         CommandAxes::read_only(StateLayer::NotApplicable),
-        // `update check` serves the catalogue the UDC service already synced
-        // into `HKLM\SOFTWARE\Lenovo\UDC\Packages`, so the row binds the local
-        // catalogue probe (`update.catalog.local`) rather than the remote
-        // refresh contract. The two legs are deliberately different ids:
-        //
-        // * local: read `LastUpdateConfig`, parse it, evaluate applicability —
-        //   read-only, no network, recorded `available`/`limited` when a config
-        //   exists. This is what the verb does.
-        // * remote: "remote update checking has no authenticated catalog
-        //   contract" (the previous verdict this row carried). It is refused by
-        //   `UPDATE_DOWNLOAD`/`UPDATE_INSTALL`/`UPDATE_SCHEDULE`
-        //   (`update.*.without-authenticated-manifest|without-catalog`) and by
-        //   `vantage doctor`'s `update.capability` channel, because the UDC mTLS
-        //   client credential is service-held
-        //   (docs/evidence/udc-mtls-credential-hunt-20261105.md).
+        // This row describes the default check against the synced UDC catalog.
+        // An explicit --mtm queries the public catalog through the CLI.
         FeatureBinding::Capability("update.catalog.local"),
         ServiceBinding::One(ServiceRole::Update),
         &[
@@ -2016,16 +2003,15 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
         CommandId::UPDATE_DOWNLOAD,
         CommandAxes::mutation(
             StateLayer::LocalPersistent,
-            Readback::Unverified,
-            Rollback::Transactional,
+            Readback::Required,
+            Rollback::Unavailable,
         ),
-        FeatureBinding::Unprobed("update.download.without-authenticated-manifest"),
-        ServiceBinding::One(ServiceRole::Update),
-        &[
-            lenovo_laptop_control_core::required(Dependency::AuthenticatedUpdateCatalog),
-            lenovo_laptop_control_core::required(Dependency::LocalFilesystem),
-        ],
-        DispatchSupport::Unsupported("no authenticated remote update manifest is attached"),
+        FeatureBinding::Unprobed("update.download.public-catalog"),
+        ServiceBinding::Local,
+        &[lenovo_laptop_control_core::required(
+            Dependency::LocalFilesystem,
+        )],
+        DispatchSupport::Implemented,
     ),
     CommandCapability::new(
         CommandId::UPDATE_INSTALL,
@@ -2034,14 +2020,16 @@ pub const COMMAND_REGISTRY: &[CommandCapability] = &[
             Readback::Required,
             Rollback::Transactional,
         ),
-        FeatureBinding::Unprobed("update.install.without-authenticated-manifest"),
+        FeatureBinding::Unprobed("update.install.remote-execution"),
         ServiceBinding::One(ServiceRole::Update),
         &[
-            lenovo_laptop_control_core::required(Dependency::AuthenticatedUpdateCatalog),
             lenovo_laptop_control_core::required(Dependency::Win32SetupApi),
             lenovo_laptop_control_core::required(Dependency::LocalFilesystem),
         ],
-        DispatchSupport::Unsupported("no authenticated remote update manifest is attached"),
+        // `update download` is implemented via the anonymous public catalog;
+        // remote install execution is deliberately not implemented, so the
+        // UDC-mTLS reason no longer describes this row's gap.
+        DispatchSupport::Unsupported("no remote install execution is attached"),
     ),
     CommandCapability::new(
         CommandId::UPDATE_HISTORY,
