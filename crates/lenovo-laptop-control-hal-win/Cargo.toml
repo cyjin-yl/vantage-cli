@@ -1,6 +1,6 @@
 [package]
 name = "lenovo-laptop-control-hal-win"
-version = "1.1.1"
+version = "1.1.2"
 edition.workspace = true
 rust-version.workspace = true
 description = "Windows HAL backend for Vantage (WMI/IOCTL/RPC)"
@@ -9,8 +9,8 @@ repository.workspace = true
 homepage = "https://github.com/cyjin-yl/vantage-cli"
 
 [dependencies]
-lenovo-laptop-control-core = { path = "../lenovo-laptop-control-core", version = "1.1.1" }
-lenovo-laptop-control-hal = { path = "../lenovo-laptop-control-hal", version = "1.1.1" }
+lenovo-laptop-control-core = { path = "../lenovo-laptop-control-core", version = "1.1.2" }
+lenovo-laptop-control-hal = { path = "../lenovo-laptop-control-hal", version = "1.1.2" }
 serde_json.workspace = true
 serde.workspace = true
 

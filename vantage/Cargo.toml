@@ -1,6 +1,6 @@
 [package]
 name = "vantage-cli"
-version = "1.1.1"
+version = "1.1.2"
 edition = "2024"
 rust-version = "1.85"
 repository.workspace = true
@@ -15,14 +15,14 @@ path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
-vantage-daemon = { path = "../crates/vantage-daemon", version = "1.1.1" }
-vantage-cli-lib = { path = "../crates/vantage-cli", version = "1.1.1" }
-lenovo-laptop-control-core = { path = "../crates/lenovo-laptop-control-core", version = "1.1.1" }
-lenovo-laptop-control-hal = { path = "../crates/lenovo-laptop-control-hal", version = "1.1.1" }
+vantage-daemon = { path = "../crates/vantage-daemon", version = "1.1.2" }
+vantage-cli-lib = { path = "../crates/vantage-cli", version = "1.1.2" }
+lenovo-laptop-control-core = { path = "../crates/lenovo-laptop-control-core", version = "1.1.2" }
+lenovo-laptop-control-hal = { path = "../crates/lenovo-laptop-control-hal", version = "1.1.2" }
 serde_json.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
-lenovo-laptop-control-hal-linux = { path = "../crates/lenovo-laptop-control-hal-linux", version = "1.1.1" }
+lenovo-laptop-control-hal-linux = { path = "../crates/lenovo-laptop-control-hal-linux", version = "1.1.2" }
 
 [target.'cfg(windows)'.dependencies]
-lenovo-laptop-control-hal-win = { path = "../crates/lenovo-laptop-control-hal-win", version = "1.1.1" }
+lenovo-laptop-control-hal-win = { path = "../crates/lenovo-laptop-control-hal-win", version = "1.1.2" }
